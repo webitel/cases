@@ -1,9 +1,24 @@
 package model
 
-import "time"
+import (
+	"context"
+	session "github.com/webitel/cases/auth/model"
+	"time"
+)
 
 type UpdateOptions struct {
-	ID     int64
-	Fields []string
-	Time   time.Time
+	session         *session.Session
+	context.Context //binding
+	Time            time.Time
+	ID              int64
+	Fields          []string
+}
+
+func (rpc *UpdateOptions) CurrentTime() time.Time {
+	ts := rpc.Time
+	if ts.IsZero() {
+		ts = time.Now()
+		rpc.Time = ts
+	}
+	return ts
 }
