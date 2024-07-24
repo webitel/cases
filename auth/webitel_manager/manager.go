@@ -2,9 +2,9 @@ package webitel_manager
 
 import (
 	"context"
-	iface "github.com/webitel/logger/auth"
-	"github.com/webitel/logger/auth/model"
-	errors "github.com/webitel/logger/model"
+	iface "github.com/webitel/cases/auth"
+	"github.com/webitel/cases/auth/model"
+	errors "github.com/webitel/cases/model"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )

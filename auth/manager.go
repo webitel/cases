@@ -5,8 +5,8 @@ import (
 	authmodel "buf.build/gen/go/webitel/webitel-go/protocolbuffers/go"
 	"context"
 	"github.com/golang/groupcache/singleflight"
-	"github.com/webitel/logger/auth/model"
-	errors "github.com/webitel/logger/model"
+	model "github.com/webitel/cases/auth/model"
+	errors "github.com/webitel/cases/model"
 	"google.golang.org/grpc"
 )
 
