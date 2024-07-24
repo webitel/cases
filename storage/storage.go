@@ -6,16 +6,12 @@ import (
 )
 
 type Storage interface {
-	//Status lookup
 	Status() StatusLookupStore
-	// CloseReason  lookup
 	CloseReason() CloseReasonLookupStore
-	// Appeal lookup
 	Appeal() AppealLookupStore
 
 	// Database connection
 	Database() (*sqlx.DB, model.AppError)
-
 	Open() model.AppError
 	Close() model.AppError
 }
