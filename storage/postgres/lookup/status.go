@@ -29,7 +29,7 @@ func (s StatusLookup) Update(rpc *model.UpdateOptions) error {
 	panic("implement me")
 }
 
-func NewStatusLookupStore(store storage.Storage) (storage.AppealLookupStore, model.AppError) {
+func NewStatusLookupStore(store storage.Storage) (storage.StatusLookupStore, model.AppError) {
 	if store == nil {
 		return nil, model.NewInternalError("postgres.config.new_status_lookup.check.bad_arguments",
 			"error creating config interface to the status_lookup table, main store is nil")

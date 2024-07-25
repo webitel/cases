@@ -29,7 +29,7 @@ func (c CloseReasonLookup) Update(rpc *model.UpdateOptions) error {
 	panic("implement me")
 }
 
-func NewCloseReasonLookupStore(store storage.Storage) (storage.AppealLookupStore, model.AppError) {
+func NewCloseReasonLookupStore(store storage.Storage) (storage.CloseReasonLookupStore, model.AppError) {
 	if store == nil {
 		return nil, model.NewInternalError("postgres.config.new_close_reason_lookup.check.bad_arguments",
 			"error creating config interface to the close_reason table, main store is nil")

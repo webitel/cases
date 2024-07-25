@@ -1,9 +1,11 @@
 package app
 
 import (
+	grpcservice "buf.build/gen/go/webitel/cases/grpc/go/_gogrpc"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/app/lookup"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/registry"
 	"github.com/webitel/cases/registry/consul"
@@ -81,24 +83,31 @@ func (a *Server) Stop() {
 
 func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 
-	//grpcServer := grpc.NewServer(grpc.UnaryInterceptor(unaryInterceptor))
-	//// * Creating services
-	//l, appErr := NewLoggerService(app)
-	//if appErr != nil {
-	//	return nil, appErr
-	//}
-	//c, appErr := NewConfigService(app)
-	//if appErr != nil {
-	//	return nil, appErr
-	//}
-	//
-	//// * register logger service
-	//proto_grpc.RegisterLoggerServiceServer(grpcServer, l)
-	//// * register config service
-	//proto_grpc.RegisterConfigServiceServer(grpcServer, c)
-	//
-	//return grpcServer, nil
-	return nil, nil
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(unaryInterceptor))
+	// * Creating services
+	l, appErr := lookup.NewAppealLookupService(app)
+	if appErr != nil {
+		return nil, appErr
+	}
+	c, appErr := lookup.NewStatusLookupService(app)
+	if appErr != nil {
+		return nil, appErr
+	}
+
+	n, appErr := lookup.NewCloseReasonLookupService(app)
+	if appErr != nil {
+		return nil, appErr
+	}
+
+	// * register appeal service
+	grpcservice.RegisterAppealLookupsServer(grpcServer, l)
+	// * register status service
+	grpcservice.RegisterStatusLookupsServer(grpcServer, c)
+	// * register close reason service
+	grpcservice.RegisterCloseReasonLookupsServer(grpcServer, n)
+
+	return grpcServer, nil
+
 }
 
 func unaryInterceptor(ctx context.Context,
