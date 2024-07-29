@@ -1,15 +1,13 @@
 package lookup
 
 import (
-	"context"
-	"github.com/webitel/cases/internal/app"
-	"strings"
-	"time"
-
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	_general "buf.build/gen/go/webitel/general/protocolbuffers/go"
+	"context"
 	authmodel "github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/internal/app"
 	"github.com/webitel/cases/model"
+	"strings"
 )
 
 type StatusLookupService struct {
@@ -38,8 +36,6 @@ func (s StatusLookupService) CreateStatusLookup(ctx context.Context, req *_go.Cr
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
-	now := time.Now().UTC()
-
 	// Define the current user as the creator and updater
 	currentU := &_general.Lookup{
 		Id:   session.GetUserId(),
@@ -61,7 +57,6 @@ func (s StatusLookupService) CreateStatusLookup(ctx context.Context, req *_go.Cr
 		Session: session,
 		Context: ctx,
 		Fields:  fields,
-		Time:    now,
 	}
 
 	// Create the group in the db
@@ -137,8 +132,6 @@ func (s StatusLookupService) UpdateStatusLookup(ctx context.Context, req *_go.Up
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
-	now := time.Now().UTC()
-
 	// Define the current user as the updater
 	currentU := &_general.Lookup{
 		Id:   session.GetUserId(),
@@ -160,7 +153,6 @@ func (s StatusLookupService) UpdateStatusLookup(ctx context.Context, req *_go.Up
 		Session: session,
 		Context: ctx,
 		Fields:  fields,
-		Time:    now,
 	}
 
 	// Update the lookup in the db

@@ -35,10 +35,12 @@ func (s StatusLookup) Create(ctx *model.CreateOptions, add *_go.StatusLookup) (*
 
 	var createdByLookup, updatedByLookup _gen.Lookup
 
+	t := ctx.CurrentTime()
+
 	err = d.QueryRowContext(ctx.Context, query, args...).Scan(
-		&add.Id, &add.Name, &ctx.Time, &add.Description,
+		&add.Id, &add.Name, t, &add.Description,
 		&createdByLookup.Id, &createdByLookup.Name,
-		&ctx.Time, &updatedByLookup.Id, &updatedByLookup.Name,
+		t, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 
 	if err != nil {
@@ -46,17 +48,15 @@ func (s StatusLookup) Create(ctx *model.CreateOptions, add *_go.StatusLookup) (*
 		return nil, err
 	}
 
-	//When we create a new lookup - CREATED/UPDATED_AT are the same
-	t := ctx.Time.Unix()
-
 	return &_go.StatusLookup{
 		Id:          add.Id,
 		Name:        add.Name,
 		Description: add.Description,
-		CreatedAt:   t,
-		UpdatedAt:   t,
-		CreatedBy:   &createdByLookup,
-		UpdatedBy:   &updatedByLookup,
+		//When we create a new lookup - CREATED/UPDATED_AT are the same
+		CreatedAt: t.Unix(),
+		UpdatedAt: t.Unix(),
+		CreatedBy: &createdByLookup,
+		UpdatedBy: &updatedByLookup,
 	}, nil
 }
 
@@ -250,7 +250,8 @@ from ins
   left join directory.wbt_user u on u.id = ins.updated_by
   left join directory.wbt_user c on c.id = ins.created_by;
 `
-	args := []interface{}{lookup.Name, ctx.Session.GetDomainId(), ctx.Time, lookup.Description, ctx.Session.GetUserId(), ctx.Time, ctx.Session.GetUserId()}
+	args := []interface{}{lookup.Name, ctx.Session.GetDomainId(), ctx.CurrentTime(), lookup.Description, ctx.Session.GetUserId(),
+		ctx.CurrentTime(), ctx.Session.GetUserId()}
 	return query, args, nil
 }
 
@@ -346,7 +347,7 @@ func buildUpdateStatusLookupQuery(ctx *model.UpdateOptions, l *_go.StatusLookup)
 	var setClauses []string
 	var args []interface{}
 
-	args = append(args, ctx.Time, ctx.Session.GetUserId())
+	args = append(args, ctx.CurrentTime(), ctx.Session.GetUserId())
 
 	// Add the updated_at and updated_by fields to the set clauses
 	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
