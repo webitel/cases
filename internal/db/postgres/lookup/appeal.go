@@ -2,7 +2,7 @@ package lookup
 
 import (
 	"github.com/webitel/cases/db"
-	db2 "github.com/webitel/cases/internal/db"
+	db "github.com/webitel/cases/internal/db"
 	"github.com/webitel/cases/model"
 )
 

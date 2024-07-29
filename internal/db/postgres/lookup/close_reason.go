@@ -2,12 +2,12 @@ package lookup
 
 import (
 	"github.com/webitel/cases/db"
-	db2 "github.com/webitel/cases/internal/db"
+	db "github.com/webitel/cases/internal/db"
 	"github.com/webitel/cases/model"
 )
 
 type CloseReasonLookup struct {
-	storage db.Storage
+	storage db.DB
 }
 
 func (c CloseReasonLookup) Create(rpc *model.CreateOptions) error {

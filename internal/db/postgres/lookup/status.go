@@ -2,30 +2,36 @@ package lookup
 
 import (
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	"github.com/webitel/cases/db"
-	 "github.com/webitel/cases/internal/db"
+	_gen "buf.build/gen/go/webitel/general/protocolbuffers/go"
+	db "github.com/webitel/cases/internal/db"
 	"github.com/webitel/cases/model"
 	"log"
 	"time"
 )
 
 type StatusLookup struct {
-	storage *db.Storage
+	storage db.DB
 }
 
 func (s StatusLookup) Create(rpc *model.CreateOptions, add *_go.StatusLookup) (*_go.StatusLookup, error) {
 	query, args, err := s.buildCreateGroupQuery(rpc.Session.GetDomainId(), rpc.Session.GetUserId(), add)
+	d, dbErr := s.storage.Database()
 
+	if dbErr != nil {
+		log.Printf("Failed to get database connection: %v", dbErr)
+		return nil, dbErr
+
+	}
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return nil, err
 	}
 
-	var createdByLookup, updatedByLookup pb.Lookup
+	var createdByLookup, updatedByLookup _gen.Lookup
 	var createdAt, updatedAt time.Time
 
-	err = s.(req.Context, query, args...).Scan(
-		&group.Id, &group.Name, &createdAt, &group.Description,
+	err = d.QueryRowContext(rpc.Context, query, args...).Scan(
+		&add.Id, &add.Name, &createdAt, &add.Description,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
@@ -35,7 +41,15 @@ func (s StatusLookup) Create(rpc *model.CreateOptions, add *_go.StatusLookup) (*
 		return nil, err
 	}
 
-	return group, nil
+	return &_go.StatusLookup{
+		Id:          "",
+		Name:        "",
+		Description: "",
+		CreatedAt:   0,
+		UpdatedAt:   0,
+		CreatedBy:   nil,
+		UpdatedBy:   nil,
+	}, nil
 }
 
 func (s StatusLookup) Search(rpc *model.SearchOptions, ids []string) ([]*_go.StatusLookup, error) {
@@ -78,7 +92,7 @@ from ins
 	return query, args, nil
 }
 
-func NewStatusLookupStore(store db.Storage) (db2.StatusLookupStore, model.AppError) {
+func NewStatusLookupStore(store db.DB) (db.StatusLookupStore, model.AppError) {
 	if store == nil {
 		return nil, model.NewInternalError("postgres.config.new_status_lookup.check.bad_arguments",
 			"error creating config interface to the status_lookup table, main store is nil")
