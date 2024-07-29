@@ -23,8 +23,8 @@ type StatusLookupStore interface {
 	// Search status lookup
 	Search(rpc *model.SearchOptions, ids []string) ([]*_go.StatusLookup, error)
 	// Delete status lookup
-	Delete(rpc *model.DeleteOptions, id string) error
-	// Update status lookup
+	Delete(rpc *model.DeleteOptions) error
+	// Update status lookupßß
 	Update(rpc *model.UpdateOptions, lookup *_go.StatusLookup) (*_go.StatusLookup, error)
 }
 

@@ -4,8 +4,11 @@ import (
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	_gen "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	"database/sql"
+	"errors"
+	"fmt"
 	"github.com/Masterminds/squirrel"
-	db "github.com/webitel/cases/internal/db"
+	"github.com/lib/pq"
+	"github.com/webitel/cases/internal/db"
 	"github.com/webitel/cases/model"
 	"log"
 	"strings"
@@ -16,8 +19,8 @@ type StatusLookup struct {
 	storage db.DB
 }
 
-func (s StatusLookup) Create(rpc *model.CreateOptions, add *_go.StatusLookup) (*_go.StatusLookup, error) {
-	query, args, err := s.buildCreateStatusLookupQuery(rpc.Session.GetDomainId(), rpc.Session.GetUserId(), rpc.Time, add)
+func (s StatusLookup) Create(ctx *model.CreateOptions, add *_go.StatusLookup) (*_go.StatusLookup, error) {
+	query, args, err := s.buildCreateStatusLookupQuery(ctx, add)
 	d, dbErr := s.storage.Database()
 
 	if dbErr != nil {
@@ -32,10 +35,10 @@ func (s StatusLookup) Create(rpc *model.CreateOptions, add *_go.StatusLookup) (*
 
 	var createdByLookup, updatedByLookup _gen.Lookup
 
-	err = d.QueryRowContext(rpc.Context, query, args...).Scan(
-		&add.Id, &add.Name, &rpc.Time, &add.Description,
+	err = d.QueryRowContext(ctx.Context, query, args...).Scan(
+		&add.Id, &add.Name, &ctx.Time, &add.Description,
 		&createdByLookup.Id, &createdByLookup.Name,
-		&rpc.Time, &updatedByLookup.Id, &updatedByLookup.Name,
+		&ctx.Time, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 
 	if err != nil {
@@ -44,7 +47,7 @@ func (s StatusLookup) Create(rpc *model.CreateOptions, add *_go.StatusLookup) (*
 	}
 
 	//When we create a new lookup - CREATED/UPDATED_AT are the same
-	t := rpc.Time.Unix()
+	t := ctx.Time.Unix()
 
 	return &_go.StatusLookup{
 		Id:          add.Id,
@@ -57,8 +60,8 @@ func (s StatusLookup) Create(rpc *model.CreateOptions, add *_go.StatusLookup) (*
 	}, nil
 }
 
-func (s StatusLookup) Search(rpc *model.SearchOptions, ids []string) ([]*_go.StatusLookup, error) {
-	cte, err := s.buildSearchStatusLookupQuery(rpc, rpc.Session.GetDomainId(), ids)
+func (s StatusLookup) Search(ctx *model.SearchOptions, ids []string) ([]*_go.StatusLookup, error) {
+	cte, err := s.buildSearchStatusLookupQuery(ctx, ids)
 
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -72,13 +75,13 @@ func (s StatusLookup) Search(rpc *model.SearchOptions, ids []string) ([]*_go.Sta
 	}
 
 	// Request one more record to check if there's a next page
-	query, args, err := cte.Limit(uint64(rpc.GetSize() + 1)).ToSql()
+	query, args, err := cte.Limit(uint64(ctx.GetSize() + 1)).ToSql()
 	if err != nil {
 		log.Printf("Failed to generate SQL query: %v", err)
 		return nil, err
 	}
 
-	rows, err := d.DB.QueryContext(rpc.Context, query, args...)
+	rows, err := d.DB.QueryContext(ctx.Context, query, args...)
 
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
@@ -95,7 +98,7 @@ func (s StatusLookup) Search(rpc *model.SearchOptions, ids []string) ([]*_go.Sta
 
 	lCount := 0
 	for rows.Next() {
-		if lCount >= rpc.GetSize() {
+		if lCount >= ctx.GetSize() {
 			// We've retrieved more records than the page size, so there is a next page
 			break
 		}
@@ -106,7 +109,7 @@ func (s StatusLookup) Search(rpc *model.SearchOptions, ids []string) ([]*_go.Sta
 		var scanArgs []interface{}
 
 		// Prepare scan arguments based on requested fields
-		for _, field := range rpc.Fields {
+		for _, field := range ctx.Fields {
 			switch field {
 			case "id":
 				scanArgs = append(scanArgs, &l.Id)
@@ -131,17 +134,17 @@ func (s StatusLookup) Search(rpc *model.SearchOptions, ids []string) ([]*_go.Sta
 		}
 
 		// Assign the lookup fields to the lookup
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_by") {
+		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_by") {
 			l.CreatedBy = &createdBy
 		}
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_by") {
+		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_by") {
 			l.UpdatedBy = &updatedBy
 		}
 
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_at") {
+		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_at") {
 			l.CreatedAt = tempCreatedAt.Unix()
 		}
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_at") {
+		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_at") {
 			l.UpdatedAt = tempUpdatedAt.Unix()
 		}
 
@@ -152,22 +155,76 @@ func (s StatusLookup) Search(rpc *model.SearchOptions, ids []string) ([]*_go.Sta
 	return lookupList, nil
 }
 
-func (s StatusLookup) Delete(rpc *model.DeleteOptions, id string) error {
-	//TODO implement me
-	panic("implement me")
+func (s StatusLookup) Delete(ctx *model.DeleteOptions) error {
+	query, args, err := s.buildDeleteStatusLookupQuery(ctx)
+
+	if err != nil {
+		log.Printf("Failed to build SQL query: %v", err)
+		return err
+	}
+
+	d, dbErr := s.storage.Database()
+	if dbErr != nil {
+		log.Printf("Failed to get database connection: %v", dbErr)
+		return dbErr
+	}
+
+	res, err := d.DB.ExecContext(ctx.Context, query, args...)
+	if err != nil {
+		log.Printf("Failed to execute SQL query: %v", err)
+		return err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		log.Printf("Failed to get affected rows: %v", err)
+		return err
+	}
+	if affected == 0 {
+		return errors.New("no rows affected for deletion")
+	}
+
+	return nil
 }
 
-func (s StatusLookup) Update(rpc *model.UpdateOptions, lookup *_go.StatusLookup) (*_go.StatusLookup, error) {
-	//TODO implement me
-	panic("implement me")
+func (s StatusLookup) Update(ctx *model.UpdateOptions, l *_go.StatusLookup) (*_go.StatusLookup, error) {
+	// Build the query and args using the helper function
+	query, args := buildUpdateStatusLookupQuery(ctx, l)
+
+	d, dbErr := s.storage.Database()
+	if dbErr != nil {
+		log.Printf("Failed to get database connection: %v", dbErr)
+		return nil, dbErr
+	}
+
+	var createdBy, updatedByLookup _gen.Lookup
+	var createdAt, updatedAt time.Time
+	err := d.DB.QueryRowContext(ctx.Context, query, args...).Scan(
+		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
+		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
+	)
+
+	if err != nil {
+		log.Printf("Failed to execute SQL query: %v", err)
+		return nil, err
+	}
+
+	// Assigning the fields to the group
+	l.CreatedAt = createdAt.Unix()
+	l.UpdatedAt = updatedAt.Unix()
+	l.CreatedBy = &createdBy
+	l.UpdatedBy = &updatedByLookup
+
+	return l, nil
 }
 
-func (s StatusLookup) buildCreateStatusLookupQuery(domainID int64, createdBy int64, t time.Time, lookup *_go.StatusLookup) (string,
+// buildCreateStatusLookupQuery constructs the SQL insert query and returns the query string and arguments.
+func (s StatusLookup) buildCreateStatusLookupQuery(ctx *model.CreateOptions, lookup *_go.StatusLookup) (string,
 	[]interface{}, error) {
 	query := `
 with ins as (
     INSERT INTO cases.status_lookup (name, dc, created_at, description, created_by, updated_at, 
-updated_by) //TODO CREATE TABLE FOR CASES
+updated_by) 
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     returning *
 )
@@ -184,14 +241,15 @@ from ins
   left join directory.wbt_user u on u.id = ins.updated_by
   left join directory.wbt_user c on c.id = ins.created_by;
 `
-	args := []interface{}{lookup.Name, domainID, t, lookup.Description, createdBy, t, createdBy}
+	args := []interface{}{lookup.Name, ctx.Session.GetDomainId(), ctx.Time, lookup.Description, ctx.Session.GetUserId(), ctx.Time, ctx.Session.GetUserId()}
 	return query, args, nil
 }
 
-func (s StatusLookup) buildSearchStatusLookupQuery(ctx *model.SearchOptions, domainID int64, ids []string) (squirrel.SelectBuilder, error) {
+// buildSearchStatusLookupQuery constructs the SQL search query and returns the query builder.
+func (s StatusLookup) buildSearchStatusLookupQuery(ctx *model.SearchOptions, ids []string) (squirrel.SelectBuilder, error) {
 	queryBuilder := squirrel.Select().
 		From("cases.status_lookup AS g").
-		Where(squirrel.Eq{"g.dc": domainID}).
+		Where(squirrel.Eq{"g.dc": ctx.Session.GetDomainId()}).
 		PlaceholderFormat(squirrel.Dollar)
 
 	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
@@ -255,6 +313,73 @@ func (s StatusLookup) buildSearchStatusLookupQuery(ctx *model.SearchOptions, dom
 	}
 
 	return queryBuilder, nil
+}
+
+// buildDeleteStatusLookupQuery constructs the SQL delete query and returns the query string and arguments.
+func (s StatusLookup) buildDeleteStatusLookupQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
+	query := `
+        DELETE FROM cases.status_lookup
+        WHERE id = ANY($1) AND dc = $2
+    `
+	args := []interface{}{pq.Array(ctx.IDs), ctx.Session.GetDomainId()}
+	return query, args, nil
+}
+
+// buildUpdateStatusLookupQuery constructs the SQL update query and returns the query string and arguments.
+func buildUpdateStatusLookupQuery(ctx *model.UpdateOptions, l *_go.StatusLookup) (string, []interface{}) {
+	var setClauses []string
+	var args []interface{}
+
+	args = append(args, ctx.Time, ctx.Session.GetUserId())
+
+	// Add the updated_at and updated_by fields to the set clauses
+	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
+	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
+
+	// Fields that could be updated
+	updateFields := []string{"name", "description"}
+
+	// Add the fields to the set clauses
+	for _, field := range updateFields {
+		switch field {
+		case "name":
+			if l.Name != "" {
+				args = append(args, l.Name)
+				setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
+			}
+		case "description":
+			if l.Description != "" {
+				args = append(args, l.Description)
+				setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
+			}
+		}
+	}
+
+	// Construct the SQL query with joins for created_by and updated_by
+	query := fmt.Sprintf(`
+with upd as (
+    UPDATE cases.status_lookup
+    SET %s
+    WHERE id = $%d AND dc = $%d
+    RETURNING id, name, created_at, updated_at, description, created_by, updated_by
+)
+select upd.id,
+       upd.name,
+       upd.created_at,
+       upd.updated_at,
+       upd.description,
+       upd.created_by as created_by_id,
+       coalesce(c.name::text, c.username) as created_by_name,
+       upd.updated_by as updated_by_id,
+       coalesce(u.name::text, u.username) as updated_by_name
+from upd
+  left join directory.wbt_user u on u.id = upd.updated_by
+  left join directory.wbt_user c on c.id = upd.created_by;
+    `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
+
+	args = append(args, ctx.ID, ctx.Session.GetDomainId())
+
+	return query, args
 }
 
 func NewStatusLookupStore(store db.DB) (db.StatusLookupStore, model.AppError) {
