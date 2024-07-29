@@ -9,6 +9,7 @@ require (
 	buf.build/gen/go/webitel/webitel-go/grpc/go v1.4.0-20240717142245-3d606517c760.2
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240717142245-3d606517c760.2
 	github.com/BoRuDar/configuration/v4 v4.5.1
+	github.com/Masterminds/squirrel v1.5.4
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/hashicorp/consul/api v1.29.2
 	github.com/jmoiron/sqlx v1.4.0
@@ -19,7 +20,6 @@ require (
 
 require (
 	buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.34.2-20240617172850-a48fcebcf8f1.2 // indirect
-	buf.build/gen/go/webitel/general/grpc/go v1.4.0-20240527133232-b30251c3af1c.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -30,6 +30,8 @@ require (
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
+	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
+	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect

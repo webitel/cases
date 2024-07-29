@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	session "github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/internal/util"
 	"time"
 )
 
@@ -14,8 +15,10 @@ type SearchOptions struct {
 	Page            int
 	Size            int
 	Search          string
-	Sort            string
+	Sort            []string // fields order
 	Fields          []string
+	FieldsUtil      util.FieldsUtils
+	Match           util.Match
 }
 
 // DeafaultSearchSize is a constant integer == 16.
