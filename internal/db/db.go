@@ -20,8 +20,8 @@ type DB interface {
 type StatusLookupStore interface {
 	// Create a new status lookup
 	Create(rpc *model.CreateOptions, add *_go.StatusLookup) (*_go.StatusLookup, error)
-	// Search status lookup
-	Search(rpc *model.SearchOptions) (*_go.StatusLookupList, error)
+	// List status lookup
+	List(rpc *model.SearchOptions) (*_go.StatusLookupList, error)
 	// Delete status lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update status lookupßß
@@ -31,8 +31,8 @@ type StatusLookupStore interface {
 type CloseReasonLookupStore interface {
 	// Create a new close reason lookup
 	Create(rpc *model.CreateOptions) error
-	// Search close reason lookup
-	Search(rpc *model.SearchOptions, ids []string) error
+	// List close reason lookup
+	List(rpc *model.SearchOptions, ids []string) error
 	// Delete close reason lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update close reason lookup
@@ -42,8 +42,8 @@ type CloseReasonLookupStore interface {
 type AppealLookupStore interface {
 	// Create a new appeal lookup
 	Create(rpc *model.CreateOptions) error
-	// Search appeal lookup
-	Search(rpc *model.SearchOptions, ids []string) error
+	// List appeal lookup
+	List(rpc *model.SearchOptions, ids []string) error
 	// Delete appeal lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update appeal lookup

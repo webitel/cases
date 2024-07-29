@@ -60,7 +60,7 @@ func (s StatusLookup) Create(ctx *model.CreateOptions, add *_go.StatusLookup) (*
 	}, nil
 }
 
-func (s StatusLookup) Search(ctx *model.SearchOptions) (*_go.StatusLookupList, error) {
+func (s StatusLookup) List(ctx *model.SearchOptions) (*_go.StatusLookupList, error) {
 
 	cte, err := s.buildSearchStatusLookupQuery(ctx)
 

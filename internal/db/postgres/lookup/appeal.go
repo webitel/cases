@@ -14,7 +14,7 @@ func (a AppealLookup) Create(rpc *model.CreateOptions) error {
 	panic("implement me")
 }
 
-func (a AppealLookup) Search(rpc *model.SearchOptions, ids []string) error {
+func (a AppealLookup) List(rpc *model.SearchOptions, ids []string) error {
 	//TODO implement me
 	panic("implement me")
 }

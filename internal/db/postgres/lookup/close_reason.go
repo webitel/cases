@@ -14,7 +14,7 @@ func (c CloseReasonLookup) Create(rpc *model.CreateOptions) error {
 	panic("implement me")
 }
 
-func (c CloseReasonLookup) Search(rpc *model.SearchOptions, ids []string) error {
+func (c CloseReasonLookup) List(rpc *model.SearchOptions, ids []string) error {
 	//TODO implement me
 	panic("implement me")
 }

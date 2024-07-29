@@ -68,7 +68,7 @@ func (s StatusLookupService) CreateStatusLookup(ctx context.Context, req *_go.Cr
 	return l, nil
 }
 
-func (s StatusLookupService) SearchStatusLookups(ctx context.Context, req *_go.ListStatusLookupsRequest) (*_go.StatusLookupList, error) {
+func (s StatusLookupService) ListStatusLookups(ctx context.Context, req *_go.ListStatusLookupsRequest) (*_go.StatusLookupList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func (s StatusLookupService) SearchStatusLookups(ctx context.Context, req *_go.L
 		searchOptions.Filter["name"] = req.Name
 	}
 
-	lookups, e := s.app.DB.Status().Search(&searchOptions)
+	lookups, e := s.app.DB.Status().List(&searchOptions)
 	if e != nil {
 		return nil, e
 	}
@@ -228,7 +228,7 @@ func (s StatusLookupService) LocateStatusLookup(ctx context.Context, req *_go.Lo
 		Size:    1,
 	}
 
-	l, e := s.app.DB.Status().Search(&searchOpts)
+	l, e := s.app.DB.Status().List(&searchOpts)
 	if e != nil {
 		return nil, e
 	}
