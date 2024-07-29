@@ -14,13 +14,12 @@ type StatusLookup struct {
 }
 
 func (s StatusLookup) Create(rpc *model.CreateOptions, add *_go.StatusLookup) (*_go.StatusLookup, error) {
-	query, args, err := s.buildCreateGroupQuery(rpc.Session.GetDomainId(), rpc.Session.GetUserId(), add)
+	query, args, err := s.buildCreateGroupQuery(rpc.Session.GetDomainId(), rpc.Session.GetUserId(), rpc.Time, add)
 	d, dbErr := s.storage.Database()
 
 	if dbErr != nil {
 		log.Printf("Failed to get database connection: %v", dbErr)
 		return nil, dbErr
-
 	}
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
@@ -28,12 +27,11 @@ func (s StatusLookup) Create(rpc *model.CreateOptions, add *_go.StatusLookup) (*
 	}
 
 	var createdByLookup, updatedByLookup _gen.Lookup
-	var createdAt, updatedAt time.Time
 
 	err = d.QueryRowContext(rpc.Context, query, args...).Scan(
-		&add.Id, &add.Name, &createdAt, &add.Description,
+		&add.Id, &add.Name, &rpc.Time, &add.Description,
 		&createdByLookup.Id, &createdByLookup.Name,
-		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
+		&rpc.Time, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 
 	if err != nil {
@@ -41,14 +39,17 @@ func (s StatusLookup) Create(rpc *model.CreateOptions, add *_go.StatusLookup) (*
 		return nil, err
 	}
 
+	//When we create a new lookup - CREATED/UPDATED_AT are the same
+	t := rpc.Time.Unix()
+
 	return &_go.StatusLookup{
-		Id:          "",
-		Name:        "",
-		Description: "",
-		CreatedAt:   0,
-		UpdatedAt:   0,
-		CreatedBy:   nil,
-		UpdatedBy:   nil,
+		Id:          add.Id,
+		Name:        add.Name,
+		Description: add.Description,
+		CreatedAt:   t,
+		UpdatedAt:   t,
+		CreatedBy:   &createdByLookup,
+		UpdatedBy:   &updatedByLookup,
 	}, nil
 }
 
@@ -67,11 +68,12 @@ func (s StatusLookup) Update(rpc *model.UpdateOptions, lookup *_go.StatusLookup)
 	panic("implement me")
 }
 
-func (s StatusLookup) buildCreateGroupQuery(domainID int64, createdBy int64, lookup *_go.StatusLookup) (string, []interface{},
-	error) {
+func (s StatusLookup) buildCreateGroupQuery(domainID int64, createdBy int64, t time.Time, lookup *_go.StatusLookup) (string,
+	[]interface{}, error) {
 	query := `
 with ins as (
-    INSERT INTO contacts.group (name, dc, created_at, description, created_by, updated_at, updated_by)
+    INSERT INTO contacts.group (name, dc, created_at, description, created_by, updated_at, 
+updated_by) //TODO CREATE TABLE FOR CASES
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     returning *
 )
@@ -86,9 +88,9 @@ select ins.id,
     coalesce(u.name::text, u.username) updated_by_name
 from ins
   left join directory.wbt_user u on u.id = ins.updated_by
-  left join directory.wbt_user c on c.id = ins.created_by;;
+  left join directory.wbt_user c on c.id = ins.created_by;
 `
-	args := []interface{}{lookup.Name, domainID, time.Now().UTC(), lookup.Description, createdBy, time.Now().UTC(), createdBy}
+	args := []interface{}{lookup.Name, domainID, t, lookup.Description, createdBy, t, createdBy}
 	return query, args, nil
 }
 

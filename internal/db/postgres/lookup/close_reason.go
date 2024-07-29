@@ -1,7 +1,6 @@
 package lookup
 
 import (
-	"github.com/webitel/cases/db"
 	db "github.com/webitel/cases/internal/db"
 	"github.com/webitel/cases/model"
 )
@@ -30,7 +29,7 @@ func (c CloseReasonLookup) Update(rpc *model.UpdateOptions) error {
 	panic("implement me")
 }
 
-func NewCloseReasonLookupStore(store db.Storage) (db2.CloseReasonLookupStore, model.AppError) {
+func NewCloseReasonLookupStore(store db.DB) (db.CloseReasonLookupStore, model.AppError) {
 	if store == nil {
 		return nil, model.NewInternalError("postgres.config.new_close_reason_lookup.check.bad_arguments",
 			"error creating config interface to the close_reason table, main store is nil")
