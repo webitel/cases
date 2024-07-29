@@ -38,7 +38,7 @@ func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*mode
 	}
 
 	if !ok {
-		return nil, errors.NewForbiddenError("app.grpc.get_context", "Not found")
+		return nil, errors.NewForbiddenError("pkg.grpc.get_context", "Not found")
 	} else {
 		token = info.Get(model.AuthTokenName)
 	}

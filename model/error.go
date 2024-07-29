@@ -43,89 +43,89 @@ type ApplicationError struct {
 	params        map[string]interface{}
 }
 
-func (er *ApplicationError) SetTranslationParams(params map[string]any) AppError {
-	er.params = params
-	return er
+func (err *ApplicationError) SetTranslationParams(params map[string]any) AppError {
+	err.params = params
+	return err
 }
-func (er *ApplicationError) GetTranslationParams() map[string]any {
-	return er.params
-}
-
-func (er *ApplicationError) SetStatusCode(code int) AppError {
-	er.StatusCode = code
-	er.Status = http.StatusText(er.StatusCode)
-	return er
+func (err *ApplicationError) GetTranslationParams() map[string]any {
+	return err.params
 }
 
-func (er *ApplicationError) GetStatusCode() int {
-	return er.StatusCode
+func (err *ApplicationError) SetStatusCode(code int) AppError {
+	err.StatusCode = code
+	err.Status = http.StatusText(err.StatusCode)
+	return err
 }
 
-func (er *ApplicationError) Error() string {
+func (err *ApplicationError) GetStatusCode() int {
+	return err.StatusCode
+}
+
+func (err *ApplicationError) Error() string {
 	var where string
-	if er.Where != "" {
-		where = er.Where + ": "
+	if err.Where != "" {
+		where = err.Where + ": "
 	}
-	return fmt.Sprintf("%s%s, %s", where, er.Status, er.DetailedError)
+	return fmt.Sprintf("%s%s, %s", where, err.Status, err.DetailedError)
 }
-func (er *ApplicationError) SetDetailedError(details string) {
-	er.DetailedError = details
-}
-
-func (er *ApplicationError) GetDetailedError() string {
-	return er.DetailedError
+func (err *ApplicationError) SetDetailedError(details string) {
+	err.DetailedError = details
 }
 
-func (er *ApplicationError) Translate(T goi18n.TranslateFunc) {
-	if T == nil && er.DetailedError == "" {
-		er.DetailedError = er.Id
+func (err *ApplicationError) GetDetailedError() string {
+	return err.DetailedError
+}
+
+func (err *ApplicationError) Translate(T goi18n.TranslateFunc) {
+	if T == nil && err.DetailedError == "" {
+		err.DetailedError = err.Id
 		return
 	}
 
 	var errText string
 
-	if er.params == nil {
-		errText = T(er.Id)
+	if err.params == nil {
+		errText = T(err.Id)
 	} else {
-		errText = T(er.Id, er.params)
+		errText = T(err.Id, err.params)
 	}
 
-	if errText != er.Id {
-		er.DetailedError = errText
+	if errText != err.Id {
+		err.DetailedError = errText
 	}
 }
 
-func (er *ApplicationError) SystemMessage(T goi18n.TranslateFunc) string {
-	if er.params == nil {
-		return T(er.Id)
+func (err *ApplicationError) SystemMessage(T goi18n.TranslateFunc) string {
+	if err.params == nil {
+		return T(err.Id)
 	} else {
-		return T(er.Id, er.params)
+		return T(err.Id, err.params)
 	}
 }
 
-func (er *ApplicationError) SetRequestId(id string) {
-	er.RequestId = id
+func (err *ApplicationError) SetRequestId(id string) {
+	err.RequestId = id
 }
 
-func (er *ApplicationError) GetRequestId() string {
-	return er.RequestId
+func (err *ApplicationError) GetRequestId() string {
+	return err.RequestId
 }
 
-func (er *ApplicationError) GetId() string {
-	return er.Id
+func (err *ApplicationError) GetId() string {
+	return err.Id
 }
 
-func (er *ApplicationError) ToJson() string {
-	b, _ := json.Marshal(er)
+func (err *ApplicationError) ToJson() string {
+	b, _ := json.Marshal(err)
 	return string(b)
 }
 
-func (er *ApplicationError) String() string {
-	if er.Id == er.Status && er.DetailedError != "" {
-		return er.DetailedError
+func (err *ApplicationError) String() string {
+	if err.Id == err.Status && err.DetailedError != "" {
+		return err.DetailedError
 	}
 
-	return er.Status
+	return err.Status
 }
 
 // ! Id should be built like this written in the snake case --  *package*.*file*.*function*.*in what stage of function error occured*.*what happened*

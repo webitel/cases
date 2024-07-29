@@ -7,7 +7,7 @@ import (
 )
 
 type DeleteOptions struct {
-	session         *session.Session
+	Session         *session.Session
 	context.Context //binding
 	Time            time.Time
 	IDs             []int64

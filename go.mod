@@ -3,8 +3,9 @@ module github.com/webitel/cases
 go 1.22.4
 
 require (
-	buf.build/gen/go/webitel/cases/grpc/go v1.4.0-20240725104357-f5757a46f69e.2
-	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240725104357-f5757a46f69e.2
+	buf.build/gen/go/webitel/cases/grpc/go v1.4.0-20240725120119-0465f88158fb.2
+	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240725120119-0465f88158fb.2
+	buf.build/gen/go/webitel/general/protocolbuffers/go v1.34.2-20240527133232-b30251c3af1c.2
 	buf.build/gen/go/webitel/webitel-go/grpc/go v1.4.0-20240717142245-3d606517c760.2
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240717142245-3d606517c760.2
 	github.com/BoRuDar/configuration/v4 v4.5.1
@@ -18,7 +19,6 @@ require (
 
 require (
 	buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.34.2-20240617172850-a48fcebcf8f1.2 // indirect
-	buf.build/gen/go/webitel/general/protocolbuffers/go v1.34.2-20240527133232-b30251c3af1c.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect

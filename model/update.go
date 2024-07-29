@@ -7,7 +7,7 @@ import (
 )
 
 type UpdateOptions struct {
-	session         *session.Session
+	Session         *session.Session
 	context.Context //binding
 	Time            time.Time
 	ID              int64

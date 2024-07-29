@@ -6,20 +6,22 @@ import (
 	"time"
 )
 
-const (
-	DefaultSearchSize = 16
-)
-
 type SearchOptions struct {
-	session         *session.Session
+	Session         *session.Session
 	context.Context //binding
 	Time            time.Time
+	Filter          map[string]interface{}
 	Page            int
 	Size            int
 	Search          string
 	Sort            string
 	Fields          []string
 }
+
+// DeafaultSearchSize is a constant integer == 16.
+const (
+	DefaultSearchSize = 16
+)
 
 func (rpc *SearchOptions) GetSize() int {
 	if rpc == nil {

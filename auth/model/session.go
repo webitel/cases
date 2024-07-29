@@ -40,6 +40,13 @@ func (s *Session) GetUserId() int64 {
 	return s.user.Id
 }
 
+func (s *Session) GetUserName() string {
+	if s.user == nil {
+		return ""
+	}
+	return s.user.Name
+}
+
 func (s *Session) GetUser() *AuthorizedUser {
 	if s.user == nil {
 		return nil

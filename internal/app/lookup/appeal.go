@@ -3,7 +3,7 @@ package lookup
 import (
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	"context"
-	"github.com/webitel/cases/app"
+	"github.com/webitel/cases/internal/app"
 	"github.com/webitel/cases/model"
 )
 
@@ -38,7 +38,7 @@ func (a AppealLookupService) LocateAppealLookup(ctx context.Context, request *_g
 
 func NewAppealLookupService(app *app.App) (*AppealLookupService, model.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_appeal_lookup_service.args_check.app_nil", "app is nil")
+		return nil, model.NewInternalError("api.config.new_appeal_lookup_service.args_check.app_nil", "pkg is nil")
 	}
 	return &AppealLookupService{app: app}, nil
 }
