@@ -3,8 +3,8 @@ module github.com/webitel/cases
 go 1.22.4
 
 require (
-	buf.build/gen/go/webitel/cases/grpc/go v1.4.0-20240725120119-0465f88158fb.2
-	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240725120119-0465f88158fb.2
+	buf.build/gen/go/webitel/cases/grpc/go v1.4.0-20240729114143-33e125d9b24e.2
+	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240729114742-f98a1289859f.2
 	buf.build/gen/go/webitel/general/protocolbuffers/go v1.34.2-20240527133232-b30251c3af1c.2
 	buf.build/gen/go/webitel/webitel-go/grpc/go v1.4.0-20240717142245-3d606517c760.2
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240717142245-3d606517c760.2
@@ -13,6 +13,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/hashicorp/consul/api v1.29.2
 	github.com/jmoiron/sqlx v1.4.0
+	github.com/lib/pq v1.10.9
 	github.com/nicksnyder/go-i18n v1.10.3
 	github.com/webitel/wlog v0.0.0-20220608103744-93b33e61bd28
 	google.golang.org/grpc v1.65.0

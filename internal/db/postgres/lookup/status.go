@@ -60,8 +60,9 @@ func (s StatusLookup) Create(ctx *model.CreateOptions, add *_go.StatusLookup) (*
 	}, nil
 }
 
-func (s StatusLookup) Search(ctx *model.SearchOptions, ids []string) ([]*_go.StatusLookup, error) {
-	cte, err := s.buildSearchStatusLookupQuery(ctx, ids)
+func (s StatusLookup) Search(ctx *model.SearchOptions) (*_go.StatusLookupList, error) {
+
+	cte, err := s.buildSearchStatusLookupQuery(ctx)
 
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -97,9 +98,11 @@ func (s StatusLookup) Search(ctx *model.SearchOptions, ids []string) ([]*_go.Sta
 	var lookupList []*_go.StatusLookup
 
 	lCount := 0
+	next := false
 	for rows.Next() {
 		if lCount >= ctx.GetSize() {
 			// We've retrieved more records than the page size, so there is a next page
+			next = true
 			break
 		}
 
@@ -152,7 +155,11 @@ func (s StatusLookup) Search(ctx *model.SearchOptions, ids []string) ([]*_go.Sta
 		lCount++
 	}
 
-	return lookupList, nil
+	return &_go.StatusLookupList{
+		Page:  int32(ctx.Page),
+		Next:  next,
+		Items: lookupList,
+	}, nil
 }
 
 func (s StatusLookup) Delete(ctx *model.DeleteOptions) error {
@@ -170,6 +177,7 @@ func (s StatusLookup) Delete(ctx *model.DeleteOptions) error {
 	}
 
 	res, err := d.DB.ExecContext(ctx.Context, query, args...)
+
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return err
@@ -199,6 +207,7 @@ func (s StatusLookup) Update(ctx *model.UpdateOptions, l *_go.StatusLookup) (*_g
 
 	var createdBy, updatedByLookup _gen.Lookup
 	var createdAt, updatedAt time.Time
+
 	err := d.DB.QueryRowContext(ctx.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
@@ -209,7 +218,7 @@ func (s StatusLookup) Update(ctx *model.UpdateOptions, l *_go.StatusLookup) (*_g
 		return nil, err
 	}
 
-	// Assigning the fields to the group
+	// Assigning the fields to the lookup
 	l.CreatedAt = createdAt.Unix()
 	l.UpdatedAt = updatedAt.Unix()
 	l.CreatedBy = &createdBy
@@ -246,7 +255,11 @@ from ins
 }
 
 // buildSearchStatusLookupQuery constructs the SQL search query and returns the query builder.
-func (s StatusLookup) buildSearchStatusLookupQuery(ctx *model.SearchOptions, ids []string) (squirrel.SelectBuilder, error) {
+func (s StatusLookup) buildSearchStatusLookupQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
+
+	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
+	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+
 	queryBuilder := squirrel.Select().
 		From("cases.status_lookup AS g").
 		Where(squirrel.Eq{"g.dc": ctx.Session.GetDomainId()}).
@@ -317,11 +330,14 @@ func (s StatusLookup) buildSearchStatusLookupQuery(ctx *model.SearchOptions, ids
 
 // buildDeleteStatusLookupQuery constructs the SQL delete query and returns the query string and arguments.
 func (s StatusLookup) buildDeleteStatusLookupQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
-	query := `
+	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
+	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+
+	query := fmt.Sprintf(`
         DELETE FROM cases.status_lookup
         WHERE id = ANY($1) AND dc = $2
-    `
-	args := []interface{}{pq.Array(ctx.IDs), ctx.Session.GetDomainId()}
+    `)
+	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
 	return query, args, nil
 }
 
@@ -378,7 +394,6 @@ from upd
     `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
 
 	args = append(args, ctx.ID, ctx.Session.GetDomainId())
-
 	return query, args
 }
 

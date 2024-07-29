@@ -1,6 +1,7 @@
 package util
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -98,4 +99,12 @@ func (f FieldsUtils) ContainsField(fields []string, field string) bool {
 		}
 	}
 	return false
+}
+
+func (f FieldsUtils) Int64SliceToStringSlice(ids []int64) []string {
+	strIds := make([]string, len(ids))
+	for i, id := range ids {
+		strIds[i] = strconv.FormatInt(id, 10)
+	}
+	return strIds
 }

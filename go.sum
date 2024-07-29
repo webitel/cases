@@ -2,8 +2,14 @@ buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.34.2-20240617
 buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.34.2-20240617172850-a48fcebcf8f1.2/go.mod h1:WZzeH4Sx52g5HpdqDE4B6I0cn5MPzKmp7lSG6oB6ais=
 buf.build/gen/go/webitel/cases/grpc/go v1.4.0-20240725120119-0465f88158fb.2 h1:9irchjEq1CjkBNGRffKxyjKnU4ItkGt9LD4g2p4TIcE=
 buf.build/gen/go/webitel/cases/grpc/go v1.4.0-20240725120119-0465f88158fb.2/go.mod h1:yMNYnLhHKWB69MgRu0JSUrJktX68LFLbu4e4SBG6fdk=
+buf.build/gen/go/webitel/cases/grpc/go v1.4.0-20240729114143-33e125d9b24e.2 h1:k9amwxMCg0dT1YC+PYqPKC803PwECsZu2upW0vHMmiI=
+buf.build/gen/go/webitel/cases/grpc/go v1.4.0-20240729114143-33e125d9b24e.2/go.mod h1:uCgo5m3q6jjCdR48VXbY5vf6IEucx+vkApWdAJ8hEHM=
 buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240725120119-0465f88158fb.2 h1:mx/hUJMxslZL8JeU27jP12KBcWaV97vIt4ENDTqZt+0=
 buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240725120119-0465f88158fb.2/go.mod h1:xCKtDRsjYZTjaq2gB+i0zcOe+OCfMpzASh2qgWsUg3g=
+buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240729114143-33e125d9b24e.2 h1:fL5hReuJ4iinAc2DXwODxvq6tUt45xMWUcBkafR97gU=
+buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240729114143-33e125d9b24e.2/go.mod h1:xCKtDRsjYZTjaq2gB+i0zcOe+OCfMpzASh2qgWsUg3g=
+buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240729114742-f98a1289859f.2 h1:EM/df3wp74uXMzFaO5coCgGJe5TWgoT9ape4eBJgvJI=
+buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240729114742-f98a1289859f.2/go.mod h1:xCKtDRsjYZTjaq2gB+i0zcOe+OCfMpzASh2qgWsUg3g=
 buf.build/gen/go/webitel/general/protocolbuffers/go v1.34.2-20240527133232-b30251c3af1c.2 h1:8TL1uSpAy7QRkI+22GZVloajmHjHGOmiPj3JJygiWDc=
 buf.build/gen/go/webitel/general/protocolbuffers/go v1.34.2-20240527133232-b30251c3af1c.2/go.mod h1:gHp1Imav5YAm6ONiuQA4FTMjmJ+W3LWf6DyYf45NLz0=
 buf.build/gen/go/webitel/webitel-go/grpc/go v1.4.0-20240717142245-3d606517c760.2 h1:eRzfv2bgqx+QxuYM2Q5Nb5XRa22Cq2aywJRWuErkaC4=

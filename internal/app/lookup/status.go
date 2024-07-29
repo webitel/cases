@@ -3,6 +3,7 @@ package lookup
 import (
 	"context"
 	"github.com/webitel/cases/internal/app"
+	"strings"
 	"time"
 
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
@@ -15,9 +16,9 @@ type StatusLookupService struct {
 	app *app.App
 }
 
-// ErrLookupNameReq is a constant error message.
 const (
 	ErrLookupNameReq = "Lookup name is required"
+	defaultFields    = "id, name, description"
 )
 
 func (s StatusLookupService) CreateStatusLookup(ctx context.Context, req *_go.CreateStatusLookupRequest) (*_go.StatusLookup, error) {
@@ -72,7 +73,7 @@ func (s StatusLookupService) CreateStatusLookup(ctx context.Context, req *_go.Cr
 	return l, nil
 }
 
-func (s StatusLookupService) ListStatusLookups(ctx context.Context, req *_go.ListStatusLookupsRequest) (*_go.StatusLookupList, error) {
+func (s StatusLookupService) SearchStatusLookups(ctx context.Context, req *_go.ListStatusLookupsRequest) (*_go.StatusLookupList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -85,11 +86,23 @@ func (s StatusLookupService) ListStatusLookups(ctx context.Context, req *_go.Lis
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
+	fields := req.Fields
+	if len(fields) == 0 {
+		fields = strings.Split(defaultFields, ", ")
+	}
+
+	// Use default page size and page number if not provided
+	page := req.Page
+	if page == 0 {
+		page = 1
+	}
+
 	searchOptions := model.SearchOptions{
+		IDs:     req.Id,
 		Session: session,
 		Fields:  req.Fields,
 		Context: ctx,
-		Page:    int(req.Page),
+		Page:    int(page),
 		Size:    int(req.Size),
 	}
 
@@ -99,30 +112,17 @@ func (s StatusLookupService) ListStatusLookups(ctx context.Context, req *_go.Lis
 		searchOptions.Filter["name"] = req.Name
 	}
 
-	lookups, e := s.app.DB.Status().Search(&searchOptions, req.Id)
+	lookups, e := s.app.DB.Status().Search(&searchOptions)
 	if e != nil {
 		return nil, e
 	}
 
-	var results []*_go.StatusLookup
-	for _, l := range lookups {
-		results = append(results, &_go.StatusLookup{
-			Id:          l.Id,
-			Name:        l.Name,
-			Description: l.Description,
-			CreatedAt:   l.CreatedAt,
-			UpdatedAt:   l.UpdatedAt,
-			CreatedBy:   l.CreatedBy,
-			UpdatedBy:   l.UpdatedBy,
-		})
-	}
-
-	return &_go.StatusLookupList{Items: results}, nil
+	return lookups, nil
 }
 
 func (s StatusLookupService) UpdateStatusLookup(ctx context.Context, req *_go.UpdateStatusLookupRequest) (*_go.StatusLookup, error) {
 	// Validate required fields
-	if req.Id == "" || req.Name == "" {
+	if req.Id == 0 || req.Name == "" {
 		return nil, model.NewBadRequestError("groups.id_name.required", "Lookup ID and name are required")
 	}
 
@@ -174,7 +174,7 @@ func (s StatusLookupService) UpdateStatusLookup(ctx context.Context, req *_go.Up
 
 func (s StatusLookupService) DeleteStatusLookup(ctx context.Context, req *_go.DeleteStatusLookupRequest) (*_go.StatusLookup, error) {
 	// Validate required fields
-	if req.Id == "" {
+	if req.Id == 0 {
 		return nil, model.NewBadRequestError("groups.id.required", "Lookup ID is required")
 	}
 
@@ -193,10 +193,11 @@ func (s StatusLookupService) DeleteStatusLookup(ctx context.Context, req *_go.De
 	deleteOpts := model.DeleteOptions{
 		Session: session,
 		Context: ctx,
+		IDs:     []int64{req.Id},
 	}
 
 	// Delete the lookup in the db
-	e := s.app.DB.Status().Delete(&deleteOpts, req.Id)
+	e := s.app.DB.Status().Delete(&deleteOpts)
 	if e != nil {
 		return nil, e
 	}
@@ -206,7 +207,7 @@ func (s StatusLookupService) DeleteStatusLookup(ctx context.Context, req *_go.De
 
 func (s StatusLookupService) LocateStatusLookup(ctx context.Context, req *_go.LocateStatusLookupRequest) (*_go.LocateStatusLookupResponse, error) {
 	// Validate required fields
-	if req.Id == "" {
+	if req.Id == 0 {
 		return nil, model.NewBadRequestError("groups.id.required", "Lookup ID is required")
 	}
 
@@ -221,22 +222,30 @@ func (s StatusLookupService) LocateStatusLookup(ctx context.Context, req *_go.Lo
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
+	fields := req.Fields
+	if len(fields) == 0 {
+		fields = strings.Split(defaultFields, ", ")
+	}
+
 	searchOpts := model.SearchOptions{
+		IDs:     []int64{req.Id},
 		Session: session,
 		Context: ctx,
 		Fields:  req.Fields,
+		Page:    1,
+		Size:    1,
 	}
 
-	l, e := s.app.DB.Status().Search(&searchOpts, []string{req.Id})
+	l, e := s.app.DB.Status().Search(&searchOpts)
 	if e != nil {
 		return nil, e
 	}
 
-	if len(l) == 0 {
+	if len(l.Items) == 0 {
 		return nil, model.NewNotFoundError("status_lookup.not_found", "Status lookup not found")
 	}
 
-	lookup := l[0]
+	lookup := l.Items[0]
 
 	return &_go.LocateStatusLookupResponse{Lookup: lookup}, nil
 }

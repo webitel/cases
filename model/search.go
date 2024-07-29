@@ -9,6 +9,7 @@ import (
 
 type SearchOptions struct {
 	Session         *session.Session
+	IDs             []int64
 	context.Context //binding
 	Time            time.Time
 	Filter          map[string]interface{}
