@@ -9,7 +9,7 @@ import (
 	"github.com/webitel/wlog"
 )
 
-type PostgresStore struct {
+type Store struct {
 	config                 *model.DatabaseConfig
 	conn                   *sqlx.DB
 	appealLookupStore      store.AppealLookupStore
@@ -17,11 +17,11 @@ type PostgresStore struct {
 	closeReasonLookupStore store.CloseReasonLookupStore
 }
 
-func New(config *model.DatabaseConfig) *PostgresStore {
-	return &PostgresStore{config: config}
+func New(config *model.DatabaseConfig) *Store {
+	return &Store{config: config}
 }
 
-func (s *PostgresStore) AppealLookup() store.AppealLookupStore {
+func (s *Store) AppealLookup() store.AppealLookupStore {
 	if s.appealLookupStore == nil {
 		log, err := lookup2.NewAppealLookupStore(s)
 		if err != nil {
@@ -32,7 +32,7 @@ func (s *PostgresStore) AppealLookup() store.AppealLookupStore {
 	return s.appealLookupStore
 }
 
-func (s *PostgresStore) CloseReasonLookup() store.CloseReasonLookupStore {
+func (s *Store) CloseReasonLookup() store.CloseReasonLookupStore {
 	if s.closeReasonLookupStore == nil {
 		log, err := lookup2.NewCloseReasonLookupStore(s)
 		if err != nil {
@@ -42,7 +42,7 @@ func (s *PostgresStore) CloseReasonLookup() store.CloseReasonLookupStore {
 	}
 	return s.closeReasonLookupStore
 }
-func (s *PostgresStore) StatusLookup() store.StatusLookupStore {
+func (s *Store) StatusLookup() store.StatusLookupStore {
 	if s.statusLookupStore == nil {
 		log, err := lookup2.NewStatusLookupStore(s)
 		if err != nil {
@@ -53,14 +53,14 @@ func (s *PostgresStore) StatusLookup() store.StatusLookupStore {
 	return s.statusLookupStore
 }
 
-func (s *PostgresStore) Database() (*sqlx.DB, model.AppError) {
+func (s *Store) Database() (*sqlx.DB, model.AppError) {
 	if s.conn == nil {
 		model.NewInternalError("postgres.store.database.check.bad_arguments", "database connection is not opened")
 	}
 	return s.conn, nil
 }
 
-func (s *PostgresStore) Open() model.AppError {
+func (s *Store) Open() model.AppError {
 	db, err := sqlx.Connect("pgx", s.config.Url)
 	if err != nil {
 		return model.NewInternalError("postgres.store.open.connect.fail", err.Error())
@@ -70,7 +70,7 @@ func (s *PostgresStore) Open() model.AppError {
 	return nil
 }
 
-func (s *PostgresStore) Close() model.AppError {
+func (s *Store) Close() model.AppError {
 	err := s.conn.Close()
 	if err != nil {
 		return model.NewInternalError("postgres.store.close.disconnect.fail", err.Error())

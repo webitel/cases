@@ -13,7 +13,9 @@ type Store interface {
 
 	// Database connection
 	Database() (*sqlx.DB, model.AppError)
+	// Open database connection
 	Open() model.AppError
+	// Close database connection
 	Close() model.AppError
 }
 

@@ -194,8 +194,7 @@ func (s CloseReasonLookup) Delete(ctx *model.DeleteOptions) error {
 	return nil
 }
 
-func (s CloseReasonLookup) Update(ctx *model.UpdateOptions, l *_go.CloseReasonLookup) (*_go.CloseReasonLookup,
-	error) {
+func (s CloseReasonLookup) Update(ctx *model.UpdateOptions, l *_go.CloseReasonLookup) (*_go.CloseReasonLookup, error) {
 	// Build the query and args using the helper function
 	query, args := s.buildUpdateCloseReasonLookupQuery(ctx, l)
 
@@ -228,8 +227,7 @@ func (s CloseReasonLookup) Update(ctx *model.UpdateOptions, l *_go.CloseReasonLo
 }
 
 // buildCreateCloseReasonLookupQuery constructs the SQL insert query and returns the query string and arguments.
-func (s CloseReasonLookup) buildCreateCloseReasonLookupQuery(ctx *model.CreateOptions, lookup *_go.CloseReasonLookup) (string,
-	[]interface{}, error) {
+func (s CloseReasonLookup) buildCreateCloseReasonLookupQuery(ctx *model.CreateOptions, lookup *_go.CloseReasonLookup) (string, []interface{}, error) {
 	query := `
 with ins as (
     INSERT INTO cases.close_reason_lookup (name, dc, created_at, description, created_by, updated_at, 
