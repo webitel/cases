@@ -1,12 +1,12 @@
 package lookup
 
 import (
-	db "github.com/webitel/cases/internal/db"
+	db "github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 )
 
 type AppealLookup struct {
-	storage db.DB
+	storage db.Store
 }
 
 func (a AppealLookup) Create(rpc *model.CreateOptions) error {
@@ -29,7 +29,7 @@ func (a AppealLookup) Update(rpc *model.UpdateOptions) error {
 	panic("implement me")
 }
 
-func NewAppealLookupStore(store db.DB) (db.AppealLookupStore, model.AppError) {
+func NewAppealLookupStore(store db.Store) (db.AppealLookupStore, model.AppError) {
 	if store == nil {
 		return nil, model.NewInternalError("postgres.config.new_appeal_lookup.check.bad_arguments",
 			"error creating config interface to the appeal table, main store is nil")

@@ -22,7 +22,7 @@ const (
 func (s StatusLookupService) CreateStatusLookup(ctx context.Context, req *_go.CreateStatusLookupRequest) (*_go.StatusLookup, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("groups.name.required", ErrLookupNameReq)
+		return nil, model.NewBadRequestError("lookup.name.required", ErrLookupNameReq)
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -59,8 +59,8 @@ func (s StatusLookupService) CreateStatusLookup(ctx context.Context, req *_go.Cr
 		Fields:  fields,
 	}
 
-	// Create the group in the db
-	l, e := s.app.DB.Status().Create(&createOpts, lookup)
+	// Create the group in the store
+	l, e := s.app.Store.StatusLookup().Create(&createOpts, lookup)
 	if e != nil {
 		return nil, e
 	}
@@ -107,7 +107,7 @@ func (s StatusLookupService) ListStatusLookups(ctx context.Context, req *_go.Lis
 		searchOptions.Filter["name"] = req.Name
 	}
 
-	lookups, e := s.app.DB.Status().List(&searchOptions)
+	lookups, e := s.app.Store.StatusLookup().List(&searchOptions)
 	if e != nil {
 		return nil, e
 	}
@@ -155,8 +155,8 @@ func (s StatusLookupService) UpdateStatusLookup(ctx context.Context, req *_go.Up
 		Fields:  fields,
 	}
 
-	// Update the lookup in the db
-	l, e := s.app.DB.Status().Update(&updateOpts, lookup)
+	// Update the lookup in the store
+	l, e := s.app.Store.StatusLookup().Update(&updateOpts, lookup)
 	if e != nil {
 		return nil, e
 	}
@@ -167,7 +167,7 @@ func (s StatusLookupService) UpdateStatusLookup(ctx context.Context, req *_go.Up
 func (s StatusLookupService) DeleteStatusLookup(ctx context.Context, req *_go.DeleteStatusLookupRequest) (*_go.StatusLookup, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("groups.id.required", "Lookup ID is required")
+		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -188,8 +188,8 @@ func (s StatusLookupService) DeleteStatusLookup(ctx context.Context, req *_go.De
 		IDs:     []int64{req.Id},
 	}
 
-	// Delete the lookup in the db
-	e := s.app.DB.Status().Delete(&deleteOpts)
+	// Delete the lookup in the store
+	e := s.app.Store.StatusLookup().Delete(&deleteOpts)
 	if e != nil {
 		return nil, e
 	}
@@ -228,7 +228,7 @@ func (s StatusLookupService) LocateStatusLookup(ctx context.Context, req *_go.Lo
 		Size:    1,
 	}
 
-	l, e := s.app.DB.Status().List(&searchOpts)
+	l, e := s.app.Store.StatusLookup().List(&searchOpts)
 	if e != nil {
 		return nil, e
 	}

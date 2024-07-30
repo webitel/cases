@@ -6,9 +6,9 @@ import (
 	"github.com/webitel/cases/auth"
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/auth/webitel_manager"
-	"github.com/webitel/cases/internal/db"
-	"github.com/webitel/cases/internal/db/postgres"
 	server2 "github.com/webitel/cases/internal/server"
+	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/postgres"
 	"github.com/webitel/cases/model"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,7 +16,7 @@ import (
 
 type App struct {
 	config         *model.AppConfig
-	DB             db.DB
+	Store          store.Store
 	server         *server2.Server
 	exitChan       chan model.AppError
 	storageConn    *grpc.ClientConn
@@ -30,9 +30,9 @@ func New(config *model.AppConfig) (*App, model.AppError) {
 
 	// init of a database
 	if config.Database == nil {
-		model.NewInternalError("pkg.pkg.new.database_config.bad_arguments", "error creating db, config is nil")
+		model.NewInternalError("pkg.pkg.new.database_config.bad_arguments", "error creating store, config is nil")
 	}
-	app.DB = BuildDatabase(config.Database)
+	app.Store = BuildDatabase(config.Database)
 
 	// init of grpc server
 	s, appErr := server2.BuildServer(app, app.config.Consul, app.exitChan)
@@ -42,7 +42,7 @@ func New(config *model.AppConfig) (*App, model.AppError) {
 	app.server = s
 
 	// init service connections
-	app.storageConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/db?wait=14s", config.Consul.Address),
+	app.storageConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/store?wait=14s", config.Consul.Address),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
@@ -66,13 +66,13 @@ func New(config *model.AppConfig) (*App, model.AppError) {
 	return app, nil
 }
 
-func BuildDatabase(config *model.DatabaseConfig) db.DB {
+func BuildDatabase(config *model.DatabaseConfig) store.Store {
 	return postgres.New(config)
 }
 
 func (a *App) Start() model.AppError {
 
-	err := a.DB.Open()
+	err := a.Store.Open()
 	if err != nil {
 		return err
 	}
@@ -86,8 +86,8 @@ func (a *App) Start() model.AppError {
 func (a *App) Stop() model.AppError {
 	// close massive modules
 	a.server.Stop()
-	// close db connection
-	a.DB.Close()
+	// close store connection
+	a.Store.Close()
 	// close grpc connections
 	a.storageConn.Close()
 	// close webitel pkg connection

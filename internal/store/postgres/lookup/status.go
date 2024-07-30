@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	"github.com/webitel/cases/internal/db"
+	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 	"log"
 	"strings"
@@ -16,7 +16,7 @@ import (
 )
 
 type StatusLookup struct {
-	storage db.DB
+	storage store.Store
 }
 
 func (s StatusLookup) Create(ctx *model.CreateOptions, add *_go.StatusLookup) (*_go.StatusLookup, error) {
@@ -197,7 +197,7 @@ func (s StatusLookup) Delete(ctx *model.DeleteOptions) error {
 
 func (s StatusLookup) Update(ctx *model.UpdateOptions, l *_go.StatusLookup) (*_go.StatusLookup, error) {
 	// Build the query and args using the helper function
-	query, args := buildUpdateStatusLookupQuery(ctx, l)
+	query, args := s.buildUpdateStatusLookupQuery(ctx, l)
 
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -343,7 +343,7 @@ func (s StatusLookup) buildDeleteStatusLookupQuery(ctx *model.DeleteOptions) (st
 }
 
 // buildUpdateStatusLookupQuery constructs the SQL update query and returns the query string and arguments.
-func buildUpdateStatusLookupQuery(ctx *model.UpdateOptions, l *_go.StatusLookup) (string, []interface{}) {
+func (s StatusLookup) buildUpdateStatusLookupQuery(ctx *model.UpdateOptions, l *_go.StatusLookup) (string, []interface{}) {
 	var setClauses []string
 	var args []interface{}
 
@@ -398,7 +398,7 @@ from upd
 	return query, args
 }
 
-func NewStatusLookupStore(store db.DB) (db.StatusLookupStore, model.AppError) {
+func NewStatusLookupStore(store store.Store) (store.StatusLookupStore, model.AppError) {
 	if store == nil {
 		return nil, model.NewInternalError("postgres.config.new_status_lookup.check.bad_arguments",
 			"error creating config interface to the status_lookup table, main store is nil")
