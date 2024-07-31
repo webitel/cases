@@ -8,6 +8,7 @@ import (
 
 type Store interface {
 	StatusLookup() StatusLookupStore
+	LookupStatus() LookupStatusStore
 	CloseReasonLookup() CloseReasonLookupStore
 	AppealLookup() AppealLookupStore
 
@@ -28,6 +29,17 @@ type StatusLookupStore interface {
 	Delete(rpc *model.DeleteOptions) error
 	// Update status lookup
 	Update(rpc *model.UpdateOptions, lookup *_go.StatusLookup) (*_go.StatusLookup, error)
+}
+
+type LookupStatusStore interface {
+	// Create a new lookup status
+	Attach(ctx *model.CreateOptions, add *_go.LookupStatus) (*_go.LookupStatus, error)
+	// List lookup statuses
+	List(ctx *model.SearchOptions) (*_go.LookupStatusList, error)
+	// Delete lookup status
+	Delete(ctx *model.DeleteOptions) error
+	// Update lookup status
+	Update(ctx *model.UpdateOptions, status *_go.LookupStatus) (*_go.LookupStatus, error)
 }
 
 type CloseReasonLookupStore interface {

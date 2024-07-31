@@ -105,12 +105,20 @@ func buildGrpc(app *app.App) (*grpc.Server, model.AppError) {
 		return nil, appErr
 	}
 
+	// Lookup status service
+	s, appErr := lookup2.NewLookupStatusService(app)
+	if appErr != nil {
+		return nil, appErr
+	}
+
 	// * register appeal service
 	grpcservice.RegisterAppealLookupsServer(grpcServer, l)
 	// * register status service
 	grpcservice.RegisterStatusLookupsServer(grpcServer, c)
 	// * register close reason service
 	grpcservice.RegisterCloseReasonLookupsServer(grpcServer, n)
+	// * register lookup status service
+	grpcservice.RegisterLookupStatusesServer(grpcServer, s)
 
 	return grpcServer, nil
 

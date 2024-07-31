@@ -15,6 +15,7 @@ type Store struct {
 	appealLookupStore      store.AppealLookupStore
 	statusLookupStore      store.StatusLookupStore
 	closeReasonLookupStore store.CloseReasonLookupStore
+	lookupStatusStore      store.LookupStatusStore
 }
 
 func New(config *model.DatabaseConfig) *Store {
@@ -51,6 +52,17 @@ func (s *Store) StatusLookup() store.StatusLookupStore {
 		s.statusLookupStore = log
 	}
 	return s.statusLookupStore
+}
+
+func (s *Store) LookupStatus() store.LookupStatusStore {
+	if s.lookupStatusStore == nil {
+		log, err := lookup2.NewLookupStatusStore(s)
+		if err != nil {
+			return nil
+		}
+		s.lookupStatusStore = log
+	}
+	return s.lookupStatusStore
 }
 
 func (s *Store) Database() (*sqlx.DB, model.AppError) {
