@@ -15,12 +15,12 @@ import (
 	"time"
 )
 
-type AppealLookup struct {
+type Appeal struct {
 	storage db.Store
 }
 
-func (s AppealLookup) Create(ctx *model.CreateOptions, add *_go.AppealLookup) (*_go.AppealLookup, error) {
-	query, args, err := s.buildCreateAppealLookupQuery(ctx, add)
+func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, error) {
+	query, args, err := s.buildCreateAppealQuery(ctx, add)
 	d, dbErr := s.storage.Database()
 
 	if dbErr != nil {
@@ -48,7 +48,7 @@ func (s AppealLookup) Create(ctx *model.CreateOptions, add *_go.AppealLookup) (*
 		return nil, err
 	}
 
-	return &_go.AppealLookup{
+	return &_go.Appeal{
 		Id:          add.Id,
 		Name:        add.Name,
 		Description: add.Description,
@@ -60,8 +60,8 @@ func (s AppealLookup) Create(ctx *model.CreateOptions, add *_go.AppealLookup) (*
 	}, nil
 }
 
-func (s AppealLookup) List(ctx *model.SearchOptions) (*_go.AppealLookupList, error) {
-	cte, err := s.buildSearchAppealLookupQuery(ctx)
+func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
+	cte, err := s.buildSearchAppealQuery(ctx)
 
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -94,7 +94,7 @@ func (s AppealLookup) List(ctx *model.SearchOptions) (*_go.AppealLookupList, err
 		}
 	}(rows)
 
-	var lookupList []*_go.AppealLookup
+	var lookupList []*_go.Appeal
 
 	lCount := 0
 	next := false
@@ -105,7 +105,7 @@ func (s AppealLookup) List(ctx *model.SearchOptions) (*_go.AppealLookupList, err
 			break
 		}
 
-		l := &_go.AppealLookup{}
+		l := &_go.Appeal{}
 		var createdBy, updatedBy _gen.Lookup
 		var tempUpdatedAt, tempCreatedAt time.Time
 		var scanArgs []interface{}
@@ -154,15 +154,15 @@ func (s AppealLookup) List(ctx *model.SearchOptions) (*_go.AppealLookupList, err
 		lCount++
 	}
 
-	return &_go.AppealLookupList{
+	return &_go.AppealList{
 		Page:  int32(ctx.Page),
 		Next:  next,
 		Items: lookupList,
 	}, nil
 }
 
-func (s AppealLookup) Delete(ctx *model.DeleteOptions) error {
-	query, args, err := s.buildDeleteAppealLookupQuery(ctx)
+func (s Appeal) Delete(ctx *model.DeleteOptions) error {
+	query, args, err := s.buildDeleteAppealQuery(ctx)
 
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
@@ -170,6 +170,7 @@ func (s AppealLookup) Delete(ctx *model.DeleteOptions) error {
 	}
 
 	d, dbErr := s.storage.Database()
+
 	if dbErr != nil {
 		log.Printf("Failed to get database connection: %v", dbErr)
 		return dbErr
@@ -194,9 +195,9 @@ func (s AppealLookup) Delete(ctx *model.DeleteOptions) error {
 	return nil
 }
 
-func (s AppealLookup) Update(ctx *model.UpdateOptions, l *_go.AppealLookup) (*_go.AppealLookup, error) {
+func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, error) {
 	// Build the query and args using the helper function
-	query, args := s.buildUpdateAppealLookupQuery(ctx, l)
+	query, args := s.buildUpdateAppealQuery(ctx, l)
 
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -227,11 +228,11 @@ func (s AppealLookup) Update(ctx *model.UpdateOptions, l *_go.AppealLookup) (*_g
 }
 
 // buildCreateAppealLookupQuery constructs the SQL insert query and returns the query string and arguments.
-func (s AppealLookup) buildCreateAppealLookupQuery(ctx *model.CreateOptions, lookup *_go.AppealLookup) (string,
+func (s Appeal) buildCreateAppealQuery(ctx *model.CreateOptions, lookup *_go.Appeal) (string,
 	[]interface{}, error) {
 	query := `
 with ins as (
-    INSERT INTO cases.appeal_lookup (name, dc, created_at, description, created_by, updated_at, 
+    INSERT INTO cases.appeal (name, dc, created_at, description, created_by, updated_at, 
 updated_by) 
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     returning *
@@ -255,13 +256,13 @@ from ins
 }
 
 // buildSearchAppealLookupQuery constructs the SQL search query and returns the query builder.
-func (s AppealLookup) buildSearchAppealLookupQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
+func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
 
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	queryBuilder := squirrel.Select().
-		From("cases.appeal_lookup AS g").
+		From("cases.appeal AS g").
 		Where(squirrel.Eq{"g.dc": ctx.Session.GetDomainId()}).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -329,12 +330,12 @@ func (s AppealLookup) buildSearchAppealLookupQuery(ctx *model.SearchOptions) (sq
 }
 
 // buildDeleteAppealLookupQuery constructs the SQL delete query and returns the query string and arguments.
-func (s AppealLookup) buildDeleteAppealLookupQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
+func (s Appeal) buildDeleteAppealQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	query := fmt.Sprintf(`
-        DELETE FROM cases.appeal_lookup
+        DELETE FROM cases.appeal
         WHERE id = ANY($1) AND dc = $2
     `)
 	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
@@ -342,7 +343,7 @@ func (s AppealLookup) buildDeleteAppealLookupQuery(ctx *model.DeleteOptions) (st
 }
 
 // buildUpdateAppealLookupQuery constructs the SQL update query and returns the query string and arguments.
-func (s AppealLookup) buildUpdateAppealLookupQuery(ctx *model.UpdateOptions, l *_go.AppealLookup) (string,
+func (s Appeal) buildUpdateAppealQuery(ctx *model.UpdateOptions, l *_go.Appeal) (string,
 	[]interface{}) {
 	var setClauses []string
 	var args []interface{}
@@ -375,7 +376,7 @@ func (s AppealLookup) buildUpdateAppealLookupQuery(ctx *model.UpdateOptions, l *
 	// Construct the SQL query with joins for created_by and updated_by
 	query := fmt.Sprintf(`
 with upd as (
-    UPDATE cases.appeal_lookup
+    UPDATE cases.appeal
     SET %s
     WHERE id = $%d AND dc = $%d
     RETURNING id, name, created_at, updated_at, description, created_by, updated_by
@@ -398,10 +399,10 @@ from upd
 	return query, args
 }
 
-func NewAppealLookupStore(store db.Store) (db.AppealLookupStore, model.AppError) {
+func NewAppealStore(store db.Store) (db.AppealStore, model.AppError) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.config.new_appeal_lookup.check.bad_arguments",
+		return nil, model.NewInternalError("postgres.config.new_appeal.check.bad_arguments",
 			"error creating config interface to the appeal table, main store is nil")
 	}
-	return &AppealLookup{storage: store}, nil
+	return &Appeal{storage: store}, nil
 }

@@ -7,7 +7,7 @@ import (
 )
 
 type Session struct {
-	user        *AuthorizedUser
+	user        *User
 	permissions []*Permission
 	scope       []*Scope
 	roles       []*Role
@@ -47,7 +47,7 @@ func (s *Session) GetUserName() string {
 	return s.user.Name
 }
 
-func (s *Session) GetUser() *AuthorizedUser {
+func (s *Session) GetUser() *User {
 	if s.user == nil {
 		return nil
 	}
@@ -117,7 +117,7 @@ func (s *Session) HasAccess(scope *Scope, accessType AccessMode) bool {
 
 func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo) *Session {
 	session := &Session{
-		user: &AuthorizedUser{
+		user: &User{
 			Id:        userinfo.UserId,
 			Name:      userinfo.Name,
 			Username:  userinfo.Username,

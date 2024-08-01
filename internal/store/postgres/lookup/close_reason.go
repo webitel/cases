@@ -15,12 +15,12 @@ import (
 	"time"
 )
 
-type CloseReasonLookup struct {
+type CloseReason struct {
 	storage db.Store
 }
 
-func (s CloseReasonLookup) Create(ctx *model.CreateOptions, add *_go.CloseReasonLookup) (*_go.CloseReasonLookup, error) {
-	query, args, err := s.buildCreateCloseReasonLookupQuery(ctx, add)
+func (s CloseReason) Create(ctx *model.CreateOptions, add *_go.CloseReason) (*_go.CloseReason, error) {
+	query, args, err := s.buildCreateCloseReasonQuery(ctx, add)
 	d, dbErr := s.storage.Database()
 
 	if dbErr != nil {
@@ -48,7 +48,7 @@ func (s CloseReasonLookup) Create(ctx *model.CreateOptions, add *_go.CloseReason
 		return nil, err
 	}
 
-	return &_go.CloseReasonLookup{
+	return &_go.CloseReason{
 		Id:          add.Id,
 		Name:        add.Name,
 		Description: add.Description,
@@ -60,8 +60,8 @@ func (s CloseReasonLookup) Create(ctx *model.CreateOptions, add *_go.CloseReason
 	}, nil
 }
 
-func (s CloseReasonLookup) List(ctx *model.SearchOptions) (*_go.CloseReasonLookupList, error) {
-	cte, err := s.buildSearchCloseReasonLookupQuery(ctx)
+func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error) {
+	cte, err := s.buildSearchCloseReasonQuery(ctx)
 
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -94,7 +94,7 @@ func (s CloseReasonLookup) List(ctx *model.SearchOptions) (*_go.CloseReasonLooku
 		}
 	}(rows)
 
-	var lookupList []*_go.CloseReasonLookup
+	var lookupList []*_go.CloseReason
 
 	lCount := 0
 	next := false
@@ -105,7 +105,7 @@ func (s CloseReasonLookup) List(ctx *model.SearchOptions) (*_go.CloseReasonLooku
 			break
 		}
 
-		l := &_go.CloseReasonLookup{}
+		l := &_go.CloseReason{}
 		var createdBy, updatedBy _gen.Lookup
 		var tempUpdatedAt, tempCreatedAt time.Time
 		var scanArgs []interface{}
@@ -154,15 +154,15 @@ func (s CloseReasonLookup) List(ctx *model.SearchOptions) (*_go.CloseReasonLooku
 		lCount++
 	}
 
-	return &_go.CloseReasonLookupList{
+	return &_go.CloseReasonList{
 		Page:  int32(ctx.Page),
 		Next:  next,
 		Items: lookupList,
 	}, nil
 }
 
-func (s CloseReasonLookup) Delete(ctx *model.DeleteOptions) error {
-	query, args, err := s.buildDeleteCloseReasonLookupQuery(ctx)
+func (s CloseReason) Delete(ctx *model.DeleteOptions) error {
+	query, args, err := s.buildDeleteCloseReasonQuery(ctx)
 
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
@@ -194,9 +194,9 @@ func (s CloseReasonLookup) Delete(ctx *model.DeleteOptions) error {
 	return nil
 }
 
-func (s CloseReasonLookup) Update(ctx *model.UpdateOptions, l *_go.CloseReasonLookup) (*_go.CloseReasonLookup, error) {
+func (s CloseReason) Update(ctx *model.UpdateOptions, l *_go.CloseReason) (*_go.CloseReason, error) {
 	// Build the query and args using the helper function
-	query, args := s.buildUpdateCloseReasonLookupQuery(ctx, l)
+	query, args := s.buildUpdateCloseReasonQuery(ctx, l)
 
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -227,12 +227,12 @@ func (s CloseReasonLookup) Update(ctx *model.UpdateOptions, l *_go.CloseReasonLo
 }
 
 // buildCreateCloseReasonLookupQuery constructs the SQL insert query and returns the query string and arguments.
-func (s CloseReasonLookup) buildCreateCloseReasonLookupQuery(ctx *model.CreateOptions, lookup *_go.CloseReasonLookup) (string, []interface{}, error) {
+func (s CloseReason) buildCreateCloseReasonQuery(ctx *model.CreateOptions, lookup *_go.CloseReason) (string, []interface{}, error) {
 	query := `
 with ins as (
-    INSERT INTO cases.close_reason_lookup (name, dc, created_at, description, created_by, updated_at, 
+    INSERT INTO cases.close_reason (name, dc, created_at, description, created_by, updated_at, 
 updated_by) 
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    VALUES ($1, $2, $3, $4, $5, $6, $7
     returning *
 )
 select ins.id,
@@ -254,13 +254,13 @@ from ins
 }
 
 // buildSearchCloseReasonLookupQuery constructs the SQL search query and returns the query builder.
-func (s CloseReasonLookup) buildSearchCloseReasonLookupQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
+func (s CloseReason) buildSearchCloseReasonQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
 
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	queryBuilder := squirrel.Select().
-		From("cases.close_reason_lookup AS g").
+		From("cases.close_reason AS g").
 		Where(squirrel.Eq{"g.dc": ctx.Session.GetDomainId()}).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -328,12 +328,12 @@ func (s CloseReasonLookup) buildSearchCloseReasonLookupQuery(ctx *model.SearchOp
 }
 
 // buildDeleteCloseReasonLookupQuery constructs the SQL delete query and returns the query string and arguments.
-func (s CloseReasonLookup) buildDeleteCloseReasonLookupQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
+func (s CloseReason) buildDeleteCloseReasonQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	query := fmt.Sprintf(`
-        DELETE FROM cases.close_reason_lookup
+        DELETE FROM cases.close_reason
         WHERE id = ANY($1) AND dc = $2
     `)
 	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
@@ -341,7 +341,7 @@ func (s CloseReasonLookup) buildDeleteCloseReasonLookupQuery(ctx *model.DeleteOp
 }
 
 // buildUpdateCloseReasonLookupQuery constructs the SQL update query and returns the query string and arguments.
-func (s CloseReasonLookup) buildUpdateCloseReasonLookupQuery(ctx *model.UpdateOptions, l *_go.CloseReasonLookup) (string,
+func (s CloseReason) buildUpdateCloseReasonQuery(ctx *model.UpdateOptions, l *_go.CloseReason) (string,
 	[]interface{}) {
 	var setClauses []string
 	var args []interface{}
@@ -374,7 +374,7 @@ func (s CloseReasonLookup) buildUpdateCloseReasonLookupQuery(ctx *model.UpdateOp
 	// Construct the SQL query with joins for created_by and updated_by
 	query := fmt.Sprintf(`
 with upd as (
-    UPDATE cases.close_reason_lookup
+    UPDATE cases.close_reason
     SET %s
     WHERE id = $%d AND dc = $%d
     RETURNING id, name, created_at, updated_at, description, created_by, updated_by
@@ -397,10 +397,10 @@ from upd
 	return query, args
 }
 
-func NewCloseReasonLookupStore(store db.Store) (db.CloseReasonLookupStore, model.AppError) {
+func NewCloseReasonStore(store db.Store) (db.CloseReasonStore, model.AppError) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.config.new_close_reason_lookup.check.bad_arguments",
+		return nil, model.NewInternalError("postgres.config.new_close_reason.check.bad_arguments",
 			"error creating config interface to the close_reason table, main store is nil")
 	}
-	return &CloseReasonLookup{storage: store}, nil
+	return &CloseReason{storage: store}, nil
 }

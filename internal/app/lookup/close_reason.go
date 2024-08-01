@@ -10,11 +10,11 @@ import (
 	"strings"
 )
 
-type AppealLookupService struct {
+type CloseReasonService struct {
 	app *app.App
 }
 
-func (s AppealLookupService) CreateAppealLookup(ctx context.Context, req *_go.CreateAppealLookupRequest) (*_go.AppealLookup, error) {
+func (s CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.CreateCloseReasonRequest) (*_go.CloseReason, error) {
 	// Validate required fields
 	if req.Name == "" {
 		return nil, model.NewBadRequestError("lookup.name.required", ErrLookupNameReq)
@@ -38,7 +38,7 @@ func (s AppealLookupService) CreateAppealLookup(ctx context.Context, req *_go.Cr
 	}
 
 	// Create a new lookup model
-	lookup := &_go.AppealLookup{
+	lookup := &_go.CloseReason{
 		Name:        req.Name,
 		Description: req.Description,
 		CreatedBy:   currentU,
@@ -55,7 +55,7 @@ func (s AppealLookupService) CreateAppealLookup(ctx context.Context, req *_go.Cr
 	}
 
 	// Create the group in the store
-	l, e := s.app.Store.AppealLookup().Create(&createOpts, lookup)
+	l, e := s.app.Store.CloseReason().Create(&createOpts, lookup)
 	if e != nil {
 		return nil, e
 	}
@@ -63,7 +63,7 @@ func (s AppealLookupService) CreateAppealLookup(ctx context.Context, req *_go.Cr
 	return l, nil
 }
 
-func (s AppealLookupService) ListAppealLookups(ctx context.Context, req *_go.ListAppealLookupsRequest) (*_go.AppealLookupList, error) {
+func (s CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.ListCloseReasonRequest) (*_go.CloseReasonList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func (s AppealLookupService) ListAppealLookups(ctx context.Context, req *_go.Lis
 		searchOptions.Filter["name"] = req.Name
 	}
 
-	lookups, e := s.app.Store.AppealLookup().List(&searchOptions)
+	lookups, e := s.app.Store.CloseReason().List(&searchOptions)
 	if e != nil {
 		return nil, e
 	}
@@ -110,10 +110,10 @@ func (s AppealLookupService) ListAppealLookups(ctx context.Context, req *_go.Lis
 	return lookups, nil
 }
 
-func (s AppealLookupService) UpdateAppealLookup(ctx context.Context, req *_go.UpdateAppealLookupRequest) (*_go.AppealLookup, error) {
+func (s CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.UpdateCloseReasonRequest) (*_go.CloseReason, error) {
 	// Validate required fields
-	if req.Id == 0 || req.Name == "" {
-		return nil, model.NewBadRequestError("groups.id_name.required", "Lookup ID and name are required")
+	if req.Id == 0 {
+		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -134,7 +134,7 @@ func (s AppealLookupService) UpdateAppealLookup(ctx context.Context, req *_go.Up
 	}
 
 	// Update lookup model
-	lookup := &_go.AppealLookup{
+	lookup := &_go.CloseReason{
 		Id:          req.Id,
 		Name:        req.Name,
 		Description: req.Description,
@@ -151,7 +151,7 @@ func (s AppealLookupService) UpdateAppealLookup(ctx context.Context, req *_go.Up
 	}
 
 	// Update the lookup in the store
-	l, e := s.app.Store.AppealLookup().Update(&updateOpts, lookup)
+	l, e := s.app.Store.CloseReason().Update(&updateOpts, lookup)
 	if e != nil {
 		return nil, e
 	}
@@ -159,7 +159,7 @@ func (s AppealLookupService) UpdateAppealLookup(ctx context.Context, req *_go.Up
 	return l, nil
 }
 
-func (s AppealLookupService) DeleteAppealLookup(ctx context.Context, req *_go.DeleteAppealLookupRequest) (*_go.AppealLookup, error) {
+func (s CloseReasonService) DeleteCloseReason(ctx context.Context, req *_go.DeleteCloseReasonRequest) (*_go.CloseReason, error) {
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
@@ -184,15 +184,15 @@ func (s AppealLookupService) DeleteAppealLookup(ctx context.Context, req *_go.De
 	}
 
 	// Delete the lookup in the store
-	e := s.app.Store.CloseReasonLookup().Delete(&deleteOpts)
+	e := s.app.Store.CloseReason().Delete(&deleteOpts)
 	if e != nil {
 		return nil, e
 	}
 
-	return &(_go.AppealLookup{Id: req.Id}), nil
+	return &(_go.CloseReason{Id: req.Id}), nil
 }
 
-func (s AppealLookupService) LocateAppealLookup(ctx context.Context, req *_go.LocateAppealLookupRequest) (*_go.LocateAppealLookupResponse, error) {
+func (s CloseReasonService) LocateCloseReason(ctx context.Context, req *_go.LocateCloseReasonRequest) (*_go.LocateCloseReasonResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, model.NewBadRequestError("groups.id.required", "Lookup ID is required")
@@ -223,7 +223,7 @@ func (s AppealLookupService) LocateAppealLookup(ctx context.Context, req *_go.Lo
 		Size:    1,
 	}
 
-	l, e := s.app.Store.AppealLookup().List(&searchOpts)
+	l, e := s.app.Store.CloseReason().List(&searchOpts)
 	if e != nil {
 		return nil, e
 	}
@@ -234,12 +234,13 @@ func (s AppealLookupService) LocateAppealLookup(ctx context.Context, req *_go.Lo
 
 	lookup := l.Items[0]
 
-	return &_go.LocateAppealLookupResponse{Lookup: lookup}, nil
+	return &_go.LocateCloseReasonResponse{CloseReason: lookup}, nil
 }
 
-func NewAppealLookupService(app *app.App) (*AppealLookupService, model.AppError) {
+func NewCloseReasonService(app *app.App) (*CloseReasonService, model.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_appeal_lookup_service.args_check.app_nil", "pkg is nil")
+		return nil, model.NewInternalError("api.config.new_close_reason_service.args_check.app_nil",
+			"pkg is nil")
 	}
-	return &AppealLookupService{app: app}, nil
+	return &CloseReasonService{app: app}, nil
 }

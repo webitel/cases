@@ -10,59 +10,59 @@ import (
 )
 
 type Store struct {
-	config                 *model.DatabaseConfig
-	conn                   *sqlx.DB
-	appealLookupStore      store.AppealLookupStore
-	statusLookupStore      store.StatusLookupStore
-	closeReasonLookupStore store.CloseReasonLookupStore
-	lookupStatusStore      store.LookupStatusStore
+	config               *model.DatabaseConfig
+	conn                 *sqlx.DB
+	appealStore          store.AppealStore
+	statusConditionStore store.StatusConditionStore
+	closeReasonStore     store.CloseReasonStore
+	statusStore          store.StatusStore
 }
 
 func New(config *model.DatabaseConfig) *Store {
 	return &Store{config: config}
 }
 
-func (s *Store) AppealLookup() store.AppealLookupStore {
-	if s.appealLookupStore == nil {
-		log, err := lookup2.NewAppealLookupStore(s)
+func (s *Store) Appeal() store.AppealStore {
+	if s.appealStore == nil {
+		log, err := lookup2.NewAppealStore(s)
 		if err != nil {
 			return nil
 		}
-		s.appealLookupStore = log
+		s.appealStore = log
 	}
-	return s.appealLookupStore
+	return s.appealStore
 }
 
-func (s *Store) CloseReasonLookup() store.CloseReasonLookupStore {
-	if s.closeReasonLookupStore == nil {
-		log, err := lookup2.NewCloseReasonLookupStore(s)
+func (s *Store) CloseReason() store.CloseReasonStore {
+	if s.closeReasonStore == nil {
+		log, err := lookup2.NewCloseReasonStore(s)
 		if err != nil {
 			return nil
 		}
-		s.closeReasonLookupStore = log
+		s.closeReasonStore = log
 	}
-	return s.closeReasonLookupStore
+	return s.closeReasonStore
 }
-func (s *Store) StatusLookup() store.StatusLookupStore {
-	if s.statusLookupStore == nil {
-		log, err := lookup2.NewStatusLookupStore(s)
+func (s *Store) Status() store.StatusStore {
+	if s.statusStore == nil {
+		log, err := lookup2.NewStatusStore(s)
 		if err != nil {
 			return nil
 		}
-		s.statusLookupStore = log
+		s.statusStore = log
 	}
-	return s.statusLookupStore
+	return s.statusStore
 }
 
-func (s *Store) LookupStatus() store.LookupStatusStore {
-	if s.lookupStatusStore == nil {
-		log, err := lookup2.NewLookupStatusStore(s)
+func (s *Store) StatusCondition() store.StatusConditionStore {
+	if s.statusConditionStore == nil {
+		log, err := lookup2.NewStatusConditionStore(s)
 		if err != nil {
 			return nil
 		}
-		s.lookupStatusStore = log
+		s.statusConditionStore = log
 	}
-	return s.lookupStatusStore
+	return s.statusConditionStore
 }
 
 func (s *Store) Database() (*sqlx.DB, model.AppError) {

@@ -15,12 +15,12 @@ import (
 	"time"
 )
 
-type StatusLookup struct {
+type Status struct {
 	storage store.Store
 }
 
-func (s StatusLookup) Create(ctx *model.CreateOptions, add *_go.StatusLookup) (*_go.StatusLookup, error) {
-	query, args, err := s.buildCreateStatusLookupQuery(ctx, add)
+func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, error) {
+	query, args, err := s.buildCreateStatusQuery(ctx, add)
 	d, dbErr := s.storage.Database()
 
 	if dbErr != nil {
@@ -48,7 +48,7 @@ func (s StatusLookup) Create(ctx *model.CreateOptions, add *_go.StatusLookup) (*
 		return nil, err
 	}
 
-	return &_go.StatusLookup{
+	return &_go.Status{
 		Id:          add.Id,
 		Name:        add.Name,
 		Description: add.Description,
@@ -60,9 +60,9 @@ func (s StatusLookup) Create(ctx *model.CreateOptions, add *_go.StatusLookup) (*
 	}, nil
 }
 
-func (s StatusLookup) List(ctx *model.SearchOptions) (*_go.StatusLookupList, error) {
+func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
 
-	cte, err := s.buildSearchStatusLookupQuery(ctx)
+	cte, err := s.buildSearchStatusQuery(ctx)
 
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -95,7 +95,7 @@ func (s StatusLookup) List(ctx *model.SearchOptions) (*_go.StatusLookupList, err
 		}
 	}(rows)
 
-	var lookupList []*_go.StatusLookup
+	var lookupList []*_go.Status
 
 	lCount := 0
 	next := false
@@ -106,7 +106,7 @@ func (s StatusLookup) List(ctx *model.SearchOptions) (*_go.StatusLookupList, err
 			break
 		}
 
-		l := &_go.StatusLookup{}
+		l := &_go.Status{}
 		var createdBy, updatedBy _gen.Lookup
 		var tempUpdatedAt, tempCreatedAt time.Time
 		var scanArgs []interface{}
@@ -136,7 +136,6 @@ func (s StatusLookup) List(ctx *model.SearchOptions) (*_go.StatusLookupList, err
 			return nil, err
 		}
 
-		// Assign the lookup fields to the lookup
 		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_by") {
 			l.CreatedBy = &createdBy
 		}
@@ -155,15 +154,15 @@ func (s StatusLookup) List(ctx *model.SearchOptions) (*_go.StatusLookupList, err
 		lCount++
 	}
 
-	return &_go.StatusLookupList{
+	return &_go.StatusList{
 		Page:  int32(ctx.Page),
 		Next:  next,
 		Items: lookupList,
 	}, nil
 }
 
-func (s StatusLookup) Delete(ctx *model.DeleteOptions) error {
-	query, args, err := s.buildDeleteStatusLookupQuery(ctx)
+func (s Status) Delete(ctx *model.DeleteOptions) error {
+	query, args, err := s.buildDeleteStatusQuery(ctx)
 
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
@@ -195,9 +194,9 @@ func (s StatusLookup) Delete(ctx *model.DeleteOptions) error {
 	return nil
 }
 
-func (s StatusLookup) Update(ctx *model.UpdateOptions, l *_go.StatusLookup) (*_go.StatusLookup, error) {
+func (s Status) Update(ctx *model.UpdateOptions, l *_go.Status) (*_go.Status, error) {
 	// Build the query and args using the helper function
-	query, args := s.buildUpdateStatusLookupQuery(ctx, l)
+	query, args := s.buildUpdateStatusQuery(ctx, l)
 
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -228,11 +227,11 @@ func (s StatusLookup) Update(ctx *model.UpdateOptions, l *_go.StatusLookup) (*_g
 }
 
 // buildCreateStatusLookupQuery constructs the SQL insert query and returns the query string and arguments.
-func (s StatusLookup) buildCreateStatusLookupQuery(ctx *model.CreateOptions, lookup *_go.StatusLookup) (string,
+func (s Status) buildCreateStatusQuery(ctx *model.CreateOptions, lookup *_go.Status) (string,
 	[]interface{}, error) {
 	query := `
 with ins as (
-    INSERT INTO cases.status_lookup (name, dc, created_at, description, created_by, updated_at, 
+    INSERT INTO cases.status (name, dc, created_at, description, created_by, updated_at, 
 updated_by) 
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     returning *
@@ -256,13 +255,13 @@ from ins
 }
 
 // buildSearchStatusLookupQuery constructs the SQL search query and returns the query builder.
-func (s StatusLookup) buildSearchStatusLookupQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
+func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
 
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	queryBuilder := squirrel.Select().
-		From("cases.status_lookup AS g").
+		From("cases.status AS g").
 		Where(squirrel.Eq{"g.dc": ctx.Session.GetDomainId()}).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -330,12 +329,12 @@ func (s StatusLookup) buildSearchStatusLookupQuery(ctx *model.SearchOptions) (sq
 }
 
 // buildDeleteStatusLookupQuery constructs the SQL delete query and returns the query string and arguments.
-func (s StatusLookup) buildDeleteStatusLookupQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
+func (s Status) buildDeleteStatusQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	query := fmt.Sprintf(`
-        DELETE FROM cases.status_lookup
+        DELETE FROM cases.status
         WHERE id = ANY($1) AND dc = $2
     `)
 	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
@@ -343,7 +342,7 @@ func (s StatusLookup) buildDeleteStatusLookupQuery(ctx *model.DeleteOptions) (st
 }
 
 // buildUpdateStatusLookupQuery constructs the SQL update query and returns the query string and arguments.
-func (s StatusLookup) buildUpdateStatusLookupQuery(ctx *model.UpdateOptions, l *_go.StatusLookup) (string, []interface{}) {
+func (s Status) buildUpdateStatusQuery(ctx *model.UpdateOptions, l *_go.Status) (string, []interface{}) {
 	var setClauses []string
 	var args []interface{}
 
@@ -375,7 +374,7 @@ func (s StatusLookup) buildUpdateStatusLookupQuery(ctx *model.UpdateOptions, l *
 	// Construct the SQL query with joins for created_by and updated_by
 	query := fmt.Sprintf(`
 with upd as (
-    UPDATE cases.status_lookup
+    UPDATE cases.status
     SET %s
     WHERE id = $%d AND dc = $%d
     RETURNING id, name, created_at, updated_at, description, created_by, updated_by
@@ -398,10 +397,10 @@ from upd
 	return query, args
 }
 
-func NewStatusLookupStore(store store.Store) (store.StatusLookupStore, model.AppError) {
+func NewStatusStore(store store.Store) (store.StatusStore, model.AppError) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.config.new_status_lookup.check.bad_arguments",
-			"error creating config interface to the status_lookup table, main store is nil")
+		return nil, model.NewInternalError("postgres.config.new_status.check.bad_arguments",
+			"error creating config interface to the status table, main store is nil")
 	}
-	return &StatusLookup{storage: store}, nil
+	return &Status{storage: store}, nil
 }

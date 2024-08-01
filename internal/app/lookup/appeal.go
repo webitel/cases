@@ -10,20 +10,14 @@ import (
 	"strings"
 )
 
-type LookupStatusService struct {
+type AppealService struct {
 	app *app.App
 }
 
-const (
-	ErrStatusNameReq          = "Status name is required"
-	defaultFieldsLookupStatus = "id, name, description,is_initial,is_final"
-)
-
-func (s LookupStatusService) CreateLookupStatus(ctx context.Context, req *_go.CreateLookupStatusRequest) (*_go.
-	LookupStatus, error) {
+func (s AppealService) CreateAppeal(ctx context.Context, req *_go.CreateAppealRequest) (*_go.Appeal, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("status.name.required", ErrStatusNameReq)
+		return nil, model.NewBadRequestError("lookup.name.required", ErrLookupNameReq)
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -43,18 +37,15 @@ func (s LookupStatusService) CreateLookupStatus(ctx context.Context, req *_go.Cr
 		Name: session.GetUserName(),
 	}
 
-	// Create a new status model
-	status := &_go.LookupStatus{
-		LookupId:    req.LookupId,
+	// Create a new lookup model
+	lookup := &_go.Appeal{
 		Name:        req.Name,
 		Description: req.Description,
-		IsInitial:   req.IsInitial,
-		IsFinal:     req.IsFinal,
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
 	}
 
-	fields := []string{"id", "lookup_id", "name", "description", "is_initial", "is_final", "created_at", "updated_at", "created_by", "updated_by"}
+	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
 
 	// Define create options
 	createOpts := model.CreateOptions{
@@ -63,16 +54,16 @@ func (s LookupStatusService) CreateLookupStatus(ctx context.Context, req *_go.Cr
 		Fields:  fields,
 	}
 
-	// Create the status in the store
-	st, e := s.app.Store.LookupStatus().Attach(&createOpts, status)
+	// Create the group in the store
+	l, e := s.app.Store.Appeal().Create(&createOpts, lookup)
 	if e != nil {
 		return nil, e
 	}
 
-	return st, nil
+	return l, nil
 }
 
-func (s LookupStatusService) ListLookupStatuses(ctx context.Context, req *_go.ListLookupStatusesRequest) (*_go.LookupStatusList, error) {
+func (s AppealService) ListAppeals(ctx context.Context, req *_go.ListAppealRequest) (*_go.AppealList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -87,7 +78,7 @@ func (s LookupStatusService) ListLookupStatuses(ctx context.Context, req *_go.Li
 
 	fields := req.Fields
 	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsLookupStatus, ", ")
+		fields = strings.Split(defaultFields, ", ")
 	}
 
 	// Use default page size and page number if not provided
@@ -111,18 +102,18 @@ func (s LookupStatusService) ListLookupStatuses(ctx context.Context, req *_go.Li
 		searchOptions.Filter["name"] = req.Name
 	}
 
-	statuses, e := s.app.Store.LookupStatus().List(&searchOptions)
+	lookups, e := s.app.Store.Appeal().List(&searchOptions)
 	if e != nil {
 		return nil, e
 	}
 
-	return statuses, nil
+	return lookups, nil
 }
 
-func (s LookupStatusService) UpdateLookupStatus(ctx context.Context, req *_go.UpdateLookupStatusRequest) (*_go.LookupStatus, error) {
+func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRequest) (*_go.Appeal, error) {
 	// Validate required fields
-	if req.Id == 0 || req.Name == "" {
-		return nil, model.NewBadRequestError("status.id_name.required", "Status ID and name are required")
+	if req.Id == 0 {
+		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -142,18 +133,15 @@ func (s LookupStatusService) UpdateLookupStatus(ctx context.Context, req *_go.Up
 		Name: session.GetUserName(),
 	}
 
-	// Update status model
-	status := &_go.LookupStatus{
+	// Update lookup model
+	lookup := &_go.Appeal{
 		Id:          req.Id,
-		LookupId:    req.LookupId,
 		Name:        req.Name,
 		Description: req.Description,
-		IsInitial:   req.IsInitial,
-		IsFinal:     req.IsFinal,
 		UpdatedBy:   currentU,
 	}
 
-	fields := []string{"id", "lookup_id", "name", "description", "is_initial", "is_final", "updated_at", "updated_by"}
+	fields := []string{"id", "name", "description", "updated_at", "updated_by"}
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
@@ -162,19 +150,19 @@ func (s LookupStatusService) UpdateLookupStatus(ctx context.Context, req *_go.Up
 		Fields:  fields,
 	}
 
-	// Update the status in the store
-	st, e := s.app.Store.LookupStatus().Update(&updateOpts, status)
+	// Update the lookup in the store
+	l, e := s.app.Store.Appeal().Update(&updateOpts, lookup)
 	if e != nil {
 		return nil, e
 	}
 
-	return st, nil
+	return l, nil
 }
 
-func (s LookupStatusService) DeleteLookupStatus(ctx context.Context, req *_go.DeleteLookupStatusRequest) (*_go.LookupStatus, error) {
+func (s AppealService) DeleteAppeal(ctx context.Context, req *_go.DeleteAppealRequest) (*_go.Appeal, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
+		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -195,19 +183,19 @@ func (s LookupStatusService) DeleteLookupStatus(ctx context.Context, req *_go.De
 		IDs:     []int64{req.Id},
 	}
 
-	// Delete the status in the store
-	e := s.app.Store.LookupStatus().Delete(&deleteOpts)
+	// Delete the lookup in the store
+	e := s.app.Store.Appeal().Delete(&deleteOpts)
 	if e != nil {
 		return nil, e
 	}
 
-	return &(_go.LookupStatus{Id: req.Id}), nil
+	return &(_go.Appeal{Id: req.Id}), nil
 }
 
-func (s LookupStatusService) LocateLookupStatus(ctx context.Context, req *_go.LocateLookupStatusRequest) (*_go.LocateLookupStatusResponse, error) {
+func (s AppealService) LocateAppeal(ctx context.Context, req *_go.LocateAppealRequest) (*_go.LocateAppealResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
+		return nil, model.NewBadRequestError("groups.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -235,23 +223,23 @@ func (s LookupStatusService) LocateLookupStatus(ctx context.Context, req *_go.Lo
 		Size:    1,
 	}
 
-	l, e := s.app.Store.LookupStatus().List(&searchOpts)
+	l, e := s.app.Store.Appeal().List(&searchOpts)
 	if e != nil {
 		return nil, e
 	}
 
 	if len(l.Items) == 0 {
-		return nil, model.NewNotFoundError("status.not_found", "Status not found")
+		return nil, model.NewNotFoundError("close_reason_lookup.not_found", "CloseReason lookup not found")
 	}
 
-	status := l.Items[0]
+	lookup := l.Items[0]
 
-	return &_go.LocateLookupStatusResponse{Status: status}, nil
+	return &_go.LocateAppealResponse{Appeal: lookup}, nil
 }
 
-func NewLookupStatusService(app *app.App) (*LookupStatusService, model.AppError) {
+func NewAppealService(app *app.App) (*AppealService, model.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_lookup_status_service.args_check.app_nil", "pkg is nil")
+		return nil, model.NewInternalError("api.config.new_appeal_service.args_check.app_nil", "pkg is nil")
 	}
-	return &LookupStatusService{app: app}, nil
+	return &AppealService{app: app}, nil
 }

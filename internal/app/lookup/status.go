@@ -10,11 +10,16 @@ import (
 	"strings"
 )
 
-type CloseReasonLookupService struct {
+type StatusService struct {
 	app *app.App
 }
 
-func (s CloseReasonLookupService) CreateCloseReasonLookup(ctx context.Context, req *_go.CreateCloseReasonLookupRequest) (*_go.CloseReasonLookup, error) {
+const (
+	ErrLookupNameReq = "Lookup name is required"
+	defaultFields    = "id, name, description"
+)
+
+func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRequest) (*_go.Status, error) {
 	// Validate required fields
 	if req.Name == "" {
 		return nil, model.NewBadRequestError("lookup.name.required", ErrLookupNameReq)
@@ -38,7 +43,7 @@ func (s CloseReasonLookupService) CreateCloseReasonLookup(ctx context.Context, r
 	}
 
 	// Create a new lookup model
-	lookup := &_go.CloseReasonLookup{
+	lookup := &_go.Status{
 		Name:        req.Name,
 		Description: req.Description,
 		CreatedBy:   currentU,
@@ -55,7 +60,7 @@ func (s CloseReasonLookupService) CreateCloseReasonLookup(ctx context.Context, r
 	}
 
 	// Create the group in the store
-	l, e := s.app.Store.CloseReasonLookup().Create(&createOpts, lookup)
+	l, e := s.app.Store.Status().Create(&createOpts, lookup)
 	if e != nil {
 		return nil, e
 	}
@@ -63,7 +68,7 @@ func (s CloseReasonLookupService) CreateCloseReasonLookup(ctx context.Context, r
 	return l, nil
 }
 
-func (s CloseReasonLookupService) ListCloseReasonLookups(ctx context.Context, req *_go.ListCloseReasonLookupsRequest) (*_go.CloseReasonLookupList, error) {
+func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -102,7 +107,7 @@ func (s CloseReasonLookupService) ListCloseReasonLookups(ctx context.Context, re
 		searchOptions.Filter["name"] = req.Name
 	}
 
-	lookups, e := s.app.Store.CloseReasonLookup().List(&searchOptions)
+	lookups, e := s.app.Store.Status().List(&searchOptions)
 	if e != nil {
 		return nil, e
 	}
@@ -110,10 +115,10 @@ func (s CloseReasonLookupService) ListCloseReasonLookups(ctx context.Context, re
 	return lookups, nil
 }
 
-func (s CloseReasonLookupService) UpdateCloseReasonLookup(ctx context.Context, req *_go.UpdateCloseReasonLookupRequest) (*_go.CloseReasonLookup, error) {
+func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRequest) (*_go.Status, error) {
 	// Validate required fields
-	if req.Id == 0 || req.Name == "" {
-		return nil, model.NewBadRequestError("groups.id_name.required", "Lookup ID and name are required")
+	if req.Id == 0 {
+		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -134,7 +139,7 @@ func (s CloseReasonLookupService) UpdateCloseReasonLookup(ctx context.Context, r
 	}
 
 	// Update lookup model
-	lookup := &_go.CloseReasonLookup{
+	lookup := &_go.Status{
 		Id:          req.Id,
 		Name:        req.Name,
 		Description: req.Description,
@@ -151,7 +156,7 @@ func (s CloseReasonLookupService) UpdateCloseReasonLookup(ctx context.Context, r
 	}
 
 	// Update the lookup in the store
-	l, e := s.app.Store.CloseReasonLookup().Update(&updateOpts, lookup)
+	l, e := s.app.Store.Status().Update(&updateOpts, lookup)
 	if e != nil {
 		return nil, e
 	}
@@ -159,7 +164,7 @@ func (s CloseReasonLookupService) UpdateCloseReasonLookup(ctx context.Context, r
 	return l, nil
 }
 
-func (s CloseReasonLookupService) DeleteCloseReasonLookup(ctx context.Context, req *_go.DeleteCloseReasonLookupRequest) (*_go.CloseReasonLookup, error) {
+func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRequest) (*_go.Status, error) {
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
@@ -184,15 +189,15 @@ func (s CloseReasonLookupService) DeleteCloseReasonLookup(ctx context.Context, r
 	}
 
 	// Delete the lookup in the store
-	e := s.app.Store.CloseReasonLookup().Delete(&deleteOpts)
+	e := s.app.Store.Status().Delete(&deleteOpts)
 	if e != nil {
 		return nil, e
 	}
 
-	return &(_go.CloseReasonLookup{Id: req.Id}), nil
+	return &(_go.Status{Id: req.Id}), nil
 }
 
-func (s CloseReasonLookupService) LocateCloseReasonLookup(ctx context.Context, req *_go.LocateCloseReasonLookupRequest) (*_go.LocateCloseReasonLookupResponse, error) {
+func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRequest) (*_go.LocateStatusResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, model.NewBadRequestError("groups.id.required", "Lookup ID is required")
@@ -223,24 +228,23 @@ func (s CloseReasonLookupService) LocateCloseReasonLookup(ctx context.Context, r
 		Size:    1,
 	}
 
-	l, e := s.app.Store.CloseReasonLookup().List(&searchOpts)
+	l, e := s.app.Store.Status().List(&searchOpts)
 	if e != nil {
 		return nil, e
 	}
 
 	if len(l.Items) == 0 {
-		return nil, model.NewNotFoundError("close_reason_lookup.not_found", "CloseReason lookup not found")
+		return nil, model.NewNotFoundError("status_lookup.not_found", "Status lookup not found")
 	}
 
 	lookup := l.Items[0]
 
-	return &_go.LocateCloseReasonLookupResponse{Lookup: lookup}, nil
+	return &_go.LocateStatusResponse{Status: lookup}, nil
 }
 
-func NewCloseReasonLookupService(app *app.App) (*CloseReasonLookupService, model.AppError) {
+func NewStatusService(app *app.App) (*StatusService, model.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_close_reason_lookup_service.args_check.app_nil",
-			"pkg is nil")
+		return nil, model.NewInternalError("api.config.new_status.args_check.app_nil", "pkg is nil")
 	}
-	return &CloseReasonLookupService{app: app}, nil
+	return &StatusService{app: app}, nil
 }

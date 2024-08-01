@@ -3,8 +3,8 @@ module github.com/webitel/cases
 go 1.22.4
 
 require (
-	buf.build/gen/go/webitel/cases/grpc/go v1.4.0-20240731094504-ae17d6d7a0a3.2
-	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240731094504-ae17d6d7a0a3.2
+	buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20240801113201-716e59ec7f65.1
+	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240801113201-716e59ec7f65.2
 	buf.build/gen/go/webitel/general/protocolbuffers/go v1.34.2-20240527133232-b30251c3af1c.2
 	buf.build/gen/go/webitel/webitel-go/grpc/go v1.4.0-20240717142245-3d606517c760.2
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240717142245-3d606517c760.2

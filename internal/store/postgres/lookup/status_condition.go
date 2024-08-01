@@ -15,12 +15,12 @@ import (
 	"time"
 )
 
-type LookupStatusStore struct {
+type StatusConditionStore struct {
 	storage store.Store
 }
 
-func (s LookupStatusStore) Attach(ctx *model.CreateOptions, add *_go.LookupStatus) (*_go.LookupStatus, error) {
-	query, args, err := s.buildAttachLookupStatusQuery(ctx, add)
+func (s StatusConditionStore) Create(ctx *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
+	query, args, err := s.buildCreateStatusConditionQuery(ctx, add)
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return nil, err
@@ -38,7 +38,7 @@ func (s LookupStatusStore) Attach(ctx *model.CreateOptions, add *_go.LookupStatu
 	t := ctx.CurrentTime()
 
 	err = d.QueryRowContext(ctx.Context, query, args...).Scan(
-		&add.Id, &add.LookupId, &add.Name, t, &add.Description, &add.IsInitial, &add.IsFinal,
+		&add.Id, &add.Id, &add.Name, t, &add.Description, &add.Initial, &add.Final,
 		&createdByLookup.Id, &createdByLookup.Name,
 		t, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
@@ -48,13 +48,12 @@ func (s LookupStatusStore) Attach(ctx *model.CreateOptions, add *_go.LookupStatu
 		return nil, err
 	}
 
-	return &_go.LookupStatus{
+	return &_go.StatusCondition{
 		Id:          add.Id,
-		LookupId:    add.LookupId,
 		Name:        add.Name,
 		Description: add.Description,
-		IsInitial:   add.IsInitial,
-		IsFinal:     add.IsFinal,
+		Initial:     add.Initial,
+		Final:       add.Final,
 		CreatedAt:   t.Unix(),
 		UpdatedAt:   t.Unix(),
 		CreatedBy:   &createdByLookup,
@@ -62,8 +61,8 @@ func (s LookupStatusStore) Attach(ctx *model.CreateOptions, add *_go.LookupStatu
 	}, nil
 }
 
-func (s LookupStatusStore) List(ctx *model.SearchOptions) (*_go.LookupStatusList, error) {
-	queryBuilder, err := s.buildListLookupStatusQuery(ctx)
+func (s StatusConditionStore) List(ctx *model.SearchOptions) (*_go.StatusConditionList, error) {
+	queryBuilder, err := s.buildListStatusConditionQuery(ctx)
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return nil, err
@@ -94,7 +93,7 @@ func (s LookupStatusStore) List(ctx *model.SearchOptions) (*_go.LookupStatusList
 		}
 	}(rows)
 
-	var statusList []*_go.LookupStatus
+	var statusList []*_go.StatusCondition
 	lCount := 0
 	next := false
 	for rows.Next() {
@@ -103,7 +102,7 @@ func (s LookupStatusStore) List(ctx *model.SearchOptions) (*_go.LookupStatusList
 			break
 		}
 
-		st := &_go.LookupStatus{}
+		st := &_go.StatusCondition{}
 		var createdBy, updatedBy _gen.Lookup
 		var tempUpdatedAt, tempCreatedAt time.Time
 		var scanArgs []interface{}
@@ -112,16 +111,14 @@ func (s LookupStatusStore) List(ctx *model.SearchOptions) (*_go.LookupStatusList
 			switch field {
 			case "id":
 				scanArgs = append(scanArgs, &st.Id)
-			case "lookup_id":
-				scanArgs = append(scanArgs, &st.LookupId)
 			case "name":
 				scanArgs = append(scanArgs, &st.Name)
 			case "description":
 				scanArgs = append(scanArgs, &st.Description)
-			case "is_initial":
-				scanArgs = append(scanArgs, &st.IsInitial)
-			case "is_final":
-				scanArgs = append(scanArgs, &st.IsFinal)
+			case "initial":
+				scanArgs = append(scanArgs, &st.Initial)
+			case "final":
+				scanArgs = append(scanArgs, &st.Final)
 			case "created_at":
 				scanArgs = append(scanArgs, &tempCreatedAt)
 			case "updated_at":
@@ -130,6 +127,8 @@ func (s LookupStatusStore) List(ctx *model.SearchOptions) (*_go.LookupStatusList
 				scanArgs = append(scanArgs, &createdBy.Id, &createdBy.Name)
 			case "updated_by":
 				scanArgs = append(scanArgs, &updatedBy.Id, &updatedBy.Name)
+			case "status_id":
+				scanArgs = append(scanArgs, &st.Id)
 			}
 		}
 
@@ -156,15 +155,15 @@ func (s LookupStatusStore) List(ctx *model.SearchOptions) (*_go.LookupStatusList
 		lCount++
 	}
 
-	return &_go.LookupStatusList{
+	return &_go.StatusConditionList{
 		Page:  int32(ctx.Page),
 		Next:  next,
 		Items: statusList,
 	}, nil
 }
 
-func (s LookupStatusStore) Delete(ctx *model.DeleteOptions) error {
-	query, args, err := s.buildDeleteLookupStatusQuery(ctx)
+func (s StatusConditionStore) Delete(ctx *model.DeleteOptions) error {
+	query, args, err := s.buildDeleteStatusConditionQuery(ctx)
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return err
@@ -195,8 +194,8 @@ func (s LookupStatusStore) Delete(ctx *model.DeleteOptions) error {
 	return nil
 }
 
-func (s LookupStatusStore) Update(ctx *model.UpdateOptions, st *_go.LookupStatus) (*_go.LookupStatus, error) {
-	query, args := s.buildUpdateLookupStatusQuery(ctx, st)
+func (s StatusConditionStore) Update(ctx *model.UpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
+	query, args := s.buildUpdateStatusConditionQuery(ctx, st)
 
 	d, dbErr := s.storage.Database()
 
@@ -209,8 +208,8 @@ func (s LookupStatusStore) Update(ctx *model.UpdateOptions, st *_go.LookupStatus
 	var createdAt, updatedAt time.Time
 
 	err := d.QueryRowContext(ctx.Context, query, args...).Scan(
-		&st.Id, &st.LookupId, &st.Name, &createdAt, &updatedAt, &st.Description, &st.IsInitial, &st.IsFinal,
-		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
+		&st.Id, &st.Name, &createdAt, &updatedAt, &st.Description, &st.Initial, &st.Final,
+		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name, &st.Id,
 	)
 
 	if err != nil {
@@ -226,36 +225,39 @@ func (s LookupStatusStore) Update(ctx *model.UpdateOptions, st *_go.LookupStatus
 	return st, nil
 }
 
-func (s LookupStatusStore) buildAttachLookupStatusQuery(ctx *model.CreateOptions, status *_go.LookupStatus) (string, []interface{}, error) {
+func (s StatusConditionStore) buildCreateStatusConditionQuery(ctx *model.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
 	query := `
 with ins as (
-    INSERT INTO cases.lookup_status (lookup_id, name, created_at, description, is_initial, is_final, created_by,updated_at, updated_by, dc)
+    INSERT INTO cases.status_condition (name, created_at, description, initial, final, created_by, updated_at, updated_by, dc, status_id)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    returning *
+    returning id, name, created_at, description, initial, final, created_by, updated_at, updated_by, status_id
 )
 select ins.id,
-    ins.lookup_id,
     ins.name,
     ins.created_at,
     ins.description,
-    ins.is_initial,
-    ins.is_final,
+    ins.initial,
+    ins.final,
     ins.created_by created_by_id,
     coalesce(c.name::text, c.username) created_by_name,
     ins.updated_at,
     ins.updated_by updated_by_id,
-    coalesce(u.name::text, u.username) updated_by_name
+    coalesce(u.name::text, u.username) updated_by_name,
+    ins.status_id
 from ins
   left join directory.wbt_user u on u.id = ins.updated_by
   left join directory.wbt_user c on c.id = ins.created_by;
 `
-	args := []interface{}{status.LookupId, status.Name, ctx.CurrentTime(), status.Description, status.IsInitial, status.IsFinal, ctx.Session.GetUserId(), ctx.CurrentTime(), ctx.Session.GetUserId(), ctx.Session.GetDomainId()}
+	args := []interface{}{
+		status.Name, ctx.CurrentTime(), status.Description, status.Initial, status.Final,
+		ctx.Session.GetUserId(), ctx.CurrentTime(), ctx.Session.GetUserId(), ctx.Session.GetDomainId(), status.Id,
+	}
 	return query, args, nil
 }
 
-func (s LookupStatusStore) buildListLookupStatusQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
+func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
 	queryBuilder := squirrel.Select().
-		From("cases.lookup_status AS s").
+		From("cases.status_condition AS s").
 		Where(squirrel.Eq{"s.dc": ctx.Session.GetDomainId()}).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -265,7 +267,7 @@ func (s LookupStatusStore) buildListLookupStatusQuery(ctx *model.SearchOptions) 
 
 	for _, field := range ctx.Fields {
 		switch field {
-		case "id", "lookup_id", "name", "description", "is_initial", "is_final", "created_at", "updated_at":
+		case "id", "name", "description", "initial", "final", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("s." + field)
 		case "created_by":
 			queryBuilder = queryBuilder.Column("created_by.id AS created_by_id, created_by.name AS created_by_name").
@@ -322,19 +324,19 @@ func (s LookupStatusStore) buildListLookupStatusQuery(ctx *model.SearchOptions) 
 	return queryBuilder, nil
 }
 
-func (s LookupStatusStore) buildDeleteLookupStatusQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
+func (s StatusConditionStore) buildDeleteStatusConditionQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	query := fmt.Sprintf(`
-        DELETE FROM cases.lookup_status
+        DELETE FROM cases.status_condition
         WHERE id = ANY($1) AND dc = $2
     `)
 	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
 	return query, args, nil
 }
 
-func (s LookupStatusStore) buildUpdateLookupStatusQuery(ctx *model.UpdateOptions, st *_go.LookupStatus) (string, []interface{}) {
+func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateOptions, st *_go.StatusCondition) (string, []interface{}) {
 	var setClauses []string
 	var args []interface{}
 
@@ -343,7 +345,7 @@ func (s LookupStatusStore) buildUpdateLookupStatusQuery(ctx *model.UpdateOptions
 	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
 	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
 
-	updateFields := []string{"name", "description", "is_initial", "is_final"}
+	updateFields := []string{"name", "description", "initial", "final"}
 
 	for _, field := range updateFields {
 		switch field {
@@ -357,47 +359,66 @@ func (s LookupStatusStore) buildUpdateLookupStatusQuery(ctx *model.UpdateOptions
 				args = append(args, st.Description)
 				setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
 			}
-		case "is_initial":
-			args = append(args, st.IsInitial)
-			setClauses = append(setClauses, fmt.Sprintf("is_initial = $%d", len(args)))
-		case "is_final":
-			args = append(args, st.IsFinal)
-			setClauses = append(setClauses, fmt.Sprintf("is_final = $%d", len(args)))
+		case "initial":
+			args = append(args, st.Initial)
+			setClauses = append(setClauses, fmt.Sprintf("initial = $%d", len(args)))
+		case "final":
+			args = append(args, st.Final)
+			setClauses = append(setClauses, fmt.Sprintf("final = $%d", len(args)))
 		}
 	}
 
+	// Ensure we always have at least one final status and only one initial status
 	query := fmt.Sprintf(`
-with upd as (
-    UPDATE cases.lookup_status
-    SET %s
-    WHERE id = $%d AND dc = $%d
-    RETURNING id, lookup_id, name, created_at, updated_at, description, is_initial, is_final, created_by, updated_by
-)
-select upd.id,
-       upd.lookup_id,
-       upd.name,
-       upd.created_at,
-       upd.updated_at,
-       upd.description,
-       upd.is_initial,
-       upd.is_final,
-       upd.created_by as created_by_id,
-       coalesce(c.name::text, c.username) as created_by_name,
-       upd.updated_by as updated_by_id,
-       coalesce(u.name::text, u.username) as updated_by_name
-from upd
-  left join directory.wbt_user u on u.id = upd.updated_by
-  left join directory.wbt_user c on c.id = upd.created_by;
-    `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
+WITH 
+    -- If setting a new initial status, reset the current initial status
+    reset_initial AS (
+        UPDATE cases.status_condition
+        SET initial = FALSE
+        WHERE initial = TRUE
+        AND $%d IS TRUE
+        RETURNING id
+    ),
+    -- Ensure at least one final status exists if changing final status
+    ensure_final AS (
+        SELECT 1
+        FROM cases.status_condition
+        WHERE final = TRUE
+        HAVING COUNT(*) > 1 OR (COUNT(*) = 1 AND ($%d = TRUE OR $%d = FALSE))
+    ),
+    -- Update the status condition
+    upd AS (
+        UPDATE cases.status_condition
+        SET %s
+        WHERE id = $%d AND dc = $%d
+        RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id
+    )
+SELECT 
+    upd.id,
+    upd.name,
+    upd.created_at,
+    upd.updated_at,
+    upd.description,
+    upd.initial,
+    upd.final,
+    upd.created_by AS created_by_id,
+    COALESCE(c.name::text, c.username) AS created_by_name,
+    upd.updated_by AS updated_by_id,
+    COALESCE(u.name::text, u.username) AS updated_by_name,
+    upd.status_id
+FROM upd
+LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
+LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
+`, len(args)+1, len(args)+2, len(args)+3, strings.Join(setClauses, ", "), len(args)+4, len(args)+5)
 
-	args = append(args, ctx.ID, ctx.Session.GetDomainId())
+	args = append(args, st.Initial, st.Final, st.Final, ctx.ID, ctx.Session.GetDomainId())
 	return query, args
 }
 
-func NewLookupStatusStore(store store.Store) (store.LookupStatusStore, model.AppError) {
+func NewStatusConditionStore(store store.Store) (store.StatusConditionStore, model.AppError) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.config.new_lookup_status.check.bad_arguments",
-			"error creating config interface to the status_lookup table, main store is nil")
+		return nil, model.NewInternalError("postgres.config.new_status_condition.check.bad_arguments",
+			"error creating config interface to the status_condition table, main store is nil")
 	}
-	return &LookupStatusStore{storage: store}, nil
+	return &StatusConditionStore{storage: store}, nil
 }
