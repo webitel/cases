@@ -1,28 +1,27 @@
-package lookup
+package app
 
 import (
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	_general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	"context"
 	authmodel "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/internal/app"
 	"github.com/webitel/cases/model"
 	"strings"
 )
 
-type StatusService struct {
-	app *app.App
+type StatusConditionService struct {
+	app *App
 }
 
 const (
-	ErrLookupNameReq = "Lookup name is required"
-	defaultFields    = "id, name, description"
+	ErrStatusNameReq    = "Status name is required"
+	defaultFieldsStatus = "id, name, description,is_initial,is_final"
 )
 
-func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRequest) (*_go.Status, error) {
+func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *_go.CreateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("lookup.name.required", ErrLookupNameReq)
+		return nil, model.NewBadRequestError("status.name.required", ErrStatusNameReq)
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -42,15 +41,15 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 		Name: session.GetUserName(),
 	}
 
-	// Create a new lookup model
-	lookup := &_go.Status{
+	// Create a new status model
+	status := &_go.StatusCondition{
 		Name:        req.Name,
 		Description: req.Description,
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
 	}
 
-	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
+	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "created_at", "updated_at", "created_by", "updated_by"}
 
 	// Define create options
 	createOpts := model.CreateOptions{
@@ -59,16 +58,16 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 		Fields:  fields,
 	}
 
-	// Create the group in the store
-	l, e := s.app.Store.Status().Create(&createOpts, lookup)
+	// Create the status in the store
+	st, e := s.app.Store.StatusCondition().Create(&createOpts, status)
 	if e != nil {
 		return nil, e
 	}
 
-	return l, nil
+	return st, nil
 }
 
-func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
+func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_go.ListStatusConditionRequest) (*_go.StatusConditionList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -83,7 +82,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 
 	fields := req.Fields
 	if len(fields) == 0 {
-		fields = strings.Split(defaultFields, ", ")
+		fields = strings.Split(defaultFieldsStatus, ", ")
 	}
 
 	// Use default page size and page number if not provided
@@ -107,18 +106,18 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		searchOptions.Filter["name"] = req.Name
 	}
 
-	lookups, e := s.app.Store.Status().List(&searchOptions)
+	statuses, e := s.app.Store.StatusCondition().List(&searchOptions)
 	if e != nil {
 		return nil, e
 	}
 
-	return lookups, nil
+	return statuses, nil
 }
 
-func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRequest) (*_go.Status, error) {
+func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *_go.UpdateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
-	if req.Id == 0 {
-		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
+	if req.Input.Id == 0 {
+		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -133,20 +132,22 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 	}
 
 	// Define the current user as the updater
-	currentU := &_general.Lookup{
+	u := &_general.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
 
-	// Update lookup model
-	lookup := &_go.Status{
-		Id:          req.Id,
-		Name:        req.Name,
-		Description: req.Description,
-		UpdatedBy:   currentU,
+	// Update status model
+	status := &_go.StatusCondition{
+		Id:          req.Input.Id,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		Initial:     req.Input.Initial.Value,
+		Final:       req.Input.Final.Value,
+		UpdatedBy:   u,
 	}
 
-	fields := []string{"id", "name", "description", "updated_at", "updated_by"}
+	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "updated_at", "updated_by"}
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
@@ -155,19 +156,19 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 		Fields:  fields,
 	}
 
-	// Update the lookup in the store
-	l, e := s.app.Store.Status().Update(&updateOpts, lookup)
+	// Update the status in the store
+	st, e := s.app.Store.StatusCondition().Update(&updateOpts, status)
 	if e != nil {
 		return nil, e
 	}
 
-	return l, nil
+	return st, nil
 }
 
-func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRequest) (*_go.Status, error) {
+func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *_go.DeleteStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
+		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -188,19 +189,20 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 		IDs:     []int64{req.Id},
 	}
 
-	// Delete the lookup in the store
-	e := s.app.Store.Status().Delete(&deleteOpts)
+	// Delete the status in the store
+	e := s.app.Store.StatusCondition().Delete(&deleteOpts)
 	if e != nil {
 		return nil, e
 	}
 
-	return &(_go.Status{Id: req.Id}), nil
+	return &(_go.StatusCondition{Id: req.Id}), nil
 }
 
-func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRequest) (*_go.LocateStatusResponse, error) {
+func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *_go.LocateStatusConditionRequest) (*_go.LocateStatusConditionResponse,
+	error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("groups.id.required", "Lookup ID is required")
+		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -228,23 +230,23 @@ func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRe
 		Size:    1,
 	}
 
-	l, e := s.app.Store.Status().List(&searchOpts)
+	l, e := s.app.Store.StatusCondition().List(&searchOpts)
 	if e != nil {
 		return nil, e
 	}
 
 	if len(l.Items) == 0 {
-		return nil, model.NewNotFoundError("status_lookup.not_found", "Status lookup not found")
+		return nil, model.NewNotFoundError("status.not_found", "Status not found")
 	}
 
-	lookup := l.Items[0]
+	status := l.Items[0]
 
-	return &_go.LocateStatusResponse{Status: lookup}, nil
+	return &_go.LocateStatusConditionResponse{Status: status}, nil
 }
 
-func NewStatusService(app *app.App) (*StatusService, model.AppError) {
+func NewStatusConditionService(app *App) (*StatusConditionService, model.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_status.args_check.app_nil", "pkg is nil")
+		return nil, model.NewInternalError("api.config.new_status_condition_service.args_check.app_nil", "internal is nil")
 	}
-	return &StatusService{app: app}, nil
+	return &StatusConditionService{app: app}, nil
 }

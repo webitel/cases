@@ -1,17 +1,16 @@
-package lookup
+package app
 
 import (
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	_general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	"context"
 	authmodel "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/internal/app"
 	"github.com/webitel/cases/model"
 	"strings"
 )
 
 type AppealService struct {
-	app *app.App
+	app *App
 }
 
 func (s AppealService) CreateAppeal(ctx context.Context, req *_go.CreateAppealRequest) (*_go.Appeal, error) {
@@ -237,9 +236,9 @@ func (s AppealService) LocateAppeal(ctx context.Context, req *_go.LocateAppealRe
 	return &_go.LocateAppealResponse{Appeal: lookup}, nil
 }
 
-func NewAppealService(app *app.App) (*AppealService, model.AppError) {
+func NewAppealService(app *App) (*AppealService, model.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_appeal_service.args_check.app_nil", "pkg is nil")
+		return nil, model.NewInternalError("api.config.new_appeal_service.args_check.app_nil", "internal is nil")
 	}
 	return &AppealService{app: app}, nil
 }

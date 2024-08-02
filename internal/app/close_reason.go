@@ -1,17 +1,16 @@
-package lookup
+package app
 
 import (
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	_general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	"context"
 	authmodel "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/internal/app"
 	"github.com/webitel/cases/model"
 	"strings"
 )
 
 type CloseReasonService struct {
-	app *app.App
+	app *App
 }
 
 func (s CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.CreateCloseReasonRequest) (*_go.CloseReason, error) {
@@ -237,10 +236,10 @@ func (s CloseReasonService) LocateCloseReason(ctx context.Context, req *_go.Loca
 	return &_go.LocateCloseReasonResponse{CloseReason: lookup}, nil
 }
 
-func NewCloseReasonService(app *app.App) (*CloseReasonService, model.AppError) {
+func NewCloseReasonService(app *App) (*CloseReasonService, model.AppError) {
 	if app == nil {
 		return nil, model.NewInternalError("api.config.new_close_reason_service.args_check.app_nil",
-			"pkg is nil")
+			"internal is nil")
 	}
 	return &CloseReasonService{app: app}, nil
 }

@@ -1,12 +1,10 @@
-package server
+package app
 
 import (
 	grpcservice "buf.build/gen/go/webitel/cases/grpc/go/_gogrpc"
 	"context"
 	"errors"
 	"fmt"
-	"github.com/webitel/cases/internal/app"
-	lookup2 "github.com/webitel/cases/internal/app/lookup"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/registry"
 	"github.com/webitel/cases/registry/consul"
@@ -35,7 +33,7 @@ type Server struct {
 	registry registry.ServiceRegistrator
 }
 
-func BuildServer(app *app.App, config *model.ConsulConfig, exitChan chan model.AppError) (*Server, model.AppError) {
+func BuildServer(app *App, config *model.ConsulConfig, exitChan chan model.AppError) (*Server, model.AppError) {
 	// * Build grpc server
 	server, appErr := buildGrpc(app)
 	if appErr != nil {
@@ -82,31 +80,30 @@ func (a *Server) Stop() {
 	a.server.Stop()
 }
 
-func buildGrpc(app *app.App) (*grpc.Server, model.AppError) {
+func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 
 	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(unaryInterceptor))
 
 	// * Creating services
 	// Appeal Lookup service
-	l, appErr := lookup2.NewAppealService(app)
+	l, appErr := NewAppealService(app)
 	if appErr != nil {
 		return nil, appErr
 	}
-
 	// Status lookup service
-	c, appErr := lookup2.NewStatusService(app)
+	c, appErr := NewStatusService(app)
 	if appErr != nil {
 		return nil, appErr
 	}
 
 	// Close reason lookup service
-	n, appErr := lookup2.NewCloseReasonService(app)
+	n, appErr := NewCloseReasonService(app)
 	if appErr != nil {
 		return nil, appErr
 	}
 
 	// Lookup status condition
-	s, appErr := lookup2.NewStatusConditionService(app)
+	s, appErr := NewStatusConditionService(app)
 	if appErr != nil {
 		return nil, appErr
 	}

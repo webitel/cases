@@ -1,4 +1,4 @@
-package lookup
+package postgres
 
 import (
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"

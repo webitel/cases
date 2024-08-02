@@ -2,9 +2,9 @@ package postgres
 
 import (
 	"fmt"
+	_ "github.com/jackc/pgx/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/webitel/cases/internal/store"
-	lookup2 "github.com/webitel/cases/internal/store/postgres/lookup"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/wlog"
 )
@@ -24,7 +24,7 @@ func New(config *model.DatabaseConfig) *Store {
 
 func (s *Store) Appeal() store.AppealStore {
 	if s.appealStore == nil {
-		log, err := lookup2.NewAppealStore(s)
+		log, err := NewAppealStore(s)
 		if err != nil {
 			return nil
 		}
@@ -35,7 +35,7 @@ func (s *Store) Appeal() store.AppealStore {
 
 func (s *Store) CloseReason() store.CloseReasonStore {
 	if s.closeReasonStore == nil {
-		log, err := lookup2.NewCloseReasonStore(s)
+		log, err := NewCloseReasonStore(s)
 		if err != nil {
 			return nil
 		}
@@ -45,7 +45,7 @@ func (s *Store) CloseReason() store.CloseReasonStore {
 }
 func (s *Store) Status() store.StatusStore {
 	if s.statusStore == nil {
-		log, err := lookup2.NewStatusStore(s)
+		log, err := NewStatusStore(s)
 		if err != nil {
 			return nil
 		}
@@ -56,7 +56,7 @@ func (s *Store) Status() store.StatusStore {
 
 func (s *Store) StatusCondition() store.StatusConditionStore {
 	if s.statusConditionStore == nil {
-		log, err := lookup2.NewStatusConditionStore(s)
+		log, err := NewStatusConditionStore(s)
 		if err != nil {
 			return nil
 		}

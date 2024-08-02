@@ -1,4 +1,4 @@
-package lookup
+package postgres
 
 import (
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
@@ -327,6 +327,81 @@ func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (squirrel.Selec
 
 	return queryBuilder, nil
 }
+
+//func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
+//	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
+//	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+//
+//	queryBuilder := squirrel.Select().
+//		From("cases.status AS g").
+//		LeftJoin("cases.status_condition AS sc ON g.id = sc.status_id AND g.dc = sc.dc").
+//		Where(squirrel.Eq{"g.dc": ctx.Session.GetDomainId()}).
+//		PlaceholderFormat(squirrel.Dollar)
+//
+//	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
+//
+//	ctx.Fields = append(fields, "id")
+//
+//	for _, field := range ctx.Fields {
+//		switch field {
+//		case "id", "name", "description", "created_at", "updated_at":
+//			queryBuilder = queryBuilder.Column("g." + field)
+//		case "created_by":
+//			queryBuilder = queryBuilder.Column("created_by.id AS created_by_id, created_by.name AS created_by_name").
+//				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
+//		case "updated_by":
+//			queryBuilder = queryBuilder.Column("updated_by.id AS updated_by_id, updated_by.name AS updated_by_name").
+//				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
+//		case "conditions":
+//			queryBuilder = queryBuilder.Column("sc.id AS condition_id, sc.name AS condition_name, sc.description AS condition_description, sc.initial, sc.final")
+//		}
+//	}
+//
+//	if len(ids) > 0 {
+//		queryBuilder = queryBuilder.Where(squirrel.Eq{"g.id": ids})
+//	}
+//
+//	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
+//		substr := ctx.Match.Substring(name)
+//		queryBuilder = queryBuilder.Where(squirrel.ILike{"g.name": substr})
+//	}
+//
+//	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
+//
+//	var sortFields []string
+//
+//	for _, sortField := range parsedFields {
+//		desc := false
+//		if strings.HasPrefix(sortField, "!") {
+//			desc = true
+//			sortField = strings.TrimPrefix(sortField, "!")
+//		}
+//
+//		var column string
+//		switch sortField {
+//		case "name", "description":
+//			column = "g." + sortField
+//		default:
+//			continue
+//		}
+//
+//		if desc {
+//			column += " DESC"
+//		} else {
+//			column += " ASC"
+//		}
+//
+//		sortFields = append(sortFields, column)
+//	}
+//
+//	size := ctx.GetSize()
+//	queryBuilder = queryBuilder.OrderBy(sortFields...).Offset(uint64((ctx.Page - 1) * size))
+//	if size != -1 {
+//		queryBuilder = queryBuilder.Limit(uint64(size))
+//	}
+//
+//	return queryBuilder, nil
+//}
 
 // buildDeleteStatusLookupQuery constructs the SQL delete query and returns the query string and arguments.
 func (s Status) buildDeleteStatusQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {

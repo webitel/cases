@@ -1,4 +1,4 @@
-package lookup
+package postgres
 
 import (
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
@@ -286,8 +286,8 @@ func (s CloseReason) buildSearchCloseReasonQuery(ctx *model.SearchOptions) (squi
 	}
 
 	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
-		substr := ctx.Match.Substring(name)
-		queryBuilder = queryBuilder.Where(squirrel.ILike{"g.name": substr})
+		s := ctx.Match.Substring(name)
+		queryBuilder = queryBuilder.Where(squirrel.ILike{"g.name": s})
 	}
 
 	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)

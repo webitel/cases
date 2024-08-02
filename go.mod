@@ -3,8 +3,8 @@ module github.com/webitel/cases
 go 1.22.4
 
 require (
-	buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20240801113201-716e59ec7f65.1
-	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240801113201-716e59ec7f65.2
+	buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20240801134742-073e0c4f7f48.1
+	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.34.2-20240801134742-073e0c4f7f48.2
 	buf.build/gen/go/webitel/general/protocolbuffers/go v1.34.2-20240527133232-b30251c3af1c.2
 	buf.build/gen/go/webitel/webitel-go/grpc/go v1.4.0-20240717142245-3d606517c760.2
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240717142245-3d606517c760.2
@@ -12,6 +12,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/hashicorp/consul/api v1.29.2
+	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/nicksnyder/go-i18n v1.10.3
@@ -22,7 +23,9 @@ require (
 require (
 	buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.34.2-20240617172850-a48fcebcf8f1.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
+	github.com/cockroachdb/apd v1.1.0 // indirect
 	github.com/fatih/color v1.16.0 // indirect
+	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.5.0 // indirect
@@ -31,6 +34,7 @@ require (
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
+	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -38,9 +42,12 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.21.0 // indirect
+	golang.org/x/crypto v0.23.0 // indirect
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63 // indirect
 	golang.org/x/net v0.25.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
