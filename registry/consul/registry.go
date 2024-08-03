@@ -1,12 +1,12 @@
 package consul
 
 import (
+	"net"
+	"strconv"
+
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/registry"
-
-	"net"
-	"strconv"
 )
 
 type ConsulRegistry struct {
@@ -15,9 +15,7 @@ type ConsulRegistry struct {
 }
 
 func NewConsulRegistry(config *model.ConsulConfig) (*ConsulRegistry, model.AppError) {
-	var (
-		err error
-	)
+	var err error
 	entity := ConsulRegistry{}
 	if config.Id == "" {
 		return nil, model.NewBadRequestError("consul.registry.new_consul.check_args.service_id", "service id is empty! (set it by '-id' flag)")

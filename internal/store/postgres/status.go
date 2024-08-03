@@ -1,18 +1,18 @@
 package postgres
 
 import (
-	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	_gen "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/Masterminds/squirrel"
-	"github.com/lib/pq"
-	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/model"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/Masterminds/squirrel"
+	"github.com/lib/pq"
+	_go "github.com/webitel/cases/api"
+	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/model"
 )
 
 type Status struct {
@@ -33,7 +33,7 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 		return nil, err
 	}
 
-	var createdByLookup, updatedByLookup _gen.Lookup
+	var createdByLookup, updatedByLookup _go.Lookup
 
 	t := ctx.CurrentTime()
 
@@ -42,7 +42,6 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 		&createdByLookup.Id, &createdByLookup.Name,
 		t, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
-
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return nil, err
@@ -52,7 +51,7 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 		Id:          add.Id,
 		Name:        add.Name,
 		Description: add.Description,
-		//When we create a new lookup - CREATED/UPDATED_AT are the same
+		// When we create a new lookup - CREATED/UPDATED_AT are the same
 		CreatedAt: t.Unix(),
 		UpdatedAt: t.Unix(),
 		CreatedBy: &createdByLookup,
@@ -61,7 +60,6 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 }
 
 func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
-
 	cte, err := s.buildSearchStatusQuery(ctx)
 
 	d, dbErr := s.storage.Database()
@@ -83,7 +81,6 @@ func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
 	}
 
 	rows, err := d.DB.QueryContext(ctx.Context, query, args...)
-
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return nil, err
@@ -107,7 +104,7 @@ func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
 		}
 
 		l := &_go.Status{}
-		var createdBy, updatedBy _gen.Lookup
+		var createdBy, updatedBy _go.Lookup
 		var tempUpdatedAt, tempCreatedAt time.Time
 		var scanArgs []interface{}
 
@@ -163,7 +160,6 @@ func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
 
 func (s Status) Delete(ctx *model.DeleteOptions) error {
 	query, args, err := s.buildDeleteStatusQuery(ctx)
-
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return err
@@ -176,7 +172,6 @@ func (s Status) Delete(ctx *model.DeleteOptions) error {
 	}
 
 	res, err := d.DB.ExecContext(ctx.Context, query, args...)
-
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return err
@@ -204,14 +199,13 @@ func (s Status) Update(ctx *model.UpdateOptions, l *_go.Status) (*_go.Status, er
 		return nil, dbErr
 	}
 
-	var createdBy, updatedByLookup _gen.Lookup
+	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
 
 	err := d.DB.QueryRowContext(ctx.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
-
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return nil, err
@@ -228,11 +222,12 @@ func (s Status) Update(ctx *model.UpdateOptions, l *_go.Status) (*_go.Status, er
 
 // buildCreateStatusLookupQuery constructs the SQL insert query and returns the query string and arguments.
 func (s Status) buildCreateStatusQuery(ctx *model.CreateOptions, lookup *_go.Status) (string,
-	[]interface{}, error) {
+	[]interface{}, error,
+) {
 	query := `
 with ins as (
-    INSERT INTO cases.status (name, dc, created_at, description, created_by, updated_at, 
-updated_by) 
+    INSERT INTO cases.status (name, dc, created_at, description, created_by, updated_at,
+updated_by)
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     returning *
 )
@@ -249,14 +244,15 @@ from ins
   left join directory.wbt_user u on u.id = ins.updated_by
   left join directory.wbt_user c on c.id = ins.created_by;
 `
-	args := []interface{}{lookup.Name, ctx.Session.GetDomainId(), ctx.CurrentTime(), lookup.Description, ctx.Session.GetUserId(),
-		ctx.CurrentTime(), ctx.Session.GetUserId()}
+	args := []interface{}{
+		lookup.Name, ctx.Session.GetDomainId(), ctx.CurrentTime(), lookup.Description, ctx.Session.GetUserId(),
+		ctx.CurrentTime(), ctx.Session.GetUserId(),
+	}
 	return query, args, nil
 }
 
 // buildSearchStatusLookupQuery constructs the SQL search query and returns the query builder.
 func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
-
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 

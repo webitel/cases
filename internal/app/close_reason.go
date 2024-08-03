@@ -1,12 +1,12 @@
 package app
 
 import (
-	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	_general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	"context"
+	"strings"
+
+	_go "github.com/webitel/cases/api"
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/model"
-	"strings"
 )
 
 type CloseReasonService struct {
@@ -31,7 +31,7 @@ func (s CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.Crea
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &_general.Lookup{
+	currentU := &_go.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -127,7 +127,7 @@ func (s CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.Upda
 	}
 
 	// Define the current user as the updater
-	currentU := &_general.Lookup{
+	currentU := &_go.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}

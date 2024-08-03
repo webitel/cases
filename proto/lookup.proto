@@ -1,0 +1,9 @@
+syntax = "proto3";
+package cases;
+
+option go_package = "cases/api";
+
+message Lookup {
+    int64 id = 1;
+    string name = 2;
+  }

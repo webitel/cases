@@ -1,0 +1,190 @@
+syntax = "proto3";
+package cases;
+
+option go_package = "cases/api";
+
+import "lookup.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+import "google/api/annotations.proto";
+
+
+// Represents a appeal in the contact system.
+message Appeal {
+  // The unique ID of the appeal. Never changes.
+  int64 id = 1;
+
+  // The name of the appeal.
+  string name = 2;
+
+  // The description of the appeal.
+  string description = 4;
+
+  // Timestamp(milli) of the appeal's creation.
+  int64 created_at = 20;
+
+  // Timestamp(milli) of the last appeal update.
+  int64 updated_at = 21;
+
+  // The user who created this appeal.
+  Lookup created_by = 22;
+
+  // The user who performed the last update.
+  Lookup updated_by = 23;
+}
+
+
+// A list of appeals.
+message AppealList {
+  // Page number of the partial result.
+  int32 page = 1;
+  // Have more records.
+  bool next = 2;
+  // List of appeals.
+  repeated Appeal items = 3;
+}
+
+// Request message for creating a new appeal.
+message CreateAppealRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["name"]
+    }
+  };
+
+  // The name of the appeal.
+  string name = 1;
+
+  // The description of the appeal.
+  string description = 3;
+}
+
+// Request message for updating an existing appeal.
+message UpdateAppealRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  // The unique ID of the appeal to update.
+  int64 id = 1;
+
+  // The new name of the appeal.
+  string name = 2;
+
+  // The new description of the appeal.
+  string description = 4;
+}
+
+// Request message for deleting a appeal.
+message DeleteAppealRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  // The unique ID of the appeal to delete.
+  int64 id = 1;
+}
+
+// Request message for listing appeals.
+message ListAppealRequest {
+  // Page number of result dataset records. offset = (page*size)
+  int32 page = 1;
+
+  // Size count of records on result page. limit = (size++)
+  int32 size = 2;
+
+  // Fields to be retrieved as a result.
+  repeated string fields = 3;
+
+  // Sort the result according to fields.
+  repeated string sort = 4;
+
+  // Filter by unique IDs.
+  repeated int64 id = 5;
+
+  // Search term: appeal name;
+  // `?` - matches any one character
+  // `*` - matches 0 or more characters
+  string q = 6;
+
+  // Filter by appeal name.
+  string name = 7;
+}
+
+// Request message for locating a appeal by ID.
+message LocateAppealRequest {
+  // The unique ID of the appeal to locate.
+  int64 id = 1;
+
+  // Fields to be retrieved into result.
+  repeated string fields = 2;
+}
+
+// Response message for locating a appeal.
+message LocateAppealResponse {
+  // The located appeal.
+  Appeal appeal = 1;
+}
+
+
+service Appeals {
+
+  rpc ListAppeals(ListAppealRequest) returns (AppealList) {
+    option (google.api.http) = {
+      get: "/appeals"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve a list of appeals or search appeals"
+    };
+  }
+
+  rpc CreateAppeal(CreateAppealRequest) returns (Appeal) {
+    option (google.api.http) = {
+      post: "/appeals"
+      body: "*"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Create a new appeal"
+    };
+  }
+
+  rpc UpdateAppeal(UpdateAppealRequest) returns (Appeal) {
+    option (google.api.http) = {
+      put: "/appeals/{id}"
+      body: "*"
+      additional_bindings {
+        patch: "/appeals/{id}"
+        body: "*"
+      }
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Update an existing appeal"
+    };
+  }
+
+  rpc DeleteAppeal(DeleteAppealRequest) returns (Appeal) {
+    option (google.api.http) = {
+      delete: "/appeals/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Delete an appeal"
+    };
+  }
+
+  rpc LocateAppeal(LocateAppealRequest) returns (LocateAppealResponse) {
+    option (google.api.http) = {
+      get: "/appeals/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Locate a appeal by ID"
+    };
+  }
+}

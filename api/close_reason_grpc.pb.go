@@ -103,7 +103,7 @@ func (c *closeReasonsClient) LocateCloseReason(ctx context.Context, in *LocateCl
 }
 
 // CloseReasonsServer is the server API for CloseReasons service.
-// All implementations must embed UnimplementedCloseReasonsServer
+// All implementations should embed UnimplementedCloseReasonsServer
 // for forward compatibility.
 //
 // CloseReasons service definition with RPC methods for managing close reasons
@@ -118,10 +118,9 @@ type CloseReasonsServer interface {
 	DeleteCloseReason(context.Context, *DeleteCloseReasonRequest) (*CloseReason, error)
 	// RPC method to locate a specific close reason by ID
 	LocateCloseReason(context.Context, *LocateCloseReasonRequest) (*LocateCloseReasonResponse, error)
-	mustEmbedUnimplementedCloseReasonsServer()
 }
 
-// UnimplementedCloseReasonsServer must be embedded to have
+// UnimplementedCloseReasonsServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -143,8 +142,7 @@ func (UnimplementedCloseReasonsServer) DeleteCloseReason(context.Context, *Delet
 func (UnimplementedCloseReasonsServer) LocateCloseReason(context.Context, *LocateCloseReasonRequest) (*LocateCloseReasonResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LocateCloseReason not implemented")
 }
-func (UnimplementedCloseReasonsServer) mustEmbedUnimplementedCloseReasonsServer() {}
-func (UnimplementedCloseReasonsServer) testEmbeddedByValue()                      {}
+func (UnimplementedCloseReasonsServer) testEmbeddedByValue() {}
 
 // UnsafeCloseReasonsServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to CloseReasonsServer will

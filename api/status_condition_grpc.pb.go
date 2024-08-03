@@ -103,7 +103,7 @@ func (c *statusConditionsClient) LocateStatusCondition(ctx context.Context, in *
 }
 
 // StatusConditionsServer is the server API for StatusConditions service.
-// All implementations must embed UnimplementedStatusConditionsServer
+// All implementations should embed UnimplementedStatusConditionsServer
 // for forward compatibility.
 //
 // StatusConditions service definition with RPC methods for managing statuses
@@ -118,10 +118,9 @@ type StatusConditionsServer interface {
 	DeleteStatusCondition(context.Context, *DeleteStatusConditionRequest) (*StatusCondition, error)
 	// RPC method to locate a specific status by ID
 	LocateStatusCondition(context.Context, *LocateStatusConditionRequest) (*LocateStatusConditionResponse, error)
-	mustEmbedUnimplementedStatusConditionsServer()
 }
 
-// UnimplementedStatusConditionsServer must be embedded to have
+// UnimplementedStatusConditionsServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -143,8 +142,7 @@ func (UnimplementedStatusConditionsServer) DeleteStatusCondition(context.Context
 func (UnimplementedStatusConditionsServer) LocateStatusCondition(context.Context, *LocateStatusConditionRequest) (*LocateStatusConditionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LocateStatusCondition not implemented")
 }
-func (UnimplementedStatusConditionsServer) mustEmbedUnimplementedStatusConditionsServer() {}
-func (UnimplementedStatusConditionsServer) testEmbeddedByValue()                          {}
+func (UnimplementedStatusConditionsServer) testEmbeddedByValue() {}
 
 // UnsafeStatusConditionsServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to StatusConditionsServer will

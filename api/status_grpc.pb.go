@@ -103,7 +103,7 @@ func (c *statusesClient) LocateStatus(ctx context.Context, in *LocateStatusReque
 }
 
 // StatusesServer is the server API for Statuses service.
-// All implementations must embed UnimplementedStatusesServer
+// All implementations should embed UnimplementedStatusesServer
 // for forward compatibility.
 //
 // Statuses service definition with RPC methods for managing statuses
@@ -118,10 +118,9 @@ type StatusesServer interface {
 	DeleteStatus(context.Context, *DeleteStatusRequest) (*Status, error)
 	// RPC method to locate a specific status by ID
 	LocateStatus(context.Context, *LocateStatusRequest) (*LocateStatusResponse, error)
-	mustEmbedUnimplementedStatusesServer()
 }
 
-// UnimplementedStatusesServer must be embedded to have
+// UnimplementedStatusesServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -143,8 +142,7 @@ func (UnimplementedStatusesServer) DeleteStatus(context.Context, *DeleteStatusRe
 func (UnimplementedStatusesServer) LocateStatus(context.Context, *LocateStatusRequest) (*LocateStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LocateStatus not implemented")
 }
-func (UnimplementedStatusesServer) mustEmbedUnimplementedStatusesServer() {}
-func (UnimplementedStatusesServer) testEmbeddedByValue()                  {}
+func (UnimplementedStatusesServer) testEmbeddedByValue() {}
 
 // UnsafeStatusesServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to StatusesServer will

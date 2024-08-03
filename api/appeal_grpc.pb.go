@@ -96,7 +96,7 @@ func (c *appealsClient) LocateAppeal(ctx context.Context, in *LocateAppealReques
 }
 
 // AppealsServer is the server API for Appeals service.
-// All implementations must embed UnimplementedAppealsServer
+// All implementations should embed UnimplementedAppealsServer
 // for forward compatibility.
 type AppealsServer interface {
 	ListAppeals(context.Context, *ListAppealRequest) (*AppealList, error)
@@ -104,10 +104,9 @@ type AppealsServer interface {
 	UpdateAppeal(context.Context, *UpdateAppealRequest) (*Appeal, error)
 	DeleteAppeal(context.Context, *DeleteAppealRequest) (*Appeal, error)
 	LocateAppeal(context.Context, *LocateAppealRequest) (*LocateAppealResponse, error)
-	mustEmbedUnimplementedAppealsServer()
 }
 
-// UnimplementedAppealsServer must be embedded to have
+// UnimplementedAppealsServer should be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -129,8 +128,7 @@ func (UnimplementedAppealsServer) DeleteAppeal(context.Context, *DeleteAppealReq
 func (UnimplementedAppealsServer) LocateAppeal(context.Context, *LocateAppealRequest) (*LocateAppealResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LocateAppeal not implemented")
 }
-func (UnimplementedAppealsServer) mustEmbedUnimplementedAppealsServer() {}
-func (UnimplementedAppealsServer) testEmbeddedByValue()                 {}
+func (UnimplementedAppealsServer) testEmbeddedByValue() {}
 
 // UnsafeAppealsServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to AppealsServer will

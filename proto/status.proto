@@ -1,0 +1,163 @@
+syntax = "proto3";
+package cases;
+
+option go_package = "cases/api";
+
+import "lookup.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+// Status message represents a status entity with metadata
+message Status {
+  int64 id = 1;
+  string name = 2;
+  string description = 4;
+  int64 created_at = 20;
+  int64 updated_at = 21;
+  Lookup created_by = 22;
+  Lookup updated_by = 23;
+}
+
+// StatusList message contains a list of Status items with pagination
+message StatusList {
+  int32 page = 1;
+  bool next = 2;
+  repeated Status items = 3;
+}
+
+// CreateStatusRequest message for creating a new status
+message CreateStatusRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["name"]
+    }
+  };
+
+  string name = 1;
+  string description = 3;
+}
+
+// UpdateStatusRequest message for updating an existing status
+message UpdateStatusRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  int64 id = 1;
+  string name = 2;
+  string description = 4;
+}
+
+// DeleteStatusRequest message for deleting an existing status
+message DeleteStatusRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  int64 id = 1;
+}
+
+// ListStatusesRequest message for listing or searching statuses
+message ListStatusRequest {
+  // Page number of result dataset records. offset = (page*size)
+  int32 page = 1;
+
+  // Size count of records on result page. limit = (size++)
+  int32 size = 2;
+
+  // Fields to be retrieved as a result.
+  repeated string fields = 3;
+
+  // Sort the result according to fields.
+  repeated string sort = 4;
+
+  // Filter by unique IDs.
+  repeated int64 id = 5;
+
+  // Search term: status name;
+  // `?` - matches any one character
+  // `*` - matches 0 or more characters
+  string q = 6;
+
+  // Filter by status name.
+  string name = 7;
+}
+
+// LocateStatusRequest message for locating a specific status by ID
+message LocateStatusRequest {
+  int64 id = 1;
+  repeated string fields = 2;
+}
+
+// LocateStatusResponse message contains a single status entity
+message LocateStatusResponse {
+  Status status = 1;
+}
+
+// Statuses service definition with RPC methods for managing statuses
+service Statuses {
+  // RPC method to list or search statuses
+  rpc ListStatuses(ListStatusRequest) returns (StatusList) {
+    option (google.api.http) = {
+      get: "/statuses"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve a list of statuses or search statuses"
+    };
+  }
+
+  // RPC method to create a new status
+  rpc CreateStatus(CreateStatusRequest) returns (Status) {
+    option (google.api.http) = {
+      post: "/statuses"
+      body: "*"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Create a new status"
+    };
+  }
+
+  // RPC method to update an existing status
+  rpc UpdateStatus(UpdateStatusRequest) returns (Status) {
+    option (google.api.http) = {
+      put: "/statuses/{id}"
+      body: "*"
+      additional_bindings {
+        patch: "/cases/statuses/{id}"
+        body: "*"
+      }
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Update an existing status"
+    };
+  }
+
+  // RPC method to delete an existing status
+  rpc DeleteStatus(DeleteStatusRequest) returns (Status) {
+    option (google.api.http) = {
+      delete: "/statuses/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Delete a status"
+    };
+  }
+
+  // RPC method to locate a specific status by ID
+  rpc LocateStatus(LocateStatusRequest) returns (LocateStatusResponse) {
+    option (google.api.http) = {
+      get: "/statuses/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Locate a status by ID"
+    };
+  }
+}

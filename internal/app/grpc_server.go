@@ -1,10 +1,15 @@
 package app
 
 import (
-	grpcservice "buf.build/gen/go/webitel/cases/grpc/go/_gogrpc"
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"strings"
+	"time"
+
+	grpcservice "github.com/webitel/cases/api"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/registry"
 	"github.com/webitel/cases/registry/consul"
@@ -13,10 +18,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"net"
-	"net/http"
-	"strings"
-	"time"
 )
 
 var (
@@ -81,7 +82,6 @@ func (a *Server) Stop() {
 }
 
 func buildGrpc(app *App) (*grpc.Server, model.AppError) {
-
 	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(unaryInterceptor))
 
 	// * Creating services
@@ -118,13 +118,13 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 	grpcservice.RegisterStatusConditionsServer(grpcServer, s)
 
 	return grpcServer, nil
-
 }
 
 func unaryInterceptor(ctx context.Context,
 	req interface{},
 	info *grpc.UnaryServerInfo,
-	handler grpc.UnaryHandler) (interface{}, error) {
+	handler grpc.UnaryHandler,
+) (interface{}, error) {
 	start := time.Now()
 	var reqCtx context.Context
 	var ip string

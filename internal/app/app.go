@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+
+	"github.com/micro/micro/v3/service/server"
 	"github.com/webitel/cases/auth"
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/auth/webitel_manager"
@@ -70,7 +72,6 @@ func BuildDatabase(config *model.DatabaseConfig) store.Store {
 }
 
 func (a *App) Start() model.AppError {
-
 	err := a.Store.Open()
 	if err != nil {
 		return err
@@ -78,7 +79,7 @@ func (a *App) Start() model.AppError {
 
 	// * run grpc server
 	go a.server.Start()
-	//go ServeRequests(a, a.config.Consul, a.exitChan)
+	// go ServeRequests(a, a.config.Consul, a.exitChan)
 	return <-a.exitChan
 }
 
@@ -118,4 +119,8 @@ func (a *App) MakeScopeError(session *authmodel.Session, scope *authmodel.Scope,
 		return model.NewForbiddenError("internal.scope.check_access.denied", fmt.Sprintf("access denied"))
 	}
 	return model.NewForbiddenError("internal.scope.check_access.denied", fmt.Sprintf("access denied scope=%s access=%d for user %d", scope.Name, access, session.GetUserId()))
+}
+
+func (s *App) Server() server.Server {
+	return server.DefaultServer
 }

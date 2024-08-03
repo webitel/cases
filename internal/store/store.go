@@ -1,8 +1,8 @@
 package store
 
 import (
-	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	"github.com/jmoiron/sqlx"
+	_go "github.com/webitel/cases/api"
 	"github.com/webitel/cases/model"
 )
 

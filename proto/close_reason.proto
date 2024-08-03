@@ -1,0 +1,164 @@
+syntax = "proto3";
+package cases;
+
+option go_package = "cases/api";
+
+import "lookup.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+
+// CloseReason message represents a close reason entity with metadata
+message CloseReason {
+  int64 id = 1;
+  string name = 2;
+  string description = 4;
+  int64 created_at = 20;
+  int64 updated_at = 21;
+  Lookup created_by = 22;
+  Lookup updated_by = 23;
+}
+
+// CloseReasonList message contains a list of CloseReason items with pagination
+message CloseReasonList {
+  int32 page = 1;
+  bool next = 2;
+  repeated CloseReason items = 3;
+}
+
+// CreateCloseReasonRequest message for creating a new close reason
+message CreateCloseReasonRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["name"]
+    }
+  };
+
+  string name = 1;
+  string description = 3;
+}
+
+// UpdateCloseReasonRequest message for updating an existing close reason
+message UpdateCloseReasonRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  int64 id = 1;
+  string name = 2;
+  string description = 4;
+}
+
+// DeleteCloseReasonRequest message for deleting an existing close reason
+message DeleteCloseReasonRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  int64 id = 1;
+}
+
+// ListCloseReasonsRequest message for listing or searching close reasons
+message ListCloseReasonRequest {
+  // Page number of result dataset records. offset = (page*size)
+  int32 page = 1;
+
+  // Size count of records on result page. limit = (size++)
+  int32 size = 2;
+
+  // Fields to be retrieved as a result.
+  repeated string fields = 3;
+
+  // Sort the result according to fields.
+  repeated string sort = 4;
+
+  // Filter by unique IDs.
+  repeated int64 id = 5;
+
+  // Search term: close reason name;
+  // `?` - matches any one character
+  // `*` - matches 0 or more characters
+  string q = 6;
+
+  // Filter by close reason name.
+  string name = 7;
+}
+
+// LocateCloseReasonRequest message for locating a specific close reason by ID
+message LocateCloseReasonRequest {
+  int64 id = 1;
+  repeated string fields = 2;
+}
+
+// LocateCloseReasonResponse message contains a single close reason entity
+message LocateCloseReasonResponse {
+  CloseReason close_reason = 1;
+}
+
+// CloseReasons service definition with RPC methods for managing close reasons
+service CloseReasons {
+  // RPC method to list or search close reasons
+  rpc ListCloseReasons(ListCloseReasonRequest) returns (CloseReasonList) {
+    option (google.api.http) = {
+      get: "/closeReasons"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve a list of close reasons or search close reasons"
+    };
+  }
+
+  // RPC method to create a new close reason
+  rpc CreateCloseReason(CreateCloseReasonRequest) returns (CloseReason) {
+    option (google.api.http) = {
+      post: "/closeReasons"
+      body: "*"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Create a new close reason"
+    };
+  }
+
+  // RPC method to update an existing close reason
+  rpc UpdateCloseReason(UpdateCloseReasonRequest) returns (CloseReason) {
+    option (google.api.http) = {
+      put: "/closeReasons/{id}"
+      body: "*"
+      additional_bindings {
+        patch: "/closeReasons/{id}"
+        body: "*"
+      }
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Update an existing close reason"
+    };
+  }
+
+  // RPC method to delete an existing close reason
+  rpc DeleteCloseReason(DeleteCloseReasonRequest) returns (CloseReason) {
+    option (google.api.http) = {
+      delete: "/closeReasons/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Delete a close reason"
+    };
+  }
+
+  // RPC method to locate a specific close reason by ID
+  rpc LocateCloseReason(LocateCloseReasonRequest) returns (LocateCloseReasonResponse) {
+    option (google.api.http) = {
+      get: "/closeReasons/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Locate a close reason by ID"
+    };
+  }
+}

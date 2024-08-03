@@ -1,0 +1,1420 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Webitel Cases ReSTfull API",
+    "version": "v24.04",
+    "contact": {
+      "name": "Webitel LLC",
+      "url": "https://www.webitel.com",
+      "email": "support@webitel.com"
+    },
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "tags": [
+    {
+      "name": "Appeals"
+    },
+    {
+      "name": "CloseReasons"
+    },
+    {
+      "name": "StatusConditions"
+    },
+    {
+      "name": "Statuses"
+    }
+  ],
+  "host": "nx.webitel.org",
+  "basePath": "/api",
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/appeals": {
+      "get": {
+        "summary": "Retrieve a list of appeals or search appeals",
+        "operationId": "Appeals_ListAppeals",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.AppealList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "description": "Sort the result according to fields.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "id",
+            "description": "Filter by unique IDs.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "q",
+            "description": "Search term: appeal name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "description": "Filter by appeal name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Appeals"
+        ]
+      },
+      "post": {
+        "summary": "Create a new appeal",
+        "operationId": "Appeals_CreateAppeal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Appeal"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Request message for creating a new appeal.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.CreateAppealRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Appeals"
+        ]
+      }
+    },
+    "/appeals/{id}": {
+      "get": {
+        "summary": "Locate a appeal by ID",
+        "operationId": "Appeals_LocateAppeal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.LocateAppealResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique ID of the appeal to locate.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved into result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Appeals"
+        ]
+      },
+      "delete": {
+        "summary": "Delete an appeal",
+        "operationId": "Appeals_DeleteAppeal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Appeal"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique ID of the appeal to delete.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "Appeals"
+        ]
+      },
+      "put": {
+        "summary": "Update an existing appeal",
+        "operationId": "Appeals_UpdateAppeal",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Appeal"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique ID of the appeal to update.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.Appeals.UpdateAppealBody"
+            }
+          }
+        ],
+        "tags": [
+          "Appeals"
+        ]
+      },
+      "patch": {
+        "summary": "Update an existing appeal",
+        "operationId": "Appeals_UpdateAppeal2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Appeal"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique ID of the appeal to update.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.Appeals.UpdateAppealBody"
+            }
+          }
+        ],
+        "tags": [
+          "Appeals"
+        ]
+      }
+    },
+    "/cases/statuses/{id}": {
+      "patch": {
+        "summary": "Update an existing status",
+        "operationId": "Statuses_UpdateStatus2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.Statuses.UpdateStatusBody"
+            }
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      }
+    },
+    "/closeReasons": {
+      "get": {
+        "summary": "Retrieve a list of close reasons or search close reasons",
+        "operationId": "CloseReasons_ListCloseReasons",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.CloseReasonList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "description": "Sort the result according to fields.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "id",
+            "description": "Filter by unique IDs.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "q",
+            "description": "Search term: close reason name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "description": "Filter by close reason name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CloseReasons"
+        ]
+      },
+      "post": {
+        "summary": "Create a new close reason",
+        "operationId": "CloseReasons_CreateCloseReason",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.CloseReason"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.CreateCloseReasonRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CloseReasons"
+        ]
+      }
+    },
+    "/closeReasons/{id}": {
+      "get": {
+        "summary": "Locate a close reason by ID",
+        "operationId": "CloseReasons_LocateCloseReason",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.LocateCloseReasonResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CloseReasons"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a close reason",
+        "operationId": "CloseReasons_DeleteCloseReason",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.CloseReason"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "CloseReasons"
+        ]
+      },
+      "put": {
+        "summary": "Update an existing close reason",
+        "operationId": "CloseReasons_UpdateCloseReason",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.CloseReason"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.CloseReasons.UpdateCloseReasonBody"
+            }
+          }
+        ],
+        "tags": [
+          "CloseReasons"
+        ]
+      },
+      "patch": {
+        "summary": "Update an existing close reason",
+        "operationId": "CloseReasons_UpdateCloseReason2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.CloseReason"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.CloseReasons.UpdateCloseReasonBody"
+            }
+          }
+        ],
+        "tags": [
+          "CloseReasons"
+        ]
+      }
+    },
+    "/statuses": {
+      "get": {
+        "summary": "Retrieve a list of statuses or search statuses",
+        "operationId": "Statuses_ListStatuses",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.StatusList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "description": "Sort the result according to fields.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "id",
+            "description": "Filter by unique IDs.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "q",
+            "description": "Search term: status name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "description": "Filter by status name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      },
+      "post": {
+        "summary": "Create a new status",
+        "operationId": "Statuses_CreateStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.CreateStatusRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      }
+    },
+    "/statuses/{id}": {
+      "get": {
+        "summary": "Locate a status by ID",
+        "operationId": "Statuses_LocateStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.LocateStatusResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a status",
+        "operationId": "Statuses_DeleteStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      },
+      "put": {
+        "summary": "Update an existing status",
+        "operationId": "Statuses_UpdateStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.Statuses.UpdateStatusBody"
+            }
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      }
+    },
+    "/statuses/{status_id}/status": {
+      "get": {
+        "summary": "Retrieve a list of statuses or search statuses",
+        "operationId": "StatusConditions_ListStatusConditions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.StatusConditionList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "StatusConditions"
+        ]
+      },
+      "post": {
+        "summary": "Create a new status",
+        "operationId": "StatusConditions_CreateStatusCondition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.StatusCondition"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.StatusConditions.CreateStatusConditionBody"
+            }
+          }
+        ],
+        "tags": [
+          "StatusConditions"
+        ]
+      }
+    },
+    "/statuses/{status_id}/status/{id}": {
+      "get": {
+        "summary": "Locate a status by ID",
+        "operationId": "StatusConditions_LocateStatusCondition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.LocateStatusConditionResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "StatusConditions"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a status",
+        "operationId": "StatusConditions_DeleteStatusCondition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.StatusCondition"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "StatusConditions"
+        ]
+      },
+      "put": {
+        "summary": "Update an existing status",
+        "operationId": "StatusConditions_UpdateStatusCondition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.StatusCondition"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.StatusConditions.UpdateStatusConditionBody"
+            }
+          }
+        ],
+        "tags": [
+          "StatusConditions"
+        ]
+      },
+      "patch": {
+        "summary": "Update an existing status",
+        "operationId": "StatusConditions_UpdateStatusCondition2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.StatusCondition"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.StatusConditions.UpdateStatusConditionBody"
+            }
+          }
+        ],
+        "tags": [
+          "StatusConditions"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "cases.Appeal": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64",
+          "description": "The unique ID of the appeal. Never changes."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the appeal."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the appeal."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "description": "Timestamp(milli) of the appeal's creation."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "description": "Timestamp(milli) of the last appeal update."
+        },
+        "created_by": {
+          "$ref": "#/definitions/cases.Lookup",
+          "description": "The user who created this appeal."
+        },
+        "updated_by": {
+          "$ref": "#/definitions/cases.Lookup",
+          "description": "The user who performed the last update."
+        }
+      },
+      "description": "Represents a appeal in the contact system."
+    },
+    "cases.AppealList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Page number of the partial result."
+        },
+        "next": {
+          "type": "boolean",
+          "description": "Have more records."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/cases.Appeal"
+          },
+          "description": "List of appeals."
+        }
+      },
+      "description": "A list of appeals."
+    },
+    "cases.Appeals.UpdateAppealBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The new name of the appeal."
+        },
+        "description": {
+          "type": "string",
+          "description": "The new description of the appeal."
+        }
+      },
+      "description": "Request message for updating an existing appeal."
+    },
+    "cases.CloseReason": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64"
+        },
+        "created_by": {
+          "$ref": "#/definitions/cases.Lookup"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/cases.Lookup"
+        }
+      },
+      "title": "CloseReason message represents a close reason entity with metadata"
+    },
+    "cases.CloseReasonList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/cases.CloseReason"
+          }
+        }
+      },
+      "title": "CloseReasonList message contains a list of CloseReason items with pagination"
+    },
+    "cases.CloseReasons.UpdateCloseReasonBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "title": "UpdateCloseReasonRequest message for updating an existing close reason"
+    },
+    "cases.CreateAppealRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the appeal."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the appeal."
+        }
+      },
+      "description": "Request message for creating a new appeal.",
+      "required": [
+        "name"
+      ]
+    },
+    "cases.CreateCloseReasonRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "title": "CreateCloseReasonRequest message for creating a new close reason",
+      "required": [
+        "name"
+      ]
+    },
+    "cases.CreateStatusRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "title": "CreateStatusRequest message for creating a new status",
+      "required": [
+        "name"
+      ]
+    },
+    "cases.InputStatusCondition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "initial": {
+          "type": "boolean"
+        },
+        "final": {
+          "type": "boolean"
+        }
+      },
+      "title": "InputStatusCondition message for inputting status condition data"
+    },
+    "cases.LocateAppealResponse": {
+      "type": "object",
+      "properties": {
+        "appeal": {
+          "$ref": "#/definitions/cases.Appeal",
+          "description": "The located appeal."
+        }
+      },
+      "description": "Response message for locating a appeal."
+    },
+    "cases.LocateCloseReasonResponse": {
+      "type": "object",
+      "properties": {
+        "close_reason": {
+          "$ref": "#/definitions/cases.CloseReason"
+        }
+      },
+      "title": "LocateCloseReasonResponse message contains a single close reason entity"
+    },
+    "cases.LocateStatusConditionResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/cases.StatusCondition"
+        }
+      },
+      "title": "LocateStatusConditionResponse message contains a single status entity"
+    },
+    "cases.LocateStatusResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/cases.Status"
+        }
+      },
+      "title": "LocateStatusResponse message contains a single status entity"
+    },
+    "cases.Lookup": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "cases.Status": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64"
+        },
+        "created_by": {
+          "$ref": "#/definitions/cases.Lookup"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/cases.Lookup"
+        }
+      },
+      "title": "Status message represents a status entity with metadata"
+    },
+    "cases.StatusCondition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "initial": {
+          "type": "boolean"
+        },
+        "final": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64"
+        },
+        "created_by": {
+          "$ref": "#/definitions/cases.Lookup"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/cases.Lookup"
+        }
+      },
+      "title": "StatusCondition message represents a status entity with metadata"
+    },
+    "cases.StatusConditionList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/cases.StatusCondition"
+          }
+        }
+      },
+      "title": "StatusConditionList message contains a list of StatusCondition items with pagination"
+    },
+    "cases.StatusConditions.CreateStatusConditionBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "title": "CreateStatusConditionRequest message for creating a new status",
+      "required": [
+        "name",
+        "lookup_id"
+      ]
+    },
+    "cases.StatusConditions.UpdateStatusConditionBody": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "$ref": "#/definitions/cases.InputStatusCondition"
+        }
+      },
+      "title": "UpdateStatusConditionRequest message for updating an existing status"
+    },
+    "cases.StatusList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/cases.Status"
+          }
+        }
+      },
+      "title": "StatusList message contains a list of Status items with pagination"
+    },
+    "cases.Statuses.UpdateStatusBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "title": "UpdateStatusRequest message for updating an existing status"
+    }
+  },
+  "securityDefinitions": {
+    "AccessToken": {
+      "type": "apiKey",
+      "name": "X-Webitel-Access",
+      "in": "header"
+    }
+  },
+  "security": [
+    {
+      "AccessToken": []
+    }
+  ]
+}

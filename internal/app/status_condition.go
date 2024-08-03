@@ -1,12 +1,12 @@
 package app
 
 import (
-	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	_general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	"context"
+	"strings"
+
+	_go "github.com/webitel/cases/api"
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/model"
-	"strings"
 )
 
 type StatusConditionService struct {
@@ -36,7 +36,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &_general.Lookup{
+	currentU := &_go.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -116,7 +116,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 
 func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *_go.UpdateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
-	if req.Input.Id == 0 {
+	if req.Id == 0 {
 		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
 	}
 
@@ -132,14 +132,14 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	}
 
 	// Define the current user as the updater
-	u := &_general.Lookup{
+	u := &_go.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
 
 	// Update status model
 	status := &_go.StatusCondition{
-		Id:          req.Input.Id,
+		Id:          req.Id,
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
 		Initial:     req.Input.Initial.Value,
@@ -199,7 +199,8 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 }
 
 func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *_go.LocateStatusConditionRequest) (*_go.LocateStatusConditionResponse,
-	error) {
+	error,
+) {
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
