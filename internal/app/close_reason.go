@@ -89,7 +89,7 @@ func (s CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.ListC
 	searchOptions := model.SearchOptions{
 		IDs:     req.Id,
 		Session: session,
-		Fields:  req.Fields,
+		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
 		Size:    int(req.Size),
@@ -217,7 +217,7 @@ func (s CloseReasonService) LocateCloseReason(ctx context.Context, req *_go.Loca
 		IDs:     []int64{req.Id},
 		Session: session,
 		Context: ctx,
-		Fields:  req.Fields,
+		Fields:  fields,
 		Page:    1,
 		Size:    1,
 	}

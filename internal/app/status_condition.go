@@ -94,7 +94,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 	searchOptions := model.SearchOptions{
 		IDs:     req.Id,
 		Session: session,
-		Fields:  req.Fields,
+		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
 		Size:    int(req.Size),
@@ -226,7 +226,7 @@ func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *
 		IDs:     []int64{req.Id},
 		Session: session,
 		Context: ctx,
-		Fields:  req.Fields,
+		Fields:  fields,
 		Page:    1,
 		Size:    1,
 	}

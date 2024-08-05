@@ -2,16 +2,17 @@ package model
 
 import (
 	"context"
-	session "github.com/webitel/cases/auth/model"
 	"time"
+
+	session "github.com/webitel/cases/auth/model"
 )
 
 type UpdateOptions struct {
-	Session         *session.Session
-	context.Context //binding
-	Time            time.Time
-	ID              int64
-	Fields          []string
+	Time time.Time
+	context.Context
+	Session *session.Session
+	Fields  []string
+	ID      int64
 }
 
 func (rpc *UpdateOptions) CurrentTime() time.Time {

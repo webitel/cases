@@ -1,8 +1,9 @@
 package registry
 
 import (
-	"github.com/webitel/cases/model"
 	"time"
+
+	"github.com/webitel/cases/model"
 )
 
 const (

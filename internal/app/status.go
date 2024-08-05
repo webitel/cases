@@ -94,7 +94,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 	searchOptions := model.SearchOptions{
 		IDs:     req.Id,
 		Session: session,
-		Fields:  req.Fields,
+		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
 		Size:    int(req.Size),
@@ -222,7 +222,7 @@ func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRe
 		IDs:     []int64{req.Id},
 		Session: session,
 		Context: ctx,
-		Fields:  req.Fields,
+		Fields:  fields,
 		Page:    1,
 		Size:    1,
 	}

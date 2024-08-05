@@ -276,7 +276,205 @@
         ]
       }
     },
+    "/cases/statuses": {
+      "get": {
+        "summary": "Retrieve a list of statuses or search statuses",
+        "operationId": "Statuses_ListStatuses",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.StatusList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "description": "Sort the result according to fields.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "id",
+            "description": "Filter by unique IDs.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "q",
+            "description": "Search term: status name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "description": "Filter by status name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      },
+      "post": {
+        "summary": "Create a new status",
+        "operationId": "Statuses_CreateStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.CreateStatusRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      }
+    },
     "/cases/statuses/{id}": {
+      "get": {
+        "summary": "Locate a status by ID",
+        "operationId": "Statuses_LocateStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.LocateStatusResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a status",
+        "operationId": "Statuses_DeleteStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      },
+      "put": {
+        "summary": "Update an existing status",
+        "operationId": "Statuses_UpdateStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/cases.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/cases.Statuses.UpdateStatusBody"
+            }
+          }
+        ],
+        "tags": [
+          "Statuses"
+        ]
+      },
       "patch": {
         "summary": "Update an existing status",
         "operationId": "Statuses_UpdateStatus2",
@@ -539,206 +737,6 @@
         ],
         "tags": [
           "CloseReasons"
-        ]
-      }
-    },
-    "/statuses": {
-      "get": {
-        "summary": "Retrieve a list of statuses or search statuses",
-        "operationId": "Statuses_ListStatuses",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/cases.StatusList"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "page",
-            "description": "Page number of result dataset records. offset = (page*size)",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
-          },
-          {
-            "name": "size",
-            "description": "Size count of records on result page. limit = (size++)",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
-          },
-          {
-            "name": "fields",
-            "description": "Fields to be retrieved as a result.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "sort",
-            "description": "Sort the result according to fields.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "id",
-            "description": "Filter by unique IDs.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "int64"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "q",
-            "description": "Search term: status name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "name",
-            "description": "Filter by status name.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "Statuses"
-        ]
-      },
-      "post": {
-        "summary": "Create a new status",
-        "operationId": "Statuses_CreateStatus",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/cases.Status"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/cases.CreateStatusRequest"
-            }
-          }
-        ],
-        "tags": [
-          "Statuses"
-        ]
-      }
-    },
-    "/statuses/{id}": {
-      "get": {
-        "summary": "Locate a status by ID",
-        "operationId": "Statuses_LocateStatus",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/cases.LocateStatusResponse"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "fields",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          }
-        ],
-        "tags": [
-          "Statuses"
-        ]
-      },
-      "delete": {
-        "summary": "Delete a status",
-        "operationId": "Statuses_DeleteStatus",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/cases.Status"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          }
-        ],
-        "tags": [
-          "Statuses"
-        ]
-      },
-      "put": {
-        "summary": "Update an existing status",
-        "operationId": "Statuses_UpdateStatus",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/cases.Status"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/cases.Statuses.UpdateStatusBody"
-            }
-          }
-        ],
-        "tags": [
-          "Statuses"
         ]
       }
     },
@@ -1090,27 +1088,34 @@
       "properties": {
         "id": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "title": "Unique identifier of the close reason"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "title": "Name of the close reason"
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "title": "Description of the close reason"
         },
         "created_at": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "title": "CreatedAt timestamp of the close reason"
         },
         "updated_at": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "title": "UpdatedAt timestamp of the close reason"
         },
         "created_by": {
-          "$ref": "#/definitions/cases.Lookup"
+          "$ref": "#/definitions/cases.Lookup",
+          "title": "CreatedBy user of the close reason"
         },
         "updated_by": {
-          "$ref": "#/definitions/cases.Lookup"
+          "$ref": "#/definitions/cases.Lookup",
+          "title": "UpdatedBy user of the close reason"
         }
       },
       "title": "CloseReason message represents a close reason entity with metadata"

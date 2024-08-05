@@ -2,24 +2,25 @@ package model
 
 import (
 	"context"
+	"time"
+
 	session "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/internal/util"
-	"time"
 )
 
 type SearchOptions struct {
-	Session         *session.Session
-	IDs             []int64
-	context.Context //binding
-	Time            time.Time
-	Filter          map[string]interface{}
-	Page            int
-	Size            int
-	Search          string
-	Sort            []string // fields order
-	Fields          []string
-	FieldsUtil      util.FieldsUtils
-	Match           util.Match
+	FieldsUtil util.FieldsUtils
+	Match      util.Match
+	Time       time.Time
+	context.Context
+	Session *session.Session
+	Filter  map[string]interface{}
+	Search  string
+	IDs     []int64
+	Sort    []string
+	Fields  []string
+	Page    int
+	Size    int
 }
 
 // DeafaultSearchSize is a constant integer == 16.

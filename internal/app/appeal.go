@@ -89,7 +89,7 @@ func (s AppealService) ListAppeals(ctx context.Context, req *_go.ListAppealReque
 	searchOptions := model.SearchOptions{
 		IDs:     req.Id,
 		Session: session,
-		Fields:  req.Fields,
+		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
 		Size:    int(req.Size),
@@ -217,7 +217,7 @@ func (s AppealService) LocateAppeal(ctx context.Context, req *_go.LocateAppealRe
 		IDs:     []int64{req.Id},
 		Session: session,
 		Context: ctx,
-		Fields:  req.Fields,
+		Fields:  fields,
 		Page:    1,
 		Size:    1,
 	}

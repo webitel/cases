@@ -11,14 +11,23 @@ import "protoc-gen-openapiv2/options/annotations.proto";
 
 // StatusCondition message represents a status entity with metadata
 message StatusCondition {
+  // Unique identifier of the status condition
   int64 id = 1;
+  // Name of the status condition
   string name = 2;
+  // Description of the status condition
   string description = 3;
+  // Initial status condition
   bool initial = 4;
+  // Final status condition
   bool final = 5;
+  // CreatedAt timestamp of the status condition
   int64 created_at = 20;
+  // UpdatedAt timestamp of the status condition
   int64 updated_at = 21;
+  // CreatedBy user of the status condition
   Lookup created_by = 22;
+  // UpdatedBy user of the status condition
   Lookup updated_by = 23;
 }
 

@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"fmt"
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/webitel/cases/internal/store"
@@ -43,6 +42,7 @@ func (s *Store) CloseReason() store.CloseReasonStore {
 	}
 	return s.closeReasonStore
 }
+
 func (s *Store) Status() store.StatusStore {
 	if s.statusStore == nil {
 		log, err := NewStatusStore(s)
@@ -78,7 +78,7 @@ func (s *Store) Open() model.AppError {
 		return model.NewInternalError("postgres.store.open.connect.fail", err.Error())
 	}
 	s.conn = db
-	wlog.Debug(fmt.Sprintf("postgres: connection opened"))
+	wlog.Debug("postgres: connection opened")
 	return nil
 }
 
@@ -88,6 +88,6 @@ func (s *Store) Close() model.AppError {
 		return model.NewInternalError("postgres.store.close.disconnect.fail", err.Error())
 	}
 	s.conn = nil
-	wlog.Debug(fmt.Sprintf("postgres: connection closed"))
+	wlog.Debug("postgres: connection closed")
 	return nil
 }

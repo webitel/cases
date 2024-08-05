@@ -6,6 +6,7 @@ import (
 	"github.com/webitel/cases/model"
 )
 
+// Store is an interface that defines all the methods and properties that a store should implement in Cases service
 type Store interface {
 	Status() StatusStore
 	StatusCondition() StatusConditionStore

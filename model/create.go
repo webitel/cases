@@ -2,13 +2,14 @@ package model
 
 import (
 	"context"
-	session "github.com/webitel/cases/auth/model"
 	"time"
+
+	session "github.com/webitel/cases/auth/model"
 )
 
 type CreateOptions struct {
 	Session         *session.Session
-	context.Context //binding
+	context.Context // binding
 	Time            time.Time
 	Fields          []string
 }

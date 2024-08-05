@@ -28,13 +28,20 @@ type CloseReason struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id          int64   `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name        string  `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Description string  `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
-	CreatedAt   int64   `protobuf:"varint,20,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt   int64   `protobuf:"varint,21,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	CreatedBy   *Lookup `protobuf:"bytes,22,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
-	UpdatedBy   *Lookup `protobuf:"bytes,23,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
+	// Unique identifier of the close reason
+	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Name of the close reason
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// Description of the close reason
+	Description string `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	// CreatedAt timestamp of the close reason
+	CreatedAt int64 `protobuf:"varint,20,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// UpdatedAt timestamp of the close reason
+	UpdatedAt int64 `protobuf:"varint,21,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// CreatedBy user of the close reason
+	CreatedBy *Lookup `protobuf:"bytes,22,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	// UpdatedBy user of the close reason
+	UpdatedBy *Lookup `protobuf:"bytes,23,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
 }
 
 func (x *CloseReason) Reset() {

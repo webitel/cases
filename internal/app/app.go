@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/micro/micro/v3/service/server"
 	"github.com/webitel/cases/auth"
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/auth/webitel_manager"
@@ -116,11 +115,7 @@ func (a *App) MakePermissionError(session *authmodel.Session) model.AppError {
 
 func (a *App) MakeScopeError(session *authmodel.Session, scope *authmodel.Scope, access authmodel.AccessMode) model.AppError {
 	if session == nil || session.GetUser() == nil || scope == nil {
-		return model.NewForbiddenError("internal.scope.check_access.denied", fmt.Sprintf("access denied"))
+		return model.NewForbiddenError("internal.scope.check_access.denied", "access denied")
 	}
 	return model.NewForbiddenError("internal.scope.check_access.denied", fmt.Sprintf("access denied scope=%s access=%d for user %d", scope.Name, access, session.GetUserId()))
-}
-
-func (s *App) Server() server.Server {
-	return server.DefaultServer
 }
