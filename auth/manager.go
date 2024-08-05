@@ -6,6 +6,10 @@ import (
 	authclient "buf.build/gen/go/webitel/webitel-go/grpc/go/_gogrpc"
 	authmodel "buf.build/gen/go/webitel/webitel-go/protocolbuffers/go"
 	"github.com/golang/groupcache/singleflight"
+
+	// neccessary import for client setup ( if not imported - add [443:] to the end of the address )
+	// if not impoerted cause such error:
+	// ! failed to exit idle mode: invalid target address consul://10.9.8.111:8500/go.webitel.internal, error info: address consul://10.9.8.111:8500/go.webitel.internal:443: too many colons in address
 	_ "github.com/mbobakov/grpc-consul-resolver"
 	model "github.com/webitel/cases/auth/model"
 	errors "github.com/webitel/cases/model"
