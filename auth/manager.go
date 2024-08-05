@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"context"
+
 	authclient "buf.build/gen/go/webitel/webitel-go/grpc/go/_gogrpc"
 	authmodel "buf.build/gen/go/webitel/webitel-go/protocolbuffers/go"
-	"context"
 	"github.com/golang/groupcache/singleflight"
+	_ "github.com/mbobakov/grpc-consul-resolver"
 	model "github.com/webitel/cases/auth/model"
 	errors "github.com/webitel/cases/model"
 	"google.golang.org/grpc"

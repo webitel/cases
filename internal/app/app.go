@@ -50,7 +50,8 @@ func New(config *model.AppConfig) (*App, model.AppError) {
 		return nil, model.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
 	}
 
-	app.webitelAppConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/go.webitel.internal?wait=14s", config.Consul.Address),
+	app.webitelAppConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/go.webitel.app?wait=14s", config.Consul.Address),
+
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)

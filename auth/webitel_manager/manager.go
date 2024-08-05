@@ -2,6 +2,7 @@ package webitel_manager
 
 import (
 	"context"
+
 	iface "github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/model"
 	errors "github.com/webitel/cases/model"
@@ -47,7 +48,6 @@ func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*mode
 		return nil, errors.NewInternalError("webitel_manager.authorize_from_from_context.search_token.not_found", "token not found")
 	}
 	return i.Authorize(newContext, token[0])
-
 }
 
 func (i *WebitelAppAuthManager) Authorize(ctx context.Context, token string) (*model.Session, errors.AppError) {
