@@ -20,6 +20,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Lookup message represents a lookup entity with metadata
 type Lookup struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

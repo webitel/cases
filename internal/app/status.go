@@ -81,6 +81,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 	}
 
 	fields := req.Fields
+
 	if len(fields) == 0 {
 		fields = strings.Split(defaultFields, ", ")
 	}
@@ -97,7 +98,9 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
+		Sort:    req.Sort,
 		Size:    int(req.Size),
+		Filter:  make(map[string]interface{}),
 	}
 
 	if req.Q != "" {
@@ -115,6 +118,56 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 }
 
 func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRequest) (*_go.Status, error) {
+	// Validate required fields
+	if req.Id == 0 {
+		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
+	}
+
+	session, err := s.app.AuthorizeFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// OBAC check
+	accessMode := authmodel.Edit
+	scope := session.GetScope(model.ScopeLog)
+	if !session.HasAccess(scope, accessMode) {
+		return nil, s.app.MakeScopeError(session, scope, accessMode)
+	}
+
+	// Define the current user as the updater
+	currentU := &_go.Lookup{
+		Id:   session.GetUserId(),
+		Name: session.GetUserName(),
+	}
+
+	// Update lookup model
+	lookup := &_go.Status{
+		Id:          req.Id,
+		Name:        req.Name,
+		Description: req.Description,
+		UpdatedBy:   currentU,
+	}
+
+	fields := []string{"id", "name", "description", "updated_at", "updated_by"}
+
+	// Define update options
+	updateOpts := model.UpdateOptions{
+		Session: session,
+		Context: ctx,
+		Fields:  fields,
+	}
+
+	// Update the lookup in the store
+	l, e := s.app.Store.Status().Update(&updateOpts, lookup)
+	if e != nil {
+		return nil, e
+	}
+
+	return l, nil
+}
+
+// PatchStatus implements api.StatusesServer.
+func (s *StatusService) PatchStatus(ctx context.Context, req *_go.PatchStatusRequest) (*_go.Status, error) {
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")

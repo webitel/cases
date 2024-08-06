@@ -22,6 +22,7 @@ const (
 	Statuses_ListStatuses_FullMethodName = "/cases.Statuses/ListStatuses"
 	Statuses_CreateStatus_FullMethodName = "/cases.Statuses/CreateStatus"
 	Statuses_UpdateStatus_FullMethodName = "/cases.Statuses/UpdateStatus"
+	Statuses_PatchStatus_FullMethodName  = "/cases.Statuses/PatchStatus"
 	Statuses_DeleteStatus_FullMethodName = "/cases.Statuses/DeleteStatus"
 	Statuses_LocateStatus_FullMethodName = "/cases.Statuses/LocateStatus"
 )
@@ -38,6 +39,7 @@ type StatusesClient interface {
 	CreateStatus(ctx context.Context, in *CreateStatusRequest, opts ...grpc.CallOption) (*Status, error)
 	// RPC method to update an existing status
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*Status, error)
+	PatchStatus(ctx context.Context, in *PatchStatusRequest, opts ...grpc.CallOption) (*Status, error)
 	// RPC method to delete an existing status
 	DeleteStatus(ctx context.Context, in *DeleteStatusRequest, opts ...grpc.CallOption) (*Status, error)
 	// RPC method to locate a specific status by ID
@@ -82,6 +84,16 @@ func (c *statusesClient) UpdateStatus(ctx context.Context, in *UpdateStatusReque
 	return out, nil
 }
 
+func (c *statusesClient) PatchStatus(ctx context.Context, in *PatchStatusRequest, opts ...grpc.CallOption) (*Status, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Status)
+	err := c.cc.Invoke(ctx, Statuses_PatchStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *statusesClient) DeleteStatus(ctx context.Context, in *DeleteStatusRequest, opts ...grpc.CallOption) (*Status, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Status)
@@ -114,6 +126,7 @@ type StatusesServer interface {
 	CreateStatus(context.Context, *CreateStatusRequest) (*Status, error)
 	// RPC method to update an existing status
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*Status, error)
+	PatchStatus(context.Context, *PatchStatusRequest) (*Status, error)
 	// RPC method to delete an existing status
 	DeleteStatus(context.Context, *DeleteStatusRequest) (*Status, error)
 	// RPC method to locate a specific status by ID
@@ -135,6 +148,9 @@ func (UnimplementedStatusesServer) CreateStatus(context.Context, *CreateStatusRe
 }
 func (UnimplementedStatusesServer) UpdateStatus(context.Context, *UpdateStatusRequest) (*Status, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatus not implemented")
+}
+func (UnimplementedStatusesServer) PatchStatus(context.Context, *PatchStatusRequest) (*Status, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PatchStatus not implemented")
 }
 func (UnimplementedStatusesServer) DeleteStatus(context.Context, *DeleteStatusRequest) (*Status, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteStatus not implemented")
@@ -216,6 +232,24 @@ func _Statuses_UpdateStatus_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Statuses_PatchStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PatchStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatusesServer).PatchStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Statuses_PatchStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatusesServer).PatchStatus(ctx, req.(*PatchStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Statuses_DeleteStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteStatusRequest)
 	if err := dec(in); err != nil {
@@ -270,6 +304,10 @@ var Statuses_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateStatus",
 			Handler:    _Statuses_UpdateStatus_Handler,
+		},
+		{
+			MethodName: "PatchStatus",
+			Handler:    _Statuses_PatchStatus_Handler,
 		},
 		{
 			MethodName: "DeleteStatus",

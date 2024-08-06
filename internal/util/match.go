@@ -16,15 +16,11 @@ func (m Match) SubstringMask(s string, any, one rune) Substrings {
 	if one == 0 {
 		one = '?'
 	}
-	sv := strings.Split(s, string(any))
-	// omit any empty sequences: [1:len()-2]
-	for i := len(sv) - 2; i > 0; i-- {
-		if len(sv[i]) == 0 {
-			// cut
-			sv = append(sv[:i], sv[i+1:]...)
-		}
-	}
-	return Substrings(sv)
+	// Replace '?' with '_' for SQL LIKE operator (matches exactly one character)
+	s = strings.ReplaceAll(s, string(one), "_")
+	// Replace '*' with '%' for SQL LIKE operator (matches zero or more characters)
+	s = strings.ReplaceAll(s, string(any), "%")
+	return Substrings{strings.TrimSpace(s)}
 }
 
 // Substring splits the input string s into substrings using default delimiters '*' and '?'.

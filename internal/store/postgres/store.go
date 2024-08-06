@@ -1,8 +1,9 @@
 package postgres
 
 import (
-	_ "github.com/jackc/pgx/stdlib"
-	"github.com/jmoiron/sqlx"
+	"context"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/wlog"
@@ -10,7 +11,7 @@ import (
 
 type Store struct {
 	config               *model.DatabaseConfig
-	conn                 *sqlx.DB
+	conn                 *pgxpool.Pool
 	appealStore          store.AppealStore
 	statusConditionStore store.StatusConditionStore
 	closeReasonStore     store.CloseReasonStore
@@ -65,29 +66,33 @@ func (s *Store) StatusCondition() store.StatusConditionStore {
 	return s.statusConditionStore
 }
 
-func (s *Store) Database() (*sqlx.DB, model.AppError) {
+func (s *Store) Database() (*pgxpool.Pool, model.AppError) {
 	if s.conn == nil {
-		model.NewInternalError("postgres.store.database.check.bad_arguments", "database connection is not opened")
+		return nil, model.NewInternalError("postgres.store.database.check.bad_arguments", "database connection is not opened")
 	}
 	return s.conn, nil
 }
 
 func (s *Store) Open() model.AppError {
-	db, err := sqlx.Connect("pgx", s.config.Url)
+	config, err := pgxpool.ParseConfig(s.config.Url)
+	if err != nil {
+		return model.NewInternalError("postgres.store.open.parse_config.fail", err.Error())
+	}
+
+	conn, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		return model.NewInternalError("postgres.store.open.connect.fail", err.Error())
 	}
-	s.conn = db
+	s.conn = conn
 	wlog.Debug("postgres: connection opened")
 	return nil
 }
 
 func (s *Store) Close() model.AppError {
-	err := s.conn.Close()
-	if err != nil {
-		return model.NewInternalError("postgres.store.close.disconnect.fail", err.Error())
+	if s.conn != nil {
+		s.conn.Close()
+		wlog.Debug("postgres: connection closed")
+		s.conn = nil
 	}
-	s.conn = nil
-	wlog.Debug("postgres: connection closed")
 	return nil
 }

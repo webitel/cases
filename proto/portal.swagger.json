@@ -476,8 +476,8 @@
         ]
       },
       "patch": {
-        "summary": "Update an existing status",
-        "operationId": "Statuses_UpdateStatus2",
+        "summary": "Patch an existing status",
+        "operationId": "Statuses_PatchStatus",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -499,7 +499,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.Statuses.UpdateStatusBody"
+              "$ref": "#/definitions/cases.Statuses.PatchStatusBody"
             }
           }
         ],
@@ -1015,33 +1015,33 @@
         "id": {
           "type": "string",
           "format": "int64",
-          "description": "The unique ID of the appeal. Never changes."
+          "title": "Unique identifier of the close reason"
         },
         "name": {
           "type": "string",
-          "description": "The name of the appeal."
+          "title": "Name of the close reason"
         },
         "description": {
           "type": "string",
-          "description": "The description of the appeal."
+          "title": "Description of the close reason"
         },
         "created_at": {
           "type": "string",
           "format": "int64",
-          "description": "Timestamp(milli) of the appeal's creation."
+          "title": "CreatedAt timestamp of the close reason"
         },
         "updated_at": {
           "type": "string",
           "format": "int64",
-          "description": "Timestamp(milli) of the last appeal update."
+          "title": "UpdatedAt timestamp of the close reason"
         },
         "created_by": {
           "$ref": "#/definitions/cases.Lookup",
-          "description": "The user who created this appeal."
+          "title": "CreatedBy user of the close reason"
         },
         "updated_by": {
           "$ref": "#/definitions/cases.Lookup",
-          "description": "The user who performed the last update."
+          "title": "UpdatedBy user of the close reason"
         }
       },
       "description": "Represents a appeal in the contact system."
@@ -1264,34 +1264,42 @@
         "name": {
           "type": "string"
         }
-      }
+      },
+      "title": "Lookup message represents a lookup entity with metadata"
     },
     "cases.Status": {
       "type": "object",
       "properties": {
         "id": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "title": "Unique identifier of the close reason"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "title": "Name of the close reason"
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "title": "Description of the close reason"
         },
         "created_at": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "title": "CreatedAt timestamp of the close reason"
         },
         "updated_at": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "title": "UpdatedAt timestamp of the close reason"
         },
         "created_by": {
-          "$ref": "#/definitions/cases.Lookup"
+          "$ref": "#/definitions/cases.Lookup",
+          "title": "CreatedBy user of the close reason"
         },
         "updated_by": {
-          "$ref": "#/definitions/cases.Lookup"
+          "$ref": "#/definitions/cases.Lookup",
+          "title": "UpdatedBy user of the close reason"
         }
       },
       "title": "Status message represents a status entity with metadata"
@@ -1301,33 +1309,42 @@
       "properties": {
         "id": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "title": "Unique identifier of the status condition"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "title": "Name of the status condition"
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "title": "Description of the status condition"
         },
         "initial": {
-          "type": "boolean"
+          "type": "boolean",
+          "title": "Initial status condition"
         },
         "final": {
-          "type": "boolean"
+          "type": "boolean",
+          "title": "Final status condition"
         },
         "created_at": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "title": "CreatedAt timestamp of the status condition"
         },
         "updated_at": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "title": "UpdatedAt timestamp of the status condition"
         },
         "created_by": {
-          "$ref": "#/definitions/cases.Lookup"
+          "$ref": "#/definitions/cases.Lookup",
+          "title": "CreatedBy user of the status condition"
         },
         "updated_by": {
-          "$ref": "#/definitions/cases.Lookup"
+          "$ref": "#/definitions/cases.Lookup",
+          "title": "UpdatedBy user of the status condition"
         }
       },
       "title": "StatusCondition message represents a status entity with metadata"
@@ -1396,6 +1413,18 @@
         }
       },
       "title": "StatusList message contains a list of Status items with pagination"
+    },
+    "cases.Statuses.PatchStatusBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "title": "PatchStatusRequest message for partially updating an existing status"
     },
     "cases.Statuses.UpdateStatusBody": {
       "type": "object",

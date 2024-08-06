@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -37,7 +36,7 @@ func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 
 	t := ctx.CurrentTime()
 
-	err = d.QueryRowContext(ctx.Context, query, args...).Scan(
+	err = d.QueryRow(ctx.Context, query, args...).Scan(
 		&add.Id, &add.Name, t, &add.Description,
 		&createdByLookup.Id, &createdByLookup.Name,
 		t, &updatedByLookup.Id, &updatedByLookup.Name,
@@ -80,17 +79,12 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 		return nil, err
 	}
 
-	rows, err := d.DB.QueryContext(ctx.Context, query, args...)
+	rows, err := d.Query(ctx.Context, query, args...)
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return nil, err
 	}
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-			log.Printf("Failed to close rows: %v", err)
-		}
-	}(rows)
+	defer rows.Close()
 
 	var lookupList []*_go.Appeal
 
@@ -173,17 +167,14 @@ func (s Appeal) Delete(ctx *model.DeleteOptions) error {
 		return dbErr
 	}
 
-	res, err := d.DB.ExecContext(ctx.Context, query, args...)
+	res, err := d.Exec(ctx.Context, query, args...)
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return err
 	}
 
-	affected, err := res.RowsAffected()
-	if err != nil {
-		log.Printf("Failed to get affected rows: %v", err)
-		return err
-	}
+	affected := res.RowsAffected()
+
 	if affected == 0 {
 		return errors.New("no rows affected for deletion")
 	}
@@ -204,7 +195,7 @@ func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
 
-	err := d.DB.QueryRowContext(ctx.Context, query, args...).Scan(
+	err := d.QueryRow(ctx.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
@@ -331,10 +322,10 @@ func (s Appeal) buildDeleteAppealQuery(ctx *model.DeleteOptions) (string, []inte
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
-	query := fmt.Sprintf(`
+	query := `
         DELETE FROM cases.appeal
         WHERE id = ANY($1) AND dc = $2
-    `)
+    `
 	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
 	return query, args, nil
 }

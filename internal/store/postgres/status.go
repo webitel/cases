@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"log"
@@ -37,7 +36,7 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 
 	var createdAt, updatedAt time.Time
 
-	err = d.QueryRowContext(ctx.Context, query, args...).Scan(
+	err = d.QueryRow(ctx.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
@@ -82,17 +81,12 @@ func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
 		return nil, err
 	}
 
-	rows, err := d.DB.QueryContext(ctx.Context, query, args...)
+	rows, err := d.Query(ctx.Context, query, args...)
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return nil, err
 	}
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-			log.Printf("Failed to close rows: %v", err)
-		}
-	}(rows)
+	defer rows.Close()
 
 	var lookupList []*_go.Status
 
@@ -173,17 +167,13 @@ func (s Status) Delete(ctx *model.DeleteOptions) error {
 		return dbErr
 	}
 
-	res, err := d.DB.ExecContext(ctx.Context, query, args...)
+	res, err := d.Exec(ctx.Context, query, args...)
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return err
 	}
 
-	affected, err := res.RowsAffected()
-	if err != nil {
-		log.Printf("Failed to get affected rows: %v", err)
-		return err
-	}
+	affected := res.RowsAffected()
 	if affected == 0 {
 		return errors.New("no rows affected for deletion")
 	}
@@ -204,7 +194,7 @@ func (s Status) Update(ctx *model.UpdateOptions, l *_go.Status) (*_go.Status, er
 	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
 
-	err := d.DB.QueryRowContext(ctx.Context, query, args...).Scan(
+	err := d.QueryRow(ctx.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
@@ -256,6 +246,7 @@ from ins
 // buildSearchStatusLookupQuery constructs the SQL search query and returns the query builder.
 func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
+
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	queryBuilder := squirrel.Select().
@@ -285,8 +276,9 @@ func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (squirrel.Selec
 	}
 
 	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
-		substr := ctx.Match.Substring(name)
-		queryBuilder = queryBuilder.Where(squirrel.ILike{"g.name": substr})
+		substrs := ctx.Match.Substring(name)
+		combinedLike := strings.Join(substrs, "%")
+		queryBuilder = queryBuilder.Where(squirrel.ILike{"g.name": "%" + combinedLike + "%"})
 	}
 
 	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
@@ -406,10 +398,10 @@ func (s Status) buildDeleteStatusQuery(ctx *model.DeleteOptions) (string, []inte
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
-	query := fmt.Sprintf(`
+	query := `
         DELETE FROM cases.status
         WHERE id = ANY($1) AND dc = $2
-    `)
+    `
 	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
 	return query, args, nil
 }
@@ -466,7 +458,7 @@ from upd
   left join directory.wbt_user c on c.id = upd.created_by;
     `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
 
-	args = append(args, ctx.ID, ctx.Session.GetDomainId())
+	args = append(args, l.Id, ctx.Session.GetDomainId())
 	return query, args
 }
 

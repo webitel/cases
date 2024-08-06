@@ -1,7 +1,7 @@
 package postgres
 
 import (
-	"database/sql"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api"
 	"github.com/webitel/cases/internal/store"
@@ -21,18 +22,18 @@ type StatusConditionStore struct {
 }
 
 func (s StatusConditionStore) Create(ctx *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
-	d, err := s.getDBConnection()
+	db, err := s.getDBConnection()
 	if err != nil {
 		log.Printf("Failed to get database connection: %v", err)
 		return nil, err
 	}
 
-	tx, err := d.BeginTxx(ctx.Context, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := db.BeginTx(ctx.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		log.Printf("Failed to begin transaction: %v", err)
 		return nil, err
 	}
-	defer s.handleTx(tx, &err)
+	defer s.handleTx(ctx.Context, tx, &err)
 
 	query, args, err := s.buildCreateStatusConditionQuery(ctx, add)
 	if err != nil {
@@ -43,7 +44,7 @@ func (s StatusConditionStore) Create(ctx *model.CreateOptions, add *_go.StatusCo
 	var createdBy, updatedBy _go.Lookup
 	var createdAt, updatedAt time.Time
 
-	err = tx.QueryRowxContext(ctx.Context, query, args...).Scan(
+	err = tx.QueryRow(ctx.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &updatedAt, &add.Description, &add.Initial, &add.Final,
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name,
 	)
@@ -73,18 +74,18 @@ func (s StatusConditionStore) List(ctx *model.SearchOptions) (*_go.StatusConditi
 		return nil, err
 	}
 
-	d, err := s.getDBConnection()
+	db, err := s.getDBConnection()
 	if err != nil {
 		log.Printf("Failed to get database connection: %v", err)
 		return nil, err
 	}
 
-	rows, err := d.QueryxContext(ctx.Context, query, args...)
+	rows, err := db.Query(ctx.Context, query, args...)
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return nil, err
 	}
-	defer s.closeRows(rows)
+	defer rows.Close()
 
 	var statusList []*_go.StatusCondition
 	lCount := 0
@@ -118,18 +119,18 @@ func (s StatusConditionStore) List(ctx *model.SearchOptions) (*_go.StatusConditi
 }
 
 func (s StatusConditionStore) Delete(ctx *model.DeleteOptions) error {
-	d, err := s.getDBConnection()
+	db, err := s.getDBConnection()
 	if err != nil {
 		log.Printf("Failed to get database connection: %v", err)
 		return err
 	}
 
-	tx, err := d.BeginTxx(ctx.Context, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := db.BeginTx(ctx.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		log.Printf("Failed to begin transaction: %v", err)
 		return err
 	}
-	defer s.handleTx(tx, &err)
+	defer s.handleTx(ctx.Context, tx, &err)
 
 	query, args, err := s.buildDeleteStatusConditionQuery(ctx)
 	if err != nil {
@@ -137,12 +138,12 @@ func (s StatusConditionStore) Delete(ctx *model.DeleteOptions) error {
 		return err
 	}
 
-	rows, err := tx.QueryxContext(ctx.Context, query, args...)
+	rows, err := tx.Query(ctx.Context, query, args...)
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return err
 	}
-	defer s.closeRows(rows)
+	defer rows.Close()
 
 	affected := 0
 	for rows.Next() {
@@ -160,18 +161,18 @@ func (s StatusConditionStore) Delete(ctx *model.DeleteOptions) error {
 }
 
 func (s StatusConditionStore) Update(ctx *model.UpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
-	d, err := s.getDBConnection()
+	db, err := s.getDBConnection()
 	if err != nil {
 		log.Printf("Failed to get database connection: %v", err)
 		return nil, err
 	}
 
-	tx, err := d.BeginTxx(ctx.Context, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := db.BeginTx(ctx.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		log.Printf("Failed to begin transaction: %v", err)
 		return nil, err
 	}
-	defer s.handleTx(tx, &err)
+	defer s.handleTx(ctx.Context, tx, &err)
 
 	query, args := s.buildUpdateStatusConditionQuery(ctx, st)
 
@@ -179,7 +180,7 @@ func (s StatusConditionStore) Update(ctx *model.UpdateOptions, st *_go.StatusCon
 	var createdAt, updatedAt time.Time
 	var remainingInitial, remainingFinal int
 
-	err = tx.QueryRowxContext(ctx.Context, query, args...).Scan(
+	err = tx.QueryRow(ctx.Context, query, args...).Scan(
 		&st.Id, &st.Name, &createdAt, &updatedAt, &st.Description, &st.Initial, &st.Final,
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &st.Id,
 		&remainingInitial, &remainingFinal,
@@ -439,44 +440,38 @@ LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
 	return query, args
 }
 
-func (s StatusConditionStore) getDBConnection() (*sqlx.DB, error) {
-	d, err := s.storage.Database()
+func (s StatusConditionStore) getDBConnection() (*pgxpool.Pool, error) {
+	db, err := s.storage.Database()
 	if err != nil {
 		log.Printf("Failed to get database connection: %v", err)
 		return nil, err
 	}
-	return d, nil
+	return db, nil
 }
 
-func (s StatusConditionStore) handleTx(tx *sqlx.Tx, err *error) {
+func (s StatusConditionStore) handleTx(ctx context.Context, tx pgx.Tx, err *error) {
 	if p := recover(); p != nil {
-		if rbErr := tx.Rollback(); rbErr != nil {
+		if rbErr := tx.Rollback(ctx); rbErr != nil {
 			log.Printf("Failed to rollback transaction: %v", rbErr)
 		}
 		panic(p)
 	} else if *err != nil {
-		if rbErr := tx.Rollback(); rbErr != nil {
+		if rbErr := tx.Rollback(ctx); rbErr != nil {
 			log.Printf("Failed to rollback transaction: %v", rbErr)
 		}
 	} else {
-		*err = tx.Commit()
+		*err = tx.Commit(ctx)
 	}
 }
 
-func (s StatusConditionStore) closeRows(rows *sqlx.Rows) {
-	if err := rows.Close(); err != nil {
-		log.Printf("Failed to close rows: %v", err)
-	}
-}
-
-func (s StatusConditionStore) checkConstraints(ctx *model.DeleteOptions, tx *sqlx.Tx) error {
+func (s StatusConditionStore) checkConstraints(ctx *model.DeleteOptions, tx pgx.Tx) error {
 	var initialCount, finalCount int
 	checkQuery := `
 		SELECT
 			(SELECT COUNT(*) FROM cases.status_condition WHERE initial = TRUE AND dc = $1) AS initial_count,
 			(SELECT COUNT(*) FROM cases.status_condition WHERE final = TRUE AND dc = $1) AS final_count
 	`
-	err := tx.QueryRowContext(ctx.Context, checkQuery, ctx.Session.GetDomainId()).Scan(&initialCount, &finalCount)
+	err := tx.QueryRow(ctx.Context, checkQuery, ctx.Session.GetDomainId()).Scan(&initialCount, &finalCount)
 	if err != nil {
 		log.Printf("Failed to execute check query: %v", err)
 		return err

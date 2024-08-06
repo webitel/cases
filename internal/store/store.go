@@ -1,7 +1,7 @@
 package store
 
 import (
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_go "github.com/webitel/cases/api"
 	"github.com/webitel/cases/model"
 )
@@ -14,7 +14,7 @@ type Store interface {
 	Appeal() AppealStore
 
 	// Database connection
-	Database() (*sqlx.DB, model.AppError)
+	Database() (*pgxpool.Pool, model.AppError)
 	// Open database connection
 	Open() model.AppError
 	// Close database connection
