@@ -1,5 +1,6 @@
 package model
 
 const (
-	ScopeLog = "cases"
+	// ScopeLog = "cases"
+	ScopeLog = "logger"
 )

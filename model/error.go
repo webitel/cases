@@ -3,8 +3,9 @@ package model
 import (
 	"encoding/json"
 	"fmt"
-	goi18n "github.com/nicksnyder/go-i18n/i18n"
 	"net/http"
+
+	goi18n "github.com/nicksnyder/go-i18n/i18n"
 )
 
 var translateFunc goi18n.TranslateFunc = nil
@@ -34,19 +35,20 @@ type AppError interface {
 }
 
 type ApplicationError struct {
+	params        map[string]interface{}
 	Id            string `json:"id"`
 	Where         string `json:"where,omitempty"`
-	Status        string `json:"status"`               // Message to be display to the end user without debugging information
-	DetailedError string `json:"detail"`               // Internal error string to help the developer
-	RequestId     string `json:"request_id,omitempty"` // The RequestId that's also set in the header
-	StatusCode    int    `json:"code,omitempty"`       // The http status code
-	params        map[string]interface{}
+	Status        string `json:"status"`
+	DetailedError string `json:"detail"`
+	RequestId     string `json:"request_id,omitempty"`
+	StatusCode    int    `json:"code,omitempty"`
 }
 
 func (err *ApplicationError) SetTranslationParams(params map[string]any) AppError {
 	err.params = params
 	return err
 }
+
 func (err *ApplicationError) GetTranslationParams() map[string]any {
 	return err.params
 }
@@ -68,6 +70,7 @@ func (err *ApplicationError) Error() string {
 	}
 	return fmt.Sprintf("%s%s, %s", where, err.Status, err.DetailedError)
 }
+
 func (err *ApplicationError) SetDetailedError(details string) {
 	err.DetailedError = details
 }

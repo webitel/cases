@@ -35,17 +35,19 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 
 	var createdByLookup, updatedByLookup _go.Lookup
 
-	t := ctx.CurrentTime()
+	var createdAt, updatedAt time.Time
 
 	err = d.QueryRowContext(ctx.Context, query, args...).Scan(
-		&add.Id, &add.Name, t, &add.Description,
+		&add.Id, &add.Name, &createdAt, &add.Description,
 		&createdByLookup.Id, &createdByLookup.Name,
-		t, &updatedByLookup.Id, &updatedByLookup.Name,
+		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
 		return nil, err
 	}
+
+	t := ctx.CurrentTime()
 
 	return &_go.Status{
 		Id:          add.Id,
