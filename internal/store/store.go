@@ -36,9 +36,9 @@ type StatusConditionStore interface {
 	// Create a new status to a lookup
 	Create(ctx *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error)
 	// List lookup statuses
-	List(ctx *model.SearchOptions) (*_go.StatusConditionList, error)
+	List(ctx *model.SearchOptions, statusId int64) (*_go.StatusConditionList, error)
 	// Delete lookup status
-	Delete(ctx *model.DeleteOptions) error
+	Delete(ctx *model.DeleteOptions, statusId int64) error
 	// Update lookup status
 	Update(ctx *model.UpdateOptions, status *_go.StatusCondition) (*_go.StatusCondition, error)
 }

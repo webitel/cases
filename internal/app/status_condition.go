@@ -95,7 +95,6 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 	}
 
 	searchOptions := model.SearchOptions{
-		IDs:     req.Id,
 		Session: session,
 		Fields:  fields,
 		Context: ctx,
@@ -109,7 +108,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 		searchOptions.Filter["name"] = req.Name
 	}
 
-	statuses, e := s.app.Store.StatusCondition().List(&searchOptions)
+	statuses, e := s.app.Store.StatusCondition().List(&searchOptions, req.StatusId)
 	if e != nil {
 		return nil, e
 	}
@@ -247,7 +246,7 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 	}
 
 	// Delete the status in the store
-	e := s.app.Store.StatusCondition().Delete(&deleteOpts)
+	e := s.app.Store.StatusCondition().Delete(&deleteOpts, req.StatusId)
 	if e != nil {
 		return nil, e
 	}
@@ -289,7 +288,7 @@ func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *
 		Size:    1,
 	}
 
-	l, e := s.app.Store.StatusCondition().List(&searchOpts)
+	l, e := s.app.Store.StatusCondition().List(&searchOpts, req.StatusId)
 	if e != nil {
 		return nil, e
 	}
