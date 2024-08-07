@@ -39,6 +39,7 @@ type StatusesClient interface {
 	CreateStatus(ctx context.Context, in *CreateStatusRequest, opts ...grpc.CallOption) (*Status, error)
 	// RPC method to update an existing status
 	UpdateStatus(ctx context.Context, in *UpdateStatusRequest, opts ...grpc.CallOption) (*Status, error)
+	// RPC method to partially update an existing status
 	PatchStatus(ctx context.Context, in *PatchStatusRequest, opts ...grpc.CallOption) (*Status, error)
 	// RPC method to delete an existing status
 	DeleteStatus(ctx context.Context, in *DeleteStatusRequest, opts ...grpc.CallOption) (*Status, error)
@@ -126,6 +127,7 @@ type StatusesServer interface {
 	CreateStatus(context.Context, *CreateStatusRequest) (*Status, error)
 	// RPC method to update an existing status
 	UpdateStatus(context.Context, *UpdateStatusRequest) (*Status, error)
+	// RPC method to partially update an existing status
 	PatchStatus(context.Context, *PatchStatusRequest) (*Status, error)
 	// RPC method to delete an existing status
 	DeleteStatus(context.Context, *DeleteStatusRequest) (*Status, error)

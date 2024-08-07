@@ -46,7 +46,7 @@ func (s StatusConditionStore) Create(ctx *model.CreateOptions, add *_go.StatusCo
 
 	err = tx.QueryRow(ctx.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &updatedAt, &add.Description, &add.Initial, &add.Final,
-		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name,
+		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &add.StatusId,
 	)
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
@@ -62,6 +62,12 @@ func (s StatusConditionStore) Create(ctx *model.CreateOptions, add *_go.StatusCo
 }
 
 func (s StatusConditionStore) List(ctx *model.SearchOptions) (*_go.StatusConditionList, error) {
+	db, err := s.getDBConnection()
+	if err != nil {
+		log.Printf("Failed to get database connection: %v", err)
+		return nil, err
+	}
+
 	queryBuilder, err := s.buildListStatusConditionQuery(ctx)
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
@@ -71,12 +77,6 @@ func (s StatusConditionStore) List(ctx *model.SearchOptions) (*_go.StatusConditi
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		log.Printf("Failed to generate SQL query: %v", err)
-		return nil, err
-	}
-
-	db, err := s.getDBConnection()
-	if err != nil {
-		log.Printf("Failed to get database connection: %v", err)
 		return nil, err
 	}
 
@@ -210,7 +210,7 @@ func (s StatusConditionStore) buildCreateStatusConditionQuery(ctx *model.CreateO
 WITH existing_status AS (
     SELECT COUNT(*) AS count
     FROM cases.status_condition
-    WHERE dc = $9 AND status_id = $10
+    WHERE dc = $7 AND status_id = $8
 ),
 default_values AS (
     SELECT
@@ -219,19 +219,24 @@ default_values AS (
 ),
 ins AS (
     INSERT INTO cases.status_condition (name, created_at, description, initial, final, created_by, updated_at, updated_by, dc, status_id)
-    VALUES ($1, $2, $3, COALESCE($4, (SELECT initial_default FROM default_values)), COALESCE($5, (SELECT final_default FROM default_values)), $6, $7, $8, $9, $10)
-    RETURNING id, name, created_at, description, initial, final, created_by, updated_at, updated_by, status_id
+    VALUES (
+        $1, $2, $3,
+        (SELECT initial_default FROM default_values),
+        (SELECT final_default FROM default_values),
+        $4, $5, $6, $7, $8
+    )
+    RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id
 )
 SELECT
     ins.id,
     ins.name,
     ins.created_at,
+    ins.updated_at,
     ins.description,
     ins.initial,
     ins.final,
     ins.created_by AS created_by_id,
     COALESCE(c.name::text, c.username) AS created_by_name,
-    ins.updated_at,
     ins.updated_by AS updated_by_id,
     COALESCE(u.name::text, u.username) AS updated_by_name,
     ins.status_id
@@ -240,8 +245,8 @@ LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
 LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
 `
 	args := []interface{}{
-		status.Name, ctx.CurrentTime(), status.Description, status.Initial, status.Final,
-		ctx.Session.GetUserId(), ctx.CurrentTime(), ctx.Session.GetUserId(), ctx.Session.GetDomainId(), status.Id,
+		status.Name, ctx.CurrentTime(), status.Description,
+		ctx.Session.GetUserId(), ctx.CurrentTime(), ctx.Session.GetUserId(), ctx.Session.GetDomainId(), status.StatusId,
 	}
 	return query, args, nil
 }

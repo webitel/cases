@@ -742,7 +742,7 @@
     },
     "/statuses/{status_id}/status": {
       "get": {
-        "summary": "Retrieve a list of statuses or search statuses",
+        "summary": "Retrieve a list of statuses or search status conditions",
         "operationId": "StatusConditions_ListStatusConditions",
         "responses": {
           "200": {
@@ -823,7 +823,7 @@
         ]
       },
       "post": {
-        "summary": "Create a new status",
+        "summary": "Create a new status condition",
         "operationId": "StatusConditions_CreateStatusCondition",
         "responses": {
           "200": {
@@ -857,7 +857,7 @@
     },
     "/statuses/{status_id}/status/{id}": {
       "get": {
-        "summary": "Locate a status by ID",
+        "summary": "Locate a status condition by ID",
         "operationId": "StatusConditions_LocateStatusCondition",
         "responses": {
           "200": {
@@ -898,7 +898,7 @@
         ]
       },
       "delete": {
-        "summary": "Delete a status",
+        "summary": "Delete a status condition",
         "operationId": "StatusConditions_DeleteStatusCondition",
         "responses": {
           "200": {
@@ -929,7 +929,7 @@
         ]
       },
       "put": {
-        "summary": "Update an existing status",
+        "summary": "Update an existing status condition",
         "operationId": "StatusConditions_UpdateStatusCondition",
         "responses": {
           "200": {
@@ -968,8 +968,8 @@
         ]
       },
       "patch": {
-        "summary": "Update an existing status",
-        "operationId": "StatusConditions_UpdateStatusCondition2",
+        "summary": "Patch an existing status condition",
+        "operationId": "StatusConditions_PatchStatusCondition",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -998,7 +998,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.StatusConditions.UpdateStatusConditionBody"
+              "$ref": "#/definitions/cases.StatusConditions.PatchStatusConditionBody"
             }
           }
         ],
@@ -1328,6 +1328,11 @@
           "type": "boolean",
           "title": "Final status condition"
         },
+        "status_id": {
+          "type": "string",
+          "format": "int64",
+          "title": "Status ID of the status condition"
+        },
         "created_at": {
           "type": "string",
           "format": "int64",
@@ -1384,6 +1389,15 @@
         "name",
         "lookup_id"
       ]
+    },
+    "cases.StatusConditions.PatchStatusConditionBody": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "$ref": "#/definitions/cases.InputStatusCondition"
+        }
+      },
+      "title": "PatchStatusConditionRequest message for patching an existing status"
     },
     "cases.StatusConditions.UpdateStatusConditionBody": {
       "type": "object",

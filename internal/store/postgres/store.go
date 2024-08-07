@@ -24,44 +24,44 @@ func New(config *model.DatabaseConfig) *Store {
 
 func (s *Store) Appeal() store.AppealStore {
 	if s.appealStore == nil {
-		log, err := NewAppealStore(s)
+		st, err := NewAppealStore(s)
 		if err != nil {
 			return nil
 		}
-		s.appealStore = log
+		s.appealStore = st
 	}
 	return s.appealStore
 }
 
 func (s *Store) CloseReason() store.CloseReasonStore {
 	if s.closeReasonStore == nil {
-		log, err := NewCloseReasonStore(s)
+		st, err := NewCloseReasonStore(s)
 		if err != nil {
 			return nil
 		}
-		s.closeReasonStore = log
+		s.closeReasonStore = st
 	}
 	return s.closeReasonStore
 }
 
 func (s *Store) Status() store.StatusStore {
 	if s.statusStore == nil {
-		log, err := NewStatusStore(s)
+		st, err := NewStatusStore(s)
 		if err != nil {
 			return nil
 		}
-		s.statusStore = log
+		s.statusStore = st
 	}
 	return s.statusStore
 }
 
 func (s *Store) StatusCondition() store.StatusConditionStore {
 	if s.statusConditionStore == nil {
-		log, err := NewStatusConditionStore(s)
+		st, err := NewStatusConditionStore(s)
 		if err != nil {
 			return nil
 		}
-		s.statusConditionStore = log
+		s.statusConditionStore = st
 	}
 	return s.statusConditionStore
 }

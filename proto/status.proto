@@ -156,6 +156,7 @@ service Statuses {
     };
   }
 
+  // RPC method to partially update an existing status
   rpc PatchStatus(PatchStatusRequest) returns (Status) {
     option (google.api.http) = {
       patch: "/cases/statuses/{id}"

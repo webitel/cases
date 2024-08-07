@@ -18,8 +18,8 @@ type Status struct {
 	storage store.Store
 }
 
+// Create creates a new status in the database. Implements the store.StatusStore interface.
 func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, error) {
-	query, args, err := s.buildCreateStatusQuery(ctx, add)
 	d, dbErr := s.storage.Database()
 
 	if dbErr != nil {
@@ -27,13 +27,13 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 		return nil, dbErr
 	}
 
+	query, args, err := s.buildCreateStatusQuery(ctx, add)
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return nil, err
 	}
 
 	var createdByLookup, updatedByLookup _go.Lookup
-
 	var createdAt, updatedAt time.Time
 
 	err = d.QueryRow(ctx.Context, query, args...).Scan(
@@ -60,15 +60,15 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 	}, nil
 }
 
+// List retrieves a list of statuses from the database. Implements the store.StatusStore interface.
 func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
-	cte, err := s.buildSearchStatusQuery(ctx)
-
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		log.Printf("Failed to get database connection: %v", dbErr)
 		return nil, dbErr
 	}
 
+	cte, err := s.buildSearchStatusQuery(ctx)
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return nil, err
@@ -154,17 +154,18 @@ func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
 	}, nil
 }
 
+// Delete removes a status from the database. Implements the store.StatusStore interface.
 func (s Status) Delete(ctx *model.DeleteOptions) error {
-	query, args, err := s.buildDeleteStatusQuery(ctx)
-	if err != nil {
-		log.Printf("Failed to build SQL query: %v", err)
-		return err
-	}
-
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		log.Printf("Failed to get database connection: %v", dbErr)
 		return dbErr
+	}
+
+	query, args, err := s.buildDeleteStatusQuery(ctx)
+	if err != nil {
+		log.Printf("Failed to build SQL query: %v", err)
+		return err
 	}
 
 	res, err := d.Exec(ctx.Context, query, args...)
@@ -181,15 +182,15 @@ func (s Status) Delete(ctx *model.DeleteOptions) error {
 	return nil
 }
 
+// Update modifies a status in the database. Implements the store.StatusStore interface.
 func (s Status) Update(ctx *model.UpdateOptions, l *_go.Status) (*_go.Status, error) {
-	// Build the query and args using the helper function
-	query, args := s.buildUpdateStatusQuery(ctx, l)
-
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		log.Printf("Failed to get database connection: %v", dbErr)
 		return nil, dbErr
 	}
+	// Build the query and args using the helper function
+	query, args := s.buildUpdateStatusQuery(ctx, l)
 
 	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time

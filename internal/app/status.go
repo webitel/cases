@@ -18,6 +18,7 @@ const (
 	defaultFields    = "id, name, description"
 )
 
+// CreateStatus implements api.StatusesServer.
 func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRequest) (*_go.Status, error) {
 	// Validate required fields
 	if req.Name == "" {
@@ -67,6 +68,7 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 	return l, nil
 }
 
+// ListStatuses implements api.StatusesServer.
 func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
@@ -117,6 +119,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 	return lookups, nil
 }
 
+// UpdateStatus implements api.StatusesServer.
 func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRequest) (*_go.Status, error) {
 	// Validate required fields
 	if req.Id == 0 {
@@ -216,6 +219,7 @@ func (s *StatusService) PatchStatus(ctx context.Context, req *_go.PatchStatusReq
 	return l, nil
 }
 
+// DeleteStatus implements api.StatusesServer.
 func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRequest) (*_go.Status, error) {
 	// Validate required fields
 	if req.Id == 0 {
@@ -249,6 +253,7 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 	return &(_go.Status{Id: req.Id}), nil
 }
 
+// LocateStatus implements api.StatusesServer.
 func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRequest) (*_go.LocateStatusResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {

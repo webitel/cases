@@ -18,6 +18,7 @@ const (
 	defaultFieldsStatus = "id, name, description,is_initial,is_final"
 )
 
+// CreateStatusCondition implements api.StatusConditionsServer.
 func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *_go.CreateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
 	if req.Name == "" {
@@ -47,6 +48,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 		Description: req.Description,
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
+		StatusId:    req.StatusId,
 	}
 
 	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "created_at", "updated_at", "created_by", "updated_by"}
@@ -67,6 +69,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 	return st, nil
 }
 
+// ListStatusConditions implements api.StatusConditionsServer.
 func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_go.ListStatusConditionRequest) (*_go.StatusConditionList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
@@ -114,6 +117,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 	return statuses, nil
 }
 
+// UpdateStatusCondition implements api.StatusConditionsServer.
 func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *_go.UpdateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
 	if req.Id == 0 {
@@ -165,6 +169,59 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	return st, nil
 }
 
+// PatchStatusCondition implements api.StatusConditionsServer.
+func (s *StatusConditionService) PatchStatusCondition(ctx context.Context, req *_go.PatchStatusConditionRequest) (*_go.StatusCondition, error) {
+	// Validate required fields
+	if req.Id == 0 {
+		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
+	}
+
+	session, err := s.app.AuthorizeFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// OBAC check
+	accessMode := authmodel.Edit
+	scope := session.GetScope(model.ScopeLog)
+	if !session.HasAccess(scope, accessMode) {
+		return nil, s.app.MakeScopeError(session, scope, accessMode)
+	}
+
+	// Define the current user as the updater
+	u := &_go.Lookup{
+		Id:   session.GetUserId(),
+		Name: session.GetUserName(),
+	}
+
+	// Update status model
+	status := &_go.StatusCondition{
+		Id:          req.Id,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		Initial:     req.Input.Initial.Value,
+		Final:       req.Input.Final.Value,
+		UpdatedBy:   u,
+	}
+
+	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "updated_at", "updated_by"}
+
+	// Define update options
+	updateOpts := model.UpdateOptions{
+		Session: session,
+		Context: ctx,
+		Fields:  fields,
+	}
+
+	// Update the status in the store
+	st, e := s.app.Store.StatusCondition().Update(&updateOpts, status)
+	if e != nil {
+		return nil, e
+	}
+
+	return st, nil
+}
+
+// DeleteStatusCondition implements api.StatusConditionsServer.
 func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *_go.DeleteStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
 	if req.Id == 0 {
@@ -198,6 +255,7 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 	return &(_go.StatusCondition{Id: req.Id}), nil
 }
 
+// LocateStatusCondition implements api.StatusConditionsServer.
 func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *_go.LocateStatusConditionRequest) (*_go.LocateStatusConditionResponse,
 	error,
 ) {

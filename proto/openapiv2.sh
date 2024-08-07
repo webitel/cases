@@ -43,3 +43,5 @@ if [ $res -ne 0 ]; then
   >&2 echo "[ERR]: protoc: failed with exit code ${res}."
   exit $res
 fi
+
+echo "[INFO]: swagger: successfully generated Swagger file."

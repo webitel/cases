@@ -22,6 +22,7 @@ const (
 	StatusConditions_ListStatusConditions_FullMethodName  = "/cases.StatusConditions/ListStatusConditions"
 	StatusConditions_CreateStatusCondition_FullMethodName = "/cases.StatusConditions/CreateStatusCondition"
 	StatusConditions_UpdateStatusCondition_FullMethodName = "/cases.StatusConditions/UpdateStatusCondition"
+	StatusConditions_PatchStatusCondition_FullMethodName  = "/cases.StatusConditions/PatchStatusCondition"
 	StatusConditions_DeleteStatusCondition_FullMethodName = "/cases.StatusConditions/DeleteStatusCondition"
 	StatusConditions_LocateStatusCondition_FullMethodName = "/cases.StatusConditions/LocateStatusCondition"
 )
@@ -38,6 +39,7 @@ type StatusConditionsClient interface {
 	CreateStatusCondition(ctx context.Context, in *CreateStatusConditionRequest, opts ...grpc.CallOption) (*StatusCondition, error)
 	// RPC method to update an existing status
 	UpdateStatusCondition(ctx context.Context, in *UpdateStatusConditionRequest, opts ...grpc.CallOption) (*StatusCondition, error)
+	PatchStatusCondition(ctx context.Context, in *PatchStatusConditionRequest, opts ...grpc.CallOption) (*StatusCondition, error)
 	// RPC method to delete an existing status
 	DeleteStatusCondition(ctx context.Context, in *DeleteStatusConditionRequest, opts ...grpc.CallOption) (*StatusCondition, error)
 	// RPC method to locate a specific status by ID
@@ -82,6 +84,16 @@ func (c *statusConditionsClient) UpdateStatusCondition(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *statusConditionsClient) PatchStatusCondition(ctx context.Context, in *PatchStatusConditionRequest, opts ...grpc.CallOption) (*StatusCondition, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StatusCondition)
+	err := c.cc.Invoke(ctx, StatusConditions_PatchStatusCondition_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *statusConditionsClient) DeleteStatusCondition(ctx context.Context, in *DeleteStatusConditionRequest, opts ...grpc.CallOption) (*StatusCondition, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StatusCondition)
@@ -114,6 +126,7 @@ type StatusConditionsServer interface {
 	CreateStatusCondition(context.Context, *CreateStatusConditionRequest) (*StatusCondition, error)
 	// RPC method to update an existing status
 	UpdateStatusCondition(context.Context, *UpdateStatusConditionRequest) (*StatusCondition, error)
+	PatchStatusCondition(context.Context, *PatchStatusConditionRequest) (*StatusCondition, error)
 	// RPC method to delete an existing status
 	DeleteStatusCondition(context.Context, *DeleteStatusConditionRequest) (*StatusCondition, error)
 	// RPC method to locate a specific status by ID
@@ -135,6 +148,9 @@ func (UnimplementedStatusConditionsServer) CreateStatusCondition(context.Context
 }
 func (UnimplementedStatusConditionsServer) UpdateStatusCondition(context.Context, *UpdateStatusConditionRequest) (*StatusCondition, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateStatusCondition not implemented")
+}
+func (UnimplementedStatusConditionsServer) PatchStatusCondition(context.Context, *PatchStatusConditionRequest) (*StatusCondition, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PatchStatusCondition not implemented")
 }
 func (UnimplementedStatusConditionsServer) DeleteStatusCondition(context.Context, *DeleteStatusConditionRequest) (*StatusCondition, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteStatusCondition not implemented")
@@ -216,6 +232,24 @@ func _StatusConditions_UpdateStatusCondition_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StatusConditions_PatchStatusCondition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PatchStatusConditionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StatusConditionsServer).PatchStatusCondition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StatusConditions_PatchStatusCondition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StatusConditionsServer).PatchStatusCondition(ctx, req.(*PatchStatusConditionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _StatusConditions_DeleteStatusCondition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteStatusConditionRequest)
 	if err := dec(in); err != nil {
@@ -270,6 +304,10 @@ var StatusConditions_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateStatusCondition",
 			Handler:    _StatusConditions_UpdateStatusCondition_Handler,
+		},
+		{
+			MethodName: "PatchStatusCondition",
+			Handler:    _StatusConditions_PatchStatusCondition_Handler,
 		},
 		{
 			MethodName: "DeleteStatusCondition",
