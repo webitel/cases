@@ -79,3 +79,9 @@ alter table cases.status_condition
 
 create index status_condition_source_index
     on cases.status_condition (status_id);
+
+create trigger enforce_single_initial_trigger
+    before insert or update
+    on cases.status_condition
+    for each row
+execute procedure public.enforce_single_initial();

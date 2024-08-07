@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"strings"
+	"time"
 
 	_go "github.com/webitel/cases/api"
 	authmodel "github.com/webitel/cases/auth/model"
@@ -52,11 +53,14 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 
 	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
 
+	t := time.Now()
+
 	// Define create options
 	createOpts := model.CreateOptions{
 		Session: session,
 		Context: ctx,
 		Fields:  fields,
+		Time:    t,
 	}
 
 	// Create the group in the store
@@ -94,6 +98,8 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		page = 1
 	}
 
+	t := time.Now()
+
 	searchOptions := model.SearchOptions{
 		IDs:     req.Id,
 		Session: session,
@@ -103,6 +109,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		Sort:    req.Sort,
 		Size:    int(req.Size),
 		Filter:  make(map[string]interface{}),
+		Time:    t,
 	}
 
 	if req.Q != "" {
@@ -153,11 +160,14 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 
 	fields := []string{"id", "name", "description", "updated_at", "updated_by"}
 
+	t := time.Now()
+
 	// Define update options
 	updateOpts := model.UpdateOptions{
 		Session: session,
 		Context: ctx,
 		Fields:  fields,
+		Time:    t,
 	}
 
 	// Update the lookup in the store
@@ -203,11 +213,14 @@ func (s *StatusService) PatchStatus(ctx context.Context, req *_go.PatchStatusReq
 
 	fields := []string{"id", "name", "description", "updated_at", "updated_by"}
 
+	t := time.Now()
+
 	// Define update options
 	updateOpts := model.UpdateOptions{
 		Session: session,
 		Context: ctx,
 		Fields:  fields,
+		Time:    t,
 	}
 
 	// Update the lookup in the store
@@ -237,11 +250,13 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
+	t := time.Now()
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
 		Session: session,
 		Context: ctx,
 		IDs:     []int64{req.Id},
+		Time:    t,
 	}
 
 	// Delete the lookup in the store
@@ -276,6 +291,8 @@ func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRe
 		fields = strings.Split(defaultFields, ", ")
 	}
 
+	t := time.Now()
+
 	searchOpts := model.SearchOptions{
 		IDs:     []int64{req.Id},
 		Session: session,
@@ -283,6 +300,7 @@ func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRe
 		Fields:  fields,
 		Page:    1,
 		Size:    1,
+		Time:    t,
 	}
 
 	l, e := s.app.Store.Status().List(&searchOpts)

@@ -46,7 +46,7 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 		return nil, err
 	}
 
-	t := ctx.CurrentTime()
+	t := ctx.Time
 
 	return &_go.Status{
 		Id:          add.Id,
@@ -238,8 +238,8 @@ from ins
   left join directory.wbt_user c on c.id = ins.created_by;
 `
 	args := []interface{}{
-		lookup.Name, ctx.Session.GetDomainId(), ctx.CurrentTime(), lookup.Description, ctx.Session.GetUserId(),
-		ctx.CurrentTime(), ctx.Session.GetUserId(),
+		lookup.Name, ctx.Session.GetDomainId(), ctx.Time, lookup.Description, ctx.Session.GetUserId(),
+		ctx.Time, ctx.Session.GetUserId(),
 	}
 	return query, args, nil
 }
@@ -412,7 +412,7 @@ func (s Status) buildUpdateStatusQuery(ctx *model.UpdateOptions, l *_go.Status) 
 	var setClauses []string
 	var args []interface{}
 
-	args = append(args, ctx.CurrentTime(), ctx.Session.GetUserId())
+	args = append(args, ctx.Time, ctx.Session.GetUserId())
 
 	// Add the updated_at and updated_by fields to the set clauses
 	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))

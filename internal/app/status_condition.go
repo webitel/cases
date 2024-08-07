@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"strings"
+	"time"
 
 	_go "github.com/webitel/cases/api"
 	authmodel "github.com/webitel/cases/auth/model"
@@ -53,11 +54,14 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 
 	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "created_at", "updated_at", "created_by", "updated_by"}
 
+	t := time.Now()
+
 	// Define create options
 	createOpts := model.CreateOptions{
 		Session: session,
 		Context: ctx,
 		Fields:  fields,
+		Time:    t,
 	}
 
 	// Create the status in the store
@@ -94,12 +98,14 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 		page = 1
 	}
 
+	t := time.Now()
 	searchOptions := model.SearchOptions{
 		Session: session,
 		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
 		Size:    int(req.Size),
+		Time:    t,
 	}
 
 	if req.Q != "" {
@@ -143,6 +149,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	// Update status model
 	status := &_go.StatusCondition{
 		Id:          req.Id,
+		StatusId:    req.StatusId,
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
 		Initial:     req.Input.Initial.Value,
@@ -152,11 +159,14 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 
 	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "updated_at", "updated_by"}
 
+	t := time.Now()
+
 	// Define update options
 	updateOpts := model.UpdateOptions{
 		Session: session,
 		Context: ctx,
 		Fields:  fields,
+		Time:    t,
 	}
 
 	// Update the status in the store
@@ -197,18 +207,28 @@ func (s *StatusConditionService) PatchStatusCondition(ctx context.Context, req *
 		Id:          req.Id,
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
-		Initial:     req.Input.Initial.Value,
-		Final:       req.Input.Final.Value,
 		UpdatedBy:   u,
+		StatusId:    req.StatusId,
+	}
+
+	// Check if the initial field are provided
+	if req.Input.Initial != nil {
+		status.Initial = req.Input.Initial.Value
+	}
+	// Check if the  final field are provided
+	if req.Input.Final != nil {
+		status.Final = req.Input.Final.Value
 	}
 
 	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "updated_at", "updated_by"}
 
+	t := time.Now()
 	// Define update options
 	updateOpts := model.UpdateOptions{
 		Session: session,
 		Context: ctx,
 		Fields:  fields,
+		Time:    t,
 	}
 
 	// Update the status in the store
@@ -238,11 +258,13 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
+	t := time.Now()
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
 		Session: session,
 		Context: ctx,
 		IDs:     []int64{req.Id},
+		Time:    t,
 	}
 
 	// Delete the status in the store
@@ -279,6 +301,7 @@ func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *
 		fields = strings.Split(defaultFields, ", ")
 	}
 
+	t := time.Now()
 	searchOpts := model.SearchOptions{
 		IDs:     []int64{req.Id},
 		Session: session,
@@ -286,6 +309,7 @@ func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *
 		Fields:  fields,
 		Page:    1,
 		Size:    1,
+		Time:    t,
 	}
 
 	l, e := s.app.Store.StatusCondition().List(&searchOpts, req.StatusId)
