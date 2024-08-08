@@ -80,14 +80,47 @@ alter table cases.status_condition
 create index status_condition_source_index
     on cases.status_condition (status_id);
 
-create trigger enforce_single_initial_trigger
-    before insert or update
-    on cases.status_condition
-    for each row
-execute procedure public.enforce_single_initial();
-
 create trigger constraints_trigger
     before insert or update or delete
     on cases.status_condition
     for each row
 execute procedure cases.conditions_constraints_checker();
+
+
+create table cases.close_reason
+(
+    id          bigint    default nextval('cases.close_reason_id'::regclass) not null
+        constraint close_reason_pk
+            primary key,
+    name        text                                                         not null,
+    description text                                                         not null,
+    created_at  timestamp default timezone('utc'::text, now())               not null,
+    updated_at  timestamp default timezone('utc'::text, now())               not null,
+    created_by  bigint                                                       not null
+        constraint close_reason_created_id_fk
+            references directory.wbt_user
+            on delete set null
+            deferrable initially deferred,
+    updated_by  bigint                                                       not null
+        constraint close_reason_updated_id_fk
+            references directory.wbt_user
+            deferrable initially deferred,
+    dc          bigint                                                       not null
+        constraint close_reason_domain_fk
+            references directory.wbt_domain
+            on delete cascade,
+    constraint close_reason_fk
+        unique (id, dc),
+    constraint close_reason_created_dc_fk
+        foreign key (created_by, dc) references directory.wbt_user ()
+            deferrable initially deferred,
+    constraint close_reason_updated_dc_fk
+        foreign key (updated_by, dc) references directory.wbt_user ()
+            deferrable initially deferred
+);
+
+alter table cases.close_reason
+    owner to opensips;
+
+create index close_reason_dc
+    on cases.close_reason (dc);

@@ -161,25 +161,13 @@ func (s StatusConditionStore) Update(ctx *model.UpdateOptions, st *_go.StatusCon
 		return nil, err
 	}
 	defer s.handleTx(ctx.Context, tx, &err)
-	for _, field := range ctx.Fields {
-		switch field {
-		case "initial":
-			if !st.Initial {
-				// Check if it's the last initial status condition
-				isLast, lastInitialErr := s.isLastInitial(ctx.Context, tx, ctx.Session.GetDomainId(), st.StatusId, st.Id)
-				if lastInitialErr != nil {
-					log.Printf("Failed to check initial status condition: %v", lastInitialErr)
-					return nil, lastInitialErr
-				}
-				if isLast {
-					return nil, fmt.Errorf("update not allowed: there must be at least one final = TRUE for the given dc and status_id")
-				}
-			}
-		}
-	}
 
 	// Build the update query
 	query, args := s.buildUpdateStatusConditionQuery(ctx, st)
+
+	// Log the final query and arguments
+	fmt.Printf("Final query: %s\n", query)
+	fmt.Printf("Final args: %v\n", args)
 
 	var createdBy, updatedBy _go.Lookup
 	var createdAt, updatedAt time.Time
@@ -335,85 +323,104 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
 	var setClauses []string
 	var args []interface{}
 
-	args = append(args, ctx.Time, ctx.Session.GetUserId())
+	// Start placeholder numbering at 1
+	placeholderIndex := 1
 
-	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
-	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
+	// Add common fields with correct types
+	args = append(args, ctx.Time)
+	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", placeholderIndex))
+	placeholderIndex++
 
-	updateFields := []string{"name", "description"}
+	args = append(args, ctx.Session.GetUserId())
+	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", placeholderIndex))
+	placeholderIndex++
 
+	// Check and add update-specific fields if provided by the user
 	for _, field := range ctx.Fields {
-		switch field {
-		case "initial":
-			updateFields = append(updateFields, "initial")
-		case "final":
-			updateFields = append(updateFields, "final")
-		}
-	}
-
-	for _, field := range updateFields {
 		switch field {
 		case "name":
 			if st.Name != "" {
 				args = append(args, st.Name)
-				setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
+				setClauses = append(setClauses, fmt.Sprintf("name = $%d", placeholderIndex))
+				placeholderIndex++
 			}
 		case "description":
 			if st.Description != "" {
 				args = append(args, st.Description)
-				setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
+				setClauses = append(setClauses, fmt.Sprintf("description = $%d", placeholderIndex))
+				placeholderIndex++
 			}
 		case "initial":
 			args = append(args, st.Initial)
-			setClauses = append(setClauses, fmt.Sprintf("initial = $%d", len(args)))
+			setClauses = append(setClauses, fmt.Sprintf("initial = $%d", placeholderIndex))
+			placeholderIndex++
 		case "final":
 			args = append(args, st.Final)
-			setClauses = append(setClauses, fmt.Sprintf("final = $%d", len(args)))
+			setClauses = append(setClauses, fmt.Sprintf("final = $%d", placeholderIndex))
+			placeholderIndex++
 		}
 	}
 
+	// Placeholder positions for set_initial_false
+	setInitialFalseArgsStart := placeholderIndex
+
+	// Build the query with correct placeholder positions
 	query := fmt.Sprintf(`
-WITH
-	upd AS (
-		UPDATE cases.status_condition
-		SET %s
-		WHERE id = $%d AND dc = $%d
-		RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id
-	)
+WITH set_initial_false AS (
+    UPDATE cases.status_condition
+    SET initial = FALSE
+    WHERE dc = $%d AND status_id = $%d AND id <> $%d AND $%d = TRUE
+),
+upd AS (
+    UPDATE cases.status_condition
+    SET %s
+    WHERE id = $%d AND dc = $%d
+    RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id
+)
 SELECT
-	upd.id,
-	upd.name,
-	upd.created_at,
-	upd.updated_at,
-	upd.description,
-	upd.initial,
-	upd.final,
-	upd.created_by AS created_by_id,
-	COALESCE(c.name::text, c.username) AS created_by_name,
-	upd.updated_by AS updated_by_id,
-	COALESCE(u.name::text, u.username) AS updated_by_name,
-	upd.status_id
+    upd.id,
+    upd.name,
+    upd.created_at,
+    upd.updated_at,
+    upd.description,
+    upd.initial,
+    upd.final,
+    upd.created_by AS created_by_id,
+    COALESCE(c.name::text, c.username) AS created_by_name,
+    upd.updated_by AS updated_by_id,
+    COALESCE(u.name::text, u.username) AS updated_by_name,
+    upd.status_id
 FROM upd
 LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
-LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
-`, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
+LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;`,
+		setInitialFalseArgsStart, setInitialFalseArgsStart+1, setInitialFalseArgsStart+2, setInitialFalseArgsStart+3, // Placeholder positions for set_initial_false
+		strings.Join(setClauses, ", "),
+		setInitialFalseArgsStart+4, setInitialFalseArgsStart+5) // Placeholder positions for upd subquery
 
-	args = append(args, st.Id, ctx.Session.GetDomainId())
+	// Add final arguments for set_initial_false clause and the WHERE clause of `upd` subquery
+	args = append(args, ctx.Session.GetDomainId(), st.StatusId, st.Id, st.Initial) // Arguments for set_initial_false
+	args = append(args, st.Id, ctx.Session.GetDomainId())                          // Arguments for upd subquery
+
+	// Ensure the number of placeholders matches the number of arguments
+	if len(args) != placeholderIndex+5 {
+		return "", nil // Return an error or handle the mismatch appropriately
+	}
+
 	return query, args
 }
 
-func (s StatusConditionStore) isLastInitial(ctx context.Context, tx pgx.Tx, dc int64, statusID int64, id int64) (bool, error) {
-	var initialCount int
-	err := tx.QueryRow(ctx, `
-		SELECT COUNT(*)
-		FROM cases.status_condition
-		WHERE dc = $1 AND status_id = $2 AND initial = true AND id <> $3
-	`, dc, statusID, id).Scan(&initialCount)
-	if err != nil {
-		return false, err
-	}
-	return initialCount == 0, nil
-}
+// func (s StatusConditionStore) isLastInitial(ctx context.Context, tx pgx.Tx, dc int64, statusID int64, id int64) (bool, error) {
+// 	var initialCount int
+// 	err := tx.QueryRow(ctx, `
+// 		SELECT COUNT(*)
+// 		FROM cases.status_condition
+// 		WHERE dc = $1 AND status_id = $2 AND initial = true AND id <> $3
+// 	`, dc, statusID, id).Scan(&initialCount)
+// 	if err != nil {
+// 		return false, err
+// 	}
+// 	return initialCount == 0, nil
+// }
 
 func (s StatusConditionStore) getDBConnection() (*pgxpool.Pool, error) {
 	db, err := s.storage.Database()
