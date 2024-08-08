@@ -100,12 +100,15 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 
 	t := time.Now()
 	searchOptions := model.SearchOptions{
+		IDs:     req.Id,
 		Session: session,
 		Fields:  fields,
 		Context: ctx,
+		Sort:    req.Sort,
 		Page:    int(page),
 		Size:    int(req.Size),
 		Time:    t,
+		Filter:  make(map[string]interface{}),
 	}
 
 	if req.Q != "" {

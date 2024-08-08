@@ -269,13 +269,18 @@ func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOpt
 		}
 	}
 
+	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
+
+	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+
 	if len(ctx.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(squirrel.Eq{"s.id": ctx.IDs})
+		queryBuilder = queryBuilder.Where(squirrel.Eq{"s.id": ids})
 	}
 
 	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
-		substr := ctx.Match.Substring(name)
-		queryBuilder = queryBuilder.Where(squirrel.ILike{"s.name": substr})
+		substrs := ctx.Match.Substring(name)
+		combinedLike := strings.Join(substrs, "%")
+		queryBuilder = queryBuilder.Where(squirrel.ILike{"s.name": "%" + combinedLike + "%"})
 	}
 
 	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
