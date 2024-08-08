@@ -140,7 +140,8 @@ func (s StatusConditionStore) Delete(ctx *model.DeleteOptions, statusId int64) e
 	_, trErr := tx.Exec(ctx.Context, query, args...)
 	if trErr != nil {
 		log.Printf("Failed to execute SQL query: %v", trErr)
-		err = trErr // Capture the error to ensure it's returned after deferred transaction handling
+		err = trErr
+		// Capture the error to ensure it's returned after deferred transaction handling
 		return err
 	}
 

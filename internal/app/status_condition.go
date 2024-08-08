@@ -155,12 +155,27 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 		StatusId:    req.StatusId,
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
-		Initial:     req.Input.Initial.Value,
-		Final:       req.Input.Final.Value,
 		UpdatedBy:   u,
 	}
 
-	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "updated_at", "updated_by"}
+	fields := []string{"id", "lookup_id"}
+
+	for _, f := range req.XJsonMask {
+		if f == "name" {
+			fields = append(fields, "name")
+		}
+		if f == "description" {
+			fields = append(fields, "description")
+		}
+		if f == "initial" {
+			fields = append(fields, "initial")
+			status.Initial = req.Input.Initial.Value
+		}
+		if f == "final" {
+			fields = append(fields, "final")
+			status.Final = req.Input.Final.Value
+		}
+	}
 
 	t := time.Now()
 
@@ -170,68 +185,6 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-	}
-
-	// Update the status in the store
-	st, e := s.app.Store.StatusCondition().Update(&updateOpts, status)
-	if e != nil {
-		return nil, e
-	}
-
-	return st, nil
-}
-
-// PatchStatusCondition implements api.StatusConditionsServer.
-func (s *StatusConditionService) PatchStatusCondition(ctx context.Context, req *_go.PatchStatusConditionRequest) (*_go.StatusCondition, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
-	}
-
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// OBAC check
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeLog)
-	if !session.HasAccess(scope, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
-	}
-
-	// Define the current user as the updater
-	u := &_go.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Initialize the status update object
-	status := &_go.StatusCondition{
-		Id:          req.Id,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-		UpdatedBy:   u,
-		StatusId:    req.StatusId,
-	}
-
-	t := time.Now()
-
-	// Collect fields to be updated
-	var fields []string
-	if req.Input.Initial != nil {
-		fields = append(fields, "initial")
-		status.Initial = req.Input.Initial.Value
-	}
-	if req.Input.Final != nil {
-		fields = append(fields, "final")
-		status.Final = req.Input.Final.Value
-	}
-	// Define update options
-	updateOpts := model.UpdateOptions{
-		Session: session,
-		Context: ctx,
-		Time:    t,
-		Fields:  fields,
 	}
 
 	// Update the status in the store

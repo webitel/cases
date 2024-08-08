@@ -4,6 +4,7 @@ package cases;
 option go_package = "cases/api";
 
 import "lookup.proto";
+import "google/api/visibility.proto";
 import "google/protobuf/wrappers.proto";
 import "google/api/annotations.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
@@ -72,20 +73,20 @@ message UpdateStatusConditionRequest {
   int64 status_id = 1;
   int64 id = 2;
   InputStatusCondition input = 3;
+
+    // JSON PATCH fields mask.
+  // List of JPath fields specified in body(input).
+  repeated string x_json_mask = 4
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
 }
 
-// PatchStatusConditionRequest message for patching an existing status
-message PatchStatusConditionRequest {
-  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
-    json_schema: {
-      required: ["id"]
-    }
-  };
 
-  int64 status_id = 1;
-  int64 id = 2;
-  InputStatusCondition input = 3;
-}
 
 // DeleteStatusConditionRequest message for deleting an existing status
 message DeleteStatusConditionRequest {
@@ -151,22 +152,15 @@ service StatusConditions {
   rpc UpdateStatusCondition(UpdateStatusConditionRequest) returns (StatusCondition) {
     option (google.api.http) = {
       put: "/statuses/{status_id}/status/{id}"
-      body: "*"
+      body: "input"
+      additional_bindings {
+        patch: "/statuses/{status_id}/status/{id}"
+        body: "input"
+      }
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
       summary: "Update an existing status condition"
-    };
-  }
-
-  rpc PatchStatusCondition(PatchStatusConditionRequest) returns (StatusCondition) {
-    option (google.api.http) = {
-      patch: "/statuses/{status_id}/status/{id}"
-      body: "*"
-    };
-
-    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
-      summary: "Patch an existing status condition"
     };
   }
 
