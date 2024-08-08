@@ -179,59 +179,6 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 	return l, nil
 }
 
-// PatchStatus implements api.StatusesServer.
-func (s *StatusService) PatchStatus(ctx context.Context, req *_go.PatchStatusRequest) (*_go.Status, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
-	}
-
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// OBAC check
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeLog)
-	if !session.HasAccess(scope, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
-	}
-
-	// Define the current user as the updater
-	currentU := &_go.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Update lookup model
-	lookup := &_go.Status{
-		Id:          req.Id,
-		Name:        req.Name,
-		Description: req.Description,
-		UpdatedBy:   currentU,
-	}
-
-	fields := []string{"id", "name", "description", "updated_at", "updated_by"}
-
-	t := time.Now()
-
-	// Define update options
-	updateOpts := model.UpdateOptions{
-		Session: session,
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
-	}
-
-	// Update the lookup in the store
-	l, e := s.app.Store.Status().Update(&updateOpts, lookup)
-	if e != nil {
-		return nil, e
-	}
-
-	return l, nil
-}
-
 // DeleteStatus implements api.StatusesServer.
 func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRequest) (*_go.Status, error) {
 	// Validate required fields

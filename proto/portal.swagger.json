@@ -476,8 +476,8 @@
         ]
       },
       "patch": {
-        "summary": "Patch an existing status",
-        "operationId": "Statuses_PatchStatus",
+        "summary": "Update an existing status",
+        "operationId": "Statuses_UpdateStatus2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -499,7 +499,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.Statuses.PatchStatusBody"
+              "$ref": "#/definitions/cases.Statuses.UpdateStatusBody"
             }
           }
         ],
@@ -1409,18 +1409,6 @@
         }
       },
       "title": "StatusList message contains a list of Status items with pagination"
-    },
-    "cases.Statuses.PatchStatusBody": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        }
-      },
-      "title": "PatchStatusRequest message for partially updating an existing status"
     },
     "cases.Statuses.UpdateStatusBody": {
       "type": "object",

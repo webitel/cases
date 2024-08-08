@@ -57,18 +57,6 @@ message UpdateStatusRequest {
   string description = 4;
 }
 
-// PatchStatusRequest message for partially updating an existing status
-message PatchStatusRequest {
-  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
-    json_schema: {
-      required: ["id"]
-    }
-  };
-
-  int64 id = 1;
-  string name = 2;
-  string description = 4;
-}
 
 
 // DeleteStatusRequest message for deleting an existing status
@@ -149,6 +137,10 @@ service Statuses {
     option (google.api.http) = {
       put: "/cases/statuses/{id}"
       body: "*"
+      additional_bindings {
+        patch: "/cases/statuses/{id}"
+        body: "*"
+      }
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -157,16 +149,7 @@ service Statuses {
   }
 
   // RPC method to partially update an existing status
-  rpc PatchStatus(PatchStatusRequest) returns (Status) {
-    option (google.api.http) = {
-      patch: "/cases/statuses/{id}"
-      body: "*"
-    };
 
-    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
-      summary: "Patch an existing status"
-    };
-  }
 
   // RPC method to delete an existing status
   rpc DeleteStatus(DeleteStatusRequest) returns (Status) {
