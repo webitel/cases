@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -132,32 +131,17 @@ func (s StatusConditionStore) Delete(ctx *model.DeleteOptions, statusId int64) e
 	}
 	defer s.handleTx(ctx.Context, tx, &err)
 
-	// Check if deletion is possible -
-	// ! we can't delete the last one with final == true or initial == true for this status_id and dc
-	if possibilityErr := s.checkStatusConditionConstraints(ctx.Context, ctx.IDs, ctx.Session.GetDomainId(), statusId); possibilityErr != nil {
-		return possibilityErr
-	}
-
 	query, args, err := s.buildDeleteStatusConditionQuery(ctx, statusId)
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return err
 	}
 
-	rows, err := tx.Query(ctx.Context, query, args...)
-	if err != nil {
-		log.Printf("Failed to execute SQL query: %v", err)
+	_, trErr := tx.Exec(ctx.Context, query, args...)
+	if trErr != nil {
+		log.Printf("Failed to execute SQL query: %v", trErr)
+		err = trErr // Capture the error to ensure it's returned after deferred transaction handling
 		return err
-	}
-	defer rows.Close()
-
-	affected := 0
-	for rows.Next() {
-		affected++
-	}
-
-	if affected == 0 {
-		return errors.New("no rows affected for deletion or constraints violated")
 	}
 
 	return nil
@@ -176,12 +160,21 @@ func (s StatusConditionStore) Update(ctx *model.UpdateOptions, st *_go.StatusCon
 		return nil, err
 	}
 	defer s.handleTx(ctx.Context, tx, &err)
-
-	// Check update possibility
-	err = s.checkStatusConditionConstraints(ctx.Context, []int64{st.Id}, ctx.Session.GetDomainId(), st.StatusId)
-	if err != nil {
-		log.Printf("Update constraint violation: %v", err)
-		return nil, err
+	for _, field := range ctx.Fields {
+		switch field {
+		case "initial":
+			if !st.Initial {
+				// Check if it's the last initial status condition
+				isLast, lastInitialErr := s.isLastInitial(ctx.Context, tx, ctx.Session.GetDomainId(), st.StatusId, st.Id)
+				if lastInitialErr != nil {
+					log.Printf("Failed to check initial status condition: %v", lastInitialErr)
+					return nil, lastInitialErr
+				}
+				if isLast {
+					return nil, fmt.Errorf("update not allowed: there must be at least one final = TRUE for the given dc and status_id")
+				}
+			}
+		}
 	}
 
 	// Build the update query
@@ -322,60 +315,6 @@ func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOpt
 	return queryBuilder, nil
 }
 
-func (s StatusConditionStore) checkStatusConditionConstraints(ctx context.Context, ids []int64, domainId, statusId int64) error {
-	query := `
-WITH
-    to_check AS (
-        SELECT id, initial, final
-        FROM cases.status_condition
-        WHERE id = ANY($1) AND dc = $2 AND status_id = $3
-    ),
-    initial_remaining AS (
-        SELECT COUNT(*) AS count
-        FROM cases.status_condition
-        WHERE initial = TRUE AND id NOT IN (SELECT id FROM to_check) AND dc = $2 AND status_id = $3
-    ),
-    final_remaining AS (
-        SELECT COUNT(*) AS count
-        FROM cases.status_condition
-        WHERE final = TRUE AND id NOT IN (SELECT id FROM to_check) AND dc = $2 AND status_id = $3
-    ),
-    initial_to_check AS (
-        SELECT COUNT(*) AS count
-        FROM to_check
-        WHERE initial = TRUE
-    ),
-    final_to_check AS (
-        SELECT COUNT(*) AS count
-        FROM to_check
-        WHERE final = TRUE
-    )
-SELECT
-    (SELECT count FROM initial_remaining) AS remaining_initial,
-    (SELECT count FROM final_remaining) AS remaining_final,
-    (SELECT count FROM initial_to_check) AS checking_initial,
-    (SELECT count FROM final_to_check) AS checking_final;
-`
-	args := []interface{}{pq.Array(ids), domainId, statusId}
-	var remainingInitial, remainingFinal, checkingInitial, checkingFinal int
-
-	db, err := s.getDBConnection()
-	if err != nil {
-		return err
-	}
-
-	err = db.QueryRow(ctx, query, args...).Scan(&remainingInitial, &remainingFinal, &checkingInitial, &checkingFinal)
-	if err != nil {
-		return err
-	}
-
-	if (checkingInitial > 0 && remainingInitial == 0) || (checkingFinal > 0 && remainingFinal == 0) {
-		return errors.New("operation would violate constraints: at least one initial and one final record must remain")
-	}
-
-	return nil
-}
-
 func (s StatusConditionStore) buildDeleteStatusConditionQuery(ctx *model.DeleteOptions, statusId int64) (string, []interface{}, error) {
 	query := `
 DELETE FROM cases.status_condition
@@ -395,7 +334,16 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
 	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
 	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
 
-	updateFields := []string{"name", "description", "initial", "final"}
+	updateFields := []string{"name", "description"}
+
+	for _, field := range ctx.Fields {
+		switch field {
+		case "initial":
+			updateFields = append(updateFields, "initial")
+		case "final":
+			updateFields = append(updateFields, "final")
+		}
+	}
 
 	for _, field := range updateFields {
 		switch field {
@@ -446,6 +394,19 @@ LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
 
 	args = append(args, st.Id, ctx.Session.GetDomainId())
 	return query, args
+}
+
+func (s StatusConditionStore) isLastInitial(ctx context.Context, tx pgx.Tx, dc int64, statusID int64, id int64) (bool, error) {
+	var initialCount int
+	err := tx.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM cases.status_condition
+		WHERE dc = $1 AND status_id = $2 AND initial = true AND id <> $3
+	`, dc, statusID, id).Scan(&initialCount)
+	if err != nil {
+		return false, err
+	}
+	return initialCount == 0, nil
 }
 
 func (s StatusConditionStore) getDBConnection() (*pgxpool.Pool, error) {

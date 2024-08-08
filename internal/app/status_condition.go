@@ -202,7 +202,7 @@ func (s *StatusConditionService) PatchStatusCondition(ctx context.Context, req *
 		Name: session.GetUserName(),
 	}
 
-	// Update status model
+	// Initialize the status update object
 	status := &_go.StatusCondition{
 		Id:          req.Id,
 		Name:        req.Input.Name,
@@ -211,24 +211,24 @@ func (s *StatusConditionService) PatchStatusCondition(ctx context.Context, req *
 		StatusId:    req.StatusId,
 	}
 
-	// Check if the initial field are provided
+	t := time.Now()
+
+	// Collect fields to be updated
+	var fields []string
 	if req.Input.Initial != nil {
+		fields = append(fields, "initial")
 		status.Initial = req.Input.Initial.Value
 	}
-	// Check if the  final field are provided
 	if req.Input.Final != nil {
+		fields = append(fields, "final")
 		status.Final = req.Input.Final.Value
 	}
-
-	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "updated_at", "updated_by"}
-
-	t := time.Now()
 	// Define update options
 	updateOpts := model.UpdateOptions{
 		Session: session,
 		Context: ctx,
-		Fields:  fields,
 		Time:    t,
+		Fields:  fields,
 	}
 
 	// Update the status in the store

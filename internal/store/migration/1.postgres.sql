@@ -85,3 +85,9 @@ create trigger enforce_single_initial_trigger
     on cases.status_condition
     for each row
 execute procedure public.enforce_single_initial();
+
+create trigger constraints_trigger
+    before insert or update or delete
+    on cases.status_condition
+    for each row
+execute procedure cases.conditions_constraints_checker();
