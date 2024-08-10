@@ -144,6 +144,17 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
+	// // RBAC check
+	// if scope.IsRbacUsed() {
+	// 	access, err := s.app.Store.Status().RbacAccess(ctx, session.GetDomainId(), int64(req.GetId()), session.GetAclRoles(), accessMode.Value())
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	if !access {
+	// 		return nil, s.app.MakeScopeError(session, scope, accessMode)
+	// 	}
+	// }
+
 	// Define the current user as the updater
 	currentU := &_go.Lookup{
 		Id:   session.GetUserId(),
@@ -196,6 +207,17 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
+
+	// // RBAC check
+	// if scope.IsRbacUsed() {
+	// 	access, err := s.app.Store.Status().RbacAccess(ctx, session.GetDomainId(), int64(req.GetId()), session.GetAclRoles(), accessMode.Value())
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	if !access {
+	// 		return nil, s.app.MakeScopeError(session, scope, accessMode)
+	// 	}
+	// }
 
 	t := time.Now()
 	// Define delete options

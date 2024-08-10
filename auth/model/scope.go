@@ -1,13 +1,13 @@
 package model
 
 type Scope struct {
-	Id     int64
 	Name   string
+	Class  string
+	Access string
+	Id     int64
 	Abac   bool
 	Obac   bool
 	Rbac   bool
-	Class  string
-	Access string
 }
 
 func (s *Scope) IsRbacUsed() bool {

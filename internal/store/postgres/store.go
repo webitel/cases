@@ -22,28 +22,6 @@ func New(config *model.DatabaseConfig) *Store {
 	return &Store{config: config}
 }
 
-func (s *Store) Appeal() store.AppealStore {
-	if s.appealStore == nil {
-		st, err := NewAppealStore(s)
-		if err != nil {
-			return nil
-		}
-		s.appealStore = st
-	}
-	return s.appealStore
-}
-
-func (s *Store) CloseReason() store.CloseReasonStore {
-	if s.closeReasonStore == nil {
-		st, err := NewCloseReasonStore(s)
-		if err != nil {
-			return nil
-		}
-		s.closeReasonStore = st
-	}
-	return s.closeReasonStore
-}
-
 func (s *Store) Status() store.StatusStore {
 	if s.statusStore == nil {
 		st, err := NewStatusStore(s)
@@ -64,6 +42,28 @@ func (s *Store) StatusCondition() store.StatusConditionStore {
 		s.statusConditionStore = st
 	}
 	return s.statusConditionStore
+}
+
+func (s *Store) Appeal() store.AppealStore {
+	if s.appealStore == nil {
+		st, err := NewAppealStore(s)
+		if err != nil {
+			return nil
+		}
+		s.appealStore = st
+	}
+	return s.appealStore
+}
+
+func (s *Store) CloseReason() store.CloseReasonStore {
+	if s.closeReasonStore == nil {
+		st, err := NewCloseReasonStore(s)
+		if err != nil {
+			return nil
+		}
+		s.closeReasonStore = st
+	}
+	return s.closeReasonStore
 }
 
 func (s *Store) Database() (*pgxpool.Pool, model.AppError) {

@@ -8,13 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Masterminds/squirrel"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/wlog"
 )
 
 type StatusConditionStore struct {
@@ -290,11 +291,11 @@ LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOptions, statusId int64) (squirrel.SelectBuilder, error) {
-	queryBuilder := squirrel.Select().
+func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOptions, statusId int64) (sq.SelectBuilder, error) {
+	queryBuilder := sq.Select().
 		From("cases.status_condition AS s").
-		Where(squirrel.Eq{"s.dc": ctx.Session.GetDomainId(), "s.status_id": statusId}).
-		PlaceholderFormat(squirrel.Dollar)
+		Where(sq.Eq{"s.dc": ctx.Session.GetDomainId(), "s.status_id": statusId}).
+		PlaceholderFormat(sq.Dollar)
 
 	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
 
@@ -318,13 +319,13 @@ func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOpt
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	if len(ctx.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(squirrel.Eq{"s.id": ids})
+		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": ids})
 	}
 
 	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
 		substrs := ctx.Match.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
-		queryBuilder = queryBuilder.Where(squirrel.ILike{"s.name": "%" + combinedLike + "%"})
+		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": "%" + combinedLike + "%"})
 	}
 
 	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
@@ -465,16 +466,14 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
 		}
 	}
 
-	dc := ctx.Session.GetDomainId()
-	statusId := st.StatusId
-	id := st.Id
-
 	query := fmt.Sprintf(`
+	    -- Count of final status conditions for the given dc and status_id and final == TRUE
         WITH final_remaining AS (
             SELECT COUNT(*) AS count
             FROM cases.status_condition
             WHERE dc = $%d AND status_id = $%d AND final = TRUE
         ),
+		-- If user set initial to TRUE - set all another initial for this dc and status_id to FALSE
         set_initial_false AS (
             UPDATE cases.status_condition
             SET initial = FALSE
@@ -504,8 +503,13 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
         LEFT JOIN directory.wbt_user c ON c.id = upd.created_by
         WHERE
             CASE
+			    -- WE DO NOT UPDATE initial, only try to update final to FALSE and checking if it's NOT the last one
                 WHEN $%d::boolean = FALSE AND $%d::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
+
+				-- WE ONLY UPDATE INITIAL [initial always true] and DON'T UPDATE FINAL
                 WHEN $%d::boolean = TRUE AND $%d::boolean = FALSE THEN TRUE
+
+				-- WE UPDATE FINAL + INITIAL but final is FALSE so we checking if it's NOT the last one
                 WHEN $%d::boolean = TRUE AND $%d::boolean = TRUE THEN
                     CASE
                         WHEN $%d::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
@@ -525,17 +529,21 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
 		placeholderIndex+6, placeholderIndex+7,
 
 		// --- Arguments for the WHERE clause checks ---
+
+		// We DO NOT UPDATE initial, only try to update final to FALSE and checking if it's NOT the last one
 		placeholderIndex+8, placeholderIndex+9,
+		// WE ONLY UPDATE INITIAL [initial always true] and DON'T UPDATE FINAL
 		placeholderIndex+10, placeholderIndex+11,
+		// WE UPDATE FINAL + INITIAL but final is FALSE so we checking if it's NOT the last one
 		placeholderIndex+12, placeholderIndex+13, placeholderIndex+14,
 	)
 
 	// final_remaining check count for dc and status_id
-	args = append(args, dc, statusId)
+	args = append(args, ctx.Session.GetDomainId(), st.StatusId)
 	// Arguments for set_initial_false
-	args = append(args, dc, statusId, id, st.Initial)
+	args = append(args, ctx.Session.GetDomainId(), st.StatusId, st.Id, st.Initial)
 	// args for upd subquery
-	args = append(args, id, dc) // Arguments for upd subquery
+	args = append(args, st.Id, ctx.Session.GetDomainId())
 
 	// --- Arguments for WHERE clause checks ---
 	args = append(args,
@@ -790,10 +798,45 @@ func (s StatusConditionStore) containsField(fields []string, field string) bool 
 	return false
 }
 
+// Check RBAC rights for the user to access the resource
+func (s StatusConditionStore) RbacAccess(ctx context.Context, domainId int64, id int64, groups []int, access uint8) (bool, model.AppError) {
+	// Get the database connection from the storage layer
+	db, appErr := s.storage.Database()
+	if appErr != nil {
+		return false, appErr
+	}
+
+	// Build the subquery to check access permissions
+	subquery := sq.Select("1").
+		From("cases.status_acl acl").
+		Where(sq.Eq{"acl.dc": domainId}).
+		Where(sq.Eq{"acl.object": id}).
+		Where("acl.subject = any( ?::int[])", pq.Array(groups)).
+		Where("acl.access & ? = ?", access, access).
+		PlaceholderFormat(sq.Dollar)
+
+	// Build the base query that checks if the subquery returns any results
+	base := sq.Select("1").
+		Where(sq.Expr("exists(?)", subquery))
+
+	// Convert the query to SQL for debugging
+	sql, _, _ := base.ToSql()
+	wlog.Debug(sql)
+
+	// Execute the query using pgxpool, which requires a different approach because pgxpool.Pool doesn't implement squirrel.BaseRunner
+	var ac bool
+	err := db.QueryRow(ctx, sql).Scan(&ac)
+	if err != nil {
+		return false, model.NewInternalError("postgres.config.check_access.scan.error", err.Error())
+	}
+
+	return ac, nil
+}
+
 func NewStatusConditionStore(store store.Store) (store.StatusConditionStore, model.AppError) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.config.new_status_condition.check.bad_arguments",
-			"error creating config interface to the status_condition table, main store is nil")
+		return nil, model.NewInternalError("postgres.new_status_condition.check.bad_arguments",
+			"error creating status condition interface to the status_condition table, main store is nil")
 	}
 	return &StatusConditionStore{storage: store}, nil
 }

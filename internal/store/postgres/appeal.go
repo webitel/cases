@@ -390,8 +390,8 @@ from upd
 
 func NewAppealStore(store db.Store) (db.AppealStore, model.AppError) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.config.new_appeal.check.bad_arguments",
-			"error creating config interface to the appeal table, main store is nil")
+		return nil, model.NewInternalError("postgres.new_appeal.check.bad_arguments",
+			"error creating appeal interface to the appeal table, main store is nil")
 	}
 	return &Appeal{storage: store}, nil
 }

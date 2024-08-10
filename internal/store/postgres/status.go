@@ -1,17 +1,19 @@
 package postgres
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
-	"github.com/Masterminds/squirrel"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/wlog"
 )
 
 type Status struct {
@@ -245,15 +247,15 @@ from ins
 }
 
 // buildSearchStatusLookupQuery constructs the SQL search query and returns the query builder.
-func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
+func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (sq.SelectBuilder, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
-	queryBuilder := squirrel.Select().
+	queryBuilder := sq.Select().
 		From("cases.status AS g").
-		Where(squirrel.Eq{"g.dc": ctx.Session.GetDomainId()}).
-		PlaceholderFormat(squirrel.Dollar)
+		Where(sq.Eq{"g.dc": ctx.Session.GetDomainId()}).
+		PlaceholderFormat(sq.Dollar)
 
 	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
 
@@ -273,13 +275,13 @@ func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (squirrel.Selec
 	}
 
 	if len(ids) > 0 {
-		queryBuilder = queryBuilder.Where(squirrel.Eq{"g.id": ids})
+		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
 	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
 		substrs := ctx.Match.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
-		queryBuilder = queryBuilder.Where(squirrel.ILike{"g.name": "%" + combinedLike + "%"})
+		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": "%" + combinedLike + "%"})
 	}
 
 	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
@@ -463,10 +465,45 @@ from upd
 	return query, args
 }
 
+// Check RBAC rights for the user to access the resource
+func (s Status) RbacAccess(ctx context.Context, domainId int64, id int64, groups []int, access uint8) (bool, model.AppError) {
+	// Get the database connection from the storage layer
+	db, appErr := s.storage.Database()
+	if appErr != nil {
+		return false, appErr
+	}
+
+	// Build the subquery to check access permissions
+	subquery := sq.Select("1").
+		From("cases.status_acl acl").
+		Where(sq.Eq{"acl.dc": domainId}).
+		Where(sq.Eq{"acl.object": id}).
+		Where("acl.subject = any( ?::int[])", pq.Array(groups)).
+		Where("acl.access & ? = ?", access, access).
+		PlaceholderFormat(sq.Dollar)
+
+	// Build the base query that checks if the subquery returns any results
+	base := sq.Select("1").
+		Where(sq.Expr("exists(?)", subquery))
+
+	// Convert the query to SQL for debugging
+	sql, _, _ := base.ToSql()
+	wlog.Debug(sql)
+
+	// Execute the query using pgxpool, which requires a different approach because pgxpool.Pool doesn't implement squirrel.BaseRunner
+	var ac bool
+	err := db.QueryRow(ctx, sql).Scan(&ac)
+	if err != nil {
+		return false, model.NewInternalError("postgres.config.check_access.scan.error", err.Error())
+	}
+
+	return ac, nil
+}
+
 func NewStatusStore(store store.Store) (store.StatusStore, model.AppError) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.config.new_status.check.bad_arguments",
-			"error creating config interface to the status table, main store is nil")
+		return nil, model.NewInternalError("postgres.new_status.check.bad_arguments",
+			"error creating stuas interface to the status table, main store is nil")
 	}
 	return &Status{storage: store}, nil
 }

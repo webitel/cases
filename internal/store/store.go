@@ -1,6 +1,8 @@
 package store
 
 import (
+	"context"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	_go "github.com/webitel/cases/api"
 	"github.com/webitel/cases/model"
@@ -30,6 +32,8 @@ type StatusStore interface {
 	Delete(rpc *model.DeleteOptions) error
 	// Update status lookup
 	Update(rpc *model.UpdateOptions, lookup *_go.Status) (*_go.Status, error)
+	// Check if user has Read access to the resource
+	RbacAccess(ctx context.Context, domainId, id int64, groups []int, access uint8) (bool, model.AppError)
 }
 
 type StatusConditionStore interface {
@@ -41,6 +45,8 @@ type StatusConditionStore interface {
 	Delete(ctx *model.DeleteOptions, statusId int64) error
 	// Update lookup status
 	Update(ctx *model.UpdateOptions, status *_go.StatusCondition) (*_go.StatusCondition, error)
+	// Check if user has Read access to the resource
+	RbacAccess(ctx context.Context, domainId, id int64, groups []int, access uint8) (bool, model.AppError)
 }
 
 type CloseReasonStore interface {
