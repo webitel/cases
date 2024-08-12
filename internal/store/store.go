@@ -13,7 +13,9 @@ type Store interface {
 	Status() StatusStore
 	StatusCondition() StatusConditionStore
 	CloseReason() CloseReasonStore
+	Reason() ReasonStore
 	Appeal() AppealStore
+	AccessControl() AccessControlStore
 
 	// Database connection
 	Database() (*pgxpool.Pool, model.AppError)
@@ -23,6 +25,10 @@ type Store interface {
 	Close() model.AppError
 }
 
+type AccessControlStore interface {
+	// Check if user has Rbac access
+	RbacAccess(ctx context.Context, domainId, id int64, groups []int, access uint8, table string) (bool, model.AppError)
+}
 type StatusStore interface {
 	// Create a new status lookup
 	Create(rpc *model.CreateOptions, add *_go.Status) (*_go.Status, error)
@@ -32,21 +38,17 @@ type StatusStore interface {
 	Delete(rpc *model.DeleteOptions) error
 	// Update status lookup
 	Update(rpc *model.UpdateOptions, lookup *_go.Status) (*_go.Status, error)
-	// Check if user has Read access to the resource
-	RbacAccess(ctx context.Context, domainId, id int64, groups []int, access uint8) (bool, model.AppError)
 }
 
 type StatusConditionStore interface {
-	// Create a new status to a lookup
+	// Create a new status сondition
 	Create(ctx *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error)
-	// List lookup statuses
+	// List status сondition
 	List(ctx *model.SearchOptions, statusId int64) (*_go.StatusConditionList, error)
-	// Delete lookup status
+	// Delete status сondition
 	Delete(ctx *model.DeleteOptions, statusId int64) error
-	// Update lookup status
+	// Update status сondition
 	Update(ctx *model.UpdateOptions, status *_go.StatusCondition) (*_go.StatusCondition, error)
-	// Check if user has Read access to the resource
-	RbacAccess(ctx context.Context, domainId, id int64, groups []int, access uint8) (bool, model.AppError)
 }
 
 type CloseReasonStore interface {
@@ -58,6 +60,17 @@ type CloseReasonStore interface {
 	Delete(rpc *model.DeleteOptions) error
 	// Update close reason lookup
 	Update(rpc *model.UpdateOptions, lookup *_go.CloseReason) (*_go.CloseReason, error)
+}
+
+type ReasonStore interface {
+	// Create a new reason
+	Create(ctx *model.CreateOptions, add *_go.Reason) (*_go.Reason, error)
+	// List reasons
+	List(ctx *model.SearchOptions, closeReasonId int64) (*_go.ReasonList, error)
+	// Delete reason
+	Delete(ctx *model.DeleteOptions, closeReasonId int64) error
+	// Update reason
+	Update(ctx *model.UpdateOptions, lookup *_go.Reason) (*_go.Reason, error)
 }
 
 type AppealStore interface {

@@ -1,0 +1,178 @@
+syntax = "proto3";
+package cases;
+
+option go_package = "cases/api";
+
+import "lookup.proto";
+import "google/api/visibility.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+// Reason message represents a reason entity with metadata
+message Reason {
+  // Unique identifier of the reason
+  int64 id = 1;
+  // Name of the reason
+  string name = 2;
+  // Description of the reason
+  string description = 3;
+  // Close Reason ID of the reason
+  int64 close_reason_id = 6;
+  // CreatedAt timestamp of the reason
+  int64 created_at = 20;
+  // UpdatedAt timestamp of the reason
+  int64 updated_at = 21;
+  // CreatedBy user of the reason
+  Lookup created_by = 22;
+  // UpdatedBy user of the reason
+  Lookup updated_by = 23;
+}
+
+// InputReason message for inputting reason data
+message InputReason {
+  string name = 2;
+  string description = 3;
+}
+
+// ReasonList message contains a list of Reason items with pagination
+message ReasonList {
+  int32 page = 1;
+  bool next = 2;
+  repeated Reason items = 3;
+}
+
+// CreateReasonRequest message for creating a new reason
+message CreateReasonRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["name", "lookup_id"]
+    }
+  };
+
+  int64 close_reason_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+// UpdateReasonRequest message for updating an existing reason
+message UpdateReasonRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  int64 close_reason_id = 1;
+  int64 id = 2;
+  InputReason input = 3;
+
+  // JSON PATCH fields mask.
+  // List of JPath fields specified in body(input).
+  repeated string x_json_mask = 4
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+}
+
+// DeleteReasonRequest message for deleting an existing reason
+message DeleteReasonRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["close_reason_id"]
+    }
+  };
+  int64 id = 1;
+  int64 close_reason_id = 2;
+}
+
+// ListReasonRequest message for listing or searching reasons
+message ListReasonRequest {
+  int32 page = 1;
+  int32 size = 2;
+  repeated string fields = 3;
+  repeated string sort = 4;
+  repeated int64 id = 5;
+  string q = 6;
+  string name = 7;
+  int64 close_reason_id = 8;
+}
+
+// LocateReasonRequest message for locating a specific reason by ID
+message LocateReasonRequest {
+  int64 id = 1;
+  int64 close_reason_id = 2;
+  repeated string fields = 3;
+}
+
+// LocateReasonResponse message contains a single reason entity
+message LocateReasonResponse {
+  Reason reason = 1;
+}
+
+// Reasons service definition with RPC methods for managing reasons
+service Reasons {
+  // RPC method to list or search reasons
+  rpc ListReasons(ListReasonRequest) returns (ReasonList) {
+    option (google.api.http) = {
+      get: "/closeReasons/{close_reason_id}/reasons"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve a list of reasons or search reasons"
+    };
+  }
+
+  // RPC method to create a new reason
+  rpc CreateReason(CreateReasonRequest) returns (Reason) {
+    option (google.api.http) = {
+      post: "/closeReasons/{close_reason_id}/reasons"
+      body: "*"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Create a new reason"
+    };
+  }
+
+  // RPC method to update an existing reason
+  rpc UpdateReason(UpdateReasonRequest) returns (Reason) {
+    option (google.api.http) = {
+      put: "/closeReasons/{close_reason_id}/reasons/{id}"
+      body: "input"
+      additional_bindings {
+        patch: "/closeReasons/{close_reason_id}/reasons/{id}"
+        body: "input"
+      }
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Update an existing reason"
+    };
+  }
+
+  // RPC method to delete an existing reason
+  rpc DeleteReason(DeleteReasonRequest) returns (Reason) {
+    option (google.api.http) = {
+      delete: "/closeReasons/{close_reason_id}/reasons/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Delete a reason"
+    };
+  }
+
+  // RPC method to locate a specific reason by ID
+  rpc LocateReason(LocateReasonRequest) returns (LocateReasonResponse) {
+    option (google.api.http) = {
+      get: "/closeReasons/{close_reason_id}/reasons/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Locate a reason by ID"
+    };
+  }
+}

@@ -111,7 +111,7 @@ service CloseReasons {
   // RPC method to list or search close reasons
   rpc ListCloseReasons(ListCloseReasonRequest) returns (CloseReasonList) {
     option (google.api.http) = {
-      get: "/closeReasons"
+      get: "/cases/closeReasons"
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -122,7 +122,7 @@ service CloseReasons {
   // RPC method to create a new close reason
   rpc CreateCloseReason(CreateCloseReasonRequest) returns (CloseReason) {
     option (google.api.http) = {
-      post: "/closeReasons"
+      post: "/cases/closeReasons"
       body: "*"
     };
 
@@ -134,10 +134,10 @@ service CloseReasons {
   // RPC method to update an existing close reason
   rpc UpdateCloseReason(UpdateCloseReasonRequest) returns (CloseReason) {
     option (google.api.http) = {
-      put: "/closeReasons/{id}"
+      put: "/cases/closeReasons/{id}"
       body: "*"
       additional_bindings {
-        patch: "/closeReasons/{id}"
+        patch: "/cases/closeReasons/{id}"
         body: "*"
       }
     };
@@ -150,7 +150,7 @@ service CloseReasons {
   // RPC method to delete an existing close reason
   rpc DeleteCloseReason(DeleteCloseReasonRequest) returns (CloseReason) {
     option (google.api.http) = {
-      delete: "/closeReasons/{id}"
+      delete: "/cases/closeReasons/{id}"
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -161,7 +161,7 @@ service CloseReasons {
   // RPC method to locate a specific close reason by ID
   rpc LocateCloseReason(LocateCloseReasonRequest) returns (LocateCloseReasonResponse) {
     option (google.api.http) = {
-      get: "/closeReasons/{id}"
+      get: "/cases/closeReasons/{id}"
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {

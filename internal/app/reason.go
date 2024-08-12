@@ -10,14 +10,15 @@ import (
 	"github.com/webitel/cases/model"
 )
 
-type CloseReasonService struct {
+type ReasonService struct {
 	app *App
 }
 
-func (s CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.CreateCloseReasonRequest) (*_go.CloseReason, error) {
+// CreateReason implements api.ReasonsServer.
+func (s *ReasonService) CreateReason(ctx context.Context, req *_go.CreateReasonRequest) (*_go.Reason, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("lookup.name.required", ErrLookupNameReq)
+		return nil, model.NewBadRequestError("reason.name.required", ErrStatusNameReq)
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -37,15 +38,16 @@ func (s CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.Crea
 		Name: session.GetUserName(),
 	}
 
-	// Create a new lookup model
-	lookup := &_go.CloseReason{
-		Name:        req.Name,
-		Description: req.Description,
-		CreatedBy:   currentU,
-		UpdatedBy:   currentU,
+	// Create a new status model
+	status := &_go.Reason{
+		Name:          req.Name,
+		Description:   req.Description,
+		CreatedBy:     currentU,
+		UpdatedBy:     currentU,
+		CloseReasonId: req.CloseReasonId,
 	}
 
-	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
+	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "created_at", "updated_at", "created_by", "updated_by"}
 
 	t := time.Now()
 
@@ -57,16 +59,17 @@ func (s CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.Crea
 		Time:    t,
 	}
 
-	// Create the close reason in the store
-	l, e := s.app.Store.CloseReason().Create(&createOpts, lookup)
+	// Create the status in the store
+	st, e := s.app.Store.Reason().Create(&createOpts, status)
 	if e != nil {
 		return nil, e
 	}
 
-	return l, nil
+	return st, nil
 }
 
-func (s CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.ListCloseReasonRequest) (*_go.CloseReasonList, error) {
+// ListReasons implements api.ReasonsServer.
+func (s *ReasonService) ListReasons(ctx context.Context, req *_go.ListReasonRequest) (*_go.ReasonList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -80,9 +83,8 @@ func (s CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.ListC
 	}
 
 	fields := req.Fields
-
 	if len(fields) == 0 {
-		fields = strings.Split(defaultFields, ", ")
+		fields = strings.Split(defaultFieldsStatus, ", ")
 	}
 
 	// Use default page size and page number if not provided
@@ -92,17 +94,16 @@ func (s CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.ListC
 	}
 
 	t := time.Now()
-
 	searchOptions := model.SearchOptions{
 		IDs:     req.Id,
 		Session: session,
 		Fields:  fields,
 		Context: ctx,
-		Page:    int(page),
 		Sort:    req.Sort,
+		Page:    int(page),
 		Size:    int(req.Size),
-		Filter:  make(map[string]interface{}),
 		Time:    t,
+		Filter:  make(map[string]interface{}),
 	}
 
 	if req.Q != "" {
@@ -111,18 +112,19 @@ func (s CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.ListC
 		searchOptions.Filter["name"] = req.Name
 	}
 
-	lookups, e := s.app.Store.CloseReason().List(&searchOptions)
+	reasons, e := s.app.Store.Reason().List(&searchOptions, req.CloseReasonId)
 	if e != nil {
 		return nil, e
 	}
 
-	return lookups, nil
+	return reasons, nil
 }
 
-func (s CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.UpdateCloseReasonRequest) (*_go.CloseReason, error) {
+// UpdateReason implements api.ReasonsServer.
+func (s *ReasonService) UpdateReason(ctx context.Context, req *_go.UpdateReasonRequest) (*_go.Reason, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
+		return nil, model.NewBadRequestError("close_reason.id.required", "Status ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -136,32 +138,31 @@ func (s CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.Upda
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
-	// // RBAC check
-	// if scope.IsRbacUsed() {
-	// 	access, err := s.app.Store.Status().RbacAccess(ctx, session.GetDomainId(), int64(req.GetId()), session.GetAclRoles(), accessMode.Value())
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	if !access {
-	// 		return nil, s.app.MakeScopeError(session, scope, accessMode)
-	// 	}
-	// }
-
 	// Define the current user as the updater
-	currentU := &_go.Lookup{
+	u := &_go.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
 
-	// Update lookup model
-	lookup := &_go.CloseReason{
-		Id:          req.Id,
-		Name:        req.Name,
-		Description: req.Description,
-		UpdatedBy:   currentU,
+	// Update status model
+	reeason := &_go.Reason{
+		Id:            req.Id,
+		CloseReasonId: req.CloseReasonId,
+		Name:          req.Input.Name,
+		Description:   req.Input.Description,
+		UpdatedBy:     u,
 	}
 
-	fields := []string{"id", "name", "description", "updated_at", "updated_by"}
+	fields := []string{"id", "lookup_id"}
+
+	for _, f := range req.XJsonMask {
+		if f == "name" {
+			fields = append(fields, "name")
+		}
+		if f == "description" {
+			fields = append(fields, "description")
+		}
+	}
 
 	t := time.Now()
 
@@ -173,19 +174,20 @@ func (s CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.Upda
 		Time:    t,
 	}
 
-	// Update the lookup in the store
-	l, e := s.app.Store.CloseReason().Update(&updateOpts, lookup)
+	// Update the status in the store
+	r, e := s.app.Store.Reason().Update(&updateOpts, reeason)
 	if e != nil {
 		return nil, e
 	}
 
-	return l, nil
+	return r, nil
 }
 
-func (s CloseReasonService) DeleteCloseReason(ctx context.Context, req *_go.DeleteCloseReasonRequest) (*_go.CloseReason, error) {
+// DeleteReason implements api.ReasonsServer.
+func (s *ReasonService) DeleteReason(ctx context.Context, req *_go.DeleteReasonRequest) (*_go.Reason, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("lookup.id.required", "Lookup ID is required")
+		return nil, model.NewBadRequestError("close_reason.id.required", "Status ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -199,17 +201,6 @@ func (s CloseReasonService) DeleteCloseReason(ctx context.Context, req *_go.Dele
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
-	// // RBAC check
-	// if scope.IsRbacUsed() {
-	// 	access, err := s.app.Store.Status().RbacAccess(ctx, session.GetDomainId(), int64(req.GetId()), session.GetAclRoles(), accessMode.Value())
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	if !access {
-	// 		return nil, s.app.MakeScopeError(session, scope, accessMode)
-	// 	}
-	// }
-
 	t := time.Now()
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
@@ -219,19 +210,20 @@ func (s CloseReasonService) DeleteCloseReason(ctx context.Context, req *_go.Dele
 		Time:    t,
 	}
 
-	// Delete the lookup in the store
-	e := s.app.Store.CloseReason().Delete(&deleteOpts)
+	// Delete the status in the store
+	e := s.app.Store.Reason().Delete(&deleteOpts, req.CloseReasonId)
 	if e != nil {
 		return nil, e
 	}
 
-	return &(_go.CloseReason{Id: req.Id}), nil
+	return &(_go.Reason{Id: req.Id}), nil
 }
 
-func (s CloseReasonService) LocateCloseReason(ctx context.Context, req *_go.LocateCloseReasonRequest) (*_go.LocateCloseReasonResponse, error) {
+// LocateReason implements api.ReasonsServer.
+func (s *ReasonService) LocateReason(ctx context.Context, req *_go.LocateReasonRequest) (*_go.LocateReasonResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("close_reason.id.required", "Lookup ID is required")
+		return nil, model.NewBadRequestError("close_reason.id.required", "Status ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -251,7 +243,6 @@ func (s CloseReasonService) LocateCloseReason(ctx context.Context, req *_go.Loca
 	}
 
 	t := time.Now()
-
 	searchOpts := model.SearchOptions{
 		IDs:     []int64{req.Id},
 		Session: session,
@@ -262,24 +253,23 @@ func (s CloseReasonService) LocateCloseReason(ctx context.Context, req *_go.Loca
 		Time:    t,
 	}
 
-	l, e := s.app.Store.CloseReason().List(&searchOpts)
+	l, e := s.app.Store.Reason().List(&searchOpts, req.CloseReasonId)
 	if e != nil {
 		return nil, e
 	}
 
 	if len(l.Items) == 0 {
-		return nil, model.NewNotFoundError("status_lookup.not_found", "Status lookup not found")
+		return nil, model.NewNotFoundError("status.not_found", "Status not found")
 	}
 
-	lookup := l.Items[0]
+	reason := l.Items[0]
 
-	return &_go.LocateCloseReasonResponse{CloseReason: lookup}, nil
+	return &_go.LocateReasonResponse{Reason: reason}, nil
 }
 
-func NewCloseReasonService(app *App) (*CloseReasonService, model.AppError) {
+func NewReasonService(app *App) (*ReasonService, model.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_close_reason_service.args_check.app_nil",
-			"internal is nil")
+		return nil, model.NewInternalError("api.config.new_reason_service.args_check.app_nil", "internal is nil")
 	}
-	return &CloseReasonService{app: app}, nil
+	return &ReasonService{app: app}, nil
 }

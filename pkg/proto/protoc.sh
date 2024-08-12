@@ -1,8 +1,8 @@
 # !/bin/sh
 #set -x
 
-src=proto
-dst=api
+src=pkg/proto/
+dst=api/
 
 # Ensure target dir exists
 mkdir -p $dst

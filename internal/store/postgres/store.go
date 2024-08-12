@@ -16,10 +16,23 @@ type Store struct {
 	statusConditionStore store.StatusConditionStore
 	closeReasonStore     store.CloseReasonStore
 	statusStore          store.StatusStore
+	accessControllStore  store.AccessControlStore
+	reasonStore          store.ReasonStore
 }
 
 func New(config *model.DatabaseConfig) *Store {
 	return &Store{config: config}
+}
+
+func (s *Store) AccessControl() store.AccessControlStore {
+	if s.accessControllStore == nil {
+		st, err := NewAccessControlStore(s)
+		if err != nil {
+			return nil
+		}
+		s.accessControllStore = st
+	}
+	return s.accessControllStore
 }
 
 func (s *Store) Status() store.StatusStore {
@@ -64,6 +77,17 @@ func (s *Store) CloseReason() store.CloseReasonStore {
 		s.closeReasonStore = st
 	}
 	return s.closeReasonStore
+}
+
+func (s *Store) Reason() store.ReasonStore {
+	if s.reasonStore == nil {
+		st, err := NewReasonStore(s)
+		if err != nil {
+			return nil
+		}
+		s.reasonStore = st
+	}
+	return s.reasonStore
 }
 
 func (s *Store) Database() (*pgxpool.Pool, model.AppError) {

@@ -96,14 +96,20 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 		return nil, appErr
 	}
 
+	// Lookup status condition
+	s, appErr := NewStatusConditionService(app)
+	if appErr != nil {
+		return nil, appErr
+	}
+
 	// Close reason lookup service
 	n, appErr := NewCloseReasonService(app)
 	if appErr != nil {
 		return nil, appErr
 	}
 
-	// Lookup status condition
-	s, appErr := NewStatusConditionService(app)
+	// Reason service
+	r, appErr := NewReasonService(app)
 	if appErr != nil {
 		return nil, appErr
 	}
@@ -112,10 +118,12 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 	grpcservice.RegisterAppealsServer(grpcServer, l)
 	// * register status service
 	grpcservice.RegisterStatusesServer(grpcServer, c)
-	// * register close reason service
-	grpcservice.RegisterCloseReasonsServer(grpcServer, n)
 	// * register lookup status service
 	grpcservice.RegisterStatusConditionsServer(grpcServer, s)
+	// * register close reason service
+	grpcservice.RegisterCloseReasonsServer(grpcServer, n)
+	// * register reason service
+	grpcservice.RegisterReasonsServer(grpcServer, r)
 
 	return grpcServer, nil
 }

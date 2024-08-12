@@ -63,7 +63,7 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 		Time:    t,
 	}
 
-	// Create the group in the store
+	// Create the status in the store
 	l, e := s.app.Store.Status().Create(&createOpts, lookup)
 	if e != nil {
 		return nil, e
@@ -241,7 +241,7 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRequest) (*_go.LocateStatusResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("groups.id.required", "Lookup ID is required")
+		return nil, model.NewBadRequestError("status.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)

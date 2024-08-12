@@ -1,7 +1,7 @@
 #!/bin/sh
 #set -x
 
-src=proto
+src=pkg/proto/
 dst=$src
 
 

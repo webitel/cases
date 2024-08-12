@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -13,7 +12,6 @@ import (
 	_go "github.com/webitel/cases/api"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
-	"github.com/webitel/wlog"
 )
 
 type Status struct {
@@ -463,41 +461,6 @@ from upd
 
 	args = append(args, l.Id, ctx.Session.GetDomainId())
 	return query, args
-}
-
-// Check RBAC rights for the user to access the resource
-func (s Status) RbacAccess(ctx context.Context, domainId int64, id int64, groups []int, access uint8) (bool, model.AppError) {
-	// Get the database connection from the storage layer
-	db, appErr := s.storage.Database()
-	if appErr != nil {
-		return false, appErr
-	}
-
-	// Build the subquery to check access permissions
-	subquery := sq.Select("1").
-		From("cases.status_acl acl").
-		Where(sq.Eq{"acl.dc": domainId}).
-		Where(sq.Eq{"acl.object": id}).
-		Where("acl.subject = any( ?::int[])", pq.Array(groups)).
-		Where("acl.access & ? = ?", access, access).
-		PlaceholderFormat(sq.Dollar)
-
-	// Build the base query that checks if the subquery returns any results
-	base := sq.Select("1").
-		Where(sq.Expr("exists(?)", subquery))
-
-	// Convert the query to SQL for debugging
-	sql, _, _ := base.ToSql()
-	wlog.Debug(sql)
-
-	// Execute the query using pgxpool, which requires a different approach because pgxpool.Pool doesn't implement squirrel.BaseRunner
-	var ac bool
-	err := db.QueryRow(ctx, sql).Scan(&ac)
-	if err != nil {
-		return false, model.NewInternalError("postgres.config.check_access.scan.error", err.Error())
-	}
-
-	return ac, nil
 }
 
 func NewStatusStore(store store.Store) (store.StatusStore, model.AppError) {

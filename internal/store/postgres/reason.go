@@ -9,16 +9,18 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
+
 	_go "github.com/webitel/cases/api"
-	db "github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 )
 
-type CloseReason struct {
-	storage db.Store
+type Reason struct {
+	storage store.Store
 }
 
-func (s CloseReason) Create(ctx *model.CreateOptions, add *_go.CloseReason) (*_go.CloseReason, error) {
+// Create implements store.ReasonStore.
+func (s *Reason) Create(ctx *model.CreateOptions, add *_go.Reason) (*_go.Reason, error) {
 	d, dbErr := s.storage.Database()
 
 	if dbErr != nil {
@@ -26,7 +28,7 @@ func (s CloseReason) Create(ctx *model.CreateOptions, add *_go.CloseReason) (*_g
 		return nil, dbErr
 	}
 
-	query, args, err := s.buildCreateCloseReasonQuery(ctx, add)
+	query, args, err := s.buildCreateReasonQuery(ctx, add)
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return nil, err
@@ -47,7 +49,7 @@ func (s CloseReason) Create(ctx *model.CreateOptions, add *_go.CloseReason) (*_g
 
 	t := ctx.Time
 
-	return &_go.CloseReason{
+	return &_go.Reason{
 		Id:          add.Id,
 		Name:        add.Name,
 		Description: add.Description,
@@ -59,14 +61,15 @@ func (s CloseReason) Create(ctx *model.CreateOptions, add *_go.CloseReason) (*_g
 	}, nil
 }
 
-func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error) {
+// List implements store.ReasonStore.
+func (s *Reason) List(ctx *model.SearchOptions, closeReasonId int64) (*_go.ReasonList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		log.Printf("Failed to get database connection: %v", dbErr)
 		return nil, dbErr
 	}
 
-	cte, err := s.buildSearchCloseReasonQuery(ctx)
+	cte, err := s.buildSearchReasonQuery(ctx)
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return nil, err
@@ -86,7 +89,7 @@ func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error
 	}
 	defer rows.Close()
 
-	var lookupList []*_go.CloseReason
+	var lookupList []*_go.Reason
 
 	lCount := 0
 	next := false
@@ -97,7 +100,7 @@ func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error
 			break
 		}
 
-		l := &_go.CloseReason{}
+		l := &_go.Reason{}
 		var createdBy, updatedBy _go.Lookup
 		var tempUpdatedAt, tempCreatedAt time.Time
 		var scanArgs []interface{}
@@ -145,21 +148,22 @@ func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error
 		lCount++
 	}
 
-	return &_go.CloseReasonList{
+	return &_go.ReasonList{
 		Page:  int32(ctx.Page),
 		Next:  next,
 		Items: lookupList,
 	}, nil
 }
 
-func (s CloseReason) Delete(ctx *model.DeleteOptions) error {
+// Delete implements store.ReasonStore.
+func (s *Reason) Delete(ctx *model.DeleteOptions, closeReasonId int64) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		log.Printf("Failed to get database connection: %v", dbErr)
 		return dbErr
 	}
 
-	query, args, err := s.buildDeleteCloseReasonQuery(ctx)
+	query, args, err := s.buildDeleteReasonQuery(ctx)
 	if err != nil {
 		log.Printf("Failed to build SQL query: %v", err)
 		return err
@@ -179,14 +183,15 @@ func (s CloseReason) Delete(ctx *model.DeleteOptions) error {
 	return nil
 }
 
-func (s CloseReason) Update(ctx *model.UpdateOptions, l *_go.CloseReason) (*_go.CloseReason, error) {
+// Update implements store.ReasonStore.
+func (s *Reason) Update(ctx *model.UpdateOptions, l *_go.Reason) (*_go.Reason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		log.Printf("Failed to get database connection: %v", dbErr)
 		return nil, dbErr
 	}
 	// Build the query and args using the helper function
-	query, args := s.buildUpdateCloseReasonQuery(ctx, l)
+	query, args := s.buildUpdateReasonQuery(ctx, l)
 
 	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
@@ -210,10 +215,10 @@ func (s CloseReason) Update(ctx *model.UpdateOptions, l *_go.CloseReason) (*_go.
 }
 
 // buildCreateCloseReasonLookupQuery constructs the SQL insert query and returns the query string and arguments.
-func (s CloseReason) buildCreateCloseReasonQuery(ctx *model.CreateOptions, lookup *_go.CloseReason) (string, []interface{}, error) {
+func (s Reason) buildCreateReasonQuery(ctx *model.CreateOptions, lookup *_go.Reason) (string, []interface{}, error) {
 	query := `
 with ins as (
-    INSERT INTO cases.close_reason (name, dc, created_at, description, created_by, updated_at,
+    INSERT INTO cases.reason (name, dc, created_at, description, created_by, updated_at,
 updated_by)
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     returning *
@@ -239,13 +244,12 @@ from ins
 }
 
 // buildSearchCloseReasonLookupQuery constructs the SQL search query and returns the query builder.
-func (s CloseReason) buildSearchCloseReasonQuery(ctx *model.SearchOptions) (sq.SelectBuilder, error) {
+func (s Reason) buildSearchReasonQuery(ctx *model.SearchOptions) (sq.SelectBuilder, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
-
 	queryBuilder := sq.Select().
-		From("cases.close_reason AS g").
+		From("cases.reason AS g").
 		Where(sq.Eq{"g.dc": ctx.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
@@ -314,12 +318,12 @@ func (s CloseReason) buildSearchCloseReasonQuery(ctx *model.SearchOptions) (sq.S
 }
 
 // buildDeleteCloseReasonLookupQuery constructs the SQL delete query and returns the query string and arguments.
-func (s CloseReason) buildDeleteCloseReasonQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
+func (s Reason) buildDeleteReasonQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	query := `
-        DELETE FROM cases.close_reason
+        DELETE FROM cases.reason
         WHERE id = ANY($1) AND dc = $2
     `
 	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
@@ -327,7 +331,7 @@ func (s CloseReason) buildDeleteCloseReasonQuery(ctx *model.DeleteOptions) (stri
 }
 
 // buildUpdateCloseReasonLookupQuery constructs the SQL update query and returns the query string and arguments.
-func (s CloseReason) buildUpdateCloseReasonQuery(ctx *model.UpdateOptions, l *_go.CloseReason) (string,
+func (s Reason) buildUpdateReasonQuery(ctx *model.UpdateOptions, l *_go.Reason) (string,
 	[]interface{},
 ) {
 	var setClauses []string
@@ -361,7 +365,7 @@ func (s CloseReason) buildUpdateCloseReasonQuery(ctx *model.UpdateOptions, l *_g
 	// Construct the SQL query with joins for created_by and updated_by
 	query := fmt.Sprintf(`
 with upd as (
-    UPDATE cases.close_reason
+    UPDATE cases.reason
     SET %s
     WHERE id = $%d AND dc = $%d
     RETURNING id, name, created_at, updated_at, description, created_by, updated_by
@@ -384,10 +388,10 @@ from upd
 	return query, args
 }
 
-func NewCloseReasonStore(store db.Store) (db.CloseReasonStore, model.AppError) {
+func NewReasonStore(store store.Store) (store.ReasonStore, model.AppError) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.config.new_close_reason.check.bad_arguments",
-			"error creating config interface to the close_reason table, main store is nil")
+		return nil, model.NewInternalError("postgres.new_reason.check.bad_arguments",
+			"error creating reason interface to the status_condition table, main store is nil")
 	}
-	return &CloseReason{storage: store}, nil
+	return &Reason{storage: store}, nil
 }

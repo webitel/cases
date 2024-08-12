@@ -233,9 +233,7 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 }
 
 // LocateStatusCondition implements api.StatusConditionsServer.
-func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *_go.LocateStatusConditionRequest) (*_go.LocateStatusConditionResponse,
-	error,
-) {
+func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *_go.LocateStatusConditionRequest) (*_go.LocateStatusConditionResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
