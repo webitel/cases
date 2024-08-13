@@ -147,7 +147,7 @@ service Appeals {
 
   rpc ListAppeals(ListAppealRequest) returns (AppealList) {
     option (google.api.http) = {
-      get: "/appeals"
+      get: "/cases/appeals"
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -157,7 +157,7 @@ service Appeals {
 
   rpc CreateAppeal(CreateAppealRequest) returns (Appeal) {
     option (google.api.http) = {
-      post: "/appeals"
+      post: "/cases/appeals"
       body: "*"
     };
 
@@ -168,10 +168,10 @@ service Appeals {
 
   rpc UpdateAppeal(UpdateAppealRequest) returns (Appeal) {
     option (google.api.http) = {
-      put: "/appeals/{id}"
+      put: "/cases/appeals/{id}"
       body: "*"
       additional_bindings {
-        patch: "/appeals/{id}"
+        patch: "/cases/appeals/{id}"
         body: "*"
       }
     };
@@ -183,7 +183,7 @@ service Appeals {
 
   rpc DeleteAppeal(DeleteAppealRequest) returns (Appeal) {
     option (google.api.http) = {
-      delete: "/appeals/{id}"
+      delete: "/cases/appeals/{id}"
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -193,7 +193,7 @@ service Appeals {
 
   rpc LocateAppeal(LocateAppealRequest) returns (LocateAppealResponse) {
     option (google.api.http) = {
-      get: "/appeals/{id}"
+      get: "/cases/appeals/{id}"
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
