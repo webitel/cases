@@ -36,11 +36,6 @@ alter table cases.status
 create index status_dc
     on cases.status (dc);
 
-create trigger tg_cases_status_rbac
-    after insert
-    on cases.status
-    referencing new table inserted
-execute procedure directory.tg_stmt_default_rbac('case_statuses');
 
 
 create table cases.status_condition
@@ -88,45 +83,6 @@ create index status_condition_source_index
 
 
 
-create table cases.status_acl
-(
-    dc      bigint not null
-        constraint status_acl_domain_fk
-            references directory.wbt_domain
-            on delete cascade,
-    grantor bigint
-        constraint status_acl_grantor_id_fk
-            references directory.wbt_user
-            on delete set null,
-    subject bigint not null,
-    object  bigint not null,
-    access  smallint,
-    constraint status_acl_grantor_fk
-        foreign key (grantor, dc) references directory.wbt_user ()
-            deferrable initially deferred,
-    constraint status_acl_object_fk
-        foreign key (object, dc) references cases.status (id, dc)
-            on delete cascade
-            deferrable initially deferred,
-    constraint status_acl_subject_fk
-        foreign key (subject, dc) references directory.wbt_user ()
-            on delete cascade
-);
-
-alter table cases.status_acl
-    owner to opensips;
-
-create unique index status_acl_object_subject_pk
-    on cases.status_acl (object, subject);
-
-create unique index status_acl_subject_object_uindex
-    on cases.status_acl (subject, object);
-
-create index status_acl_grantor_index
-    on cases.status_acl (grantor);
-
-
-
 create table cases.close_reason
 (
     id          bigint    default nextval('cases.close_reason_id'::regclass) not null
@@ -165,11 +121,6 @@ alter table cases.close_reason
 create index close_reason_dc
     on cases.close_reason (dc);
 
-create trigger tg_cases_close_reason_rbac
-    after insert
-    on cases.close_reason
-    referencing new table inserted
-execute procedure directory.tg_stmt_default_rbac('close_reasons');
 
 create table cases.reason
 (
@@ -213,39 +164,9 @@ create index reason_source_index
     on cases.reason (close_reason_id);
 
 
-create table cases.close_reason_acl
+create table cases.appeal
 (
-    dc      bigint not null
-        constraint close_reason_acl_domain_fk
-            references directory.wbt_domain
-            on delete cascade,
-    grantor bigint
-        constraint close_reason_acl_grantor_id_fk
-            references directory.wbt_user
-            on delete set null,
-    subject bigint not null,
-    object  bigint not null,
-    access  smallint,
-    constraint close_reason_acl_grantor_fk
-        foreign key (grantor, dc) references directory.wbt_user ()
-            deferrable initially deferred,
-    constraint close_reason_acl_object_fk
-        foreign key (object, dc) references cases.close_reason (id, dc)
-            on delete cascade
-            deferrable initially deferred,
-    constraint close_reason_acl_subject_fk
-        foreign key (subject, dc) references directory.wbt_user ()
-            on delete cascade
 );
 
-alter table cases.close_reason_acl
+alter table cases.appeal
     owner to opensips;
-
-create unique index close_reason_acl_object_subject_pk
-    on cases.close_reason_acl (object, subject);
-
-create unique index close_reason_acl_subject_object_uindex
-    on cases.close_reason_acl (subject, object);
-
-create index close_reason_acl_grantor_index
-    on cases.close_reason_acl (grantor);

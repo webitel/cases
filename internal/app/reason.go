@@ -27,7 +27,7 @@ func (s *ReasonService) CreateReason(ctx context.Context, req *_go.CreateReasonR
 	}
 	// OBAC check
 	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -77,7 +77,7 @@ func (s *ReasonService) ListReasons(ctx context.Context, req *_go.ListReasonRequ
 
 	// OBAC check
 	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -133,7 +133,7 @@ func (s *ReasonService) UpdateReason(ctx context.Context, req *_go.UpdateReasonR
 	}
 	// OBAC check
 	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -196,7 +196,7 @@ func (s *ReasonService) DeleteReason(ctx context.Context, req *_go.DeleteReasonR
 	}
 	// OBAC check
 	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -232,7 +232,7 @@ func (s *ReasonService) LocateReason(ctx context.Context, req *_go.LocateReasonR
 	}
 	// OBAC check
 	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}

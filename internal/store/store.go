@@ -29,6 +29,7 @@ type AccessControlStore interface {
 	// Check if user has Rbac access
 	RbacAccess(ctx context.Context, domainId, id int64, groups []int, access uint8, table string) (bool, model.AppError)
 }
+
 type StatusStore interface {
 	// Create a new status lookup
 	Create(rpc *model.CreateOptions, add *_go.Status) (*_go.Status, error)

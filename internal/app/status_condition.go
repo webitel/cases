@@ -32,7 +32,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 	}
 	// OBAC check
 	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -82,7 +82,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 
 	// OBAC check
 	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -138,7 +138,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	}
 	// OBAC check
 	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -209,7 +209,7 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 	}
 	// OBAC check
 	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -245,7 +245,7 @@ func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *
 	}
 	// OBAC check
 	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}

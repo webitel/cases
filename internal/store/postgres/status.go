@@ -190,7 +190,12 @@ func (s Status) Update(ctx *model.UpdateOptions, l *_go.Status) (*_go.Status, er
 		return nil, dbErr
 	}
 	// Build the query and args using the helper function
-	query, args := s.buildUpdateStatusQuery(ctx, l)
+	query, args, queryErr := s.buildUpdateStatusQuery(ctx, l)
+
+	if queryErr != nil {
+		log.Printf("Failed to build SQL query: %v", queryErr)
+		return nil, queryErr
+	}
 
 	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
@@ -407,42 +412,40 @@ func (s Status) buildDeleteStatusQuery(ctx *model.DeleteOptions) (string, []inte
 	return query, args, nil
 }
 
-// buildUpdateStatusLookupQuery constructs the SQL update query and returns the query string and arguments.
-func (s Status) buildUpdateStatusQuery(ctx *model.UpdateOptions, l *_go.Status) (string, []interface{}) {
-	var setClauses []string
-	var args []interface{}
+func (s Status) buildUpdateStatusQuery(ctx *model.UpdateOptions, l *_go.Status) (string, []interface{}, error) {
+	// Initialize Squirrel builder
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	args = append(args, ctx.Time, ctx.Session.GetUserId())
-
-	// Add the updated_at and updated_by fields to the set clauses
-	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
-	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
+	// Create a Squirrel update builder
+	updateBuilder := psql.Update("cases.status").
+		Set("updated_at", ctx.Time).
+		Set("updated_by", ctx.Session.GetUserId())
 
 	// Fields that could be updated
-	updateFields := []string{"name", "description"}
+	updateFields := map[string]string{
+		"name":        l.Name,
+		"description": l.Description,
+	}
 
-	// Add the fields to the set clauses
-	for _, field := range updateFields {
-		switch field {
-		case "name":
-			if l.Name != "" {
-				args = append(args, l.Name)
-				setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
-			}
-		case "description":
-			if l.Description != "" {
-				args = append(args, l.Description)
-				setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
-			}
+	// Add the fields to the update query if they are provided
+	for field, value := range updateFields {
+		if value != "" {
+			updateBuilder = updateBuilder.Set(field, value)
 		}
 	}
 
-	// Construct the SQL query with joins for created_by and updated_by
+	// Add the WHERE clause for id and dc
+	updateBuilder = updateBuilder.Where(sq.Eq{"id": l.Id, "dc": ctx.Session.GetDomainId()})
+
+	// Build the SQL string and the arguments slice
+	sql, args, err := updateBuilder.ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Construct the final SQL query with joins for created_by and updated_by
 	query := fmt.Sprintf(`
-with upd as (
-    UPDATE cases.status
-    SET %s
-    WHERE id = $%d AND dc = $%d
+with upd as (%s
     RETURNING id, name, created_at, updated_at, description, created_by, updated_by
 )
 select upd.id,
@@ -457,11 +460,66 @@ select upd.id,
 from upd
   left join directory.wbt_user u on u.id = upd.updated_by
   left join directory.wbt_user c on c.id = upd.created_by;
-    `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
+    `, sql)
 
-	args = append(args, l.Id, ctx.Session.GetDomainId())
-	return query, args
+	return query, args, nil
 }
+
+// // buildUpdateStatusLookupQuery constructs the SQL update query and returns the query string and arguments.
+// func (s Status) buildUpdateStatusQuery(ctx *model.UpdateOptions, l *_go.Status) (string, []interface{}) {
+// 	var setClauses []string
+// 	var args []interface{}
+
+// 	args = append(args, ctx.Time, ctx.Session.GetUserId())
+
+// 	// Add the updated_at and updated_by fields to the set clauses
+// 	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
+// 	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
+
+// 	// Fields that could be updated
+// 	updateFields := []string{"name", "description"}
+
+// 	// Add the fields to the set clauses
+// 	for _, field := range updateFields {
+// 		switch field {
+// 		case "name":
+// 			if l.Name != "" {
+// 				args = append(args, l.Name)
+// 				setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
+// 			}
+// 		case "description":
+// 			if l.Description != "" {
+// 				args = append(args, l.Description)
+// 				setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
+// 			}
+// 		}
+// 	}
+
+// 	// Construct the SQL query with joins for created_by and updated_by
+// 	query := fmt.Sprintf(`
+// with upd as (
+//     UPDATE cases.status
+//     SET %s
+//     WHERE id = $%d AND dc = $%d
+//     RETURNING id, name, created_at, updated_at, description, created_by, updated_by
+// )
+// select upd.id,
+//        upd.name,
+//        upd.created_at,
+//        upd.updated_at,
+//        upd.description,
+//        upd.created_by as created_by_id,
+//        coalesce(c.name::text, c.username) as created_by_name,
+//        upd.updated_by as updated_by_id,
+//        coalesce(u.name::text, u.username) as updated_by_name
+// from upd
+//   left join directory.wbt_user u on u.id = upd.updated_by
+//   left join directory.wbt_user c on c.id = upd.created_by;
+//     `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
+
+// 	args = append(args, l.Id, ctx.Session.GetDomainId())
+// 	return query, args
+// }
 
 func NewStatusStore(store store.Store) (store.StatusStore, model.AppError) {
 	if store == nil {

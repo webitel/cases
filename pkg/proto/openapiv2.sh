@@ -1,9 +1,8 @@
 #!/bin/sh
 #set -x
 
-src=pkg/proto/
+src=pkg/proto
 dst=$src
-
 
 protos="\
 $src/openapiv2.proto \
@@ -13,15 +12,12 @@ $src/lookup.proto \
 $src/status_condition.proto \
 $src/status.proto \
 "
-# $src/admin.proto \
-# "
 
 #openapiv2_format=yaml
 openapiv2_format=json
 openapiv2_filename=portal
 openapiv2_file_ext=.swagger.$openapiv2_format
 
-#,disable_default_responses=true\
 openapiv2_options="\
 allow_merge=true\
 ,merge_file_name=$openapiv2_filename\
@@ -33,7 +29,7 @@ allow_merge=true\
 ,logtostderr=true\
 "
 
-protoc -I proto \
+protoc -I $src \
  --openapiv2_out=$openapiv2_options:$dst \
  $protos
 

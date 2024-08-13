@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Masterminds/squirrel"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api"
 	db "github.com/webitel/cases/internal/store"
@@ -37,7 +37,7 @@ func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 	t := ctx.CurrentTime()
 
 	err = d.QueryRow(ctx.Context, query, args...).Scan(
-		&add.Id, &add.Name, t, &add.Description,
+		&add.Id, &add.Name, t, &add.Description, &add.Type,
 		&createdByLookup.Id, &createdByLookup.Name,
 		t, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
@@ -50,11 +50,11 @@ func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 		Id:          add.Id,
 		Name:        add.Name,
 		Description: add.Description,
-		// When we create a new lookup - CREATED/UPDATED_AT are the same
-		CreatedAt: t.Unix(),
-		UpdatedAt: t.Unix(),
-		CreatedBy: &createdByLookup,
-		UpdatedBy: &updatedByLookup,
+		Type:        add.Type,
+		CreatedAt:   t.Unix(),
+		UpdatedAt:   t.Unix(),
+		CreatedBy:   &createdByLookup,
+		UpdatedBy:   &updatedByLookup,
 	}, nil
 }
 
@@ -72,7 +72,6 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 		return nil, err
 	}
 
-	// Request one more record to check if there's a next page
 	query, args, err := cte.Limit(uint64(ctx.GetSize() + 1)).ToSql()
 	if err != nil {
 		log.Printf("Failed to generate SQL query: %v", err)
@@ -92,7 +91,6 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 	next := false
 	for rows.Next() {
 		if lCount >= ctx.GetSize() {
-			// We've retrieved more records than the page size, so there is a next page
 			next = true
 			break
 		}
@@ -100,9 +98,9 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 		l := &_go.Appeal{}
 		var createdBy, updatedBy _go.Lookup
 		var tempUpdatedAt, tempCreatedAt time.Time
+		var tempType _go.Type
 		var scanArgs []interface{}
 
-		// Prepare scan arguments based on requested fields
 		for _, field := range ctx.Fields {
 			switch field {
 			case "id":
@@ -111,6 +109,8 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 				scanArgs = append(scanArgs, &l.Name)
 			case "description":
 				scanArgs = append(scanArgs, &l.Description)
+			case "type":
+				scanArgs = append(scanArgs, &tempType)
 			case "created_at":
 				scanArgs = append(scanArgs, &tempCreatedAt)
 			case "updated_at":
@@ -127,14 +127,14 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 			return nil, err
 		}
 
-		// Assign the lookup fields to the lookup
+		l.Type = tempType
+
 		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_by") {
 			l.CreatedBy = &createdBy
 		}
 		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_by") {
 			l.UpdatedBy = &updatedBy
 		}
-
 		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_at") {
 			l.CreatedAt = tempCreatedAt.Unix()
 		}
@@ -183,20 +183,23 @@ func (s Appeal) Delete(ctx *model.DeleteOptions) error {
 }
 
 func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, error) {
-	// Build the query and args using the helper function
-	query, args := s.buildUpdateAppealQuery(ctx, l)
-
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		log.Printf("Failed to get database connection: %v", dbErr)
 		return nil, dbErr
 	}
 
+	query, args, queryErr := s.buildUpdateAppealQuery(ctx, l)
+	if queryErr != nil {
+		log.Printf("Failed to build SQL query: %v", queryErr)
+		return nil, queryErr
+	}
+
 	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
 
 	err := d.QueryRow(ctx.Context, query, args...).Scan(
-		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
+		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description, &l.Type,
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
@@ -204,7 +207,6 @@ func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 		return nil, err
 	}
 
-	// Assigning the fields to the lookup
 	l.CreatedAt = createdAt.Unix()
 	l.UpdatedAt = updatedAt.Unix()
 	l.CreatedBy = &createdBy
@@ -213,46 +215,42 @@ func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 	return l, nil
 }
 
-// buildCreateAppealLookupQuery constructs the SQL insert query and returns the query string and arguments.
-func (s Appeal) buildCreateAppealQuery(ctx *model.CreateOptions, lookup *_go.Appeal) (string,
-	[]interface{}, error,
-) {
+func (s Appeal) buildCreateAppealQuery(ctx *model.CreateOptions, lookup *_go.Appeal) (string, []interface{}, error) {
 	query := `
-with ins as (
-    INSERT INTO cases.appeal (name, dc, created_at, description, created_by, updated_at,
-updated_by)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
-    returning *
+WITH ins AS (
+    INSERT INTO cases.appeal (name, dc, created_at, description, type, created_by, updated_at, updated_by)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING *
 )
-select ins.id,
-    ins.name,
-    ins.created_at,
-    ins.description,
-    ins.created_by created_by_id,
-    coalesce(c.name::text, c.username) created_by_name,
-    ins.updated_at,
-    ins.updated_by updated_by_id,
-    coalesce(u.name::text, u.username) updated_by_name
-from ins
-  left join directory.wbt_user u on u.id = ins.updated_by
-  left join directory.wbt_user c on c.id = ins.created_by;
+SELECT ins.id,
+       ins.name,
+       ins.created_at,
+       ins.description,
+       ins.type,
+       ins.created_by created_by_id,
+       COALESCE(c.name::text, c.username) created_by_name,
+       ins.updated_at,
+       ins.updated_by updated_by_id,
+       COALESCE(u.name::text, u.username) updated_by_name
+FROM ins
+LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
+LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
 `
 	args := []interface{}{
-		lookup.Name, ctx.Session.GetDomainId(), ctx.CurrentTime(), lookup.Description, ctx.Session.GetUserId(),
-		ctx.CurrentTime(), ctx.Session.GetUserId(),
+		lookup.Name, ctx.Session.GetDomainId(), ctx.CurrentTime(), lookup.Description, lookup.Type,
+		ctx.Session.GetUserId(), ctx.CurrentTime(), ctx.Session.GetUserId(),
 	}
 	return query, args, nil
 }
 
-// buildSearchAppealLookupQuery constructs the SQL search query and returns the query builder.
-func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (squirrel.SelectBuilder, error) {
+func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (sq.SelectBuilder, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
-	queryBuilder := squirrel.Select().
+	queryBuilder := sq.Select().
 		From("cases.appeal AS g").
-		Where(squirrel.Eq{"g.dc": ctx.Session.GetDomainId()}).
-		PlaceholderFormat(squirrel.Dollar)
+		Where(sq.Eq{"g.dc": ctx.Session.GetDomainId()}).
+		PlaceholderFormat(sq.Dollar)
 
 	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
 
@@ -260,7 +258,7 @@ func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (squirrel.Selec
 
 	for _, field := range ctx.Fields {
 		switch field {
-		case "id", "name", "description", "created_at", "updated_at":
+		case "id", "name", "description", "type", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
 		case "created_by":
 			queryBuilder = queryBuilder.Column("created_by.id AS created_by_id, created_by.name AS created_by_name").
@@ -272,12 +270,16 @@ func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (squirrel.Selec
 	}
 
 	if len(ids) > 0 {
-		queryBuilder = queryBuilder.Where(squirrel.Eq{"g.id": ids})
+		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
 	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
 		substr := ctx.Match.Substring(name)
-		queryBuilder = queryBuilder.Where(squirrel.ILike{"g.name": substr})
+		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": substr})
+	}
+
+	if types, ok := ctx.Filter["type"].([]_go.Type); ok && len(types) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"g.type": types})
 	}
 
 	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
@@ -317,76 +319,131 @@ func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (squirrel.Selec
 	return queryBuilder, nil
 }
 
-// buildDeleteAppealLookupQuery constructs the SQL delete query and returns the query string and arguments.
 func (s Appeal) buildDeleteAppealQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
 	query := `
-        DELETE FROM cases.appeal
-        WHERE id = ANY($1) AND dc = $2
+    DELETE FROM cases.appeal
+    WHERE id = ANY($1) AND dc = $2
     `
 	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
 	return query, args, nil
 }
 
-// buildUpdateAppealLookupQuery constructs the SQL update query and returns the query string and arguments.
-func (s Appeal) buildUpdateAppealQuery(ctx *model.UpdateOptions, l *_go.Appeal) (string,
-	[]interface{},
-) {
-	var setClauses []string
-	var args []interface{}
+func (s Appeal) buildUpdateAppealQuery(ctx *model.UpdateOptions, l *_go.Appeal) (string, []interface{}, error) {
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	args = append(args, ctx.CurrentTime(), ctx.Session.GetUserId())
+	builder := psql.Update("cases.appeal").
+		Set("updated_at", ctx.CurrentTime()).
+		Set("updated_by", ctx.Session.GetUserId()).
+		Where(sq.Eq{"id": ctx.ID}).
+		Where(sq.Eq{"dc": ctx.Session.GetDomainId()})
 
-	// Add the updated_at and updated_by fields to the set clauses
-	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
-	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
+	updateFields := []string{"name", "description", "type"}
 
-	// Fields that could be updated
-	updateFields := []string{"name", "description"}
-
-	// Add the fields to the set clauses
 	for _, field := range updateFields {
 		switch field {
 		case "name":
 			if l.Name != "" {
-				args = append(args, l.Name)
-				setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
+				builder = builder.Set("name", l.Name)
 			}
 		case "description":
 			if l.Description != "" {
-				args = append(args, l.Description)
-				setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
+				builder = builder.Set("description", l.Description)
+			}
+		case "type":
+			if l.Type != _go.Type_TYPE_UNSPECIFIED {
+				builder = builder.Set("type", l.Type)
 			}
 		}
 	}
 
-	// Construct the SQL query with joins for created_by and updated_by
-	query := fmt.Sprintf(`
-with upd as (
-    UPDATE cases.appeal
-    SET %s
-    WHERE id = $%d AND dc = $%d
-    RETURNING id, name, created_at, updated_at, description, created_by, updated_by
+	sql, args, err := builder.ToSql()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to build SQL query: %w", err)
+	}
+
+	finalQuery := fmt.Sprintf(`
+WITH upd AS (
+	%s
+	RETURNING id, name, created_at, updated_at, description, type, created_by, updated_by
 )
-select upd.id,
+SELECT upd.id,
        upd.name,
        upd.created_at,
        upd.updated_at,
        upd.description,
-       upd.created_by as created_by_id,
-       coalesce(c.name::text, c.username) as created_by_name,
-       upd.updated_by as updated_by_id,
-       coalesce(u.name::text, u.username) as updated_by_name
-from upd
-  left join directory.wbt_user u on u.id = upd.updated_by
-  left join directory.wbt_user c on c.id = upd.created_by;
-    `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
+       upd.type,
+       upd.created_by AS created_by_id,
+       COALESCE(c.name::text, c.username) AS created_by_name,
+       upd.updated_by AS updated_by_id,
+       COALESCE(u.name::text, u.username) AS updated_by_name
+FROM upd
+LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
+LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
+`, sql)
 
-	args = append(args, ctx.ID, ctx.Session.GetDomainId())
-	return query, args
+	return finalQuery, args, nil
 }
+
+// // buildUpdateAppealLookupQuery constructs the SQL update query and returns the query string and arguments.
+// func (s Appeal) buildUpdateAppealQuery(ctx *model.UpdateOptions, l *_go.Appeal) (string,
+// 	[]interface{},
+// ) {
+// 	var setClauses []string
+// 	var args []interface{}
+
+// 	args = append(args, ctx.CurrentTime(), ctx.Session.GetUserId())
+
+// 	// Add the updated_at and updated_by fields to the set clauses
+// 	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
+// 	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
+
+// 	// Fields that could be updated
+// 	updateFields := []string{"name", "description"}
+
+// 	// Add the fields to the set clauses
+// 	for _, field := range updateFields {
+// 		switch field {
+// 		case "name":
+// 			if l.Name != "" {
+// 				args = append(args, l.Name)
+// 				setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
+// 			}
+// 		case "description":
+// 			if l.Description != "" {
+// 				args = append(args, l.Description)
+// 				setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
+// 			}
+// 		}
+// 	}
+
+// 	// Construct the SQL query with joins for created_by and updated_by
+// 	query := fmt.Sprintf(`
+// with upd as (
+//     UPDATE cases.appeal
+//     SET %s
+//     WHERE id = $%d AND dc = $%d
+//     RETURNING id, name, created_at, updated_at, description, created_by, updated_by
+// )
+// select upd.id,
+//        upd.name,
+//        upd.created_at,
+//        upd.updated_at,
+//        upd.description,
+//        upd.created_by as created_by_id,
+//        coalesce(c.name::text, c.username) as created_by_name,
+//        upd.updated_by as updated_by_id,
+//        coalesce(u.name::text, u.username) as updated_by_name
+// from upd
+//   left join directory.wbt_user u on u.id = upd.updated_by
+//   left join directory.wbt_user c on c.id = upd.created_by;
+//     `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
+
+// 	args = append(args, ctx.ID, ctx.Session.GetDomainId())
+// 	return query, args
+// }
 
 func NewAppealStore(store db.Store) (db.AppealStore, model.AppError) {
 	if store == nil {

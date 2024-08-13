@@ -1,0 +1,6 @@
+GET https://dev.webitel.com/api/userinfo
+X-Webitel-Access: SUPER
+
+
+# GET https://10.10.10.5:8080/api/userinfo
+# X-Webitel-Access: SUPER

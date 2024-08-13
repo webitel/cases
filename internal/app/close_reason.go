@@ -26,7 +26,7 @@ func (s CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.Crea
 	}
 	// OBAC check
 	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -74,7 +74,7 @@ func (s CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.ListC
 
 	// OBAC check
 	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -131,21 +131,10 @@ func (s CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.Upda
 	}
 	// OBAC check
 	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
-
-	// // RBAC check
-	// if scope.IsRbacUsed() {
-	// 	access, err := s.app.Store.Status().RbacAccess(ctx, session.GetDomainId(), int64(req.GetId()), session.GetAclRoles(), accessMode.Value())
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	if !access {
-	// 		return nil, s.app.MakeScopeError(session, scope, accessMode)
-	// 	}
-	// }
 
 	// Define the current user as the updater
 	currentU := &_go.Lookup{
@@ -194,7 +183,7 @@ func (s CloseReasonService) DeleteCloseReason(ctx context.Context, req *_go.Dele
 	}
 	// OBAC check
 	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -240,7 +229,7 @@ func (s CloseReasonService) LocateCloseReason(ctx context.Context, req *_go.Loca
 	}
 	// OBAC check
 	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}

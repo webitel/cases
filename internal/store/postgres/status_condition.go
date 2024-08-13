@@ -418,71 +418,68 @@ RETURNING id;
 }
 
 func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateOptions, st *_go.StatusCondition) (string, []interface{}) {
-	var setClauses []string
 	var args []interface{}
 
-	// Start placeholder numbering at 1
-	placeholderIndex := 1
-
-	// Add common fields with correct types
-	args = append(args, ctx.Time)
-	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", placeholderIndex))
-	placeholderIndex++
-
-	args = append(args, ctx.Session.GetUserId())
-	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", placeholderIndex))
-	placeholderIndex++
+	// 1. Squirrel operations: Building the dynamic part of the "upd" query
+	updBuilder := sq.Update("cases.status_condition").
+		Set("updated_at", ctx.Time).
+		Set("updated_by", ctx.Session.GetUserId())
 
 	// Track whether "initial" or "final" are being updated
 	updateInitial := false
 	updateFinal := false
 
-	// Check and add update-specific fields if provided by the user
+	// Add update-specific fields if provided by the user
 	for _, field := range ctx.Fields {
 		switch field {
 		case "name":
 			if st.Name != "" {
-				args = append(args, st.Name)
-				setClauses = append(setClauses, fmt.Sprintf("name = $%d", placeholderIndex))
-				placeholderIndex++
+				updBuilder = updBuilder.Set("name", st.Name)
 			}
 		case "description":
 			if st.Description != "" {
-				args = append(args, st.Description)
-				setClauses = append(setClauses, fmt.Sprintf("description = $%d", placeholderIndex))
-				placeholderIndex++
+				updBuilder = updBuilder.Set("description", st.Description)
 			}
 		case "initial":
-			args = append(args, st.Initial)
-			setClauses = append(setClauses, fmt.Sprintf("initial = $%d", placeholderIndex))
-			placeholderIndex++
+			updBuilder = updBuilder.Set("initial", st.Initial)
 			updateInitial = true
 		case "final":
-			args = append(args, st.Final)
-			setClauses = append(setClauses, fmt.Sprintf("final = $%d", placeholderIndex))
-			placeholderIndex++
+			updBuilder = updBuilder.Set("final", st.Final)
 			updateFinal = true
 		}
 	}
 
+	// Build the dynamic part of the "upd" query using squirrel
+	updSql, updArgs, err := updBuilder.
+		Where(sq.Eq{"id": st.Id}).
+		Where(sq.Eq{"dc": ctx.Session.GetDomainId()}).
+		Suffix("RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id").
+		ToSql()
+	if err != nil {
+		return "", nil
+	}
+
+	// Manually replace "?" placeholders with "$n" placeholders
+	// assuming the starting index of placeholders is $8, following the existing $1 to $7
+	for i := range updArgs {
+		placeholder := fmt.Sprintf("$%d", i+8)
+		updSql = strings.Replace(updSql, "?", placeholder, 1)
+	}
+
+	// 2. Main query using fmt.Sprintf without Squirrel placeholder format
 	query := fmt.Sprintf(`
-	    -- Count of final status conditions for the given dc and status_id and final == TRUE
         WITH final_remaining AS (
             SELECT COUNT(*) AS count
             FROM cases.status_condition
-            WHERE dc = $%d AND status_id = $%d AND final = TRUE
+            WHERE dc = $1 AND status_id = $2 AND final = TRUE
         ),
-		-- If user set initial to TRUE - set all another initial for this dc and status_id to FALSE
         set_initial_false AS (
             UPDATE cases.status_condition
             SET initial = FALSE
-            WHERE dc = $%d AND status_id = $%d AND id <> $%d AND $%d = TRUE
+            WHERE dc = $1 AND status_id = $2 AND id <> $3 AND $7 = TRUE
         ),
         upd AS (
-            UPDATE cases.status_condition
-            SET %s
-            WHERE id = $%d AND dc = $%d
-            RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id
+            %s
         )
         SELECT
             upd.id,
@@ -502,54 +499,33 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
         LEFT JOIN directory.wbt_user c ON c.id = upd.created_by
         WHERE
             CASE
-			    -- WE DO NOT UPDATE initial, only try to update final to FALSE and checking if it's NOT the last one
-                WHEN $%d::boolean = FALSE AND $%d::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
-
-				-- WE ONLY UPDATE INITIAL [initial always true] and DON'T UPDATE FINAL
-                WHEN $%d::boolean = TRUE AND $%d::boolean = FALSE THEN TRUE
-
-				-- WE UPDATE FINAL + INITIAL but final is FALSE so we checking if it's NOT the last one
-                WHEN $%d::boolean = TRUE AND $%d::boolean = TRUE THEN
+                -- Ensure the update only happens if the conditions are met
+				WHEN $4::boolean = FALSE AND $5::boolean = FALSE THEN TRUE
+                WHEN $4::boolean = FALSE AND $6::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
+                WHEN $7::boolean = TRUE AND $5::boolean = FALSE THEN TRUE
+                WHEN $5::boolean = TRUE AND $4::boolean = TRUE THEN
                     CASE
-                        WHEN $%d::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
+                        WHEN $6::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
                         ELSE TRUE
                     END
                 ELSE TRUE
             END
-        `,
+    `, updSql)
 
-		// Arguments for final_remaining
-		placeholderIndex, placeholderIndex+1,
-		// Arguments for set_initial_false
-		placeholderIndex+2, placeholderIndex+3, placeholderIndex+4, placeholderIndex+5,
-		// Set clause for the update
-		strings.Join(setClauses, ", "),
-		// Arguments for upd subquery
-		placeholderIndex+6, placeholderIndex+7,
-
-		// --- Arguments for the WHERE clause checks ---
-
-		// We DO NOT UPDATE initial, only try to update final to FALSE and checking if it's NOT the last one
-		placeholderIndex+8, placeholderIndex+9,
-		// WE ONLY UPDATE INITIAL [initial always true] and DON'T UPDATE FINAL
-		placeholderIndex+10, placeholderIndex+11,
-		// WE UPDATE FINAL + INITIAL but final is FALSE so we checking if it's NOT the last one
-		placeholderIndex+12, placeholderIndex+13, placeholderIndex+14,
-	)
-
-	// final_remaining check count for dc and status_id
-	args = append(args, ctx.Session.GetDomainId(), st.StatusId)
-	// Arguments for set_initial_false
-	args = append(args, ctx.Session.GetDomainId(), st.StatusId, st.Id, st.Initial)
-	// args for upd subquery
-	args = append(args, st.Id, ctx.Session.GetDomainId())
-
-	// --- Arguments for WHERE clause checks ---
+	// 3. Adding all arguments
 	args = append(args,
-		updateInitial, st.Final,
-		st.Initial, updateFinal,
-		updateFinal, updateInitial, st.Final,
+		ctx.Session.GetDomainId(), // $1
+		st.StatusId,               // $2
+		st.Id,                     // $3
+		updateInitial,             // $4
+		updateFinal,               // $5
+		st.Final,                  // $6
+		st.Initial,                // $7
 	)
+
+	// Append the dynamic query arguments
+	args = append(args, updArgs...)
+	fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
 
 	return query, args
 }
@@ -602,70 +578,63 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
 // 		}
 // 	}
 
-// 	dc := ctx.Session.GetDomainId()
-// 	statusId := st.StatusId
-// 	id := st.Id
-
 // 	query := fmt.Sprintf(`
-//    WITH	final_remaining AS (
-// 		SELECT COUNT(*) AS count
-// 		FROM cases.status_condition
-// 		WHERE dc = $%d AND status_id = $%d AND final = TRUE
-// 	),
-// 	 set_initial_false AS (
-// 		UPDATE cases.status_condition
-// 		SET initial = FALSE
-// 		WHERE dc = $%d AND status_id = $%d AND id <> $%d AND $%d = TRUE
-// 	),
-// 	upd AS (
-// 		UPDATE cases.status_condition
-// 		SET %s
-// 		WHERE id = $%d AND dc = $%d
-// 		RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id
-// 	)
-// 	SELECT
-// 		upd.id,
-// 		upd.name,
-// 		upd.created_at,
-// 		upd.updated_at,
-// 		upd.description,
-// 		upd.initial,
-// 		upd.final,
-// 		upd.created_by AS created_by_id,
-// 		COALESCE(c.name::text, c.username) AS created_by_name,
-// 		upd.updated_by AS updated_by_id,
-// 		COALESCE(u.name::text, u.username) AS updated_by_name,
-// 		upd.status_id
-// 	FROM upd
-// 	LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
-// 	LEFT JOIN directory.wbt_user c ON c.id = upd.created_by
-// WHERE
-//     -- We DO NOT UPDATE initial, only try to update final to FALSE and checking if it's NOT the last one
-//     ($%d::boolean = FALSE AND $%d::boolean = FALSE AND (SELECT count FROM final_remaining) >1)
+// 	    -- Count of final status conditions for the given dc and status_id and final == TRUE
+//         WITH final_remaining AS (
+//             SELECT COUNT(*) AS count
+//             FROM cases.status_condition
+//             WHERE dc = $%d AND status_id = $%d AND final = TRUE
+//         ),
+// 		-- If user set initial to TRUE - set all another initial for this dc and status_id to FALSE
+//         set_initial_false AS (
+//             UPDATE cases.status_condition
+//             SET initial = FALSE
+//             WHERE dc = $%d AND status_id = $%d AND id <> $%d AND $%d = TRUE
+//         ),
+//         upd AS (
+//             UPDATE cases.status_condition
+//             SET %s
+//             WHERE id = $%d AND dc = $%d
+//             RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id
+//         )
+//         SELECT
+//             upd.id,
+//             upd.name,
+//             upd.created_at,
+//             upd.updated_at,
+//             upd.description,
+//             upd.initial,
+//             upd.final,
+//             upd.created_by AS created_by_id,
+//             COALESCE(c.name::text, c.username) AS created_by_name,
+//             upd.updated_by AS updated_by_id,
+//             COALESCE(u.name::text, u.username) AS updated_by_name,
+//             upd.status_id
+//         FROM upd
+//         LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
+//         LEFT JOIN directory.wbt_user c ON c.id = upd.created_by
+//         WHERE
+//             CASE
+// 			    -- WE DO NOT UPDATE initial, only try to update final to FALSE and checking if it's NOT the last one
+//                 WHEN $%d::boolean = FALSE AND $%d::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
 
-//     OR
-//     -- WE ONLY UPDATE INITIAL [initial always true] and DON'T UPDATE FINAL
-//     ($%d::boolean = TRUE AND $%d::boolean = FALSE)
+// 				-- WE ONLY UPDATE INITIAL [initial always true] and DON'T UPDATE FINAL
+//                 WHEN $%d::boolean = TRUE AND $%d::boolean = FALSE THEN TRUE
 
-//     OR
-//     -- WE UPDATE FINAL + INITIAL but final is FALSE so we checking if it's NOT the last one
-//     ($%d::boolean = TRUE AND $%d::boolean = TRUE
-//     AND $%d::boolean = FALSE
-//     AND (SELECT count FROM final_remaining) > 1)
+// 				-- WE UPDATE FINAL + INITIAL but final is FALSE so we checking if it's NOT the last one
+//                 WHEN $%d::boolean = TRUE AND $%d::boolean = TRUE THEN
+//                     CASE
+//                         WHEN $%d::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
+//                         ELSE TRUE
+//                     END
+//                 ELSE TRUE
+//             END
+//         `,
 
-// 	OR
-//     -- WE UPDATE FINAL + INITIAL - both are TRUE
-//     ($%d::boolean = TRUE AND $%d::boolean = TRUE
-//     AND $%d::boolean = TRUE AND $%d::boolean = TRUE)
-
-// 	OR
-//     -- WE ONLY UPDATE FINAL TO TRUE
-//     ($%d::boolean = TRUE AND $%d::boolean = TRUE);
-// 	`,
-// 		// Arguments for set_initial_false
-// 		placeholderIndex, placeholderIndex+1, placeholderIndex+2, placeholderIndex+3,
 // 		// Arguments for final_remaining
-// 		placeholderIndex+4, placeholderIndex+5,
+// 		placeholderIndex, placeholderIndex+1,
+// 		// Arguments for set_initial_false
+// 		placeholderIndex+2, placeholderIndex+3, placeholderIndex+4, placeholderIndex+5,
 // 		// Set clause for the update
 // 		strings.Join(setClauses, ", "),
 // 		// Arguments for upd subquery
@@ -679,27 +648,20 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
 // 		placeholderIndex+10, placeholderIndex+11,
 // 		// WE UPDATE FINAL + INITIAL but final is FALSE so we checking if it's NOT the last one
 // 		placeholderIndex+12, placeholderIndex+13, placeholderIndex+14,
-// 		// WE UPDATE FINAL + INITIAL - both are TRUE
-// 		placeholderIndex+15, placeholderIndex+16, placeholderIndex+17, placeholderIndex+18,
-// 		// WE ONLY UPDATE FINAL TO TRUE
-// 		placeholderIndex+19, placeholderIndex+20,
 // 	)
 
 // 	// final_remaining check count for dc and status_id
-// 	args = append(args, dc, statusId)
+// 	args = append(args, ctx.Session.GetDomainId(), st.StatusId)
 // 	// Arguments for set_initial_false
-// 	args = append(args, dc, statusId, id, st.Initial)
+// 	args = append(args, ctx.Session.GetDomainId(), st.StatusId, st.Id, st.Initial)
 // 	// args for upd subquery
-// 	args = append(args, id, dc) // Arguments for upd subquery
+// 	args = append(args, st.Id, ctx.Session.GetDomainId())
 
 // 	// --- Arguments for WHERE clause checks ---
-
 // 	args = append(args,
 // 		updateInitial, st.Final,
 // 		st.Initial, updateFinal,
 // 		updateFinal, updateInitial, st.Final,
-// 		updateFinal, updateInitial, st.Final, st.Initial,
-// 		updateFinal, st.Final,
 // 	)
 
 // 	return query, args

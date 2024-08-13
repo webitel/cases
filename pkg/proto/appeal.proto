@@ -7,25 +7,36 @@ import "lookup.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 import "google/api/annotations.proto";
 
-
-// Represents a appeal in the contact system.
-message Appeal {
-  // Unique identifier of the close reason
-  int64 id = 1;
-  // Name of the close reason
-  string name = 2;
-  // Description of the close reason
-  string description = 4;
-  // CreatedAt timestamp of the close reason
-  int64 created_at = 20;
-  // UpdatedAt timestamp of the close reason
-  int64 updated_at = 21;
-  // CreatedBy user of the close reason
-  Lookup created_by = 22;
-  // UpdatedBy user of the close reason
-  Lookup updated_by = 23;
+// Represents a source type for the appeal.
+enum Type {
+  TYPE_UNSPECIFIED = 0; // Default value
+  CALL = 1;             // Call
+  CHAT = 2;             // Chat
+  SOCIAL_MEDIA = 3;     // Social Media
+  EMAIL = 4;            // Email
+  API = 5;              // API
+  MANUAL = 6;           // Manual
 }
 
+// Represents an appeal in the contact system.
+message Appeal {
+  // Unique identifier of the appeal
+  int64 id = 1;
+  // Name of the appeal
+  string name = 2;
+  // Description of the appeal
+  string description = 4;
+  // Source type of the appeal
+  Type type = 5;
+  // CreatedAt timestamp of the appeal
+  int64 created_at = 20;
+  // UpdatedAt timestamp of the appeal
+  int64 updated_at = 21;
+  // CreatedBy user of the appeal
+  Lookup created_by = 22;
+  // UpdatedBy user of the appeal
+  Lookup updated_by = 23;
+}
 
 // A list of appeals.
 message AppealList {
@@ -41,7 +52,7 @@ message AppealList {
 message CreateAppealRequest {
   option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
     json_schema: {
-      required: ["name"]
+      required: ["name", "type"]
     }
   };
 
@@ -50,6 +61,9 @@ message CreateAppealRequest {
 
   // The description of the appeal.
   string description = 3;
+
+  // The source type of the appeal.
+  Type type = 4;
 }
 
 // Request message for updating an existing appeal.
@@ -68,9 +82,12 @@ message UpdateAppealRequest {
 
   // The new description of the appeal.
   string description = 4;
+
+  // The new source type of the appeal.
+  Type type = 5;
 }
 
-// Request message for deleting a appeal.
+// Request message for deleting an appeal.
 message DeleteAppealRequest {
   option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
     json_schema: {
@@ -106,9 +123,12 @@ message ListAppealRequest {
 
   // Filter by appeal name.
   string name = 7;
+
+  // Filter by appeal type.
+  repeated Type type = 8;
 }
 
-// Request message for locating a appeal by ID.
+// Request message for locating an appeal by ID.
 message LocateAppealRequest {
   // The unique ID of the appeal to locate.
   int64 id = 1;
@@ -117,12 +137,11 @@ message LocateAppealRequest {
   repeated string fields = 2;
 }
 
-// Response message for locating a appeal.
+// Response message for locating an appeal.
 message LocateAppealResponse {
   // The located appeal.
   Appeal appeal = 1;
 }
-
 
 service Appeals {
 
@@ -178,7 +197,7 @@ service Appeals {
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
-      summary: "Locate a appeal by ID"
+      summary: "Locate an appeal by ID"
     };
   }
 }

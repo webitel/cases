@@ -186,7 +186,12 @@ func (s CloseReason) Update(ctx *model.UpdateOptions, l *_go.CloseReason) (*_go.
 		return nil, dbErr
 	}
 	// Build the query and args using the helper function
-	query, args := s.buildUpdateCloseReasonQuery(ctx, l)
+	query, args, queryErr := s.buildUpdateCloseReasonQuery(ctx, l)
+
+	if queryErr != nil {
+		log.Printf("Failed to build SQL query: %v", queryErr)
+		return nil, queryErr
+	}
 
 	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
@@ -326,63 +331,119 @@ func (s CloseReason) buildDeleteCloseReasonQuery(ctx *model.DeleteOptions) (stri
 	return query, args, nil
 }
 
-// buildUpdateCloseReasonLookupQuery constructs the SQL update query and returns the query string and arguments.
-func (s CloseReason) buildUpdateCloseReasonQuery(ctx *model.UpdateOptions, l *_go.CloseReason) (string,
-	[]interface{},
-) {
-	var setClauses []string
-	var args []interface{}
+func (s CloseReason) buildUpdateCloseReasonQuery(ctx *model.UpdateOptions, l *_go.CloseReason) (string, []interface{}, error) {
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	args = append(args, ctx.Time, ctx.Session.GetUserId())
-
-	// Add the updated_at and updated_by fields to the set clauses
-	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
-	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
+	// Initialize the SQL builder
+	builder := psql.Update("cases.close_reason").
+		Set("updated_at", ctx.Time).
+		Set("updated_by", ctx.Session.GetUserId()).
+		Where(sq.Eq{"id": l.Id}).
+		Where(sq.Eq{"dc": ctx.Session.GetDomainId()})
 
 	// Fields that could be updated
 	updateFields := []string{"name", "description"}
 
-	// Add the fields to the set clauses
+	// Add the fields to the update statement
 	for _, field := range updateFields {
 		switch field {
 		case "name":
 			if l.Name != "" {
-				args = append(args, l.Name)
-				setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
+				builder = builder.Set("name", l.Name)
 			}
 		case "description":
 			if l.Description != "" {
-				args = append(args, l.Description)
-				setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
+				builder = builder.Set("description", l.Description)
 			}
 		}
 	}
 
-	// Construct the SQL query with joins for created_by and updated_by
-	query := fmt.Sprintf(`
-with upd as (
-    UPDATE cases.close_reason
-    SET %s
-    WHERE id = $%d AND dc = $%d
-    RETURNING id, name, created_at, updated_at, description, created_by, updated_by
+	// Generate SQL and arguments from the builder
+	sql, args, err := builder.ToSql()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to build SQL query: %w", err)
+	}
+
+	// Construct the final SQL query with joins for created_by and updated_by
+	finalQuery := fmt.Sprintf(`
+WITH upd AS (
+	%s
+	RETURNING id, name, created_at, updated_at, description, created_by, updated_by
 )
-select upd.id,
+SELECT upd.id,
        upd.name,
        upd.created_at,
        upd.updated_at,
        upd.description,
-       upd.created_by as created_by_id,
-       coalesce(c.name::text, c.username) as created_by_name,
-       upd.updated_by as updated_by_id,
-       coalesce(u.name::text, u.username) as updated_by_name
-from upd
-  left join directory.wbt_user u on u.id = upd.updated_by
-  left join directory.wbt_user c on c.id = upd.created_by;
-    `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
+       upd.created_by AS created_by_id,
+       COALESCE(c.name::text, c.username) AS created_by_name,
+       upd.updated_by AS updated_by_id,
+       COALESCE(u.name::text, u.username) AS updated_by_name
+FROM upd
+LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
+LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
+`, sql)
 
-	args = append(args, l.Id, ctx.Session.GetDomainId())
-	return query, args
+	return finalQuery, args, nil
 }
+
+// // buildUpdateCloseReasonLookupQuery constructs the SQL update query and returns the query string and arguments.
+// func (s CloseReason) buildUpdateCloseReasonQuery(ctx *model.UpdateOptions, l *_go.CloseReason) (string,
+// 	[]interface{},
+// ) {
+// 	var setClauses []string
+// 	var args []interface{}
+
+// 	args = append(args, ctx.Time, ctx.Session.GetUserId())
+
+// 	// Add the updated_at and updated_by fields to the set clauses
+// 	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
+// 	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
+
+// 	// Fields that could be updated
+// 	updateFields := []string{"name", "description"}
+
+// 	// Add the fields to the set clauses
+// 	for _, field := range updateFields {
+// 		switch field {
+// 		case "name":
+// 			if l.Name != "" {
+// 				args = append(args, l.Name)
+// 				setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
+// 			}
+// 		case "description":
+// 			if l.Description != "" {
+// 				args = append(args, l.Description)
+// 				setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
+// 			}
+// 		}
+// 	}
+
+// 	// Construct the SQL query with joins for created_by and updated_by
+// 	query := fmt.Sprintf(`
+// with upd as (
+//     UPDATE cases.close_reason
+//     SET %s
+//     WHERE id = $%d AND dc = $%d
+//     RETURNING id, name, created_at, updated_at, description, created_by, updated_by
+// )
+// select upd.id,
+//        upd.name,
+//        upd.created_at,
+//        upd.updated_at,
+//        upd.description,
+//        upd.created_by as created_by_id,
+//        coalesce(c.name::text, c.username) as created_by_name,
+//        upd.updated_by as updated_by_id,
+//        coalesce(u.name::text, u.username) as updated_by_name
+// from upd
+//   left join directory.wbt_user u on u.id = upd.updated_by
+//   left join directory.wbt_user c on c.id = upd.created_by;
+//     `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
+
+// 	args = append(args, l.Id, ctx.Session.GetDomainId())
+// 	return query, args
+// }
 
 func NewCloseReasonStore(store db.Store) (db.CloseReasonStore, model.AppError) {
 	if store == nil {

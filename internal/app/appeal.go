@@ -19,13 +19,18 @@ func (s AppealService) CreateAppeal(ctx context.Context, req *_go.CreateAppealRe
 		return nil, model.NewBadRequestError("lookup.name.required", ErrLookupNameReq)
 	}
 
+	// Validate the Type field
+	if req.Type == _go.Type_TYPE_UNSPECIFIED {
+		return nil, model.NewBadRequestError("lookup.type.required", "Appeal type is required")
+	}
+
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 	// OBAC check
 	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -36,15 +41,16 @@ func (s AppealService) CreateAppeal(ctx context.Context, req *_go.CreateAppealRe
 		Name: session.GetUserName(),
 	}
 
-	// Create a new lookup model
-	lookup := &_go.Appeal{
+	// Create a new appeal model
+	appeal := &_go.Appeal{
 		Name:        req.Name,
 		Description: req.Description,
+		Type:        req.Type,
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
 	}
 
-	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
+	fields := []string{"id", "name", "description", "type", "created_at", "updated_at", "created_by", "updated_by"}
 
 	// Define create options
 	createOpts := model.CreateOptions{
@@ -53,8 +59,8 @@ func (s AppealService) CreateAppeal(ctx context.Context, req *_go.CreateAppealRe
 		Fields:  fields,
 	}
 
-	// Create the group in the store
-	l, e := s.app.Store.Appeal().Create(&createOpts, lookup)
+	// Create the appeal in the store
+	l, e := s.app.Store.Appeal().Create(&createOpts, appeal)
 	if e != nil {
 		return nil, e
 	}
@@ -70,7 +76,7 @@ func (s AppealService) ListAppeals(ctx context.Context, req *_go.ListAppealReque
 
 	// OBAC check
 	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -101,6 +107,10 @@ func (s AppealService) ListAppeals(ctx context.Context, req *_go.ListAppealReque
 		searchOptions.Filter["name"] = req.Name
 	}
 
+	if len(req.Type) > 0 {
+		searchOptions.Filter["type"] = req.Type
+	}
+
 	lookups, e := s.app.Store.Appeal().List(&searchOptions)
 	if e != nil {
 		return nil, e
@@ -121,7 +131,7 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 	}
 	// OBAC check
 	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -132,15 +142,16 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 		Name: session.GetUserName(),
 	}
 
-	// Update lookup model
-	lookup := &_go.Appeal{
+	// Update appeal model
+	appeal := &_go.Appeal{
 		Id:          req.Id,
 		Name:        req.Name,
 		Description: req.Description,
+		Type:        req.Type,
 		UpdatedBy:   currentU,
 	}
 
-	fields := []string{"id", "name", "description", "updated_at", "updated_by"}
+	fields := []string{"id", "name", "description", "type", "updated_at", "updated_by"}
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
@@ -149,8 +160,8 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 		Fields:  fields,
 	}
 
-	// Update the lookup in the store
-	l, e := s.app.Store.Appeal().Update(&updateOpts, lookup)
+	// Update the appeal in the store
+	l, e := s.app.Store.Appeal().Update(&updateOpts, appeal)
 	if e != nil {
 		return nil, e
 	}
@@ -170,7 +181,7 @@ func (s AppealService) DeleteAppeal(ctx context.Context, req *_go.DeleteAppealRe
 	}
 	// OBAC check
 	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -182,7 +193,7 @@ func (s AppealService) DeleteAppeal(ctx context.Context, req *_go.DeleteAppealRe
 		IDs:     []int64{req.Id},
 	}
 
-	// Delete the lookup in the store
+	// Delete the appeal in the store
 	e := s.app.Store.Appeal().Delete(&deleteOpts)
 	if e != nil {
 		return nil, e
@@ -203,7 +214,7 @@ func (s AppealService) LocateAppeal(ctx context.Context, req *_go.LocateAppealRe
 	}
 	// OBAC check
 	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeLog)
+	scope := session.GetScope(model.ScopeDictinary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -228,7 +239,7 @@ func (s AppealService) LocateAppeal(ctx context.Context, req *_go.LocateAppealRe
 	}
 
 	if len(l.Items) == 0 {
-		return nil, model.NewNotFoundError("close_reason_lookup.not_found", "CloseReason lookup not found")
+		return nil, model.NewNotFoundError("appeal.not_found", "Appeal not found")
 	}
 
 	lookup := l.Items[0]
