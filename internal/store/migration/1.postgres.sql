@@ -170,3 +170,43 @@ create table cases.appeal
 
 alter table cases.appeal
     owner to opensips;
+
+
+create table cases.appeal
+(
+    id          bigint    default nextval('cases.appeal_id'::regclass) not null
+        constraint appeal_pk
+            primary key,
+    name        text                                                   not null,
+    description text                                                   not null,
+    created_at  timestamp default timezone('utc'::text, now())         not null,
+    updated_at  timestamp default timezone('utc'::text, now())         not null,
+    created_by  bigint                                                 not null
+        constraint appeal_created_id_fk
+            references directory.wbt_user
+            on delete set null
+            deferrable initially deferred,
+    updated_by  bigint                                                 not null
+        constraint appeal_updated_id_fk
+            references directory.wbt_user
+            deferrable initially deferred,
+    type        text                                                   not null,
+    dc          bigint                                                 not null
+        constraint appeal_domain_fk
+            references directory.wbt_domain
+            on delete cascade,
+    constraint apppeal_fk
+        unique (id, dc),
+    constraint appeal_created_dc_fk
+        foreign key (created_by, dc) references directory.wbt_user ()
+            deferrable initially deferred,
+    constraint appeal_updated_dc_fk
+        foreign key (updated_by, dc) references directory.wbt_user ()
+            deferrable initially deferred
+);
+
+alter table cases.appeal
+    owner to opensips;
+
+create index appeal_dc
+    on cases.appeal (dc);

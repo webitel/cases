@@ -471,7 +471,7 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
         WITH final_remaining AS (
             SELECT COUNT(*) AS count
             FROM cases.status_condition
-            WHERE dc = $1 AND status_id = $2 AND final = TRUE
+            WHERE dc = $1 AND status_id = $2  AND final = TRUE
         ),
         set_initial_false AS (
             UPDATE cases.status_condition

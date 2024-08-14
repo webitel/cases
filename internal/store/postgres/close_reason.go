@@ -342,7 +342,7 @@ func (s CloseReason) buildUpdateCloseReasonQuery(ctx *model.UpdateOptions, l *_g
 		Where(sq.Eq{"dc": ctx.Session.GetDomainId()})
 
 	// Fields that could be updated
-	updateFields := []string{"name", "description"}
+	updateFields := []string{"name", "description"} // TODO make it empty  |  add XJsonMask to proto
 
 	// Add the fields to the update statement
 	for _, field := range updateFields {

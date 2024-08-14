@@ -80,7 +80,7 @@ func (a *App) Start() model.AppError {
 	// * run grpc server
 	go a.server.Start()
 	// go ServeRequests(a, a.config.Consul, a.exitChan)
-	return <-a.exitChan
+	return <- a.exitChan
 }
 
 func (a *App) Stop() model.AppError {

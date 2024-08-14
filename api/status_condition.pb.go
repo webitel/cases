@@ -490,14 +490,24 @@ type ListStatusConditionRequest struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Page     int32    `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
-	Size     int32    `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
-	Fields   []string `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty"`
-	Sort     []string `protobuf:"bytes,4,rep,name=sort,proto3" json:"sort,omitempty"`
-	Id       []int64  `protobuf:"varint,5,rep,packed,name=id,proto3" json:"id,omitempty"`
-	Q        string   `protobuf:"bytes,6,opt,name=q,proto3" json:"q,omitempty"`
-	Name     string   `protobuf:"bytes,7,opt,name=name,proto3" json:"name,omitempty"`
-	StatusId int64    `protobuf:"varint,8,opt,name=status_id,json=statusId,proto3" json:"status_id,omitempty"`
+	// Page number of result dataset records. offset = (page*size)
+	Page int32 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	// Size count of records on result page. limit = (size++)
+	Size int32 `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
+	// Fields to be retrieved as a result.
+	Fields []string `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty"`
+	// Sort the result according to fields.
+	Sort []string `protobuf:"bytes,4,rep,name=sort,proto3" json:"sort,omitempty"`
+	// Filter by unique IDs.
+	Id []int64 `protobuf:"varint,5,rep,packed,name=id,proto3" json:"id,omitempty"`
+	// Search term: status name;
+	// `?` - matches any one character
+	// `*` - matches 0 or more characters
+	Q string `protobuf:"bytes,6,opt,name=q,proto3" json:"q,omitempty"`
+	// Filter by status name.
+	Name string `protobuf:"bytes,7,opt,name=name,proto3" json:"name,omitempty"`
+	// Filter by Status Id.
+	StatusId int64 `protobuf:"varint,8,opt,name=status_id,json=statusId,proto3" json:"status_id,omitempty"`
 }
 
 func (x *ListStatusConditionRequest) Reset() {

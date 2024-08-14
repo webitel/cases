@@ -18,4 +18,4 @@ if [ $res -ne 0 ]; then
   exit $res
 fi
 
-echo "[INFO]: protoc: successfully generated Go gRPC code."
+echo "[INFO]: protoc: successfully generated Proto files."

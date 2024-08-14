@@ -38,7 +38,7 @@
     "application/json"
   ],
   "paths": {
-    "/appeals": {
+    "/cases/appeals": {
       "get": {
         "summary": "Retrieve a list of appeals or search appeals",
         "operationId": "Appeals_ListAppeals",
@@ -167,7 +167,7 @@
         ]
       }
     },
-    "/appeals/{id}": {
+    "/cases/appeals/{id}": {
       "get": {
         "summary": "Locate an appeal by ID",
         "operationId": "Appeals_LocateAppeal",
@@ -775,6 +775,7 @@
         "parameters": [
           {
             "name": "status_id",
+            "description": "Filter by Status Id.",
             "in": "path",
             "required": true,
             "type": "string",
@@ -782,6 +783,7 @@
           },
           {
             "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -789,6 +791,7 @@
           },
           {
             "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -796,6 +799,7 @@
           },
           {
             "name": "fields",
+            "description": "Fields to be retrieved as a result.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -806,6 +810,7 @@
           },
           {
             "name": "sort",
+            "description": "Sort the result according to fields.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -816,6 +821,7 @@
           },
           {
             "name": "id",
+            "description": "Filter by unique IDs.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -827,12 +833,14 @@
           },
           {
             "name": "q",
+            "description": "Search term: status name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "name",
+            "description": "Filter by status name.",
             "in": "query",
             "required": false,
             "type": "string"

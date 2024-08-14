@@ -102,13 +102,30 @@ message DeleteStatusConditionRequest {
 
 // ListStatusConditionRequest message for listing or searching statuses
 message ListStatusConditionRequest {
+    // Page number of result dataset records. offset = (page*size)
   int32 page = 1;
+
+  // Size count of records on result page. limit = (size++)
   int32 size = 2;
+
+  // Fields to be retrieved as a result.
   repeated string fields = 3;
+
+  // Sort the result according to fields.
   repeated string sort = 4;
+
+  // Filter by unique IDs.
   repeated int64 id = 5;
+
+  // Search term: status name;
+  // `?` - matches any one character
+  // `*` - matches 0 or more characters
   string q = 6;
+
+  // Filter by status name.
   string name = 7;
+
+  // Filter by Status Id.
   int64 status_id = 8;
 }
 

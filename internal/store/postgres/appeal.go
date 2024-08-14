@@ -33,16 +33,24 @@ func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 	}
 
 	var createdByLookup, updatedByLookup _go.Lookup
+	var createdAt, updatedAt time.Time
 
-	t := ctx.CurrentTime()
+	var tempType string
 
 	err = d.QueryRow(ctx.Context, query, args...).Scan(
-		&add.Id, &add.Name, t, &add.Description, &add.Type,
+		&add.Id, &add.Name, &createdAt, &add.Description, &tempType,
 		&createdByLookup.Id, &createdByLookup.Name,
-		t, &updatedByLookup.Id, &updatedByLookup.Name,
+		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
+		return nil, err
+	}
+
+	// Convert tempType (string) to the enum Type
+	add.Type, err = StringToType(tempType)
+	if err != nil {
+		log.Printf("Failed to convert type: %v", err)
 		return nil, err
 	}
 
@@ -51,8 +59,8 @@ func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 		Name:        add.Name,
 		Description: add.Description,
 		Type:        add.Type,
-		CreatedAt:   t.Unix(),
-		UpdatedAt:   t.Unix(),
+		CreatedAt:   createdAt.Unix(),
+		UpdatedAt:   updatedAt.Unix(),
 		CreatedBy:   &createdByLookup,
 		UpdatedBy:   &updatedByLookup,
 	}, nil
@@ -98,7 +106,7 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 		l := &_go.Appeal{}
 		var createdBy, updatedBy _go.Lookup
 		var tempUpdatedAt, tempCreatedAt time.Time
-		var tempType _go.Type
+		var tempType string
 		var scanArgs []interface{}
 
 		for _, field := range ctx.Fields {
@@ -127,7 +135,13 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 			return nil, err
 		}
 
-		l.Type = tempType
+		var tempErr error
+		// Convert tempType (string) to the enum Type
+		l.Type, tempErr = StringToType(tempType)
+		if tempErr != nil {
+			log.Printf("Failed to convert type: %v", tempErr)
+			return nil, tempErr
+		}
 
 		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_by") {
 			l.CreatedBy = &createdBy
@@ -197,13 +211,21 @@ func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 
 	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
+	var tempType string
 
 	err := d.QueryRow(ctx.Context, query, args...).Scan(
-		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description, &l.Type,
+		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description, &tempType,
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
 		log.Printf("Failed to execute SQL query: %v", err)
+		return nil, err
+	}
+
+	// Convert tempType (string) to the enum Type
+	l.Type, err = StringToType(tempType)
+	if err != nil {
+		log.Printf("Failed to convert type: %v", err)
 		return nil, err
 	}
 
@@ -220,18 +242,18 @@ func (s Appeal) buildCreateAppealQuery(ctx *model.CreateOptions, lookup *_go.App
 WITH ins AS (
     INSERT INTO cases.appeal (name, dc, created_at, description, type, created_by, updated_at, updated_by)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    RETURNING *
+    RETURNING id, name, created_at, description, type, created_by, updated_at, updated_by
 )
 SELECT ins.id,
        ins.name,
        ins.created_at,
        ins.description,
-       ins.type,
-       ins.created_by created_by_id,
-       COALESCE(c.name::text, c.username) created_by_name,
+       ins.type::text,
+       ins.created_by AS created_by_id,
+       COALESCE(c.name::text, c.username) AS created_by_name,
        ins.updated_at,
-       ins.updated_by updated_by_id,
-       COALESCE(u.name::text, u.username) updated_by_name
+       ins.updated_by AS updated_by_id,
+       COALESCE(u.name::text, u.username) AS updated_by_name
 FROM ins
 LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
 LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
@@ -444,6 +466,26 @@ LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
 // 	args = append(args, ctx.ID, ctx.Session.GetDomainId())
 // 	return query, args
 // }
+
+// StringToType converts a string into the corresponding Type enum value.
+func StringToType(typeStr string) (_go.Type, error) {
+	switch strings.ToUpper(typeStr) {
+	case "CALL":
+		return _go.Type_CALL, nil
+	case "CHAT":
+		return _go.Type_CHAT, nil
+	case "SOCIAL_MEDIA":
+		return _go.Type_SOCIAL_MEDIA, nil
+	case "EMAIL":
+		return _go.Type_EMAIL, nil
+	case "API":
+		return _go.Type_API, nil
+	case "MANUAL":
+		return _go.Type_MANUAL, nil
+	default:
+		return _go.Type_TYPE_UNSPECIFIED, fmt.Errorf("invalid type value: %s", typeStr)
+	}
+}
 
 func NewAppealStore(store db.Store) (db.AppealStore, model.AppError) {
 	if store == nil {
