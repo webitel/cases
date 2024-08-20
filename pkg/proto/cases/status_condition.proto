@@ -1,9 +1,9 @@
 syntax = "proto3";
 package cases;
 
-option go_package = "cases/api";
+option go_package = "github.com/webitel/cases;api";
 
-import "lookup.proto";
+import "cases/lookup.proto";
 import "google/api/visibility.proto";
 import "google/protobuf/wrappers.proto";
 import "google/api/annotations.proto";
@@ -75,7 +75,7 @@ message UpdateStatusConditionRequest {
   int64 id = 2;
   InputStatusCondition input = 3;
 
-    // JSON PATCH fields mask.
+  // ---- JSON PATCH fields mask ----
   // List of JPath fields specified in body(input).
   repeated string x_json_mask = 4
   [(google.api.field_visibility) = {

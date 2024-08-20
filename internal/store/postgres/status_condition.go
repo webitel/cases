@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -12,8 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lib/pq"
-	_go "github.com/webitel/cases/api"
+	_go "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/util"
 	"github.com/webitel/cases/model"
 )
 
@@ -24,21 +24,18 @@ type StatusConditionStore struct {
 func (s StatusConditionStore) Create(ctx *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
-		log.Printf("Failed to get database connection: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.status_condition.create.database_connection_error", err.Error())
 	}
 
 	tx, err := db.BeginTx(ctx.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		log.Printf("Failed to begin transaction: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.status_condition.create.transaction_begin_error", err.Error())
 	}
 	defer s.handleTx(ctx.Context, tx, &err)
 
 	query, args, err := s.buildCreateStatusConditionQuery(ctx, add)
 	if err != nil {
-		log.Printf("Failed to build SQL query: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.status_condition.create.query_build_error", err.Error())
 	}
 
 	var createdBy, updatedBy _go.Lookup
@@ -49,12 +46,11 @@ func (s StatusConditionStore) Create(ctx *model.CreateOptions, add *_go.StatusCo
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &add.StatusId,
 	)
 	if err != nil {
-		log.Printf("Failed to execute SQL query: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.status_condition.create.execution_error", err.Error())
 	}
 
-	add.CreatedAt = createdAt.Unix()
-	add.UpdatedAt = updatedAt.Unix()
+	add.CreatedAt = util.Timestamp(createdAt)
+	add.UpdatedAt = util.Timestamp(updatedAt)
 	add.CreatedBy = &createdBy
 	add.UpdatedBy = &updatedBy
 
@@ -64,32 +60,24 @@ func (s StatusConditionStore) Create(ctx *model.CreateOptions, add *_go.StatusCo
 func (s StatusConditionStore) List(ctx *model.SearchOptions, statusId int64) (*_go.StatusConditionList, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
-		log.Printf("Failed to get database connection: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.status_condition.list.database_connection_error", err.Error())
 	}
 
-	queryBuilder, err := s.buildListStatusConditionQuery(ctx, statusId)
+	query, args, err := s.buildListStatusConditionQuery(ctx, statusId)
 	if err != nil {
-		log.Printf("Failed to build SQL query: %v", err)
-		return nil, err
-	}
-
-	query, args, err := queryBuilder.ToSql()
-	if err != nil {
-		log.Printf("Failed to generate SQL query: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.status_condition.list.query_build_error", err.Error())
 	}
 
 	rows, err := db.Query(ctx.Context, query, args...)
 	if err != nil {
-		log.Printf("Failed to execute SQL query: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.status_condition.list.execution_error", err.Error())
 	}
 	defer rows.Close()
 
 	var statusList []*_go.StatusCondition
 	lCount := 0
 	next := false
+
 	for rows.Next() {
 		if lCount >= ctx.GetSize() {
 			next = true
@@ -102,8 +90,7 @@ func (s StatusConditionStore) List(ctx *model.SearchOptions, statusId int64) (*_
 
 		scanArgs := s.buildScanArgs(ctx.Fields, st, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt)
 		if err := rows.Scan(scanArgs...); err != nil {
-			log.Printf("Failed to scan row: %v", err)
-			return nil, err
+			return nil, model.NewInternalError("postgres.status_condition.list.row_scan_error", err.Error())
 		}
 
 		s.populateStatusConditionFields(ctx.Fields, st, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt)
@@ -119,46 +106,36 @@ func (s StatusConditionStore) List(ctx *model.SearchOptions, statusId int64) (*_
 }
 
 func (s StatusConditionStore) Delete(ctx *model.DeleteOptions, statusId int64) error {
-	// Prepare the arguments for the query
 	ids := []int64{statusId}
 	domainId := ctx.Session.GetDomainId()
 
-	// Build the delete query with constraints checking
 	query, args, err := s.buildDeleteStatusConditionQuery(ids, domainId, statusId)
 	if err != nil {
-		log.Printf("Failed to build SQL query: %v", err)
-		return err
+		return model.NewInternalError("postgres.status_condition.delete.query_build_error", err.Error())
 	}
 
-	// Get the database connection
 	db, err := s.getDBConnection()
 	if err != nil {
-		log.Printf("Failed to get database connection: %v", err)
-		return err
+		return model.NewInternalError("postgres.status_condition.delete.database_connection_error", err.Error())
 	}
 
-	// Execute the query
 	rows, err := db.Query(ctx.Context, query, args...)
 	if err != nil {
-		log.Printf("Failed to execute SQL query: %v", err)
-		return err
+		return model.NewInternalError("postgres.status_condition.delete.execution_error", err.Error())
 	}
 	defer rows.Close()
 
-	// Process the results
 	var deletedIds []int64
 	for rows.Next() {
 		var deletedId int64
 		if err := rows.Scan(&deletedId); err != nil {
-			log.Printf("Failed to scan deleted ID: %v", err)
-			return err
+			return model.NewInternalError("postgres.status_condition.delete.scan_error", err.Error())
 		}
 		deletedIds = append(deletedIds, deletedId)
 	}
 
-	// Check if any records were deleted
 	if len(deletedIds) == 0 {
-		return errors.New("operation would violate constraints: at least one initial and one final record must remain")
+		return model.NewInternalError("postgres.status_condition.delete.constraint_violation", "operation would violate constraints: at least one initial and one final record must remain")
 	}
 
 	return nil
@@ -167,26 +144,14 @@ func (s StatusConditionStore) Delete(ctx *model.DeleteOptions, statusId int64) e
 func (s StatusConditionStore) Update(ctx *model.UpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
-		log.Printf("Failed to get database connection: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.status_condition.update.database_connection_error", err.Error())
 	}
 
 	tx, err := db.BeginTx(ctx.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		log.Printf("Failed to begin transaction: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.status_condition.update.transaction_begin_error", err.Error())
 	}
 	defer s.handleTx(ctx.Context, tx, &err)
-
-	for _, field := range ctx.Fields {
-		switch field {
-		case "initial":
-			if !st.Initial {
-				log.Printf("Not allowed to update: initial = FALSE")
-				return nil, fmt.Errorf("update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
-			}
-		}
-	}
 
 	// for _, field := range ctx.Fields {
 	// 	switch field {
@@ -217,12 +182,16 @@ func (s StatusConditionStore) Update(ctx *model.UpdateOptions, st *_go.StatusCon
 	// 	}
 	// }
 
-	// Build the update query
-	query, args := s.buildUpdateStatusConditionQuery(ctx, st)
+	for _, field := range ctx.Fields {
+		switch field {
+		case "initial":
+			if !st.Initial {
+				return nil, model.NewInternalError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
+			}
+		}
+	}
 
-	// Log the final query and arguments
-	fmt.Printf("Final query: %s\n", query)
-	fmt.Printf("Final args: %v\n", args)
+	query, args := s.buildUpdateStatusConditionQuery(ctx, st)
 
 	var createdBy, updatedBy _go.Lookup
 	var createdAt, updatedAt time.Time
@@ -232,12 +201,11 @@ func (s StatusConditionStore) Update(ctx *model.UpdateOptions, st *_go.StatusCon
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &st.StatusId,
 	)
 	if err != nil {
-		log.Printf("Failed to execute SQL query: %v", err)
-		return nil, fmt.Errorf("update not allowed: there must be at least one initial or final = TRUE for the given dc and status_id")
+		return nil, model.NewInternalError("postgres.status_condition.update.execution_error", err.Error())
 	}
 
-	st.CreatedAt = createdAt.Unix()
-	st.UpdatedAt = updatedAt.Unix()
+	st.CreatedAt = util.Timestamp(createdAt)
+	st.UpdatedAt = util.Timestamp(updatedAt)
 	st.CreatedBy = &createdBy
 	st.UpdatedBy = &updatedBy
 
@@ -245,59 +213,21 @@ func (s StatusConditionStore) Update(ctx *model.UpdateOptions, st *_go.StatusCon
 }
 
 func (s StatusConditionStore) buildCreateStatusConditionQuery(ctx *model.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
-	query := `
-WITH existing_status AS (
-    SELECT COUNT(*) AS count
-    FROM cases.status_condition
-    WHERE dc = $7 AND status_id = $8
-),
-default_values AS (
-    SELECT
-        CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS initial_default,
-        CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS final_default
-),
-ins AS (
-    INSERT INTO cases.status_condition (name, created_at, description, initial, final, created_by, updated_at, updated_by, dc, status_id)
-    VALUES (
-        $1, $2, $3,
-        (SELECT initial_default FROM default_values),
-        (SELECT final_default FROM default_values),
-        $4, $5, $6, $7, $8
-    )
-    RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id
-)
-SELECT
-    ins.id,
-    ins.name,
-    ins.created_at,
-    ins.updated_at,
-    ins.description,
-    ins.initial,
-    ins.final,
-    ins.created_by AS created_by_id,
-    COALESCE(c.name::text, c.username) AS created_by_name,
-    ins.updated_by AS updated_by_id,
-    COALESCE(u.name::text, u.username) AS updated_by_name,
-    ins.status_id
-FROM ins
-LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
-LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
-`
+	query := createStatusConditionQuery
 	args := []interface{}{
 		status.Name, ctx.Time, status.Description,
-		ctx.Session.GetUserId(), ctx.Time, ctx.Session.GetUserId(), ctx.Session.GetDomainId(), status.StatusId,
+		ctx.Session.GetUserId(), ctx.Session.GetDomainId(), status.StatusId,
 	}
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOptions, statusId int64) (sq.SelectBuilder, error) {
+func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOptions, statusId int64) (string, []interface{}, error) {
 	queryBuilder := sq.Select().
 		From("cases.status_condition AS s").
 		Where(sq.Eq{"s.dc": ctx.Session.GetDomainId(), "s.status_id": statusId}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
-
 	ctx.Fields = append(fields, "id")
 
 	for _, field := range ctx.Fields {
@@ -305,19 +235,22 @@ func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOpt
 		case "id", "name", "description", "initial", "final", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("s." + field)
 		case "created_by":
-			queryBuilder = queryBuilder.Column("created_by.id AS created_by_id, created_by.name AS created_by_name").
+			// cbi = created_by_id
+			// cbn = created_by_name
+			queryBuilder = queryBuilder.Column("created_by.id AS cbi, created_by.name AS cbn").
 				LeftJoin("directory.wbt_auth AS created_by ON s.created_by = created_by.id")
 		case "updated_by":
-			queryBuilder = queryBuilder.Column("updated_by.id AS updated_by_id, updated_by.name AS updated_by_name").
+			// ubi = updated_by_id
+			// ubn = updated_by_name
+			queryBuilder = queryBuilder.Column("updated_by.id AS ubi, updated_by.name AS ubn").
 				LeftJoin("directory.wbt_auth AS updated_by ON s.updated_by = updated_by.id")
 		}
 	}
 
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
-	if len(ctx.IDs) > 0 {
+	if len(ids) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": ids})
 	}
 
@@ -328,7 +261,6 @@ func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOpt
 	}
 
 	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
-
 	var sortFields []string
 
 	for _, sortField := range parsedFields {
@@ -355,64 +287,33 @@ func (s StatusConditionStore) buildListStatusConditionQuery(ctx *model.SearchOpt
 		sortFields = append(sortFields, column)
 	}
 
+	page := ctx.GetPage()
 	size := ctx.GetSize()
-	queryBuilder = queryBuilder.OrderBy(sortFields...).Offset(uint64((ctx.Page - 1) * size))
-	if size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size))
+
+	// Apply sorting
+	queryBuilder = queryBuilder.OrderBy(sortFields...)
+
+	// Apply offset only if page > 1
+	if page > 1 {
+		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
 	}
 
-	return queryBuilder, nil
+	// Apply limit
+	if size != -1 {
+		queryBuilder = queryBuilder.Limit(uint64(size + 1))
+	}
+
+	// Convert the query to SQL and arguments
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return "", nil, model.NewInternalError("postgres.status_condition.list.query_build_error", err.Error())
+	}
+
+	return store.CompactSQL(query), args, nil
 }
 
 func (s StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domainId, statusId int64) (string, []interface{}, error) {
-	query := `
-WITH
-    to_check AS (
-        SELECT id, initial, final
-        FROM cases.status_condition
-        WHERE id = ANY($1) AND dc = $2 AND status_id = $3
-    ),
-    initial_remaining AS (
-        SELECT COUNT(*) AS count
-        FROM cases.status_condition
-        WHERE initial = TRUE AND id NOT IN (SELECT id FROM to_check) AND dc = $2 AND status_id = $3
-    ),
-    final_remaining AS (
-        SELECT COUNT(*) AS count
-        FROM cases.status_condition
-        WHERE final = TRUE AND id NOT IN (SELECT id FROM to_check) AND dc = $2 AND status_id = $3
-    ),
-    initial_to_check AS (
-        SELECT COUNT(*) AS count
-        FROM to_check
-        WHERE initial = TRUE
-    ),
-    final_to_check AS (
-        SELECT COUNT(*) AS count
-        FROM to_check
-        WHERE final = TRUE
-    ),
-    delete_conditions AS (
-        SELECT
-            (SELECT count FROM initial_remaining) AS remaining_initial,
-            (SELECT count FROM final_remaining) AS remaining_final,
-            (SELECT count FROM initial_to_check) AS checking_initial,
-            (SELECT count FROM final_to_check) AS checking_final
-        FROM to_check
-        LIMIT 1
-    )
-DELETE FROM cases.status_condition
-WHERE id IN (SELECT id FROM to_check)
-AND (
-    (SELECT remaining_initial FROM delete_conditions) > 0 OR
-    (SELECT checking_initial FROM delete_conditions) = 0
-)
-AND (
-    (SELECT remaining_final FROM delete_conditions) > 0 OR
-    (SELECT checking_final FROM delete_conditions) = 0
-)
-RETURNING id;
-`
+	query := deleteStatusConditionQuery
 	args := []interface{}{pq.Array(ids), domainId, statusId}
 	return query, args, nil
 }
@@ -527,7 +428,7 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
 	args = append(args, updArgs...)
 	fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
 
-	return query, args
+	return store.CompactSQL(query), args
 }
 
 // func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateOptions, st *_go.StatusCondition) (string, []interface{}) {
@@ -743,10 +644,10 @@ func (s StatusConditionStore) populateStatusConditionFields(fields []string, st 
 		st.UpdatedBy = updatedBy
 	}
 	if s.containsField(fields, "created_at") {
-		st.CreatedAt = tempCreatedAt.Unix()
+		st.CreatedAt = util.Timestamp(tempCreatedAt)
 	}
 	if s.containsField(fields, "updated_at") {
-		st.UpdatedAt = tempUpdatedAt.Unix()
+		st.UpdatedAt = util.Timestamp(tempUpdatedAt)
 	}
 }
 
@@ -758,6 +659,94 @@ func (s StatusConditionStore) containsField(fields []string, field string) bool 
 	}
 	return false
 }
+
+// ---- STATIC SQL QUERIES ----
+var (
+	createStatusConditionQuery = store.CompactSQL(`
+	WITH existing_status AS (
+    SELECT COUNT(*) AS count
+    FROM cases.status_condition
+    WHERE dc = $5 AND status_id = $6
+),
+default_values AS (
+    SELECT
+        CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS initial_default,
+        CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS final_default
+),
+ins AS (
+    INSERT INTO cases.status_condition (name, created_at, description, initial, final, created_by, updated_at, updated_by, dc, status_id)
+    VALUES (
+        $1, $2, $3,
+        (SELECT initial_default FROM default_values),
+        (SELECT final_default FROM default_values),
+        $4, $2, $4, $5, $6
+    )
+    RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id
+)
+SELECT
+    ins.id,
+    ins.name,
+    ins.created_at,
+    ins.updated_at,
+    ins.description,
+    ins.initial,
+    ins.final,
+    ins.created_by AS created_by_id,
+    COALESCE(c.name::text, c.username) AS created_by_name,
+    ins.updated_by AS updated_by_id,
+    COALESCE(u.name::text, u.username) AS updated_by_name,
+    ins.status_id
+FROM ins
+LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
+LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;`)
+
+	deleteStatusConditionQuery = store.CompactSQL(`WITH
+    to_check AS (
+        SELECT id, initial, final
+        FROM cases.status_condition
+        WHERE id = ANY($1) AND dc = $2 AND status_id = $3
+    ),
+    initial_remaining AS (
+        SELECT COUNT(*) AS count
+        FROM cases.status_condition
+        WHERE initial = TRUE AND id NOT IN (SELECT id FROM to_check) AND dc = $2 AND status_id = $3
+    ),
+    final_remaining AS (
+        SELECT COUNT(*) AS count
+        FROM cases.status_condition
+        WHERE final = TRUE AND id NOT IN (SELECT id FROM to_check) AND dc = $2 AND status_id = $3
+    ),
+    initial_to_check AS (
+        SELECT COUNT(*) AS count
+        FROM to_check
+        WHERE initial = TRUE
+    ),
+    final_to_check AS (
+        SELECT COUNT(*) AS count
+        FROM to_check
+        WHERE final = TRUE
+    ),
+    delete_conditions AS (
+        SELECT
+            (SELECT count FROM initial_remaining) AS remaining_initial,
+            (SELECT count FROM final_remaining) AS remaining_final,
+            (SELECT count FROM initial_to_check) AS checking_initial,
+            (SELECT count FROM final_to_check) AS checking_final
+        FROM to_check
+        LIMIT 1
+    )
+DELETE FROM cases.status_condition
+WHERE id IN (SELECT id FROM to_check)
+AND (
+    (SELECT remaining_initial FROM delete_conditions) > 0 OR
+    (SELECT checking_initial FROM delete_conditions) = 0
+)
+AND (
+    (SELECT remaining_final FROM delete_conditions) > 0 OR
+    (SELECT checking_final FROM delete_conditions) = 0
+)
+RETURNING id;`)
+)
 
 func NewStatusConditionStore(store store.Store) (store.StatusConditionStore, model.AppError) {
 	if store == nil {

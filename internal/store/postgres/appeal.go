@@ -1,16 +1,16 @@
 package postgres
 
 import (
-	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	_go "github.com/webitel/cases/api"
+	_go "github.com/webitel/cases/api/cases"
+
 	db "github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/util"
 	"github.com/webitel/cases/model"
 )
 
@@ -19,22 +19,18 @@ type Appeal struct {
 }
 
 func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, error) {
-	query, args, err := s.buildCreateAppealQuery(ctx, add)
 	d, dbErr := s.storage.Database()
-
 	if dbErr != nil {
-		log.Printf("Failed to get database connection: %v", dbErr)
-		return nil, dbErr
+		return nil, model.NewInternalError("postgres.cases.appeal.create.database_connection_error", dbErr.Error())
 	}
 
+	query, args, err := s.buildCreateAppealQuery(ctx, add)
 	if err != nil {
-		log.Printf("Failed to build SQL query: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.cases.appeal.create.query_build_error", err.Error())
 	}
 
 	var createdByLookup, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
-
 	var tempType string
 
 	err = d.QueryRow(ctx.Context, query, args...).Scan(
@@ -43,15 +39,13 @@ func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		log.Printf("Failed to execute SQL query: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.cases.appeal.create.execution_error", err.Error())
 	}
 
 	// Convert tempType (string) to the enum Type
-	add.Type, err = StringToType(tempType)
+	add.Type, err = stringToType(tempType)
 	if err != nil {
-		log.Printf("Failed to convert type: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.cases.appeal.create.type_conversion_error", err.Error())
 	}
 
 	return &_go.Appeal{
@@ -59,42 +53,31 @@ func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 		Name:        add.Name,
 		Description: add.Description,
 		Type:        add.Type,
-		CreatedAt:   createdAt.Unix(),
-		UpdatedAt:   updatedAt.Unix(),
+		CreatedAt:   util.Timestamp(createdAt),
+		UpdatedAt:   util.Timestamp(updatedAt),
 		CreatedBy:   &createdByLookup,
 		UpdatedBy:   &updatedByLookup,
 	}, nil
 }
 
 func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
-	cte, err := s.buildSearchAppealQuery(ctx)
-
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		log.Printf("Failed to get database connection: %v", dbErr)
-		return nil, dbErr
+		return nil, model.NewInternalError("postgres.cases.appeal.list.database_connection_error", dbErr.Error())
 	}
 
+	query, args, err := s.buildSearchAppealQuery(ctx)
 	if err != nil {
-		log.Printf("Failed to build SQL query: %v", err)
-		return nil, err
-	}
-
-	query, args, err := cte.Limit(uint64(ctx.GetSize() + 1)).ToSql()
-	if err != nil {
-		log.Printf("Failed to generate SQL query: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.cases.appeal.list.query_build_error", err.Error())
 	}
 
 	rows, err := d.Query(ctx.Context, query, args...)
 	if err != nil {
-		log.Printf("Failed to execute SQL query: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.cases.appeal.list.execution_error", err.Error())
 	}
 	defer rows.Close()
 
 	var lookupList []*_go.Appeal
-
 	lCount := 0
 	next := false
 	for rows.Next() {
@@ -130,17 +113,16 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 			}
 		}
 
-		if err := rows.Scan(scanArgs...); err != nil {
-			log.Printf("Failed to scan row: %v", err)
-			return nil, err
+		if scanErr := rows.Scan(scanArgs...); scanErr != nil {
+			return nil, model.NewInternalError("postgres.cases.appeal.list.row_scan_error", err.Error())
 		}
 
-		var tempErr error
-		// Convert tempType (string) to the enum Type
-		l.Type, tempErr = StringToType(tempType)
-		if tempErr != nil {
-			log.Printf("Failed to convert type: %v", tempErr)
-			return nil, tempErr
+		// Convert tempType (string) to the enum Type if "type" is in the requested fields
+		if ctx.FieldsUtil.ContainsField(ctx.Fields, "type") {
+			l.Type, err = stringToType(tempType)
+			if err != nil {
+				return nil, model.NewInternalError("postgres.cases.appeal.list.type_conversion_error", err.Error())
+			}
 		}
 
 		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_by") {
@@ -150,10 +132,10 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 			l.UpdatedBy = &updatedBy
 		}
 		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_at") {
-			l.CreatedAt = tempCreatedAt.Unix()
+			l.CreatedAt = util.Timestamp(tempCreatedAt)
 		}
 		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_at") {
-			l.UpdatedAt = tempUpdatedAt.Unix()
+			l.UpdatedAt = util.Timestamp(tempUpdatedAt)
 		}
 
 		lookupList = append(lookupList, l)
@@ -168,29 +150,24 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 }
 
 func (s Appeal) Delete(ctx *model.DeleteOptions) error {
-	query, args, err := s.buildDeleteAppealQuery(ctx)
-	if err != nil {
-		log.Printf("Failed to build SQL query: %v", err)
-		return err
+	d, dbErr := s.storage.Database()
+	if dbErr != nil {
+		return model.NewInternalError("postgres.cases.appeal.delete.database_connection_error", dbErr.Error())
 	}
 
-	d, dbErr := s.storage.Database()
-
-	if dbErr != nil {
-		log.Printf("Failed to get database connection: %v", dbErr)
-		return dbErr
+	query, args, err := s.buildDeleteAppealQuery(ctx)
+	if err != nil {
+		return model.NewInternalError("postgres.cases.appeal.delete.query_build_error", err.Error())
 	}
 
 	res, err := d.Exec(ctx.Context, query, args...)
 	if err != nil {
-		log.Printf("Failed to execute SQL query: %v", err)
-		return err
+		return model.NewInternalError("postgres.cases.appeal.delete.execution_error", err.Error())
 	}
 
 	affected := res.RowsAffected()
-
 	if affected == 0 {
-		return errors.New("no rows affected for deletion")
+		return model.NewNotFoundError("postgres.cases.appeal.delete.no_rows_affected", "No rows affected for deletion")
 	}
 
 	return nil
@@ -199,14 +176,12 @@ func (s Appeal) Delete(ctx *model.DeleteOptions) error {
 func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		log.Printf("Failed to get database connection: %v", dbErr)
-		return nil, dbErr
+		return nil, model.NewInternalError("postgres.cases.appeal.update.database_connection_error", dbErr.Error())
 	}
 
 	query, args, queryErr := s.buildUpdateAppealQuery(ctx, l)
 	if queryErr != nil {
-		log.Printf("Failed to build SQL query: %v", queryErr)
-		return nil, queryErr
+		return nil, model.NewInternalError("postgres.cases.appeal.update.query_build_error", queryErr.Error())
 	}
 
 	var createdBy, updatedByLookup _go.Lookup
@@ -218,19 +193,17 @@ func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		log.Printf("Failed to execute SQL query: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.cases.appeal.update.execution_error", err.Error())
 	}
 
 	// Convert tempType (string) to the enum Type
-	l.Type, err = StringToType(tempType)
+	l.Type, err = stringToType(tempType)
 	if err != nil {
-		log.Printf("Failed to convert type: %v", err)
-		return nil, err
+		return nil, model.NewInternalError("postgres.cases.appeal.update.type_conversion_error", err.Error())
 	}
 
-	l.CreatedAt = createdAt.Unix()
-	l.UpdatedAt = updatedAt.Unix()
+	l.CreatedAt = util.Timestamp(createdAt)
+	l.UpdatedAt = util.Timestamp(updatedAt)
 	l.CreatedBy = &createdBy
 	l.UpdatedBy = &updatedByLookup
 
@@ -238,34 +211,15 @@ func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 }
 
 func (s Appeal) buildCreateAppealQuery(ctx *model.CreateOptions, lookup *_go.Appeal) (string, []interface{}, error) {
-	query := `
-WITH ins AS (
-    INSERT INTO cases.appeal (name, dc, created_at, description, type, created_by, updated_at, updated_by)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    RETURNING id, name, created_at, description, type, created_by, updated_at, updated_by
-)
-SELECT ins.id,
-       ins.name,
-       ins.created_at,
-       ins.description,
-       ins.type::text,
-       ins.created_by AS created_by_id,
-       COALESCE(c.name::text, c.username) AS created_by_name,
-       ins.updated_at,
-       ins.updated_by AS updated_by_id,
-       COALESCE(u.name::text, u.username) AS updated_by_name
-FROM ins
-LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
-LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
-`
+	query := createAppealQuery
 	args := []interface{}{
 		lookup.Name, ctx.Session.GetDomainId(), ctx.CurrentTime(), lookup.Description, lookup.Type,
-		ctx.Session.GetUserId(), ctx.CurrentTime(), ctx.Session.GetUserId(),
+		ctx.Session.GetUserId(),
 	}
 	return query, args, nil
 }
 
-func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (sq.SelectBuilder, error) {
+func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (string, []interface{}, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
@@ -275,22 +229,27 @@ func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (sq.SelectBuild
 		PlaceholderFormat(sq.Dollar)
 
 	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
-
 	ctx.Fields = append(fields, "id")
 
+	// Adding columns based on fields
 	for _, field := range ctx.Fields {
 		switch field {
 		case "id", "name", "description", "type", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
 		case "created_by":
-			queryBuilder = queryBuilder.Column("created_by.id AS created_by_id, created_by.name AS created_by_name").
+			// cbi = created_by_id
+			// cbn = created_by_name
+			queryBuilder = queryBuilder.Column("created_by.id AS cbi, created_by.name AS cbn").
 				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
 		case "updated_by":
-			queryBuilder = queryBuilder.Column("updated_by.id AS updated_by_id, updated_by.name AS updated_by_name").
+			// ubi = updated_by_id
+			// ubn = updated_by_name
+			queryBuilder = queryBuilder.Column("updated_by.id AS ubi, updated_by.name AS ubn").
 				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
 		}
 	}
 
+	// Applying filters
 	if len(ids) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
@@ -304,8 +263,8 @@ func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (sq.SelectBuild
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.type": types})
 	}
 
+	// Sorting logic
 	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
-
 	var sortFields []string
 
 	for _, sortField := range parsedFields {
@@ -315,40 +274,44 @@ func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (sq.SelectBuild
 			sortField = strings.TrimPrefix(sortField, "!")
 		}
 
-		var column string
-		switch sortField {
-		case "name", "description":
-			column = "g." + sortField
-		default:
-			continue
-		}
-
+		column := "g." + sortField
 		if desc {
 			column += " DESC"
 		} else {
 			column += " ASC"
 		}
-
 		sortFields = append(sortFields, column)
 	}
 
+	// Applying sorting
+	queryBuilder = queryBuilder.OrderBy(sortFields...)
+
 	size := ctx.GetSize()
-	queryBuilder = queryBuilder.OrderBy(sortFields...).Offset(uint64((ctx.Page - 1) * size))
-	if size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size))
+	page := ctx.Page
+
+	// Applying pagination
+	if ctx.Page > 1 {
+		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
 	}
 
-	return queryBuilder, nil
+	if ctx.GetSize() != -1 {
+		queryBuilder = queryBuilder.Limit(uint64(size + 1))
+	}
+
+	// Generate SQL and arguments
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return "", nil, model.NewInternalError("postgres.cases.appeal.query_build.sql_generation_error", err.Error())
+	}
+
+	return db.CompactSQL(query), args, nil
 }
 
 func (s Appeal) buildDeleteAppealQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
 	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
 	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
 
-	query := `
-    DELETE FROM cases.appeal
-    WHERE id = ANY($1) AND dc = $2
-    `
+	query := deleteAppealQuery
 	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
 	return query, args, nil
 }
@@ -359,7 +322,7 @@ func (s Appeal) buildUpdateAppealQuery(ctx *model.UpdateOptions, l *_go.Appeal) 
 	builder := psql.Update("cases.appeal").
 		Set("updated_at", ctx.CurrentTime()).
 		Set("updated_by", ctx.Session.GetUserId()).
-		Where(sq.Eq{"id": ctx.ID}).
+		Where(sq.Eq{"id": l.Id}).
 		Where(sq.Eq{"dc": ctx.Session.GetDomainId()})
 
 	updateFields := []string{"name", "description", "type"}
@@ -386,7 +349,7 @@ func (s Appeal) buildUpdateAppealQuery(ctx *model.UpdateOptions, l *_go.Appeal) 
 		return "", nil, fmt.Errorf("failed to build SQL query: %w", err)
 	}
 
-	finalQuery := fmt.Sprintf(`
+	q := fmt.Sprintf(`
 WITH upd AS (
 	%s
 	RETURNING id, name, created_at, updated_at, description, type, created_by, updated_by
@@ -406,69 +369,11 @@ LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
 LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
 `, sql)
 
-	return finalQuery, args, nil
+	return db.CompactSQL(q), args, nil
 }
 
-// // buildUpdateAppealLookupQuery constructs the SQL update query and returns the query string and arguments.
-// func (s Appeal) buildUpdateAppealQuery(ctx *model.UpdateOptions, l *_go.Appeal) (string,
-// 	[]interface{},
-// ) {
-// 	var setClauses []string
-// 	var args []interface{}
-
-// 	args = append(args, ctx.CurrentTime(), ctx.Session.GetUserId())
-
-// 	// Add the updated_at and updated_by fields to the set clauses
-// 	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%d", len(args)-1))
-// 	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", len(args)))
-
-// 	// Fields that could be updated
-// 	updateFields := []string{"name", "description"}
-
-// 	// Add the fields to the set clauses
-// 	for _, field := range updateFields {
-// 		switch field {
-// 		case "name":
-// 			if l.Name != "" {
-// 				args = append(args, l.Name)
-// 				setClauses = append(setClauses, fmt.Sprintf("name = $%d", len(args)))
-// 			}
-// 		case "description":
-// 			if l.Description != "" {
-// 				args = append(args, l.Description)
-// 				setClauses = append(setClauses, fmt.Sprintf("description = $%d", len(args)))
-// 			}
-// 		}
-// 	}
-
-// 	// Construct the SQL query with joins for created_by and updated_by
-// 	query := fmt.Sprintf(`
-// with upd as (
-//     UPDATE cases.appeal
-//     SET %s
-//     WHERE id = $%d AND dc = $%d
-//     RETURNING id, name, created_at, updated_at, description, created_by, updated_by
-// )
-// select upd.id,
-//        upd.name,
-//        upd.created_at,
-//        upd.updated_at,
-//        upd.description,
-//        upd.created_by as created_by_id,
-//        coalesce(c.name::text, c.username) as created_by_name,
-//        upd.updated_by as updated_by_id,
-//        coalesce(u.name::text, u.username) as updated_by_name
-// from upd
-//   left join directory.wbt_user u on u.id = upd.updated_by
-//   left join directory.wbt_user c on c.id = upd.created_by;
-//     `, strings.Join(setClauses, ", "), len(args)+1, len(args)+2)
-
-// 	args = append(args, ctx.ID, ctx.Session.GetDomainId())
-// 	return query, args
-// }
-
 // StringToType converts a string into the corresponding Type enum value.
-func StringToType(typeStr string) (_go.Type, error) {
+func stringToType(typeStr string) (_go.Type, error) {
 	switch strings.ToUpper(typeStr) {
 	case "CALL":
 		return _go.Type_CALL, nil
@@ -486,6 +391,32 @@ func StringToType(typeStr string) (_go.Type, error) {
 		return _go.Type_TYPE_UNSPECIFIED, fmt.Errorf("invalid type value: %s", typeStr)
 	}
 }
+
+var (
+	createAppealQuery = db.CompactSQL(`WITH ins AS (
+    INSERT INTO cases.appeal (name, dc, created_at, description, type, created_by, updated_at, updated_by)
+    VALUES ($1, $2, $3, $4, $5, $6, $3, $6)
+    RETURNING id, name, created_at, description, type, created_by, updated_at, updated_by
+)
+SELECT ins.id,
+       ins.name,
+       ins.created_at,
+       ins.description,
+       ins.type::text,
+       ins.created_by AS created_by_id,
+       COALESCE(c.name::text, c.username) AS created_by_name,
+       ins.updated_at,
+       ins.updated_by AS updated_by_id,
+       COALESCE(u.name::text, u.username) AS updated_by_name
+FROM ins
+LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
+LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;`)
+
+	deleteAppealQuery = db.CompactSQL(
+		`DELETE FROM cases.appeal
+    WHERE id = ANY($1) AND dc = $2 `,
+	)
+)
 
 func NewAppealStore(store db.Store) (db.AppealStore, model.AppError) {
 	if store == nil {

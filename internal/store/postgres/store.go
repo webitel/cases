@@ -10,14 +10,14 @@ import (
 )
 
 type Store struct {
-	config               *model.DatabaseConfig
-	conn                 *pgxpool.Pool
 	appealStore          store.AppealStore
 	statusConditionStore store.StatusConditionStore
 	closeReasonStore     store.CloseReasonStore
 	statusStore          store.StatusStore
 	accessControllStore  store.AccessControlStore
 	reasonStore          store.ReasonStore
+	config               *model.DatabaseConfig
+	conn                 *pgxpool.Pool
 }
 
 func New(config *model.DatabaseConfig) *Store {

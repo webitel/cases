@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	grpcservice "github.com/webitel/cases/api"
+	grpcservice "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/registry"
 	"github.com/webitel/cases/registry/consul"

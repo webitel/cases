@@ -18,7 +18,7 @@ type UpdateOptions struct {
 func (rpc *UpdateOptions) CurrentTime() time.Time {
 	ts := rpc.Time
 	if ts.IsZero() {
-		ts = time.Now()
+		ts = time.Now().UTC()
 		rpc.Time = ts
 	}
 	return ts

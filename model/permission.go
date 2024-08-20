@@ -1,5 +1,5 @@
 package model
 
 const (
-	ScopeDictinary = "dictionaries"
+	ScopeDictionary = "dictionaries"
 )

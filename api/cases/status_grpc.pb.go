@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.27.1
-// source: status.proto
+// source: cases/status.proto
 
 package api
 
@@ -281,5 +281,5 @@ var Statuses_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "status.proto",
+	Metadata: "cases/status.proto",
 }

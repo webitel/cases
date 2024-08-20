@@ -63,7 +63,7 @@ func (rpc *SearchOptions) GetPage() int {
 func (rpc *SearchOptions) CurrentTime() time.Time {
 	ts := rpc.Time
 	if ts.IsZero() {
-		ts = time.Now()
+		ts = time.Now().UTC()
 		rpc.Time = ts
 	}
 	return ts

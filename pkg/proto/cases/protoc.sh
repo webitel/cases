@@ -1,13 +1,13 @@
 # !/bin/sh
 #set -x
 
-src=pkg/proto/
-dst=api/
+src=pkg/proto/cases
+dst=api
 
 # Ensure target dir exists
 mkdir -p $dst
 
-protoc -I $src \
+protoc -I pkg/proto \
   --go_opt=paths=source_relative --go_out=$dst \
   --go-grpc_out=require_unimplemented_servers=false,paths=source_relative:$dst \
   $src/*.proto

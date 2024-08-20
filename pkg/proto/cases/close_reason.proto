@@ -1,9 +1,10 @@
 syntax = "proto3";
 package cases;
 
-option go_package = "cases/api";
+option go_package = "github.com/webitel/cases;api";
 
-import "lookup.proto";
+import "cases/lookup.proto";
+import "google/api/visibility.proto";
 import "google/api/annotations.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 
@@ -56,6 +57,17 @@ message UpdateCloseReasonRequest {
   int64 id = 1;
   string name = 2;
   string description = 4;
+
+     // ---- JSON PATCH fields mask ----
+  // List of JPath fields specified in body(input).
+  repeated string x_json_mask = 5
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
 }
 
 // DeleteCloseReasonRequest message for deleting an existing close reason

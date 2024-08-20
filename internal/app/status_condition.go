@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	_go "github.com/webitel/cases/api"
+		_go "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/model"
 )
@@ -23,16 +23,17 @@ const (
 func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *_go.CreateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("status.name.required", ErrStatusNameReq)
+		return nil, model.NewBadRequestError("status_condition.create_status_condition.name.required", ErrStatusNameReq)
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, model.NewUnauthorizedError("status_condition.create_status_condition.authorization.failed", err.Error())
 	}
+
 	// OBAC check
 	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictinary)
+	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -67,7 +68,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 	// Create the status in the store
 	st, e := s.app.Store.StatusCondition().Create(&createOpts, status)
 	if e != nil {
-		return nil, e
+		return nil, model.NewInternalError("status_condition.create_status_condition.store.create.failed", e.Error())
 	}
 
 	return st, nil
@@ -77,12 +78,12 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_go.ListStatusConditionRequest) (*_go.StatusConditionList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, model.NewUnauthorizedError("status_condition.list_status_conditions.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictinary)
+	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -119,7 +120,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 
 	statuses, e := s.app.Store.StatusCondition().List(&searchOptions, req.StatusId)
 	if e != nil {
-		return nil, e
+		return nil, model.NewInternalError("status_condition.list_status_conditions.store.list.failed", e.Error())
 	}
 
 	return statuses, nil
@@ -129,16 +130,17 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *_go.UpdateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
+		return nil, model.NewBadRequestError("status_condition.update_status_condition.id.required", "Status ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, model.NewUnauthorizedError("status_condition.update_status_condition.authorization.failed", err.Error())
 	}
+
 	// OBAC check
 	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictinary)
+	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -190,7 +192,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	// Update the status in the store
 	st, e := s.app.Store.StatusCondition().Update(&updateOpts, status)
 	if e != nil {
-		return nil, e
+		return nil, model.NewInternalError("status_condition.update_status_condition.store.update.failed", e.Error())
 	}
 
 	return st, nil
@@ -200,16 +202,17 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *_go.DeleteStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
+		return nil, model.NewBadRequestError("status_condition.delete_status_condition.id.required", "Status ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, model.NewUnauthorizedError("status_condition.delete_status_condition.authorization.failed", err.Error())
 	}
+
 	// OBAC check
 	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictinary)
+	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -226,7 +229,7 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 	// Delete the status in the store
 	e := s.app.Store.StatusCondition().Delete(&deleteOpts, req.StatusId)
 	if e != nil {
-		return nil, e
+		return nil, model.NewInternalError("status_condition.delete_status_condition.store.delete.failed", e.Error())
 	}
 
 	return &(_go.StatusCondition{Id: req.Id}), nil
@@ -236,48 +239,31 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 func (s StatusConditionService) LocateStatusCondition(ctx context.Context, req *_go.LocateStatusConditionRequest) (*_go.LocateStatusConditionResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("status.id.required", "Status ID is required")
+		return nil, model.NewBadRequestError("status_condition.locate_status_condition.id.required", "Status ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
+	// Prepare a list request with necessary parameters
+	listReq := &_go.ListStatusConditionRequest{
+		Id:       []int64{req.Id},
+		Fields:   req.Fields,
+		Page:     1,
+		Size:     1, // We only need one item
+		StatusId: req.StatusId,
+	}
+
+	// Call the ListStatusConditions method
+	listResp, err := s.ListStatusConditions(ctx, listReq)
 	if err != nil {
-		return nil, err
-	}
-	// OBAC check
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictinary)
-	if !session.HasAccess(scope, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, model.NewInternalError("status_condition.locate_status_condition.list_status_condition.error", err.Error())
 	}
 
-	fields := req.Fields
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFields, ", ")
+	// Check if the status condition was found
+	if len(listResp.Items) == 0 {
+		return nil, model.NewNotFoundError("status_condition.locate_status_condition.not_found", "Status condition not found")
 	}
 
-	t := time.Now()
-	searchOpts := model.SearchOptions{
-		IDs:     []int64{req.Id},
-		Session: session,
-		Context: ctx,
-		Fields:  fields,
-		Page:    1,
-		Size:    1,
-		Time:    t,
-	}
-
-	l, e := s.app.Store.StatusCondition().List(&searchOpts, req.StatusId)
-	if e != nil {
-		return nil, e
-	}
-
-	if len(l.Items) == 0 {
-		return nil, model.NewNotFoundError("status.not_found", "Status not found")
-	}
-
-	status := l.Items[0]
-
-	return &_go.LocateStatusConditionResponse{Status: status}, nil
+	// Return the found status condition
+	return &_go.LocateStatusConditionResponse{Status: listResp.Items[0]}, nil
 }
 
 func NewStatusConditionService(app *App) (*StatusConditionService, model.AppError) {

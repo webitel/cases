@@ -4,8 +4,7 @@ import (
 	"context"
 	"strings"
 	"time"
-
-	_go "github.com/webitel/cases/api"
+	_go "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/model"
 )
@@ -18,16 +17,17 @@ type ReasonService struct {
 func (s *ReasonService) CreateReason(ctx context.Context, req *_go.CreateReasonRequest) (*_go.Reason, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("reason.name.required", ErrStatusNameReq)
+		return nil, model.NewBadRequestError("reason_service.create_reason.name.required", "Reason name is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, model.NewUnauthorizedError("reason_service.create_reason.authorization.failed", err.Error())
 	}
+
 	// OBAC check
 	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictinary)
+	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -38,8 +38,8 @@ func (s *ReasonService) CreateReason(ctx context.Context, req *_go.CreateReasonR
 		Name: session.GetUserName(),
 	}
 
-	// Create a new status model
-	status := &_go.Reason{
+	// Create a new reason model
+	reason := &_go.Reason{
 		Name:          req.Name,
 		Description:   req.Description,
 		CreatedBy:     currentU,
@@ -47,7 +47,7 @@ func (s *ReasonService) CreateReason(ctx context.Context, req *_go.CreateReasonR
 		CloseReasonId: req.CloseReasonId,
 	}
 
-	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "created_at", "updated_at", "created_by", "updated_by"}
+	fields := []string{"id", "lookup_id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
 
 	t := time.Now()
 
@@ -59,25 +59,25 @@ func (s *ReasonService) CreateReason(ctx context.Context, req *_go.CreateReasonR
 		Time:    t,
 	}
 
-	// Create the status in the store
-	st, e := s.app.Store.Reason().Create(&createOpts, status)
+	// Create the reason in the store
+	r, e := s.app.Store.Reason().Create(&createOpts, reason)
 	if e != nil {
-		return nil, e
+		return nil, model.NewInternalError("reason_service.create_reason.store.create.failed", e.Error())
 	}
 
-	return st, nil
+	return r, nil
 }
 
 // ListReasons implements api.ReasonsServer.
 func (s *ReasonService) ListReasons(ctx context.Context, req *_go.ListReasonRequest) (*_go.ReasonList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, model.NewUnauthorizedError("reason_service.list_reasons.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictinary)
+	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -114,7 +114,7 @@ func (s *ReasonService) ListReasons(ctx context.Context, req *_go.ListReasonRequ
 
 	reasons, e := s.app.Store.Reason().List(&searchOptions, req.CloseReasonId)
 	if e != nil {
-		return nil, e
+		return nil, model.NewInternalError("reason_service.list_reasons.store.list.failed", e.Error())
 	}
 
 	return reasons, nil
@@ -124,16 +124,17 @@ func (s *ReasonService) ListReasons(ctx context.Context, req *_go.ListReasonRequ
 func (s *ReasonService) UpdateReason(ctx context.Context, req *_go.UpdateReasonRequest) (*_go.Reason, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("close_reason.id.required", "Status ID is required")
+		return nil, model.NewBadRequestError("reason_service.update_reason.id.required", "Reason ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, model.NewUnauthorizedError("reason_service.update_reason.authorization.failed", err.Error())
 	}
+
 	// OBAC check
 	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictinary)
+	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -144,8 +145,8 @@ func (s *ReasonService) UpdateReason(ctx context.Context, req *_go.UpdateReasonR
 		Name: session.GetUserName(),
 	}
 
-	// Update status model
-	reeason := &_go.Reason{
+	// Update reason model
+	reason := &_go.Reason{
 		Id:            req.Id,
 		CloseReasonId: req.CloseReasonId,
 		Name:          req.Input.Name,
@@ -156,10 +157,10 @@ func (s *ReasonService) UpdateReason(ctx context.Context, req *_go.UpdateReasonR
 	fields := []string{"id", "lookup_id"}
 
 	for _, f := range req.XJsonMask {
-		if f == "name" {
+		switch f {
+		case "name":
 			fields = append(fields, "name")
-		}
-		if f == "description" {
+		case "description":
 			fields = append(fields, "description")
 		}
 	}
@@ -174,10 +175,10 @@ func (s *ReasonService) UpdateReason(ctx context.Context, req *_go.UpdateReasonR
 		Time:    t,
 	}
 
-	// Update the status in the store
-	r, e := s.app.Store.Reason().Update(&updateOpts, reeason)
+	// Update the reason in the store
+	r, e := s.app.Store.Reason().Update(&updateOpts, reason)
 	if e != nil {
-		return nil, e
+		return nil, model.NewInternalError("reason_service.update_reason.store.update.failed", e.Error())
 	}
 
 	return r, nil
@@ -187,16 +188,17 @@ func (s *ReasonService) UpdateReason(ctx context.Context, req *_go.UpdateReasonR
 func (s *ReasonService) DeleteReason(ctx context.Context, req *_go.DeleteReasonRequest) (*_go.Reason, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("close_reason.id.required", "Status ID is required")
+		return nil, model.NewBadRequestError("reason_service.delete_reason.id.required", "Reason ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, model.NewUnauthorizedError("reason_service.delete_reason.authorization.failed", err.Error())
 	}
+
 	// OBAC check
 	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictinary)
+	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasAccess(scope, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
@@ -210,10 +212,10 @@ func (s *ReasonService) DeleteReason(ctx context.Context, req *_go.DeleteReasonR
 		Time:    t,
 	}
 
-	// Delete the status in the store
+	// Delete the reason in the store
 	e := s.app.Store.Reason().Delete(&deleteOpts, req.CloseReasonId)
 	if e != nil {
-		return nil, e
+		return nil, model.NewInternalError("reason_service.delete_reason.store.delete.failed", e.Error())
 	}
 
 	return &(_go.Reason{Id: req.Id}), nil
@@ -223,48 +225,31 @@ func (s *ReasonService) DeleteReason(ctx context.Context, req *_go.DeleteReasonR
 func (s *ReasonService) LocateReason(ctx context.Context, req *_go.LocateReasonRequest) (*_go.LocateReasonResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("close_reason.id.required", "Status ID is required")
+		return nil, model.NewBadRequestError("reason_service.locate_reason.id.required", "Reason ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
+	// Prepare a list request with necessary parameters
+	listReq := &_go.ListReasonRequest{
+		Id:            []int64{req.Id},
+		Fields:        req.Fields,
+		Page:          1,
+		Size:          1, // We only need one item
+		CloseReasonId: req.CloseReasonId,
+	}
+
+	// Call the ListReasons method
+	listResp, err := s.ListReasons(ctx, listReq)
 	if err != nil {
-		return nil, err
-	}
-	// OBAC check
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictinary)
-	if !session.HasAccess(scope, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, model.NewInternalError("reason_service.locate_reason.list_reasons.error", err.Error())
 	}
 
-	fields := req.Fields
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFields, ", ")
+	// Check if the reason was found
+	if len(listResp.Items) == 0 {
+		return nil, model.NewNotFoundError("reason_service.locate_reason.not_found", "Reason not found")
 	}
 
-	t := time.Now()
-	searchOpts := model.SearchOptions{
-		IDs:     []int64{req.Id},
-		Session: session,
-		Context: ctx,
-		Fields:  fields,
-		Page:    1,
-		Size:    1,
-		Time:    t,
-	}
-
-	l, e := s.app.Store.Reason().List(&searchOpts, req.CloseReasonId)
-	if e != nil {
-		return nil, e
-	}
-
-	if len(l.Items) == 0 {
-		return nil, model.NewNotFoundError("status.not_found", "Status not found")
-	}
-
-	reason := l.Items[0]
-
-	return &_go.LocateReasonResponse{Reason: reason}, nil
+	// Return the found reason
+	return &_go.LocateReasonResponse{Reason: listResp.Items[0]}, nil
 }
 
 func NewReasonService(app *App) (*ReasonService, model.AppError) {

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	_go "github.com/webitel/cases/api"
+	_go "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/model"
 )
 

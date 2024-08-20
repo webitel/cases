@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.27.1
-// source: reason.proto
+// source: cases/reason.proto
 
 package api
 
@@ -281,5 +281,5 @@ var Reasons_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "reason.proto",
+	Metadata: "cases/reason.proto",
 }

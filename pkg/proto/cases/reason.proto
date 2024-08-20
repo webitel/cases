@@ -1,9 +1,9 @@
 syntax = "proto3";
 package cases;
 
-option go_package = "cases/api";
+option go_package = "github.com/webitel/cases;api";
 
-import "lookup.proto";
+import "cases/lookup.proto";
 import "google/api/visibility.proto";
 import "google/api/annotations.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
@@ -118,7 +118,7 @@ service Reasons {
   // RPC method to list or search reasons
   rpc ListReasons(ListReasonRequest) returns (ReasonList) {
     option (google.api.http) = {
-      get: "/closeReasons/{close_reason_id}/reasons"
+      get: "/close_reasons/{close_reason_id}/reasons"
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -129,7 +129,7 @@ service Reasons {
   // RPC method to create a new reason
   rpc CreateReason(CreateReasonRequest) returns (Reason) {
     option (google.api.http) = {
-      post: "/closeReasons/{close_reason_id}/reasons"
+      post: "/close_reasons/{close_reason_id}/reasons"
       body: "*"
     };
 
@@ -141,10 +141,10 @@ service Reasons {
   // RPC method to update an existing reason
   rpc UpdateReason(UpdateReasonRequest) returns (Reason) {
     option (google.api.http) = {
-      put: "/closeReasons/{close_reason_id}/reasons/{id}"
+      put: "/close_reasons/{close_reason_id}/reasons/{id}"
       body: "input"
       additional_bindings {
-        patch: "/closeReasons/{close_reason_id}/reasons/{id}"
+        patch: "/close_reasons/{close_reason_id}/reasons/{id}"
         body: "input"
       }
     };
@@ -157,7 +157,7 @@ service Reasons {
   // RPC method to delete an existing reason
   rpc DeleteReason(DeleteReasonRequest) returns (Reason) {
     option (google.api.http) = {
-      delete: "/closeReasons/{close_reason_id}/reasons/{id}"
+      delete: "/close_reasons/{close_reason_id}/reasons/{id}"
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -168,7 +168,7 @@ service Reasons {
   // RPC method to locate a specific reason by ID
   rpc LocateReason(LocateReasonRequest) returns (LocateReasonResponse) {
     option (google.api.http) = {
-      get: "/closeReasons/{close_reason_id}/reasons/{id}"
+      get: "/close_reasons/{close_reason_id}/reasons/{id}"
     };
 
     option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {

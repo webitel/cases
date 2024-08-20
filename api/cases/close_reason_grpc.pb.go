@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.27.1
-// source: close_reason.proto
+// source: cases/close_reason.proto
 
 package api
 
@@ -281,5 +281,5 @@ var CloseReasons_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "close_reason.proto",
+	Metadata: "cases/close_reason.proto",
 }

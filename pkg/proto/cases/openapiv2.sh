@@ -1,13 +1,14 @@
 #!/bin/sh
 #set -x
 
-src=pkg/proto
+src=pkg/proto/cases
 dst=$src
 
 protos="\
 $src/openapiv2.proto \
 $src/appeal.proto \
 $src/close_reason.proto \
+$src/reason.proto \
 $src/lookup.proto \
 $src/status_condition.proto \
 $src/status.proto \
@@ -29,7 +30,7 @@ allow_merge=true\
 ,logtostderr=true\
 "
 
-protoc -I $src \
+protoc -I pkg/proto  \
  --openapiv2_out=$openapiv2_options:$dst \
  $protos
 
