@@ -1,0 +1,215 @@
+syntax = "proto3";
+package cases;
+
+option go_package = "github.com/webitel/cases;api";
+
+import "cases/lookup.proto";
+import "google/api/visibility.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+import "google/api/annotations.proto";
+
+// Represents a source type for the appeal.
+enum Type {
+  TYPE_UNSPECIFIED = 0; // Default value
+  CALL = 1;             // Call
+  CHAT = 2;             // Chat
+  SOCIAL_MEDIA = 3;     // Social Media
+  EMAIL = 4;            // Email
+  API = 5;              // API
+  MANUAL = 6;           // Manual
+}
+
+// Represents an appeal in the contact system.
+message Appeal {
+  // Unique identifier of the appeal
+  int64 id = 1;
+  // Name of the appeal
+  string name = 2;
+  // Description of the appeal
+  string description = 4;
+  // Source type of the appeal
+  Type type = 5;
+  // CreatedAt timestamp of the appeal
+  int64 created_at = 20;
+  // UpdatedAt timestamp of the appeal
+  int64 updated_at = 21;
+  // CreatedBy user of the appeal
+  Lookup created_by = 22;
+  // UpdatedBy user of the appeal
+  Lookup updated_by = 23;
+}
+
+// A list of appeals.
+message AppealList {
+  // Page number of the partial result.
+  int32 page = 1;
+  // Have more records.
+  bool next = 2;
+  // List of appeals.
+  repeated Appeal items = 3;
+}
+
+// Request message for creating a new appeal.
+message CreateAppealRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["name", "type"]
+    }
+  };
+
+  // The name of the appeal.
+  string name = 1;
+
+  // The description of the appeal.
+  string description = 3;
+
+  // The source type of the appeal.
+  Type type = 4;
+}
+
+// Request message for updating an existing appeal.
+message UpdateAppealRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  // The unique ID of the appeal to update.
+  int64 id = 1;
+
+  // The new name of the appeal.
+  string name = 2;
+
+  // The new description of the appeal.
+  string description = 4;
+
+  // The new source type of the appeal.
+  Type type = 5;
+
+     // ---- JSON PATCH fields mask ----
+  // List of JPath fields specified in body(input).
+  repeated string x_json_mask = 6
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+}
+
+// Request message for deleting an appeal.
+message DeleteAppealRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  // The unique ID of the appeal to delete.
+  int64 id = 1;
+}
+
+// Request message for listing appeals.
+message ListAppealRequest {
+  // Page number of result dataset records. offset = (page*size)
+  int32 page = 1;
+
+  // Size count of records on result page. limit = (size++)
+  int32 size = 2;
+
+  // Fields to be retrieved as a result.
+  repeated string fields = 3;
+
+  // Sort the result according to fields.
+  repeated string sort = 4;
+
+  // Filter by unique IDs.
+  repeated int64 id = 5;
+
+  // Search term: appeal name;
+  // `?` - matches any one character
+  // `*` - matches 0 or more characters
+  string q = 6;
+
+  // Filter by appeal name.
+  string name = 7;
+
+  // Filter by appeal type.
+  repeated Type type = 8;
+}
+
+// Request message for locating an appeal by ID.
+message LocateAppealRequest {
+  // The unique ID of the appeal to locate.
+  int64 id = 1;
+
+  // Fields to be retrieved into result.
+  repeated string fields = 2;
+}
+
+// Response message for locating an appeal.
+message LocateAppealResponse {
+  // The located appeal.
+  Appeal appeal = 1;
+}
+
+service Appeals {
+
+  rpc ListAppeals(ListAppealRequest) returns (AppealList) {
+    option (google.api.http) = {
+      get: "/cases/appeals"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve a list of appeals or search appeals"
+    };
+  }
+
+  rpc CreateAppeal(CreateAppealRequest) returns (Appeal) {
+    option (google.api.http) = {
+      post: "/cases/appeals"
+      body: "*"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Create a new appeal"
+    };
+  }
+
+  rpc UpdateAppeal(UpdateAppealRequest) returns (Appeal) {
+    option (google.api.http) = {
+      put: "/cases/appeals/{id}"
+      body: "*"
+      additional_bindings {
+        patch: "/cases/appeals/{id}"
+        body: "*"
+      }
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Update an existing appeal"
+    };
+  }
+
+  rpc DeleteAppeal(DeleteAppealRequest) returns (Appeal) {
+    option (google.api.http) = {
+      delete: "/cases/appeals/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Delete an appeal"
+    };
+  }
+
+  rpc LocateAppeal(LocateAppealRequest) returns (LocateAppealResponse) {
+    option (google.api.http) = {
+      get: "/cases/appeals/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Locate an appeal by ID"
+    };
+  }
+}
