@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -13,7 +13,6 @@ import (
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/registry"
 	"github.com/webitel/cases/registry/consul"
-	"github.com/webitel/wlog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -137,6 +136,7 @@ func unaryInterceptor(ctx context.Context,
 	var reqCtx context.Context
 	var ip string
 
+	// Extract metadata from incoming context
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		reqCtx = context.WithValue(ctx, RequestContextName, md)
 		ip = getClientIp(md)
@@ -145,11 +145,22 @@ func unaryInterceptor(ctx context.Context,
 		reqCtx = context.WithValue(ctx, RequestContextName, nil)
 	}
 
+	// Log the start of the request for tracing
+	slog.Info("cases.grpc_server.request_started",
+		slog.String("method", info.FullMethod),
+		slog.Time("start_time", start),
+	)
+
+	// Handle the request
 	h, err := handler(reqCtx, req)
 
+	// Log the result
 	if err != nil {
-		wlog.Error(fmt.Sprintf("[%s] method %s duration %s, error: %v", ip, info.FullMethod, time.Since(start), err.Error()))
-
+		slog.Error("cases.grpc_server.request_error",
+			slog.String("ip", ip),
+			slog.String("method", info.FullMethod),
+			slog.Duration("duration", time.Since(start)),
+			slog.String("error", err.Error()))
 		var appError model.AppError
 		switch {
 		case errors.As(err, &appError):
@@ -160,7 +171,9 @@ func unaryInterceptor(ctx context.Context,
 			return h, err
 		}
 	} else {
-		wlog.Debug(fmt.Sprintf("[%s] method %s duration %s", ip, info.FullMethod, time.Since(start)))
+		slog.Info("cases.grpc_server.request_success",
+			slog.String("method", info.FullMethod),
+			slog.Duration("duration", time.Since(start)))
 	}
 
 	return h, err

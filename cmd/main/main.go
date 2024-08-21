@@ -1,44 +1,82 @@
 package cmd
 
 import (
-	"flag"
-	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/webitel/cases/internal/app"
+	"github.com/webitel/cases/internal/logging"
 	"github.com/webitel/cases/model"
-	"github.com/webitel/wlog"
+
+	// ----- LOGGING -----//
+
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+
+	// -------------------- plugin(s) -------------------- //
+	_ "github.com/webitel/webitel-go-kit/otel/sdk/log/otlp"
+	_ "github.com/webitel/webitel-go-kit/otel/sdk/log/stdout"
+	_ "github.com/webitel/webitel-go-kit/otel/sdk/metric/otlp"
+	_ "github.com/webitel/webitel-go-kit/otel/sdk/metric/stdout"
+	_ "github.com/webitel/webitel-go-kit/otel/sdk/trace/otlp"
+	_ "github.com/webitel/webitel-go-kit/otel/sdk/trace/stdout"
 )
 
 func Run() {
-	log := wlog.NewLogger(&wlog.LoggerConfiguration{
-		EnableConsole: true,
-		ConsoleLevel:  wlog.LevelDebug,
-	})
-
-	wlog.RedirectStdLog(log)
-	wlog.InitGlobalLogger(log)
-
-	config, appErr := loadConfig()
+	// Load configuration
+	config, appErr := model.LoadConfig()
 	if appErr != nil {
-		wlog.Critical(appErr.Error())
+		slog.Error("cases.main.configuration_error", slog.String("error", appErr.Error()))
 		return
 	}
 
+	// Initialize the application
 	application, appErr := app.New(config)
 	if appErr != nil {
-		wlog.Critical(appErr.Error())
+		slog.Error("cases.main.application_initialization_error", slog.String("error", appErr.Error()))
 		return
 	}
+
+	// Initialize signal handling for graceful shutdown
 	initSignals(application)
+
+	// ----- LOGGING -----//
+
+	// slog + OTEL logging
+	service := resource.NewSchemaless(
+		semconv.ServiceName(model.APP_SERVICE_NAME),
+		semconv.ServiceVersion(model.CurrentVersion),
+		semconv.ServiceInstanceID(config.Consul.Id),
+		semconv.ServiceNamespace(model.NAMESPACE_NAME),
+	)
+	logging.Setup(config.Log, service) // Use the logging package for setup
+
+	// Log the configuration
+	slog.Debug("cases.main.configuration_loaded",
+		slog.String("data_source", config.Database.Url),
+		slog.String("consul", config.Consul.Address),
+		slog.String("grpc_address", config.Consul.PublicAddress),
+		slog.String("consul_id", config.Consul.Id),
+		slog.String("log_level", config.Log.Lvl),
+		slog.Bool("log_json", config.Log.Json),
+		slog.Bool("log_otel", config.Log.Otel),
+		slog.String("log_file", config.Log.File),
+	)
+
+	// Start the application
+	slog.Info("cases.main.starting_application")
 	appErr = application.Start()
-	wlog.Critical(appErr.Error())
+	if appErr != nil {
+		slog.Error("cases.main.application_start_error", slog.String("error", appErr.Error()))
+	} else {
+		slog.Info("cases.main.application_started_successfully")
+	}
 }
 
 func initSignals(application *app.App) {
-	wlog.Info("initializing stop signals")
+	slog.Info("cases.main.initializing_stop_signals", slog.String("main", "initializing_stop_signals"))
 	sigchnl := make(chan os.Signal, 1)
 	signal.Notify(sigchnl)
 
@@ -53,62 +91,7 @@ func initSignals(application *app.App) {
 func handleSignals(signal os.Signal, application *app.App) {
 	if signal == syscall.SIGTERM || signal == syscall.SIGINT || signal == syscall.SIGKILL {
 		application.Stop()
-		wlog.Info("got kill signal, service gracefully stopped!")
+		slog.Info("cases.main.received_kill_signal", slog.String("signal", signal.String()), slog.String("status", "service gracefully stopped"))
 		os.Exit(0)
 	}
-}
-
-func loadConfig() (*model.AppConfig, model.AppError) {
-	var appConfig model.AppConfig
-
-	// Load from command-line flags
-	dataSource := flag.String("data_source", "", "Data source")
-	consul := flag.String("consul", "", "Host to consul")
-	grpcAddr := flag.String("grpc_addr", "", "Public grpc address with port")
-	consulID := flag.String("id", "", "Service id")
-	flag.Parse()
-
-	// Load from environment variables if flags are not provided
-	if *dataSource == "" {
-		*dataSource = os.Getenv("DATA_SOURCE")
-	}
-	if *consul == "" {
-		*consul = os.Getenv("CONSUL")
-	}
-	if *grpcAddr == "" {
-		*grpcAddr = os.Getenv("GRPC_ADDR")
-	}
-	if *consulID == "" {
-		*consulID = os.Getenv("CONSUL_ID")
-	}
-
-	// Combined log statement for debugging
-	wlog.Debug(fmt.Sprintf("Configuration - Data Source: %s, Consul: %s, gRPC Addr: %s, Consul ID: %s",
-		*dataSource, *consul, *grpcAddr, *consulID))
-
-	// Set the configuration struct fields
-	appConfig.Database = &model.DatabaseConfig{
-		Url: *dataSource,
-	}
-	appConfig.Consul = &model.ConsulConfig{
-		Id:            *consulID,
-		Address:       *consul,
-		PublicAddress: *grpcAddr,
-	}
-
-	// Check if any required field is missing
-	if appConfig.Database.Url == "" {
-		return nil, model.NewInternalError("main.main.unmarshal_config.bad_arguments.missing_data_source", "Data source is required")
-	}
-	if appConfig.Consul.Id == "" {
-		return nil, model.NewInternalError("main.main.unmarshal_config.bad_arguments.missing_id", "Service id is required")
-	}
-	if appConfig.Consul.Address == "" {
-		return nil, model.NewInternalError("main.main.unmarshal_config.bad_arguments.missing_consul", "Consul address is required")
-	}
-	if appConfig.Consul.PublicAddress == "" {
-		return nil, model.NewInternalError("main.main.unmarshal_config.bad_arguments.missing_grpc_addr", "gRPC address is required")
-	}
-
-	return &appConfig, nil
 }

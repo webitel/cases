@@ -7,7 +7,6 @@ import (
 	"github.com/lib/pq"
 	db "github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
-	"github.com/webitel/wlog"
 )
 
 type AccessContol struct {
@@ -34,9 +33,6 @@ func (s AccessContol) RbacAccess(ctx context.Context, domainId int64, id int64, 
 		  AND acl.subject = ANY($3::int[])
 		  AND acl.access & $4 = $4
 		LIMIT 1`, tableName)
-
-	// Log the query for debugging
-	wlog.Debug(sql)
 
 	// Execute the query
 	var ac bool

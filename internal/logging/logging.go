@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 )
 
-// Setup initializes the logging configuration based on the provided LogSettings.
 func Setup(logConfig *model.LogSettings, service *resource.Resource) {
 	var logLevel slog.Level
 	switch logConfig.Lvl {
@@ -29,19 +28,25 @@ func Setup(logConfig *model.LogSettings, service *resource.Resource) {
 
 	// Set up the logging handler
 	var handler slog.Handler
-	if logConfig.Json {
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level: logLevel,
-		})
+
+	if logConfig.File == "" {
+		handler = defaultHandler(logConfig, logLevel)
 	} else {
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			Level: logLevel,
-		})
+		file, err := os.OpenFile(logConfig.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
+		if err != nil {
+			handler = defaultHandler(logConfig, logLevel)
+		} else {
+			if logConfig.Json {
+				handler = slog.NewJSONHandler(file, &slog.HandlerOptions{Level: logLevel})
+			} else {
+				handler = slog.NewTextHandler(file, &slog.HandlerOptions{Level: logLevel})
+			}
+		}
 	}
 
-	logger := slog.New(handler)
+	slog.SetDefault(slog.New(handler))
 
-	// If OTEL is enabled, setup OTEL logging
+	// OTEL setup
 	if logConfig.Otel {
 		ctx := context.Background()
 		shutdown, err := otelsdk.Setup(
@@ -52,13 +57,22 @@ func Setup(logConfig *model.LogSettings, service *resource.Resource) {
 		defer shutdown(ctx)
 
 		if err != nil {
-			logger.ErrorContext(ctx, "OTel setup failed", slog.String("error", err.Error()))
+			slog.Error("cases.logging.setup", slog.String("error", "OTel setup failed"))
 			os.Exit(1)
 		}
 
-		logger.InfoContext(ctx, "OTel setup successful", slog.Bool("success", true))
+		slog.Info("cases.logging.setup", slog.String("message", "OTel setup successful"))
 	}
 
-	// Set the global logger
-	slog.SetDefault(logger)
+	slog.Info("cases.logging.setup", slog.String("message", "Logging setup complete"))
+}
+
+// defaultHandler creates a default slog handler based on the configuration.
+func defaultHandler(logConfig *model.LogSettings, logLevel slog.Level) slog.Handler {
+	if logConfig.Json {
+		slog.Info("cases.logging.setup", slog.String("message", "Logging in JSON format"))
+		return slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})
+	}
+	slog.Info("cases.logging.setup", slog.String("message", "Logging in text format"))
+	return slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})
 }

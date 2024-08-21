@@ -2,11 +2,11 @@ package postgres
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
-	"github.com/webitel/wlog"
 )
 
 type Store struct {
@@ -92,7 +92,7 @@ func (s *Store) Reason() store.ReasonStore {
 
 func (s *Store) Database() (*pgxpool.Pool, model.AppError) {
 	if s.conn == nil {
-		return nil, model.NewInternalError("postgres.store.database.check.bad_arguments", "database connection is not opened")
+		return nil, model.NewInternalError("cases.store.database.check.bad_arguments", "database connection is not opened")
 	}
 	return s.conn, nil
 }
@@ -100,22 +100,25 @@ func (s *Store) Database() (*pgxpool.Pool, model.AppError) {
 func (s *Store) Open() model.AppError {
 	config, err := pgxpool.ParseConfig(s.config.Url)
 	if err != nil {
-		return model.NewInternalError("postgres.store.open.parse_config.fail", err.Error())
+		return model.NewInternalError("cases.store.open.parse_config.fail", err.Error())
 	}
+
+	// Attach the custom tracer
+	config.ConnConfig.Tracer = &Tracer{}
 
 	conn, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
-		return model.NewInternalError("postgres.store.open.connect.fail", err.Error())
+		return model.NewInternalError("cases.store.open.connect.fail", err.Error())
 	}
 	s.conn = conn
-	wlog.Debug("postgres: connection opened")
+	slog.Debug("cases.store.connection_opened", slog.String("message", "postgres: connection opened"))
 	return nil
 }
 
 func (s *Store) Close() model.AppError {
 	if s.conn != nil {
 		s.conn.Close()
-		wlog.Debug("postgres: connection closed")
+		slog.Debug("cases.store.connection_closed", slog.String("message", "postgres: connection closed"))
 		s.conn = nil
 	}
 	return nil

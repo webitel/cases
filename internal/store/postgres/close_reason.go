@@ -124,7 +124,7 @@ func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error
 	}
 
 	return &_go.CloseReasonList{
-		Page:  int32(ctx.Page),
+		Page:  int32(ctx.Page), // TODO page should be correctly passes even if user pass negative value
 		Next:  next,
 		Items: lookupList,
 	}, nil
