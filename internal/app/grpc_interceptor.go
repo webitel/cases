@@ -31,10 +31,6 @@ func unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServ
 		reqCtx = context.WithValue(ctx, RequestContextName, nil)
 	}
 
-	// // Start a new span using the centralized tracer
-	// span := trace.SpanFromContext(ctx)
-	// defer span.End()
-
 	// Log the start of the request for tracing
 	slog.Info("cases.grpc_server.request_started",
 		slog.String("method", info.FullMethod),
@@ -66,14 +62,6 @@ func unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServ
 			slog.String("method", info.FullMethod),
 			slog.Duration("duration", time.Since(start)))
 	}
-
-	// // Set attributes in the span
-	// span.SetAttributes(
-	// 	attribute.String("ip", ip),
-	// 	attribute.String("method", info.FullMethod),
-	// 	attribute.String("status", "success"),
-	// 	attribute.String("duration", time.Since(start).String()),
-	// )
 
 	return h, err
 }

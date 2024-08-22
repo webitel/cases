@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/webitel/cases/internal/tracing"
 	"github.com/webitel/cases/model"
 	otelsdk "github.com/webitel/webitel-go-kit/otel/sdk"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
@@ -39,9 +38,6 @@ func Setup(service *resource.Resource) func(context.Context) error {
 
 	// OTEL setup successful
 	slog.InfoContext(ctx, "OTel setup successful")
-
-	// Initialize the tracer after OTel setup
-	tracing.InitTracer()
 
 	// Return the shutdown function
 	return shutdown
