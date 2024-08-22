@@ -8,7 +8,7 @@ import (
 type AppConfig struct {
 	Database *DatabaseConfig `json:"database,omitempty"`
 	Consul   *ConsulConfig   `json:"consul,omitempty" `
-	Log      *LogSettings    `json:"log,omitempty"`
+	// Log      *LogSettings    `json:"log,omitempty"`
 }
 
 type DatabaseConfig struct {
@@ -21,13 +21,6 @@ type ConsulConfig struct {
 	PublicAddress string `json:"publicAddress" flag:"grpc_addr|| Public grpc address with port"`
 }
 
-type LogSettings struct {
-	Lvl  string `json:"lvl" flag:"log_lvl|debug|Log level"`
-	File string `json:"file,omitempty" flag:"log_file||Log file directory"`
-	Json bool   `json:"json" flag:"log_json|false|Log format JSON"`
-	Otel bool   `json:"otel" flag:"log_otel|false|Log OTEL"`
-}
-
 func LoadConfig() (*AppConfig, AppError) {
 	var appConfig AppConfig
 
@@ -36,12 +29,6 @@ func LoadConfig() (*AppConfig, AppError) {
 	consul := flag.String("consul", "", "Host to consul")
 	grpcAddr := flag.String("grpc_addr", "", "Public grpc address with port")
 	consulID := flag.String("id", "", "Service id")
-
-	// Load logging configuration from command-line flags
-	logLevel := flag.String("log_lvl", "", "Log level")
-	logJson := flag.Bool("log_json", false, "Log format JSON")
-	logOtel := flag.Bool("log_otel", false, "Enable OTEL logging")
-	logFile := flag.String("log_file", "", "Log file path")
 
 	flag.Parse()
 
@@ -58,18 +45,18 @@ func LoadConfig() (*AppConfig, AppError) {
 	if *consulID == "" {
 		*consulID = os.Getenv("CONSUL_ID")
 	}
-	if *logLevel == "" {
-		*logLevel = os.Getenv("LOG_LVL")
-	}
-	if !*logJson {
-		*logJson = os.Getenv("LOG_JSON") == "true"
-	}
-	if !*logOtel {
-		*logOtel = os.Getenv("LOG_OTEL") == "true"
-	}
-	if *logFile == "" {
-		*logFile = os.Getenv("LOG_FILE")
-	}
+	// if *logLevel == "" {
+	// 	*logLevel = os.Getenv("LOG_LVL")
+	// }
+	// if !*logJson {
+	// 	*logJson = os.Getenv("LOG_JSON") == "true"
+	// }
+	// if !*logOtel {
+	// 	*logOtel = os.Getenv("LOG_OTEL") == "true"
+	// }
+	// if *logFile == "" {
+	// 	*logFile = os.Getenv("LOG_FILE")
+	// }
 
 	// Set the configuration struct fields
 	appConfig.Database = &DatabaseConfig{
@@ -79,12 +66,6 @@ func LoadConfig() (*AppConfig, AppError) {
 		Id:            *consulID,
 		Address:       *consul,
 		PublicAddress: *grpcAddr,
-	}
-	appConfig.Log = &LogSettings{
-		Lvl:  *logLevel,
-		Json: *logJson,
-		Otel: *logOtel,
-		File: *logFile,
 	}
 
 	// Check if any required field is missing

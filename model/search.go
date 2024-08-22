@@ -5,7 +5,7 @@ import (
 	"time"
 
 	session "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/internal/util"
+	"github.com/webitel/cases/util"
 )
 
 type SearchOptions struct {

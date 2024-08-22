@@ -10,8 +10,8 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 
 	db "github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/util"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
 )
 
 type CloseReason struct {

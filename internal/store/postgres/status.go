@@ -10,8 +10,8 @@ import (
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/util"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
 )
 
 type Status struct {

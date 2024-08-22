@@ -11,7 +11,6 @@ import (
 	"github.com/webitel/cases/model"
 
 	// ----- LOGGING -----//
-
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
@@ -32,8 +31,17 @@ func Run() {
 		return
 	}
 
+	// slog + OTEL logging
+	service := resource.NewSchemaless(
+		semconv.ServiceName(model.APP_SERVICE_NAME),
+		semconv.ServiceVersion(model.CurrentVersion),
+		semconv.ServiceInstanceID(config.Consul.Id),
+		semconv.ServiceNamespace(model.NAMESPACE_NAME),
+	)
+	shutdown := logging.Setup(service)
+
 	// Initialize the application
-	application, appErr := app.New(config)
+	application, appErr := app.New(config, shutdown)
 	if appErr != nil {
 		slog.Error("cases.main.application_initialization_error", slog.String("error", appErr.Error()))
 		return
@@ -42,34 +50,19 @@ func Run() {
 	// Initialize signal handling for graceful shutdown
 	initSignals(application)
 
-	// ----- LOGGING -----//
-
-	// slog + OTEL logging
-	service := resource.NewSchemaless(
-		semconv.ServiceName(model.APP_SERVICE_NAME),
-		semconv.ServiceVersion(model.CurrentVersion),
-		semconv.ServiceInstanceID(config.Consul.Id),
-		semconv.ServiceNamespace(model.NAMESPACE_NAME),
-	)
-	logging.Setup(config.Log, service) // Use the logging package for setup
-
 	// Log the configuration
 	slog.Debug("cases.main.configuration_loaded",
 		slog.String("data_source", config.Database.Url),
 		slog.String("consul", config.Consul.Address),
-		slog.String("grpc_address", config.Consul.PublicAddress),
+		slog.String("grpc_address", config.Consul.Address),
 		slog.String("consul_id", config.Consul.Id),
-		slog.String("log_level", config.Log.Lvl),
-		slog.Bool("log_json", config.Log.Json),
-		slog.Bool("log_otel", config.Log.Otel),
-		slog.String("log_file", config.Log.File),
 	)
 
 	// Start the application
 	slog.Info("cases.main.starting_application")
-	appErr = application.Start()
-	if appErr != nil {
-		slog.Error("cases.main.application_start_error", slog.String("error", appErr.Error()))
+	startErr := application.Start()
+	if startErr != nil {
+		slog.Error("cases.main.application_start_error", slog.String("error", startErr.Error()))
 	} else {
 		slog.Info("cases.main.application_started_successfully")
 	}

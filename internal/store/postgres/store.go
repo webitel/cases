@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
+	otelpgx "github.com/webitel/webitel-go-kit/tracing/pgx"
 )
 
 type Store struct {
@@ -103,8 +104,8 @@ func (s *Store) Open() model.AppError {
 		return model.NewInternalError("cases.store.open.parse_config.fail", err.Error())
 	}
 
-	// Attach the custom tracer
-	config.ConnConfig.Tracer = &Tracer{}
+	// Attach the OpenTelemetry tracer for pgx
+	config.ConnConfig.Tracer = otelpgx.NewTracer(otelpgx.WithTrimSQLInSpanName())
 
 	conn, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {

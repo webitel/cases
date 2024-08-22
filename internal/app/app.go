@@ -23,10 +23,11 @@ type App struct {
 	storageConn    *grpc.ClientConn
 	sessionManager auth.AuthManager
 	webitelAppConn *grpc.ClientConn
+	shutdown       func(ctx context.Context) error
 }
 
-func New(config *model.AppConfig) (*App, model.AppError) {
-	app := &App{config: config}
+func New(config *model.AppConfig, shutdown func(ctx context.Context) error) (*App, model.AppError) {
+	app := &App{config: config, shutdown: shutdown}
 	var err error
 
 	// init of a database
@@ -52,7 +53,6 @@ func New(config *model.AppConfig) (*App, model.AppError) {
 	}
 
 	app.webitelAppConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/go.webitel.app?wait=14s", config.Consul.Address),
-
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
@@ -80,7 +80,6 @@ func (a *App) Start() model.AppError {
 
 	// * run grpc server
 	go a.server.Start()
-	// go ServeRequests(a, a.config.Consul, a.exitChan)
 	return <-a.exitChan
 }
 
@@ -91,8 +90,12 @@ func (a *App) Stop() model.AppError {
 	a.Store.Close()
 	// close grpc connections
 	a.storageConn.Close()
-	// close webitel internal connection
 	a.webitelAppConn.Close()
+
+	// ----- Call the shutdown function for OTel ----- //
+	if a.shutdown != nil {
+		a.shutdown(context.Background())
+	}
 
 	return nil
 }
