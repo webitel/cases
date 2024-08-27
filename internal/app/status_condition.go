@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-		_go "github.com/webitel/cases/api/cases"
+	_go "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/model"
 )

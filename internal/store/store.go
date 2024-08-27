@@ -15,6 +15,7 @@ type Store interface {
 	CloseReason() CloseReasonStore
 	Reason() ReasonStore
 	Appeal() AppealStore
+	Priority() PriorityStore
 	AccessControl() AccessControlStore
 
 	// Database connection
@@ -83,4 +84,15 @@ type AppealStore interface {
 	Delete(rpc *model.DeleteOptions) error
 	// Update appeal lookup
 	Update(rpc *model.UpdateOptions, lookup *_go.Appeal) (*_go.Appeal, error)
+}
+
+type PriorityStore interface {
+	// Create a new priority lookup
+	Create(rpc *model.CreateOptions, add *_go.Priority) (*_go.Priority, error)
+	// List priority lookup
+	List(rpc *model.SearchOptions) (*_go.PriorityList, error)
+	// Delete priority lookup
+	Delete(rpc *model.DeleteOptions) error
+	// Update priority lookup
+	Update(rpc *model.UpdateOptions, lookup *_go.Priority) (*_go.Priority, error)
 }

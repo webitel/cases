@@ -401,9 +401,16 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
         WHERE
             CASE
                 -- Ensure the update only happens if the conditions are met
+				-- WE DO NOT UPDATE FINAL & INITIAL
 				WHEN $4::boolean = FALSE AND $5::boolean = FALSE THEN TRUE
+
+				-- WE ONLY UPDATE FINAL - so checking if it's NOT the last one
                 WHEN $4::boolean = FALSE AND $6::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
+
+				-- WE ONLY UPDATE INITIAL [initial always true] and DON'T UPDATE FINAL
                 WHEN $7::boolean = TRUE AND $5::boolean = FALSE THEN TRUE
+
+				-- WE UPDATE FINAL + INITIAL but final is FALSE so we checking if it's NOT the last one
                 WHEN $5::boolean = TRUE AND $4::boolean = TRUE THEN
                     CASE
                         WHEN $6::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1

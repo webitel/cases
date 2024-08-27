@@ -12,28 +12,18 @@ import (
 
 type Store struct {
 	appealStore          store.AppealStore
+	statusStore          store.StatusStore
 	statusConditionStore store.StatusConditionStore
 	closeReasonStore     store.CloseReasonStore
-	statusStore          store.StatusStore
-	accessControllStore  store.AccessControlStore
 	reasonStore          store.ReasonStore
+	priorityStore        store.PriorityStore
+	accessControllStore  store.AccessControlStore
 	config               *model.DatabaseConfig
 	conn                 *pgxpool.Pool
 }
 
 func New(config *model.DatabaseConfig) *Store {
 	return &Store{config: config}
-}
-
-func (s *Store) AccessControl() store.AccessControlStore {
-	if s.accessControllStore == nil {
-		st, err := NewAccessControlStore(s)
-		if err != nil {
-			return nil
-		}
-		s.accessControllStore = st
-	}
-	return s.accessControllStore
 }
 
 func (s *Store) Status() store.StatusStore {
@@ -89,6 +79,28 @@ func (s *Store) Reason() store.ReasonStore {
 		s.reasonStore = st
 	}
 	return s.reasonStore
+}
+
+func (s *Store) Priority() store.PriorityStore {
+	if s.priorityStore == nil {
+		st, err := NewPriorityStore(s)
+		if err != nil {
+			return nil
+		}
+		s.priorityStore = st
+	}
+	return s.priorityStore
+}
+
+func (s *Store) AccessControl() store.AccessControlStore {
+	if s.accessControllStore == nil {
+		st, err := NewAccessControlStore(s)
+		if err != nil {
+			return nil
+		}
+		s.accessControllStore = st
+	}
+	return s.accessControllStore
 }
 
 func (s *Store) Database() (*pgxpool.Pool, model.AppError) {

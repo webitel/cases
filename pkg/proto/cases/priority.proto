@@ -1,0 +1,188 @@
+syntax = "proto3";
+package cases;
+
+option go_package = "github.com/webitel/cases;api";
+
+import "cases/lookup.proto";
+import "google/api/visibility.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+
+// Priority message represents a priority entity with metadata
+message Priority {
+  // Unique identifier of the priority
+  int64 id = 1;
+  // Name of the priority
+  string name = 2;
+  // Description of the priority
+  string description = 4;
+  // CreatedAt timestamp of the priority
+  int64 created_at = 20;
+  // UpdatedAt timestamp of the priority
+  int64 updated_at = 21;
+  // CreatedBy user of the priority
+  Lookup created_by = 22;
+  // UpdatedBy user of the priority
+  Lookup updated_by = 23;
+  // Color of the priority
+  string color = 24;
+}
+
+// PriorityList message contains a list of Priority items with pagination
+message PriorityList {
+  int32 page = 1;
+  bool next = 2;
+  repeated Priority items = 3;
+}
+
+// CreatePriorityRequest message for creating a new priority
+message CreatePriorityRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["name"]
+    }
+  };
+
+  string name = 1;
+  string description = 3;
+  string color = 4;
+}
+
+// UpdatePriorityRequest message for updating an existing priority
+message UpdatePriorityRequest {
+// UpdatePriorityRequest message for updating an existing priority
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  int64 id = 1;
+  string name = 2;
+  string description = 4;
+  string color = 6;
+
+     // ---- JSON PATCH fields mask ----
+  // List of JPath fields specified in body(input).
+  repeated string x_json_mask = 5
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+}
+
+// DeletePriorityRequest message for deleting an existing priority
+message DeletePriorityRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  int64 id = 1;
+}
+
+// ListPriorityRequest message for listing or searching priority
+message ListPriorityRequest {
+  // Page number of result dataset records. offset = (page*size)
+  int32 page = 1;
+
+  // Size count of records on result page. limit = (size++)
+  int32 size = 2;
+
+  // Fields to be retrieved as a result.
+  repeated string fields = 3;
+
+  // Sort the result according to fields.
+  repeated string sort = 4;
+
+  // Filter by unique IDs.
+  repeated int64 id = 5;
+
+  // Search term: priority name;
+  // `?` - matches any one character
+  // `*` - matches 0 or more characters
+  string q = 6;
+
+  // Filter by priority name.
+  string name = 7;
+}
+
+// LocatePriorityRequest message for locating a specific priority by ID
+message LocatePriorityRequest {
+  int64 id = 1;
+  repeated string fields = 2;
+}
+
+// LocatePriorityResponse message contains a single priority entity
+message LocatePriorityResponse {
+  Priority priority = 1;
+}
+
+// Priorities service definition with RPC methods for managing priorities
+service Priorities {
+  // RPC method to list or search priorities
+  rpc ListPriorities(ListPriorityRequest) returns (PriorityList) {
+    option (google.api.http) = {
+      get: "/cases/priorities"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve a list of priorities or search priorities"
+    };
+  }
+
+  // RPC method to create a new priority
+  rpc CreatePriority(CreatePriorityRequest) returns (Priority) {
+    option (google.api.http) = {
+      post: "/cases/priorities"
+      body: "*"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Create a new priority"
+    };
+  }
+
+  // RPC method to update an existing priority
+  rpc UpdatePriority(UpdatePriorityRequest) returns (Priority) {
+    option (google.api.http) = {
+      put: "/cases/priorities/{id}"
+      body: "*"
+      additional_bindings {
+        patch: "/cases/priorities/{id}"
+        body: "*"
+      }
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Update an existing priority"
+    };
+  }
+
+  // RPC method to delete an existing priority
+  rpc DeletePriority(DeletePriorityRequest) returns (Priority) {
+    option (google.api.http) = {
+      delete: "/cases/priorities/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Delete a priority"
+    };
+  }
+
+  // RPC method to locate a specific priority by ID
+  rpc LocatePriority(LocatePriorityRequest) returns (LocatePriorityResponse) {
+    option (google.api.http) = {
+      get: "/cases/priorities/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Locate a priority by ID"
+    };
+  }
+}

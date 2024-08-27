@@ -110,12 +110,19 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 		return nil, appErr
 	}
 
+	// Priority service
+	p, appErr := NewPriorityService(app)
+	if appErr != nil {
+		return nil, appErr
+	}
+
 	// * Register the services
 	grpcservice.RegisterAppealsServer(grpcServer, l)
 	grpcservice.RegisterStatusesServer(grpcServer, c)
 	grpcservice.RegisterStatusConditionsServer(grpcServer, s)
 	grpcservice.RegisterCloseReasonsServer(grpcServer, n)
 	grpcservice.RegisterReasonsServer(grpcServer, r)
+	grpcservice.RegisterPrioritiesServer(grpcServer, p)
 
 	return grpcServer, nil
 }

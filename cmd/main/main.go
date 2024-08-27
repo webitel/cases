@@ -10,7 +10,7 @@ import (
 	"github.com/webitel/cases/internal/logging"
 	"github.com/webitel/cases/model"
 
-	// ----- LOGGING -----//
+	// ------------ logging ------------ //
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
