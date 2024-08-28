@@ -4,7 +4,7 @@
 // - protoc             v5.27.1
 // source: cases/appeal.proto
 
-package api
+package cases
 
 import (
 	context "context"

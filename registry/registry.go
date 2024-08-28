@@ -8,7 +8,7 @@ import (
 
 const (
 	DeregisterCriticalServiceAfter = 30 * time.Second
-	ServiceName                    = "cases"
+	ServiceName                    = "webitel.cases"
 	CheckInterval                  = 1 * time.Minute
 )
 

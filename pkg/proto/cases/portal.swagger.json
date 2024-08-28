@@ -27,6 +27,9 @@
     },
     {
       "name": "Statuses"
+    },
+    {
+      "name": "Priorities"
     }
   ],
   "host": "nx.webitel.org",
@@ -49,7 +52,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.AppealList"
+              "$ref": "#/definitions/webitel.cases.AppealList"
             }
           }
         },
@@ -150,7 +153,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Appeal"
+              "$ref": "#/definitions/webitel.cases.Appeal"
             }
           }
         },
@@ -161,7 +164,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.CreateAppealRequest"
+              "$ref": "#/definitions/webitel.cases.CreateAppealRequest"
             }
           }
         ],
@@ -178,7 +181,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.LocateAppealResponse"
+              "$ref": "#/definitions/webitel.cases.LocateAppealResponse"
             }
           }
         },
@@ -214,7 +217,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Appeal"
+              "$ref": "#/definitions/webitel.cases.Appeal"
             }
           }
         },
@@ -239,7 +242,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Appeal"
+              "$ref": "#/definitions/webitel.cases.Appeal"
             }
           }
         },
@@ -257,7 +260,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.Appeals.UpdateAppealBody"
+              "$ref": "#/definitions/webitel.cases.Appeals.UpdateAppealBody"
             }
           }
         ],
@@ -272,7 +275,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Appeal"
+              "$ref": "#/definitions/webitel.cases.Appeal"
             }
           }
         },
@@ -290,7 +293,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.Appeals.UpdateAppealBody"
+              "$ref": "#/definitions/webitel.cases.Appeals.UpdateAppealBody"
             }
           }
         ],
@@ -307,7 +310,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.CloseReasonList"
+              "$ref": "#/definitions/webitel.cases.CloseReasonList"
             }
           }
         },
@@ -388,7 +391,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.CloseReason"
+              "$ref": "#/definitions/webitel.cases.CloseReason"
             }
           }
         },
@@ -398,7 +401,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.CreateCloseReasonRequest"
+              "$ref": "#/definitions/webitel.cases.CreateCloseReasonRequest"
             }
           }
         ],
@@ -415,7 +418,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.LocateCloseReasonResponse"
+              "$ref": "#/definitions/webitel.cases.LocateCloseReasonResponse"
             }
           }
         },
@@ -449,7 +452,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.CloseReason"
+              "$ref": "#/definitions/webitel.cases.CloseReason"
             }
           }
         },
@@ -473,7 +476,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.CloseReason"
+              "$ref": "#/definitions/webitel.cases.CloseReason"
             }
           }
         },
@@ -490,7 +493,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.CloseReasons.UpdateCloseReasonBody"
+              "$ref": "#/definitions/webitel.cases.CloseReasons.UpdateCloseReasonBody"
             }
           }
         ],
@@ -505,7 +508,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.CloseReason"
+              "$ref": "#/definitions/webitel.cases.CloseReason"
             }
           }
         },
@@ -522,12 +525,244 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.CloseReasons.UpdateCloseReasonBody"
+              "$ref": "#/definitions/webitel.cases.CloseReasons.UpdateCloseReasonBody"
             }
           }
         ],
         "tags": [
           "CloseReasons"
+        ]
+      }
+    },
+    "/cases/priorities": {
+      "get": {
+        "summary": "Retrieve a list of priorities or search priorities",
+        "operationId": "Priorities_ListPriorities",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.PriorityList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "description": "Sort the result according to fields.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "id",
+            "description": "Filter by unique IDs.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "q",
+            "description": "Search term: priority name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "description": "Filter by priority name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Priorities"
+        ]
+      },
+      "post": {
+        "summary": "Create a new priority",
+        "operationId": "Priorities_CreatePriority",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Priority"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CreatePriorityRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Priorities"
+        ]
+      }
+    },
+    "/cases/priorities/{id}": {
+      "get": {
+        "summary": "Locate a priority by ID",
+        "operationId": "Priorities_LocatePriority",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.LocatePriorityResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Priorities"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a priority",
+        "operationId": "Priorities_DeletePriority",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Priority"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "Priorities"
+        ]
+      },
+      "put": {
+        "summary": "Update an existing priority",
+        "operationId": "Priorities_UpdatePriority",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Priority"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Priorities.UpdatePriorityBody"
+            }
+          }
+        ],
+        "tags": [
+          "Priorities"
+        ]
+      },
+      "patch": {
+        "summary": "Update an existing priority",
+        "operationId": "Priorities_UpdatePriority2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Priority"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Priorities.UpdatePriorityBody"
+            }
+          }
+        ],
+        "tags": [
+          "Priorities"
         ]
       }
     },
@@ -539,7 +774,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.StatusList"
+              "$ref": "#/definitions/webitel.cases.StatusList"
             }
           }
         },
@@ -620,7 +855,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Status"
+              "$ref": "#/definitions/webitel.cases.Status"
             }
           }
         },
@@ -630,7 +865,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.CreateStatusRequest"
+              "$ref": "#/definitions/webitel.cases.CreateStatusRequest"
             }
           }
         ],
@@ -647,7 +882,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.LocateStatusResponse"
+              "$ref": "#/definitions/webitel.cases.LocateStatusResponse"
             }
           }
         },
@@ -681,7 +916,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Status"
+              "$ref": "#/definitions/webitel.cases.Status"
             }
           }
         },
@@ -705,7 +940,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Status"
+              "$ref": "#/definitions/webitel.cases.Status"
             }
           }
         },
@@ -722,7 +957,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.Statuses.UpdateStatusBody"
+              "$ref": "#/definitions/webitel.cases.Statuses.UpdateStatusBody"
             }
           }
         ],
@@ -737,7 +972,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Status"
+              "$ref": "#/definitions/webitel.cases.Status"
             }
           }
         },
@@ -754,7 +989,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.Statuses.UpdateStatusBody"
+              "$ref": "#/definitions/webitel.cases.Statuses.UpdateStatusBody"
             }
           }
         ],
@@ -771,7 +1006,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.ReasonList"
+              "$ref": "#/definitions/webitel.cases.ReasonList"
             }
           }
         },
@@ -852,7 +1087,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Reason"
+              "$ref": "#/definitions/webitel.cases.Reason"
             }
           }
         },
@@ -869,7 +1104,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.Reasons.CreateReasonBody"
+              "$ref": "#/definitions/webitel.cases.Reasons.CreateReasonBody"
             }
           }
         ],
@@ -886,7 +1121,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.LocateReasonResponse"
+              "$ref": "#/definitions/webitel.cases.LocateReasonResponse"
             }
           }
         },
@@ -927,7 +1162,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Reason"
+              "$ref": "#/definitions/webitel.cases.Reason"
             }
           }
         },
@@ -958,7 +1193,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Reason"
+              "$ref": "#/definitions/webitel.cases.Reason"
             }
           }
         },
@@ -982,7 +1217,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.InputReason"
+              "$ref": "#/definitions/webitel.cases.InputReason"
             }
           }
         ],
@@ -997,7 +1232,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.Reason"
+              "$ref": "#/definitions/webitel.cases.Reason"
             }
           }
         },
@@ -1021,7 +1256,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.InputReason"
+              "$ref": "#/definitions/webitel.cases.InputReason"
             }
           }
         ],
@@ -1038,7 +1273,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.StatusConditionList"
+              "$ref": "#/definitions/webitel.cases.StatusConditionList"
             }
           }
         },
@@ -1127,7 +1362,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.StatusCondition"
+              "$ref": "#/definitions/webitel.cases.StatusCondition"
             }
           }
         },
@@ -1144,7 +1379,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.StatusConditions.CreateStatusConditionBody"
+              "$ref": "#/definitions/webitel.cases.StatusConditions.CreateStatusConditionBody"
             }
           }
         ],
@@ -1161,7 +1396,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.LocateStatusConditionResponse"
+              "$ref": "#/definitions/webitel.cases.LocateStatusConditionResponse"
             }
           }
         },
@@ -1202,7 +1437,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.StatusCondition"
+              "$ref": "#/definitions/webitel.cases.StatusCondition"
             }
           }
         },
@@ -1233,7 +1468,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.StatusCondition"
+              "$ref": "#/definitions/webitel.cases.StatusCondition"
             }
           }
         },
@@ -1257,7 +1492,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.InputStatusCondition"
+              "$ref": "#/definitions/webitel.cases.InputStatusCondition"
             }
           }
         ],
@@ -1272,7 +1507,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/cases.StatusCondition"
+              "$ref": "#/definitions/webitel.cases.StatusCondition"
             }
           }
         },
@@ -1296,7 +1531,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/cases.InputStatusCondition"
+              "$ref": "#/definitions/webitel.cases.InputStatusCondition"
             }
           }
         ],
@@ -1307,7 +1542,7 @@
     }
   },
   "definitions": {
-    "cases.Appeal": {
+    "webitel.cases.Appeal": {
       "type": "object",
       "properties": {
         "id": {
@@ -1324,7 +1559,7 @@
           "title": "Description of the appeal"
         },
         "type": {
-          "$ref": "#/definitions/cases.Type",
+          "$ref": "#/definitions/webitel.cases.Type",
           "title": "Source type of the appeal"
         },
         "created_at": {
@@ -1338,17 +1573,17 @@
           "title": "UpdatedAt timestamp of the appeal"
         },
         "created_by": {
-          "$ref": "#/definitions/cases.Lookup",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "CreatedBy user of the appeal"
         },
         "updated_by": {
-          "$ref": "#/definitions/cases.Lookup",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "UpdatedBy user of the appeal"
         }
       },
       "description": "Represents an appeal in the contact system."
     },
-    "cases.AppealList": {
+    "webitel.cases.AppealList": {
       "type": "object",
       "properties": {
         "page": {
@@ -1364,14 +1599,14 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/cases.Appeal"
+            "$ref": "#/definitions/webitel.cases.Appeal"
           },
           "description": "List of appeals."
         }
       },
       "description": "A list of appeals."
     },
-    "cases.Appeals.UpdateAppealBody": {
+    "webitel.cases.Appeals.UpdateAppealBody": {
       "type": "object",
       "properties": {
         "name": {
@@ -1383,13 +1618,13 @@
           "description": "The new description of the appeal."
         },
         "type": {
-          "$ref": "#/definitions/cases.Type",
+          "$ref": "#/definitions/webitel.cases.Type",
           "description": "The new source type of the appeal."
         }
       },
       "description": "Request message for updating an existing appeal."
     },
-    "cases.CloseReason": {
+    "webitel.cases.CloseReason": {
       "type": "object",
       "properties": {
         "id": {
@@ -1416,17 +1651,17 @@
           "title": "UpdatedAt timestamp of the close reason"
         },
         "created_by": {
-          "$ref": "#/definitions/cases.Lookup",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "CreatedBy user of the close reason"
         },
         "updated_by": {
-          "$ref": "#/definitions/cases.Lookup",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "UpdatedBy user of the close reason"
         }
       },
       "title": "CloseReason message represents a close reason entity with metadata"
     },
-    "cases.CloseReasonList": {
+    "webitel.cases.CloseReasonList": {
       "type": "object",
       "properties": {
         "page": {
@@ -1440,13 +1675,13 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/cases.CloseReason"
+            "$ref": "#/definitions/webitel.cases.CloseReason"
           }
         }
       },
       "title": "CloseReasonList message contains a list of CloseReason items with pagination"
     },
-    "cases.CloseReasons.UpdateCloseReasonBody": {
+    "webitel.cases.CloseReasons.UpdateCloseReasonBody": {
       "type": "object",
       "properties": {
         "name": {
@@ -1458,7 +1693,7 @@
       },
       "title": "UpdateCloseReasonRequest message for updating an existing close reason"
     },
-    "cases.CreateAppealRequest": {
+    "webitel.cases.CreateAppealRequest": {
       "type": "object",
       "properties": {
         "name": {
@@ -1470,7 +1705,7 @@
           "description": "The description of the appeal."
         },
         "type": {
-          "$ref": "#/definitions/cases.Type",
+          "$ref": "#/definitions/webitel.cases.Type",
           "description": "The source type of the appeal."
         }
       },
@@ -1480,7 +1715,7 @@
         "type"
       ]
     },
-    "cases.CreateCloseReasonRequest": {
+    "webitel.cases.CreateCloseReasonRequest": {
       "type": "object",
       "properties": {
         "name": {
@@ -1495,7 +1730,25 @@
         "name"
       ]
     },
-    "cases.CreateStatusRequest": {
+    "webitel.cases.CreatePriorityRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        }
+      },
+      "title": "CreatePriorityRequest message for creating a new priority",
+      "required": [
+        "name"
+      ]
+    },
+    "webitel.cases.CreateStatusRequest": {
       "type": "object",
       "properties": {
         "name": {
@@ -1510,7 +1763,7 @@
         "name"
       ]
     },
-    "cases.InputReason": {
+    "webitel.cases.InputReason": {
       "type": "object",
       "properties": {
         "name": {
@@ -1522,7 +1775,7 @@
       },
       "title": "InputReason message for inputting reason data"
     },
-    "cases.InputStatusCondition": {
+    "webitel.cases.InputStatusCondition": {
       "type": "object",
       "properties": {
         "name": {
@@ -1540,53 +1793,62 @@
       },
       "title": "InputStatusCondition message for inputting status condition data"
     },
-    "cases.LocateAppealResponse": {
+    "webitel.cases.LocateAppealResponse": {
       "type": "object",
       "properties": {
         "appeal": {
-          "$ref": "#/definitions/cases.Appeal",
+          "$ref": "#/definitions/webitel.cases.Appeal",
           "description": "The located appeal."
         }
       },
       "description": "Response message for locating an appeal."
     },
-    "cases.LocateCloseReasonResponse": {
+    "webitel.cases.LocateCloseReasonResponse": {
       "type": "object",
       "properties": {
         "close_reason": {
-          "$ref": "#/definitions/cases.CloseReason"
+          "$ref": "#/definitions/webitel.cases.CloseReason"
         }
       },
       "title": "LocateCloseReasonResponse message contains a single close reason entity"
     },
-    "cases.LocateReasonResponse": {
+    "webitel.cases.LocatePriorityResponse": {
+      "type": "object",
+      "properties": {
+        "priority": {
+          "$ref": "#/definitions/webitel.cases.Priority"
+        }
+      },
+      "title": "LocatePriorityResponse message contains a single priority entity"
+    },
+    "webitel.cases.LocateReasonResponse": {
       "type": "object",
       "properties": {
         "reason": {
-          "$ref": "#/definitions/cases.Reason"
+          "$ref": "#/definitions/webitel.cases.Reason"
         }
       },
       "title": "LocateReasonResponse message contains a single reason entity"
     },
-    "cases.LocateStatusConditionResponse": {
+    "webitel.cases.LocateStatusConditionResponse": {
       "type": "object",
       "properties": {
         "status": {
-          "$ref": "#/definitions/cases.StatusCondition"
+          "$ref": "#/definitions/webitel.cases.StatusCondition"
         }
       },
       "title": "LocateStatusConditionResponse message contains a single status entity"
     },
-    "cases.LocateStatusResponse": {
+    "webitel.cases.LocateStatusResponse": {
       "type": "object",
       "properties": {
         "status": {
-          "$ref": "#/definitions/cases.Status"
+          "$ref": "#/definitions/webitel.cases.Status"
         }
       },
       "title": "LocateStatusResponse message contains a single status entity"
     },
-    "cases.Lookup": {
+    "webitel.cases.Lookup": {
       "type": "object",
       "properties": {
         "id": {
@@ -1599,7 +1861,83 @@
       },
       "title": "Lookup message represents a lookup entity with metadata"
     },
-    "cases.Reason": {
+    "webitel.cases.Priorities.UpdatePriorityBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        }
+      },
+      "title": "UpdatePriorityRequest message for updating an existing priority"
+    },
+    "webitel.cases.Priority": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64",
+          "title": "Unique identifier of the priority"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name of the priority"
+        },
+        "description": {
+          "type": "string",
+          "title": "Description of the priority"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "CreatedAt timestamp of the priority"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "UpdatedAt timestamp of the priority"
+        },
+        "created_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "CreatedBy user of the priority"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "UpdatedBy user of the priority"
+        },
+        "color": {
+          "type": "string",
+          "title": "Color of the priority"
+        }
+      },
+      "title": "Priority message represents a priority entity with metadata"
+    },
+    "webitel.cases.PriorityList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.Priority"
+          }
+        }
+      },
+      "title": "PriorityList message contains a list of Priority items with pagination"
+    },
+    "webitel.cases.Reason": {
       "type": "object",
       "properties": {
         "id": {
@@ -1631,17 +1969,17 @@
           "title": "UpdatedAt timestamp of the reason"
         },
         "created_by": {
-          "$ref": "#/definitions/cases.Lookup",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "CreatedBy user of the reason"
         },
         "updated_by": {
-          "$ref": "#/definitions/cases.Lookup",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "UpdatedBy user of the reason"
         }
       },
       "title": "Reason message represents a reason entity with metadata"
     },
-    "cases.ReasonList": {
+    "webitel.cases.ReasonList": {
       "type": "object",
       "properties": {
         "page": {
@@ -1655,13 +1993,13 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/cases.Reason"
+            "$ref": "#/definitions/webitel.cases.Reason"
           }
         }
       },
       "title": "ReasonList message contains a list of Reason items with pagination"
     },
-    "cases.Reasons.CreateReasonBody": {
+    "webitel.cases.Reasons.CreateReasonBody": {
       "type": "object",
       "properties": {
         "name": {
@@ -1677,7 +2015,7 @@
         "lookup_id"
       ]
     },
-    "cases.Status": {
+    "webitel.cases.Status": {
       "type": "object",
       "properties": {
         "id": {
@@ -1704,17 +2042,17 @@
           "title": "UpdatedAt timestamp of the close reason"
         },
         "created_by": {
-          "$ref": "#/definitions/cases.Lookup",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "CreatedBy user of the close reason"
         },
         "updated_by": {
-          "$ref": "#/definitions/cases.Lookup",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "UpdatedBy user of the close reason"
         }
       },
       "title": "Status message represents a status entity with metadata"
     },
-    "cases.StatusCondition": {
+    "webitel.cases.StatusCondition": {
       "type": "object",
       "properties": {
         "id": {
@@ -1754,17 +2092,17 @@
           "title": "UpdatedAt timestamp of the status condition"
         },
         "created_by": {
-          "$ref": "#/definitions/cases.Lookup",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "CreatedBy user of the status condition"
         },
         "updated_by": {
-          "$ref": "#/definitions/cases.Lookup",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "UpdatedBy user of the status condition"
         }
       },
       "title": "StatusCondition message represents a status entity with metadata"
     },
-    "cases.StatusConditionList": {
+    "webitel.cases.StatusConditionList": {
       "type": "object",
       "properties": {
         "page": {
@@ -1778,13 +2116,13 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/cases.StatusCondition"
+            "$ref": "#/definitions/webitel.cases.StatusCondition"
           }
         }
       },
       "title": "StatusConditionList message contains a list of StatusCondition items with pagination"
     },
-    "cases.StatusConditions.CreateStatusConditionBody": {
+    "webitel.cases.StatusConditions.CreateStatusConditionBody": {
       "type": "object",
       "properties": {
         "name": {
@@ -1800,7 +2138,7 @@
         "lookup_id"
       ]
     },
-    "cases.StatusList": {
+    "webitel.cases.StatusList": {
       "type": "object",
       "properties": {
         "page": {
@@ -1814,13 +2152,13 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/cases.Status"
+            "$ref": "#/definitions/webitel.cases.Status"
           }
         }
       },
       "title": "StatusList message contains a list of Status items with pagination"
     },
-    "cases.Statuses.UpdateStatusBody": {
+    "webitel.cases.Statuses.UpdateStatusBody": {
       "type": "object",
       "properties": {
         "name": {
@@ -1832,7 +2170,7 @@
       },
       "title": "UpdateStatusRequest message for updating an existing status"
     },
-    "cases.Type": {
+    "webitel.cases.Type": {
       "type": "string",
       "enum": [
         "TYPE_UNSPECIFIED",

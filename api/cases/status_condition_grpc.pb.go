@@ -4,7 +4,7 @@
 // - protoc             v5.27.1
 // source: cases/status_condition.proto
 
-package api
+package cases
 
 import (
 	context "context"

@@ -1,7 +1,7 @@
 syntax = "proto3";
 package webitel.cases;
 
-option go_package = "github.com/webitel/cases;api";
+option go_package = "github.com/webitel/cases/api/cases;cases";
 
 // Lookup message represents a lookup entity with metadata
 message Lookup {
