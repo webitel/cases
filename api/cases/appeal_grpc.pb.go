@@ -19,11 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Appeals_ListAppeals_FullMethodName  = "/cases.Appeals/ListAppeals"
-	Appeals_CreateAppeal_FullMethodName = "/cases.Appeals/CreateAppeal"
-	Appeals_UpdateAppeal_FullMethodName = "/cases.Appeals/UpdateAppeal"
-	Appeals_DeleteAppeal_FullMethodName = "/cases.Appeals/DeleteAppeal"
-	Appeals_LocateAppeal_FullMethodName = "/cases.Appeals/LocateAppeal"
+	Appeals_ListAppeals_FullMethodName  = "/webitel.cases.Appeals/ListAppeals"
+	Appeals_CreateAppeal_FullMethodName = "/webitel.cases.Appeals/CreateAppeal"
+	Appeals_UpdateAppeal_FullMethodName = "/webitel.cases.Appeals/UpdateAppeal"
+	Appeals_DeleteAppeal_FullMethodName = "/webitel.cases.Appeals/DeleteAppeal"
+	Appeals_LocateAppeal_FullMethodName = "/webitel.cases.Appeals/LocateAppeal"
 )
 
 // AppealsClient is the client API for Appeals service.
@@ -242,7 +242,7 @@ func _Appeals_LocateAppeal_Handler(srv interface{}, ctx context.Context, dec fun
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Appeals_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "cases.Appeals",
+	ServiceName: "webitel.cases.Appeals",
 	HandlerType: (*AppealsServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

@@ -19,11 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	StatusConditions_ListStatusConditions_FullMethodName  = "/cases.StatusConditions/ListStatusConditions"
-	StatusConditions_CreateStatusCondition_FullMethodName = "/cases.StatusConditions/CreateStatusCondition"
-	StatusConditions_UpdateStatusCondition_FullMethodName = "/cases.StatusConditions/UpdateStatusCondition"
-	StatusConditions_DeleteStatusCondition_FullMethodName = "/cases.StatusConditions/DeleteStatusCondition"
-	StatusConditions_LocateStatusCondition_FullMethodName = "/cases.StatusConditions/LocateStatusCondition"
+	StatusConditions_ListStatusConditions_FullMethodName  = "/webitel.cases.StatusConditions/ListStatusConditions"
+	StatusConditions_CreateStatusCondition_FullMethodName = "/webitel.cases.StatusConditions/CreateStatusCondition"
+	StatusConditions_UpdateStatusCondition_FullMethodName = "/webitel.cases.StatusConditions/UpdateStatusCondition"
+	StatusConditions_DeleteStatusCondition_FullMethodName = "/webitel.cases.StatusConditions/DeleteStatusCondition"
+	StatusConditions_LocateStatusCondition_FullMethodName = "/webitel.cases.StatusConditions/LocateStatusCondition"
 )
 
 // StatusConditionsClient is the client API for StatusConditions service.
@@ -256,7 +256,7 @@ func _StatusConditions_LocateStatusCondition_Handler(srv interface{}, ctx contex
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var StatusConditions_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "cases.StatusConditions",
+	ServiceName: "webitel.cases.StatusConditions",
 	HandlerType: (*StatusConditionsServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

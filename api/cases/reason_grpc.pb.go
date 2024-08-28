@@ -19,11 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Reasons_ListReasons_FullMethodName  = "/cases.Reasons/ListReasons"
-	Reasons_CreateReason_FullMethodName = "/cases.Reasons/CreateReason"
-	Reasons_UpdateReason_FullMethodName = "/cases.Reasons/UpdateReason"
-	Reasons_DeleteReason_FullMethodName = "/cases.Reasons/DeleteReason"
-	Reasons_LocateReason_FullMethodName = "/cases.Reasons/LocateReason"
+	Reasons_ListReasons_FullMethodName  = "/webitel.cases.Reasons/ListReasons"
+	Reasons_CreateReason_FullMethodName = "/webitel.cases.Reasons/CreateReason"
+	Reasons_UpdateReason_FullMethodName = "/webitel.cases.Reasons/UpdateReason"
+	Reasons_DeleteReason_FullMethodName = "/webitel.cases.Reasons/DeleteReason"
+	Reasons_LocateReason_FullMethodName = "/webitel.cases.Reasons/LocateReason"
 )
 
 // ReasonsClient is the client API for Reasons service.
@@ -256,7 +256,7 @@ func _Reasons_LocateReason_Handler(srv interface{}, ctx context.Context, dec fun
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Reasons_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "cases.Reasons",
+	ServiceName: "webitel.cases.Reasons",
 	HandlerType: (*ReasonsServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

@@ -19,11 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Priorities_ListPriorities_FullMethodName = "/cases.Priorities/ListPriorities"
-	Priorities_CreatePriority_FullMethodName = "/cases.Priorities/CreatePriority"
-	Priorities_UpdatePriority_FullMethodName = "/cases.Priorities/UpdatePriority"
-	Priorities_DeletePriority_FullMethodName = "/cases.Priorities/DeletePriority"
-	Priorities_LocatePriority_FullMethodName = "/cases.Priorities/LocatePriority"
+	Priorities_ListPriorities_FullMethodName = "/webitel.cases.Priorities/ListPriorities"
+	Priorities_CreatePriority_FullMethodName = "/webitel.cases.Priorities/CreatePriority"
+	Priorities_UpdatePriority_FullMethodName = "/webitel.cases.Priorities/UpdatePriority"
+	Priorities_DeletePriority_FullMethodName = "/webitel.cases.Priorities/DeletePriority"
+	Priorities_LocatePriority_FullMethodName = "/webitel.cases.Priorities/LocatePriority"
 )
 
 // PrioritiesClient is the client API for Priorities service.
@@ -256,7 +256,7 @@ func _Priorities_LocatePriority_Handler(srv interface{}, ctx context.Context, de
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Priorities_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "cases.Priorities",
+	ServiceName: "webitel.cases.Priorities",
 	HandlerType: (*PrioritiesServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

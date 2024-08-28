@@ -19,11 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CloseReasons_ListCloseReasons_FullMethodName  = "/cases.CloseReasons/ListCloseReasons"
-	CloseReasons_CreateCloseReason_FullMethodName = "/cases.CloseReasons/CreateCloseReason"
-	CloseReasons_UpdateCloseReason_FullMethodName = "/cases.CloseReasons/UpdateCloseReason"
-	CloseReasons_DeleteCloseReason_FullMethodName = "/cases.CloseReasons/DeleteCloseReason"
-	CloseReasons_LocateCloseReason_FullMethodName = "/cases.CloseReasons/LocateCloseReason"
+	CloseReasons_ListCloseReasons_FullMethodName  = "/webitel.cases.CloseReasons/ListCloseReasons"
+	CloseReasons_CreateCloseReason_FullMethodName = "/webitel.cases.CloseReasons/CreateCloseReason"
+	CloseReasons_UpdateCloseReason_FullMethodName = "/webitel.cases.CloseReasons/UpdateCloseReason"
+	CloseReasons_DeleteCloseReason_FullMethodName = "/webitel.cases.CloseReasons/DeleteCloseReason"
+	CloseReasons_LocateCloseReason_FullMethodName = "/webitel.cases.CloseReasons/LocateCloseReason"
 )
 
 // CloseReasonsClient is the client API for CloseReasons service.
@@ -256,7 +256,7 @@ func _CloseReasons_LocateCloseReason_Handler(srv interface{}, ctx context.Contex
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var CloseReasons_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "cases.CloseReasons",
+	ServiceName: "webitel.cases.CloseReasons",
 	HandlerType: (*CloseReasonsServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

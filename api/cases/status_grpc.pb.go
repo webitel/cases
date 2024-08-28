@@ -19,11 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Statuses_ListStatuses_FullMethodName = "/cases.Statuses/ListStatuses"
-	Statuses_CreateStatus_FullMethodName = "/cases.Statuses/CreateStatus"
-	Statuses_UpdateStatus_FullMethodName = "/cases.Statuses/UpdateStatus"
-	Statuses_DeleteStatus_FullMethodName = "/cases.Statuses/DeleteStatus"
-	Statuses_LocateStatus_FullMethodName = "/cases.Statuses/LocateStatus"
+	Statuses_ListStatuses_FullMethodName = "/webitel.cases.Statuses/ListStatuses"
+	Statuses_CreateStatus_FullMethodName = "/webitel.cases.Statuses/CreateStatus"
+	Statuses_UpdateStatus_FullMethodName = "/webitel.cases.Statuses/UpdateStatus"
+	Statuses_DeleteStatus_FullMethodName = "/webitel.cases.Statuses/DeleteStatus"
+	Statuses_LocateStatus_FullMethodName = "/webitel.cases.Statuses/LocateStatus"
 )
 
 // StatusesClient is the client API for Statuses service.
@@ -256,7 +256,7 @@ func _Statuses_LocateStatus_Handler(srv interface{}, ctx context.Context, dec fu
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Statuses_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "cases.Statuses",
+	ServiceName: "webitel.cases.Statuses",
 	HandlerType: (*StatusesServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
