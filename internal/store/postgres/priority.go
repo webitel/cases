@@ -319,7 +319,8 @@ SELECT upd.id,
        upd.created_by AS created_by_id,
        COALESCE(c.name::text, c.username) AS created_by_name,
        upd.updated_by AS updated_by_id,
-       COALESCE(u.name::text, u.username) AS updated_by_name
+       COALESCE(u.name::text, u.username) AS updated_by_name,
+	   upd.color
 FROM upd
 LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
 LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
