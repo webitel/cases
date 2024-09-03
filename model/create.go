@@ -12,6 +12,7 @@ type CreateOptions struct {
 	context.Context // binding
 	Time            time.Time
 	Fields          []string
+	Ids             []int64
 }
 
 func (rpc *CreateOptions) CurrentTime() time.Time {

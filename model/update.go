@@ -12,6 +12,7 @@ type UpdateOptions struct {
 	context.Context
 	Session *session.Session
 	Fields  []string
+	IDs     []int64
 	ID      int64
 }
 

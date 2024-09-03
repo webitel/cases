@@ -10,12 +10,17 @@ import (
 
 // Store is an interface that defines all the methods and properties that a store should implement in Cases service
 type Store interface {
+	// ------------ Dictionary ------------ //
 	Status() StatusStore
 	StatusCondition() StatusConditionStore
 	CloseReason() CloseReasonStore
 	Reason() ReasonStore
 	Appeal() AppealStore
 	Priority() PriorityStore
+	SLA() SLAStore
+	SLACondition() SLAConditionStore
+
+	// ------------ Access Control ------------ //
 	AccessControl() AccessControlStore
 
 	// Database connection
@@ -95,4 +100,26 @@ type PriorityStore interface {
 	Delete(rpc *model.DeleteOptions) error
 	// Update priority lookup
 	Update(rpc *model.UpdateOptions, lookup *_go.Priority) (*_go.Priority, error)
+}
+
+type SLAStore interface {
+	// Create a new SLA lookup
+	Create(rpc *model.CreateOptions, add *_go.SLA) (*_go.SLA, error)
+	// List SLA lookup
+	List(rpc *model.SearchOptions) (*_go.SLAList, error)
+	// Delete SLA lookup
+	Delete(rpc *model.DeleteOptions) error
+	// Update SLA lookup
+	Update(rpc *model.UpdateOptions, lookup *_go.SLA) (*_go.SLA, error)
+}
+
+type SLAConditionStore interface {
+	// Create a new SLA сondition
+	Create(ctx *model.CreateOptions, add *_go.SLACondition, priorities []int64) (*_go.SLACondition, error)
+	// List SLA сondition
+	List(ctx *model.SearchOptions) (*_go.SLAConditionList, error)
+	// Delete SLA сondition
+	Delete(ctx *model.DeleteOptions) error
+	// Update SLA сondition
+	Update(ctx *model.UpdateOptions, lookup *_go.SLACondition) (*_go.SLACondition, error)
 }

@@ -116,6 +116,18 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 		return nil, appErr
 	}
 
+	// SLA service
+	sla, appErr := NewSLAService(app)
+	if appErr != nil {
+		return nil, appErr
+	}
+
+	// SLA condition service
+	slaC, appErr := NewSLAConditionService(app)
+	if appErr != nil {
+		return nil, appErr
+	}
+
 	// * Register the services
 	grpcservice.RegisterAppealsServer(grpcServer, l)
 	grpcservice.RegisterStatusesServer(grpcServer, c)
@@ -123,6 +135,8 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 	grpcservice.RegisterCloseReasonsServer(grpcServer, n)
 	grpcservice.RegisterReasonsServer(grpcServer, r)
 	grpcservice.RegisterPrioritiesServer(grpcServer, p)
+	grpcservice.RegisterSLAsServer(grpcServer, sla)
+	grpcservice.RegisterSLAConditionsServer(grpcServer, slaC)
 
 	return grpcServer, nil
 }

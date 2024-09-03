@@ -1,0 +1,215 @@
+syntax = "proto3";
+package webitel.cases;
+
+option go_package = "github.com/webitel/cases/api/cases;cases";
+
+import "cases/lookup.proto";
+import "google/api/visibility.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+// SLACondition message represents an SLACondition entity with metadata
+message SLACondition {
+  // Unique identifier of the SLACondition
+  int64 id = 1;
+  // Name of the SLACondition - required
+  string name = 2;
+  // Priorities associated with the SLACondition - fetched as Lookup entities [ Priority name + ID ]
+  repeated Lookup priorities = 3;
+  // Reaction time in hours and minutes - required
+  int32 reaction_time_hours = 4;
+  int32 reaction_time_minutes = 5;
+  // Resolution time in hours and minutes - required
+  int32 resolution_time_hours = 6;
+  int32 resolution_time_minutes = 7;
+  // SLA ID associated with the SLACondition
+  int64 sla_id = 8;
+  // CreatedAt timestamp of the SLACondition
+  int64 created_at = 20;
+  // UpdatedAt timestamp of the SLACondition
+  int64 updated_at = 21;
+  // CreatedBy user of the SLACondition
+  Lookup created_by = 22;
+  // UpdatedBy user of the SLACondition
+  Lookup updated_by = 23;
+}
+
+// InputSLACondition message for inputting SLACondition data
+message InputSLACondition {
+  string name = 2;
+  // List of priority IDs for creation
+  repeated int64 priorities = 3;
+  int32 reaction_time_hours = 4;
+  int32 reaction_time_minutes = 5;
+  int32 resolution_time_hours = 6;
+  int32 resolution_time_minutes = 7;
+  int64 sla_id = 8;
+}
+
+// SLAConditionList message contains a list of SLACondition items with pagination
+message SLAConditionList {
+  int32 page = 1;
+  bool next = 2;
+  repeated SLACondition items = 3;
+}
+
+// CreateSLAConditionRequest message for creating a new SLACondition
+message CreateSLAConditionRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["name", "priorities", "reaction_time_hours", "reaction_time_minutes", "resolution_time_hours", "resolution_time_minutes", "sla_id"]
+    }
+  };
+
+  string name = 2;
+  // List of priority IDs for creation [FROM Priority Dictionary ]
+  repeated int64 priorities = 3;
+  int32 reaction_time_hours = 4;
+  int32 reaction_time_minutes = 5;
+  int32 resolution_time_hours = 6;
+  int32 resolution_time_minutes = 7;
+  int64 sla_id = 8;
+}
+
+// UpdateSLAConditionRequest message for updating an existing SLACondition
+message UpdateSLAConditionRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  int64 id = 1;
+  int64 sla_id = 2;
+  InputSLACondition input = 3;
+
+  // ---- JSON PATCH fields mask ----
+  // List of JPath fields specified in body(input).
+  repeated string x_json_mask = 4
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+}
+
+// DeleteSLAConditionRequest message for deleting an existing SLACondition
+message DeleteSLAConditionRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["sla_condition_id"]
+    }
+  };
+  int64 sla_id = 1;
+  int64 id = 2;
+}
+
+// ListSLAConditionRequest message for listing or searching SLAConditions
+message ListSLAConditionRequest {
+  // Page number of result dataset records. offset = (page*size)
+  int32 page = 1;
+
+  // Size count of records on result page. limit = (size++)
+  int32 size = 2;
+
+  // Fields to be retrieved as a result.
+  repeated string fields = 3;
+
+  // Sort the result according to fields.
+  repeated string sort = 4;
+
+  // Filter by unique IDs.
+  repeated int64 id = 5;
+
+  // Search term: SLACondition name;
+  // `?` - matches any one character
+  // `*` - matches 0 or more characters
+  string q = 6;
+
+  // Filter by SLACondition name.
+  string name = 7;
+
+  // Filter by SLACondition Id.
+  int64 sla_condition_id = 8;
+
+  //Filter by SLA Id
+  int64 sla_id = 9;
+}
+
+// LocateSLAConditionRequest message for locating a specific SLACondition by ID
+message LocateSLAConditionRequest {
+  int64 sla_id = 1;
+  int64 id = 2;
+  repeated string fields = 3;
+}
+
+// LocateSLAConditionResponse message contains a single SLACondition entity
+message LocateSLAConditionResponse {
+  SLACondition sla_condition = 1;
+}
+
+// SLAConditions service definition with RPC methods for managing SLAConditions
+service SLAConditions {
+    // RPC method to list or search SLAConditions
+    rpc ListSLAConditions(ListSLAConditionRequest) returns (SLAConditionList) {
+      option (google.api.http) = {
+        get: "/slas/{sla_id}/sla_conditions"
+      };
+
+      option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+        summary: "Retrieve a list of SLAConditions or search SLACondition conditions"
+      };
+    }
+
+    // RPC method to create a new SLACondition
+    rpc CreateSLACondition(CreateSLAConditionRequest) returns (SLACondition) {
+      option (google.api.http) = {
+        post: "/slas/{sla_id}/sla_condition"
+        body: "*"
+      };
+
+      option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+        summary: "Create a new SLACondition"
+      };
+    }
+
+    // RPC method to update an existing SLACondition
+    rpc UpdateSLACondition(UpdateSLAConditionRequest) returns (SLACondition) {
+      option (google.api.http) = {
+        put: "/slas/{sla_id}/sla_conditions/{id}"
+        body: "input"
+        additional_bindings {
+          patch: "/slas/{sla_id}/sla_conditions/{id}"
+          body: "input"
+        }
+      };
+
+      option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+        summary: "Update an existing SLACondition"
+      };
+    }
+
+    // RPC method to delete an existing SLACondition
+    rpc DeleteSLACondition(DeleteSLAConditionRequest) returns (SLACondition) {
+      option (google.api.http) = {
+        delete: "/slas/{sla_id}/sla_conditions/{id}"
+      };
+
+      option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+        summary: "Delete an SLACondition"
+      };
+    }
+
+    // RPC method to locate a specific SLACondition by ID
+    rpc LocateSLACondition(LocateSLAConditionRequest) returns (LocateSLAConditionResponse) {
+      option (google.api.http) = {
+        get: "/slas/{sla_id}/sla_conditions/{id}"
+      };
+
+      option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+        summary: "Locate an SLACondition by ID"
+      };
+    }
+}

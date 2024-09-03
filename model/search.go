@@ -19,6 +19,7 @@ type SearchOptions struct {
 	IDs     []int64
 	Sort    []string
 	Fields  []string
+	Id      int64
 	Page    int
 	Size    int
 }

@@ -13,6 +13,8 @@ $src/lookup.proto \
 $src/status_condition.proto \
 $src/status.proto \
 $src/priority.proto \
+$src/sla.proto \
+$src/sla_condition.proto \
 "
 
 #openapiv2_format=yaml

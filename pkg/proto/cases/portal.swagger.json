@@ -30,6 +30,12 @@
     },
     {
       "name": "Priorities"
+    },
+    {
+      "name": "SLAs"
+    },
+    {
+      "name": "SLAConditions"
     }
   ],
   "host": "nx.webitel.org",
@@ -766,6 +772,245 @@
         ]
       }
     },
+    "/cases/slas": {
+      "get": {
+        "summary": "Retrieve a list of SLAs or search SLA conditions",
+        "operationId": "SLAs_ListSLAs",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLAList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "description": "Sort the result according to fields.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "id",
+            "description": "Filter by unique IDs.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "q",
+            "description": "Search term: SLA name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "description": "Filter by SLA name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SLAs"
+        ]
+      },
+      "post": {
+        "summary": "Create a new SLA",
+        "operationId": "SLAs_CreateSLA",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLA"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CreateSLARequest"
+            }
+          }
+        ],
+        "tags": [
+          "SLAs"
+        ]
+      }
+    },
+    "/cases/slas/{id}": {
+      "get": {
+        "summary": "Locate an SLA by ID",
+        "operationId": "SLAs_LocateSLA",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.LocateSLAResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "SLAs"
+        ]
+      },
+      "delete": {
+        "summary": "Delete an SLA",
+        "operationId": "SLAs_DeleteSLA",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLA"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "sla_id",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "SLAs"
+        ]
+      },
+      "put": {
+        "summary": "Update an existing SLA",
+        "operationId": "SLAs_UpdateSLA",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLA"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.InputSLA"
+            }
+          }
+        ],
+        "tags": [
+          "SLAs"
+        ]
+      },
+      "patch": {
+        "summary": "Update an existing SLA",
+        "operationId": "SLAs_UpdateSLA2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLA"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.InputSLA"
+            }
+          }
+        ],
+        "tags": [
+          "SLAs"
+        ]
+      }
+    },
     "/cases/statuses": {
       "get": {
         "summary": "Retrieve a list of statuses or search statuses",
@@ -1265,6 +1510,291 @@
         ]
       }
     },
+    "/slas/{sla_id}/sla_condition": {
+      "post": {
+        "summary": "Create a new SLACondition",
+        "operationId": "SLAConditions_CreateSLACondition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLACondition"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sla_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLAConditions.CreateSLAConditionBody"
+            }
+          }
+        ],
+        "tags": [
+          "SLAConditions"
+        ]
+      }
+    },
+    "/slas/{sla_id}/sla_conditions": {
+      "get": {
+        "summary": "Retrieve a list of SLAConditions or search SLACondition conditions",
+        "operationId": "SLAConditions_ListSLAConditions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLAConditionList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sla_id",
+            "description": "Filter by SLA Id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "description": "Sort the result according to fields.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "id",
+            "description": "Filter by unique IDs.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "q",
+            "description": "Search term: SLACondition name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "description": "Filter by SLACondition name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sla_condition_id",
+            "description": "Filter by SLACondition Id.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "SLAConditions"
+        ]
+      }
+    },
+    "/slas/{sla_id}/sla_conditions/{id}": {
+      "get": {
+        "summary": "Locate an SLACondition by ID",
+        "operationId": "SLAConditions_LocateSLACondition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.LocateSLAConditionResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sla_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "SLAConditions"
+        ]
+      },
+      "delete": {
+        "summary": "Delete an SLACondition",
+        "operationId": "SLAConditions_DeleteSLACondition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLACondition"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sla_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "SLAConditions"
+        ]
+      },
+      "put": {
+        "summary": "Update an existing SLACondition",
+        "operationId": "SLAConditions_UpdateSLACondition",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLACondition"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sla_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.InputSLACondition"
+            }
+          }
+        ],
+        "tags": [
+          "SLAConditions"
+        ]
+      },
+      "patch": {
+        "summary": "Update an existing SLACondition",
+        "operationId": "SLAConditions_UpdateSLACondition2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLACondition"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sla_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.InputSLACondition"
+            }
+          }
+        ],
+        "tags": [
+          "SLAConditions"
+        ]
+      }
+    },
     "/statuses/{status_id}/status": {
       "get": {
         "summary": "Retrieve a list of statuses or search status conditions",
@@ -1748,6 +2278,54 @@
         "name"
       ]
     },
+    "webitel.cases.CreateSLARequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "valid_from": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "valid_to": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "calendar_id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "reaction_time_hours": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "reaction_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "resolution_time_hours": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "resolution_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "title": "CreateSLARequest message for creating a new SLA",
+      "required": [
+        "name",
+        "calendar_id",
+        "reaction_time_hours",
+        "reaction_time_minutes",
+        "resolution_time_hours",
+        "resolution_time_minutes"
+      ]
+    },
     "webitel.cases.CreateStatusRequest": {
       "type": "object",
       "properties": {
@@ -1774,6 +2352,89 @@
         }
       },
       "title": "InputReason message for inputting reason data"
+    },
+    "webitel.cases.InputSLA": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "Name of the SLA"
+        },
+        "description": {
+          "type": "string",
+          "title": "Description of the SLA"
+        },
+        "valid_from": {
+          "type": "string",
+          "format": "date-time",
+          "title": "Validity period for the SLA"
+        },
+        "valid_to": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "calendar_id": {
+          "type": "string",
+          "format": "int64",
+          "title": "Calendar ID from the \"Calendars\" dictionary"
+        },
+        "reaction_time_hours": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Reaction time in hours and minutes"
+        },
+        "reaction_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "resolution_time_hours": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Resolution time in hours and minutes"
+        },
+        "resolution_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "title": "InputSLA message for inputting SLA data"
+    },
+    "webitel.cases.InputSLACondition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "priorities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          },
+          "title": "List of priority IDs for creation"
+        },
+        "reaction_time_hours": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "reaction_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "resolution_time_hours": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "resolution_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sla_id": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "title": "InputSLACondition message for inputting SLACondition data"
     },
     "webitel.cases.InputStatusCondition": {
       "type": "object",
@@ -1829,6 +2490,24 @@
         }
       },
       "title": "LocateReasonResponse message contains a single reason entity"
+    },
+    "webitel.cases.LocateSLAConditionResponse": {
+      "type": "object",
+      "properties": {
+        "sla_condition": {
+          "$ref": "#/definitions/webitel.cases.SLACondition"
+        }
+      },
+      "title": "LocateSLAConditionResponse message contains a single SLACondition entity"
+    },
+    "webitel.cases.LocateSLAResponse": {
+      "type": "object",
+      "properties": {
+        "sla": {
+          "$ref": "#/definitions/webitel.cases.SLA"
+        }
+      },
+      "title": "LocateSLAResponse message contains a single SLA entity"
     },
     "webitel.cases.LocateStatusConditionResponse": {
       "type": "object",
@@ -2014,6 +2693,220 @@
         "name",
         "lookup_id"
       ]
+    },
+    "webitel.cases.SLA": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64",
+          "title": "Unique identifier of the SLA"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name of the SLA - required"
+        },
+        "description": {
+          "type": "string",
+          "title": "Description of the SLA - optional"
+        },
+        "valid_from": {
+          "type": "string",
+          "format": "int64",
+          "title": "Validity period for the SLA - optional"
+        },
+        "valid_to": {
+          "type": "string",
+          "format": "int64"
+        },
+        "calendar_id": {
+          "type": "string",
+          "format": "int64",
+          "title": "Calendar ID from the \"Calendars\" dictionary - required"
+        },
+        "reaction_time_hours": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Reaction time in hours and minutes - required"
+        },
+        "reaction_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "resolution_time_hours": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Resolution time in hours and minutes - required"
+        },
+        "resolution_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "CreatedAt timestamp of the SLA"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "UpdatedAt timestamp of the SLA"
+        },
+        "created_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "CreatedBy user of the SLA"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "UpdatedBy user of the SLA"
+        }
+      },
+      "title": "SLA message represents an SLA entity with metadata"
+    },
+    "webitel.cases.SLACondition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64",
+          "title": "Unique identifier of the SLACondition"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name of the SLACondition - required"
+        },
+        "priorities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.Lookup"
+          },
+          "title": "Priorities associated with the SLACondition - fetched as Lookup entities [ Priority name + ID ]"
+        },
+        "reaction_time_hours": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Reaction time in hours and minutes - required"
+        },
+        "reaction_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "resolution_time_hours": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Resolution time in hours and minutes - required"
+        },
+        "resolution_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sla_id": {
+          "type": "string",
+          "format": "int64",
+          "title": "SLA ID associated with the SLACondition"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "CreatedAt timestamp of the SLACondition"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "UpdatedAt timestamp of the SLACondition"
+        },
+        "created_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "CreatedBy user of the SLACondition"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "UpdatedBy user of the SLACondition"
+        }
+      },
+      "title": "SLACondition message represents an SLACondition entity with metadata"
+    },
+    "webitel.cases.SLAConditionList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.SLACondition"
+          }
+        }
+      },
+      "title": "SLAConditionList message contains a list of SLACondition items with pagination"
+    },
+    "webitel.cases.SLAConditions.CreateSLAConditionBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "priorities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          },
+          "title": "List of priority IDs for creation [FROM Priority Dictionary ]"
+        },
+        "reaction_time_hours": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "reaction_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "resolution_time_hours": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "resolution_time_minutes": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "title": "CreateSLAConditionRequest message for creating a new SLACondition",
+      "required": [
+        "name",
+        "priorities",
+        "reaction_time_hours",
+        "reaction_time_minutes",
+        "resolution_time_hours",
+        "resolution_time_minutes"
+      ]
+    },
+    "webitel.cases.SLAList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.SLA"
+          }
+        }
+      },
+      "title": "SLAList message contains a list of SLA items with pagination"
     },
     "webitel.cases.Status": {
       "type": "object",

@@ -369,55 +369,50 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(ctx *model.UpdateO
 
 	// 2. Main query using fmt.Sprintf without Squirrel placeholder format
 	query := fmt.Sprintf(`
-        WITH final_remaining AS (
-            SELECT COUNT(*) AS count
-            FROM cases.status_condition
-            WHERE dc = $1 AND status_id = $2  AND final = TRUE
-        ),
-        set_initial_false AS (
-            UPDATE cases.status_condition
-            SET initial = FALSE
-            WHERE dc = $1 AND status_id = $2 AND id <> $3 AND $7 = TRUE
-        ),
-        upd AS (
-            %s
-        )
-        SELECT
-            upd.id,
-            upd.name,
-            upd.created_at,
-            upd.updated_at,
-            upd.description,
-            upd.initial,
-            upd.final,
-            upd.created_by AS created_by_id,
-            COALESCE(c.name::text, c.username) AS created_by_name,
-            upd.updated_by AS updated_by_id,
-            COALESCE(u.name::text, u.username) AS updated_by_name,
-            upd.status_id
-        FROM upd
-        LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
-        LEFT JOIN directory.wbt_user c ON c.id = upd.created_by
-        WHERE
-            CASE
-                -- Ensure the update only happens if the conditions are met
-				-- WE DO NOT UPDATE FINAL & INITIAL
-				WHEN $4::boolean = FALSE AND $5::boolean = FALSE THEN TRUE
+       WITH final_remaining AS (SELECT COUNT(*) AS count
+                         FROM cases.status_condition
+                         WHERE dc = $1
+                           AND status_id = $2
+                           AND final = TRUE),
+     set_initial_false AS (
+         UPDATE cases.status_condition
+             SET initial = FALSE
+             WHERE dc = $1 AND status_id = $2 AND id <> $3 AND $7 = TRUE),
+     upd AS (%s)
+SELECT upd.id,
+       upd.name,
+       upd.created_at,
+       upd.updated_at,
+       upd.description,
+       upd.initial,
+       upd.final,
+       upd.created_by                     AS created_by_id,
+       COALESCE(c.name::text, c.username) AS created_by_name,
+       upd.updated_by                     AS updated_by_id,
+       COALESCE(u.name::text, u.username) AS updated_by_name,
+       upd.status_id
+FROM upd
+         LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
+         LEFT JOIN directory.wbt_user c ON c.id = upd.created_by
+WHERE CASE
+          -- Ensure the update only happens if the conditions are met
+          -- WE DO NOT UPDATE FINAL & INITIAL
+          WHEN $4::boolean = FALSE AND $5::boolean = FALSE THEN TRUE
 
-				-- WE ONLY UPDATE FINAL - so checking if it's NOT the last one
-                WHEN $4::boolean = FALSE AND $6::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
+          -- WE ONLY UPDATE FINAL - so checking if it's NOT the last one
+          WHEN $4::boolean = FALSE AND $6::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
 
-				-- WE ONLY UPDATE INITIAL [initial always true] and DON'T UPDATE FINAL
-                WHEN $7::boolean = TRUE AND $5::boolean = FALSE THEN TRUE
+          -- WE ONLY UPDATE INITIAL [initial always true] and DON'T UPDATE FINAL
+          WHEN $7::boolean = TRUE AND $5::boolean = FALSE THEN TRUE
 
-				-- WE UPDATE FINAL + INITIAL but final is FALSE so we checking if it's NOT the last one
-                WHEN $5::boolean = TRUE AND $4::boolean = TRUE THEN
-                    CASE
-                        WHEN $6::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
-                        ELSE TRUE
-                    END
-                ELSE TRUE
-            END
+          -- WE UPDATE FINAL + INITIAL but final is FALSE so we checking if it's NOT the last one
+          WHEN $5::boolean = TRUE AND $4::boolean = TRUE THEN
+              CASE
+                  WHEN $6::boolean = FALSE THEN (SELECT count FROM final_remaining) > 1
+                  ELSE TRUE
+                  END
+          ELSE TRUE
+          END
     `, updSql)
 
 	// 3. Adding all arguments
@@ -670,88 +665,77 @@ func (s StatusConditionStore) containsField(fields []string, field string) bool 
 // ---- STATIC SQL QUERIES ----
 var (
 	createStatusConditionQuery = store.CompactSQL(`
-	WITH existing_status AS (
-    SELECT COUNT(*) AS count
-    FROM cases.status_condition
-    WHERE dc = $5 AND status_id = $6
-),
-default_values AS (
-    SELECT
-        CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS initial_default,
-        CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS final_default
-),
-ins AS (
-    INSERT INTO cases.status_condition (name, created_at, description, initial, final, created_by, updated_at, updated_by, dc, status_id)
-    VALUES (
-        $1, $2, $3,
-        (SELECT initial_default FROM default_values),
-        (SELECT final_default FROM default_values),
-        $4, $2, $4, $5, $6
-    )
-    RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id
-)
-SELECT
-    ins.id,
-    ins.name,
-    ins.created_at,
-    ins.updated_at,
-    ins.description,
-    ins.initial,
-    ins.final,
-    ins.created_by AS created_by_id,
-    COALESCE(c.name::text, c.username) AS created_by_name,
-    ins.updated_by AS updated_by_id,
-    COALESCE(u.name::text, u.username) AS updated_by_name,
-    ins.status_id
+	WITH existing_status AS (SELECT COUNT(*) AS count
+                         FROM cases.status_condition
+                         WHERE dc = $5
+                           AND status_id = $6),
+     default_values
+         AS (SELECT CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS initial_default,
+                    CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS final_default),
+     ins AS (
+         INSERT INTO cases.status_condition (name, created_at, description, initial, final, created_by, updated_at,
+                                             updated_by, dc, status_id)
+             VALUES ($1, $2, $3,
+                     (SELECT initial_default FROM default_values),
+                     (SELECT final_default FROM default_values),
+                     $4, $2, $4, $5, $6)
+             RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id)
+SELECT ins.id,
+       ins.name,
+       ins.created_at,
+       ins.updated_at,
+       ins.description,
+       ins.initial,
+       ins.final,
+       ins.created_by                     AS created_by_id,
+       COALESCE(c.name::text, c.username) AS created_by_name,
+       ins.updated_by                     AS updated_by_id,
+       COALESCE(u.name::text, u.username) AS updated_by_name,
+       ins.status_id
 FROM ins
-LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
-LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;`)
+         LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
+         LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;`)
 
-	deleteStatusConditionQuery = store.CompactSQL(`WITH
-    to_check AS (
-        SELECT id, initial, final
-        FROM cases.status_condition
-        WHERE id = ANY($1) AND dc = $2 AND status_id = $3
-    ),
-    initial_remaining AS (
-        SELECT COUNT(*) AS count
-        FROM cases.status_condition
-        WHERE initial = TRUE AND id NOT IN (SELECT id FROM to_check) AND dc = $2 AND status_id = $3
-    ),
-    final_remaining AS (
-        SELECT COUNT(*) AS count
-        FROM cases.status_condition
-        WHERE final = TRUE AND id NOT IN (SELECT id FROM to_check) AND dc = $2 AND status_id = $3
-    ),
-    initial_to_check AS (
-        SELECT COUNT(*) AS count
-        FROM to_check
-        WHERE initial = TRUE
-    ),
-    final_to_check AS (
-        SELECT COUNT(*) AS count
-        FROM to_check
-        WHERE final = TRUE
-    ),
-    delete_conditions AS (
-        SELECT
-            (SELECT count FROM initial_remaining) AS remaining_initial,
-            (SELECT count FROM final_remaining) AS remaining_final,
-            (SELECT count FROM initial_to_check) AS checking_initial,
-            (SELECT count FROM final_to_check) AS checking_final
-        FROM to_check
-        LIMIT 1
-    )
-DELETE FROM cases.status_condition
+	deleteStatusConditionQuery = store.CompactSQL(`WITH to_check AS (SELECT id, initial, final
+                  FROM cases.status_condition
+                  WHERE id = ANY ($1)
+                    AND dc = $2
+                    AND status_id = $3),
+     initial_remaining AS (SELECT COUNT(*) AS count
+                           FROM cases.status_condition
+                           WHERE initial = TRUE
+                             AND id NOT IN (SELECT id FROM to_check)
+                             AND dc = $2
+                             AND status_id = $3),
+     final_remaining AS (SELECT COUNT(*) AS count
+                         FROM cases.status_condition
+                         WHERE final = TRUE
+                           AND id NOT IN (SELECT id FROM to_check)
+                           AND dc = $2
+                           AND status_id = $3),
+     initial_to_check AS (SELECT COUNT(*) AS count
+                          FROM to_check
+                          WHERE initial = TRUE),
+     final_to_check AS (SELECT COUNT(*) AS count
+                        FROM to_check
+                        WHERE final = TRUE),
+     delete_conditions AS (SELECT (SELECT count FROM initial_remaining) AS remaining_initial,
+                                  (SELECT count FROM final_remaining)   AS remaining_final,
+                                  (SELECT count FROM initial_to_check)  AS checking_initial,
+                                  (SELECT count FROM final_to_check)    AS checking_final
+                           FROM to_check
+                           LIMIT 1)
+DELETE
+FROM cases.status_condition
 WHERE id IN (SELECT id FROM to_check)
-AND (
+  AND (
     (SELECT remaining_initial FROM delete_conditions) > 0 OR
     (SELECT checking_initial FROM delete_conditions) = 0
-)
-AND (
+    )
+  AND (
     (SELECT remaining_final FROM delete_conditions) > 0 OR
     (SELECT checking_final FROM delete_conditions) = 0
-)
+    )
 RETURNING id;`)
 )
 
