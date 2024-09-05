@@ -1544,106 +1544,7 @@
         ]
       }
     },
-    "/slas/{sla_id}/sla_conditions": {
-      "get": {
-        "summary": "Retrieve a list of SLAConditions or search SLACondition conditions",
-        "operationId": "SLAConditions_ListSLAConditions",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.SLAConditionList"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "sla_id",
-            "description": "Filter by SLA Id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "page",
-            "description": "Page number of result dataset records. offset = (page*size)",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
-          },
-          {
-            "name": "size",
-            "description": "Size count of records on result page. limit = (size++)",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
-          },
-          {
-            "name": "fields",
-            "description": "Fields to be retrieved as a result.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "sort",
-            "description": "Sort the result according to fields.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "id",
-            "description": "Filter by unique IDs.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "int64"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "q",
-            "description": "Search term: SLACondition name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "name",
-            "description": "Filter by SLACondition name.",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "sla_condition_id",
-            "description": "Filter by SLACondition Id.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          }
-        ],
-        "tags": [
-          "SLAConditions"
-        ]
-      }
-    },
-    "/slas/{sla_id}/sla_conditions/{id}": {
+    "/slas/{sla_id}/sla_condition/{id}": {
       "get": {
         "summary": "Locate an SLACondition by ID",
         "operationId": "SLAConditions_LocateSLACondition",
@@ -1788,6 +1689,105 @@
             "schema": {
               "$ref": "#/definitions/webitel.cases.InputSLACondition"
             }
+          }
+        ],
+        "tags": [
+          "SLAConditions"
+        ]
+      }
+    },
+    "/slas/{sla_id}/sla_conditions": {
+      "get": {
+        "summary": "Retrieve a list of SLAConditions or search SLACondition conditions",
+        "operationId": "SLAConditions_ListSLAConditions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SLAConditionList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sla_id",
+            "description": "Filter by SLA Id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "description": "Sort the result according to fields.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "id",
+            "description": "Filter by unique IDs.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "q",
+            "description": "Search term: SLACondition name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "description": "Filter by SLACondition name.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sla_condition_id",
+            "description": "Filter by SLACondition Id.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
           }
         ],
         "tags": [

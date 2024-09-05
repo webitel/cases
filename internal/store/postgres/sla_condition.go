@@ -189,26 +189,72 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 		return nil, model.NewInternalError("postgres.sla_condition.update.database_connection_error", dbErr.Error())
 	}
 
-	// Build the SQL update query using a WITH clause
-	query, args, err := s.buildUpdateSLAConditionAndPrioritiesQuery(rpc, l)
+	// Begin a transaction
+	tx, err := d.Begin(rpc.Context)
+	if err != nil {
+		return nil, model.NewInternalError("postgres.sla_condition.update.transaction_begin_error", err.Error())
+	}
+	defer tx.Rollback(rpc.Context) // Ensure rollback on error
+
+	txManager := store.NewTxManager(tx)
+
+	// Update priorities first if there are any IDs
+	if len(rpc.IDs) > 0 {
+		// Example usage of Exec and checking rows affected
+		priorityQuery, priorityArgs := s.buildUpdatePrioritiesQuery(rpc, l)
+
+		// Execute the query to update priorities
+		commandTag, execErr := txManager.Exec(rpc.Context, priorityQuery, priorityArgs...)
+		if execErr != nil {
+			return nil, model.NewInternalError("postgres.sla_condition.update.priorities_execution_error", execErr.Error())
+		}
+
+		// Check rows affected using commandTag
+		rowsAffected := commandTag.RowsAffected()
+		if rowsAffected == 0 {
+			return nil, model.NewInternalError("postgres.sla_condition.update.no_priorities_affected", "No priorities were updated or deleted.")
+		}
+
+	}
+
+	// Build and execute the update query for sla_condition and return priorities JSON in one query
+	query, args, err := s.buildUpdateSLAConditionQuery(rpc, l)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.sla_condition.update.query_build_error", err.Error())
 	}
 
 	var createdBy, updatedBy cases.Lookup
 	var createdAt, updatedAt time.Time
+	var prioritiesJSON []byte // For JSON aggregated priorities
 
-	// Execute the query with the combined update and insert operations
-	err = d.QueryRow(rpc.Context, query, args...).Scan(
+	// Execute the update query for sla_condition and fetch priorities JSON
+	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt,
 		&l.ReactionTimeHours, &l.ReactionTimeMinutes,
 		&l.ResolutionTimeHours, &l.ResolutionTimeMinutes, &l.SlaId,
-		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name,
+		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, // Corrected to include user names
+		&prioritiesJSON, // Fetch JSON aggregated priorities
 	)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.sla_condition.update.execution_error", err.Error())
 	}
 
+	// Commit the transaction
+	if err := tx.Commit(rpc.Context); err != nil {
+		return nil, model.NewInternalError("postgres.sla_condition.update.transaction_commit_error", err.Error())
+	}
+
+	// Process JSON aggregated priorities if not empty
+	if len(prioritiesJSON) > 0 {
+		if err := json.Unmarshal(prioritiesJSON, &l.Priorities); err != nil {
+			return nil, model.NewInternalError("postgres.sla_condition.update.json_unmarshal_error", err.Error())
+		}
+	} else {
+		// Initialize to an empty slice if no priorities
+		l.Priorities = []*cases.Lookup{}
+	}
+
+	// Set timestamps and user information
 	l.CreatedAt = util.Timestamp(createdAt)
 	l.UpdatedAt = util.Timestamp(updatedAt)
 	l.CreatedBy = &createdBy
@@ -315,32 +361,32 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 
 	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
 
+	groupByFields := []string{"g.id"} // Start with the default group by the field
+
 	for _, field := range fields {
 		switch field {
 		case "id", "name", "reaction_time_hours", "reaction_time_minutes",
 			"resolution_time_hours", "resolution_time_minutes", "sla_id",
 			"created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
+			groupByFields = append(groupByFields, "g."+field) // Add to group by fields
 		case "created_by":
-			// cbi = created_by_id,
-			// cbn = created_by_name
 			queryBuilder = queryBuilder.Column("created_by.id AS cbi, created_by.name AS cbn").
 				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
+			groupByFields = append(groupByFields, "created_by.id", "created_by.name") // Add to group by fields
 		case "updated_by":
-			// ubi = updated_by_id,
-			// ubn = updated_by_name
 			queryBuilder = queryBuilder.Column("updated_by.id AS ubi, updated_by.name AS ubn").
 				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
+			groupByFields = append(groupByFields, "updated_by.id", "updated_by.name") // Add to group by fields
 		case "priority":
 			// Aggregate priorities as JSON array
 			queryBuilder = queryBuilder.
 				Column("json_agg(json_build_object('id', p.id, 'name', p.name)) AS priorities").
 				LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
 				LeftJoin("cases.priority AS p ON p.id = ps.priority_id").
-				GroupBy("g.id")
+				GroupBy("g.id") // Group by SLACondition ID
 		}
 	}
-
 	if len(ids) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
@@ -395,7 +441,8 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 	if size != -1 {
 		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
 	}
-
+	// Add the GROUP BY clause with all non-aggregated fields
+	queryBuilder = queryBuilder.GroupBy(groupByFields...)
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return "", nil, model.NewInternalError("postgres.sla_condition.query_build.sql_generation_error", err.Error())
@@ -404,82 +451,73 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 	return store.CompactSQL(query), args, nil
 }
 
-// buildUpdateSLAConditionAndPrioritiesQuery constructs the SQL update query with a MERGE clause for SLACondition and priorities using Squirrel.
-func (s *SLAConditionStore) buildUpdateSLAConditionAndPrioritiesQuery(rpc *model.UpdateOptions, l *cases.SLACondition) (string, []interface{}, error) {
-	// Initialize base arguments for the SQL query
+func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc *model.UpdateOptions, l *cases.SLACondition) (string, []interface{}) {
+	// Prepare arguments for the SQL query
 	args := []interface{}{
-		rpc.Time,                  // $1 - updated_at
-		rpc.Session.GetUserId(),   // $2 - updated_by
-		l.Id,                      // $3 - sla_condition_id
-		rpc.Session.GetDomainId(), // $4 - dc id
-		pq.Array(rpc.IDs),         // $5 - array of priority_ids
+		l.Id,                      // $1: sla_condition_id
+		rpc.Session.GetUserId(),   // $2: created_by and updated_by
+		rpc.Session.GetDomainId(), // $3: dc
+		pq.Array(rpc.IDs),         // $4: ARRAY of priority IDs
 	}
 
-	// Initialize Squirrel update builder for SLACondition table
+	query := `
+ WITH updated_priorities AS (
+    -- Insert new priorities or update existing ones
+    INSERT INTO cases.priority_sla_condition (created_at, updated_at, created_by, updated_by, sla_condition_id,
+                                              priority_id, dc)
+        SELECT CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $2, $2, $1, unnest($4::bigint[]), $3
+        ON CONFLICT (sla_condition_id, priority_id)
+            DO UPDATE SET updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
+        RETURNING sla_condition_id, priority_id),
+     deleted_priorities AS (
+         -- Delete priorities that are not in the selected list
+         DELETE FROM cases.priority_sla_condition
+             WHERE sla_condition_id = $1
+                 AND priority_id != ALL ($4::bigint[])
+             RETURNING sla_condition_id, priority_id)
+SELECT 1; -- Dummy select to complete the query
+
+    `
+
+	return query, args
+}
+
+// Function to build the update query for sla_condition and return priorities JSON
+func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc *model.UpdateOptions, l *cases.SLACondition) (string, []interface{}, error) {
 	updateBuilder := sq.Update("cases.sla_condition").
+		PlaceholderFormat(sq.Dollar). // Set placeholder format to Dollar for PostgreSQL
 		Set("updated_at", rpc.Time).
 		Set("updated_by", rpc.Session.GetUserId()).
 		Where(sq.Eq{"id": l.Id, "dc": rpc.Session.GetDomainId()})
 
-	// Dynamically add fields to the update builder
-	if l.Name != "" {
-		updateBuilder = updateBuilder.Set("name", l.Name)
-		args = append(args, l.Name)
-	}
-	if l.ReactionTimeHours != 0 {
-		updateBuilder = updateBuilder.Set("reaction_time_hours", l.ReactionTimeHours)
-		args = append(args, l.ReactionTimeHours)
-	}
-	if l.ReactionTimeMinutes != 0 {
-		updateBuilder = updateBuilder.Set("reaction_time_minutes", l.ReactionTimeMinutes)
-		args = append(args, l.ReactionTimeMinutes)
-	}
-	if l.ResolutionTimeHours != 0 {
-		updateBuilder = updateBuilder.Set("resolution_time_hours", l.ResolutionTimeHours)
-		args = append(args, l.ResolutionTimeHours)
-	}
-	if l.ResolutionTimeMinutes != 0 {
-		updateBuilder = updateBuilder.Set("resolution_time_minutes", l.ResolutionTimeMinutes)
-		args = append(args, l.ResolutionTimeMinutes)
-	}
-	if l.SlaId != 0 {
-		updateBuilder = updateBuilder.Set("sla_id", l.SlaId)
-		args = append(args, l.SlaId)
+	// Dynamically add fields to the update builder based on provided fields
+	for _, field := range rpc.Fields {
+		switch field {
+		case "name":
+			updateBuilder = updateBuilder.Set("name", l.Name)
+		case "reaction_time_hours":
+			updateBuilder = updateBuilder.Set("reaction_time_hours", l.ReactionTimeHours)
+		case "reaction_time_minutes":
+			updateBuilder = updateBuilder.Set("reaction_time_minutes", l.ReactionTimeMinutes)
+		case "resolution_time_hours":
+			updateBuilder = updateBuilder.Set("resolution_time_hours", l.ResolutionTimeHours)
+		case "resolution_time_minutes":
+			updateBuilder = updateBuilder.Set("resolution_time_minutes", l.ResolutionTimeMinutes)
+		case "sla_id":
+			updateBuilder = updateBuilder.Set("sla_id", l.SlaId)
+		}
 	}
 
 	// Convert the update query to SQL string and arguments
-	updateSQL, updateArgs, err := updateBuilder.ToSql()
+	updateSQL, args, err := updateBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.sla_condition.update.query_build_error", err.Error())
+		return "", nil, err
 	}
 
-	// Add any additional arguments generated by the update query
-	args = append(args, updateArgs...)
-
-	// Construct the final SQL query using MERGE for upserting priorities and a DELETE operation for missing priorities
 	query := fmt.Sprintf(`
-WITH updated_sla_condition AS (%s
-    RETURNING id, name, created_at, updated_at,
-              reaction_time_hours, reaction_time_minutes,
-              resolution_time_hours, resolution_time_minutes, sla_id,
-              created_by, updated_by),
-     merge_priorities AS (MERGE INTO cases.priority_sla_condition AS target
-    USING (
-        SELECT unnest($5::int[]) AS priority_id
-    ) AS source
-    ON target.sla_condition_id = $3 AND target.priority_id = source.priority_id
-    WHEN MATCHED THEN
-        UPDATE SET updated_at = $1,
-                   updated_by = $2
-    WHEN NOT MATCHED THEN
-        INSERT (created_at, updated_at, created_by, updated_by, sla_condition_id, priority_id, dc)
-        VALUES ($1, $1, $2, $2, $3, source.priority_id, $4)
-    RETURNING sla_condition_id, priority_id),
-     deleted_priorities AS (
-         DELETE FROM cases.priority_sla_condition
-             WHERE sla_condition_id = $3
-                 AND priority_id NOT IN (SELECT unnest($5::int[]))
-             RETURNING sla_condition_id, priority_id)
+   WITH upd_condition AS (%s
+        RETURNING id, name, created_at, updated_at, reaction_time_hours, reaction_time_minutes,
+                  resolution_time_hours, resolution_time_minutes, sla_id, created_by, updated_by)
 SELECT usc.id,
        usc.name,
        usc.created_at,
@@ -489,124 +527,31 @@ SELECT usc.id,
        usc.resolution_time_hours,
        usc.resolution_time_minutes,
        usc.sla_id,
-       usc.created_by                     AS created_by_id,
-       COALESCE(c.name::text, c.username) AS created_by_name,
-       usc.updated_by                     AS updated_by_id,
-       COALESCE(u.name::text, u.username) AS updated_by_name,
-       mp.priority_id,
-       p.name                             AS priority_name
-FROM updated_sla_condition usc
-         LEFT JOIN directory.wbt_user u ON u.id = usc.updated_by
+       usc.created_by,
+       c.name                                                  AS created_by_name,
+       usc.updated_by,
+       u.name                                                  AS updated_by_name,
+       json_agg(json_build_object('id', p.id, 'name', p.name)) AS priorities_json
+FROM upd_condition usc
          LEFT JOIN directory.wbt_user c ON c.id = usc.created_by
-         LEFT JOIN merge_priorities mp ON usc.id = mp.sla_condition_id
-         LEFT JOIN cases.priority p ON p.id = mp.priority_id;
-`, updateSQL)
+         LEFT JOIN directory.wbt_user u ON u.id = usc.updated_by
+         LEFT JOIN cases.priority_sla_condition psc ON usc.id = psc.sla_condition_id
+         LEFT JOIN cases.priority p ON p.id = psc.priority_id
+GROUP BY usc.id, usc.name, usc.created_at, usc.updated_at,
+         usc.reaction_time_hours, usc.reaction_time_minutes,
+         usc.resolution_time_hours, usc.resolution_time_minutes, usc.sla_id,
+         usc.created_by, usc.updated_by, c.name, u.name
+    `, updateSQL)
 
-	return store.CompactSQL(query), args, nil
+	return query, args, nil
 }
-
-// // buildUpdateSLAConditionAndPrioritiesQuery constructs the SQL update query with a WITH clause for SLACondition and priorities using Squirrel.
-// func (s *SLAConditionStore) buildUpdateSLAConditionAndPrioritiesQuery(rpc *model.UpdateOptions, l *cases.SLACondition) (string, []interface{}, error) {
-// 	// Initialize base arguments for the SQL query
-// 	args := []interface{}{
-// 		rpc.Time,                  // $1 - updated_at
-// 		rpc.Session.GetUserId(),   // $2 - updated_by
-// 		l.Id,                      // $3 - sla_condition_id
-// 		rpc.Session.GetDomainId(), // $4 - dc id
-// 		pq.Array(rpc.IDs),         // $5 - array of priority_ids
-// 	}
-
-// 	// Initialize Squirrel update builder for SLACondition table
-// 	updateBuilder := sq.Update("cases.sla_condition").
-// 		Set("updated_at", rpc.Time).
-// 		Set("updated_by", rpc.Session.GetUserId()).
-// 		Where(sq.Eq{"id": l.Id, "dc": rpc.Session.GetDomainId()})
-
-// 	// Dynamically add fields to the update builder
-// 	if l.Name != "" {
-// 		updateBuilder = updateBuilder.Set("name", l.Name)
-// 		args = append(args, l.Name) // $6 - name
-// 	}
-// 	if l.ReactionTimeHours != 0 {
-// 		updateBuilder = updateBuilder.Set("reaction_time_hours", l.ReactionTimeHours)
-// 		args = append(args, l.ReactionTimeHours) // $7 - reaction_time_hours
-// 	}
-// 	if l.ReactionTimeMinutes != 0 {
-// 		updateBuilder = updateBuilder.Set("reaction_time_minutes", l.ReactionTimeMinutes)
-// 		args = append(args, l.ReactionTimeMinutes) // $8 - reaction_time_minutes
-// 	}
-// 	if l.ResolutionTimeHours != 0 {
-// 		updateBuilder = updateBuilder.Set("resolution_time_hours", l.ResolutionTimeHours)
-// 		args = append(args, l.ResolutionTimeHours) // $9 - resolution_time_hours
-// 	}
-// 	if l.ResolutionTimeMinutes != 0 {
-// 		updateBuilder = updateBuilder.Set("resolution_time_minutes", l.ResolutionTimeMinutes)
-// 		args = append(args, l.ResolutionTimeMinutes) // $10 - resolution_time_minutes
-// 	}
-// 	if l.SlaId != 0 {
-// 		updateBuilder = updateBuilder.Set("sla_id", l.SlaId)
-// 		args = append(args, l.SlaId) // $11 - sla_id
-// 	}
-
-// 	// Convert the update query to SQL string and arguments
-// 	updateSQL, updateArgs, err := updateBuilder.ToSql()
-// 	if err != nil {
-// 		return "", nil, model.NewInternalError("postgres.sla_condition.update.query_build_error", err.Error())
-// 	}
-
-// 	// Add any additional arguments generated by the update query
-// 	args = append(args, updateArgs...)
-
-// 	// Construct the final SQL query using the generated update SQL and priorities insert statement
-// 	query := fmt.Sprintf(`
-// WITH updated_sla_condition AS (%s
-//     RETURNING id, name, created_at, updated_at,
-//               reaction_time_hours, reaction_time_minutes,
-//               resolution_time_hours, resolution_time_minutes, sla_id,
-//               created_by, updated_by),
-//      deleted_priorities AS (
-//          DELETE FROM cases.priority_sla_condition
-//              WHERE sla_condition_id = $3
-//                  AND NOT (priority_id = ANY ($5))),
-//      inserted_priorities AS (
-//          INSERT INTO cases.priority_sla_condition (created_at, updated_at, created_by, updated_by, sla_condition_id,
-//                                                    priority_id, dc)
-//              SELECT $1, $1, $2, $2, $3, unnest($5::int[]), $4
-//              ON CONFLICT (sla_condition_id, priority_id) DO NOTHING
-//              RETURNING sla_condition_id, priority_id)
-// SELECT usc.id,
-//        usc.name,
-//        usc.created_at,
-//        usc.updated_at,
-//        usc.reaction_time_hours,
-//        usc.reaction_time_minutes,
-//        usc.resolution_time_hours,
-//        usc.resolution_time_minutes,
-//        usc.sla_id,
-//        usc.created_by                     AS created_by_id,
-//        COALESCE(c.name::text, c.username) AS created_by_name,
-//        usc.updated_by                     AS updated_by_id,
-//        COALESCE(u.name::text, u.username) AS updated_by_name,
-//        ip.priority_id,
-//        p.name                             AS priority_name
-// FROM updated_sla_condition usc
-//          LEFT JOIN directory.wbt_user u ON u.id = usc.updated_by
-//          LEFT JOIN directory.wbt_user c ON c.id = usc.created_by
-//          LEFT JOIN inserted_priorities ip ON usc.id = ip.sla_condition_id
-//          LEFT JOIN cases.priority p ON p.id = ip.priority_id;
-// `, updateSQL)
-
-// 	return store.CompactSQL(query), args, nil
-// }
 
 // Helper function to build scan arguments based on fields
 func (s *SLAConditionStore) buildScanArgs(
 	fields []string,
 	slaCondition *cases.SLACondition,
-	createdBy,
-	updatedBy *cases.Lookup,
-	createdAt,
-	updatedAt *time.Time,
+	createdBy, updatedBy *cases.Lookup,
+	createdAt, updatedAt *time.Time,
 	prioritiesJSON *[]byte,
 ) []interface{} {
 	scanArgs := []interface{}{&slaCondition.Id}

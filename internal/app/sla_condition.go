@@ -184,8 +184,34 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 }
 
 // LocateSLACondition implements cases.SLAConditionsServer.
-func (s *SLAConditionService) LocateSLACondition(context.Context, *cases.LocateSLAConditionRequest) (*cases.LocateSLAConditionResponse, error) {
-	panic("unimplemented")
+func (s *SLAConditionService) LocateSLACondition(ctx context.Context, req *cases.LocateSLAConditionRequest) (*cases.LocateSLAConditionResponse, error) {
+	// Validate required fields
+	if req.Id == 0 {
+		return nil, model.NewBadRequestError("sla_condition_service.locate_sla_condition.id.required", "SLA Condition ID is required")
+	}
+
+	// Prepare a list request with necessary parameters
+	listReq := &cases.ListSLAConditionRequest{
+		SlaId:  req.SlaId,
+		Id:     []int64{req.Id},
+		Fields: req.Fields,
+		Page:   1,
+		Size:   1, // We only need one item
+	}
+
+	// Call the ListSLAConditions method
+	listResp, err := s.ListSLAConditions(ctx, listReq)
+	if err != nil {
+		return nil, model.NewInternalError("sla_condition_service.locate_sla_condition.list_sla_conditions.error", err.Error())
+	}
+
+	// Check if the SLA Condition was found
+	if len(listResp.Items) == 0 {
+		return nil, model.NewNotFoundError("sla_condition_service.locate_sla_condition.not_found", "SLA Condition not found")
+	}
+
+	// Return the found SLA Condition
+	return &cases.LocateSLAConditionResponse{SlaCondition: listResp.Items[0]}, nil
 }
 
 // UpdateSLACondition implements cases.SLAConditionsServer.

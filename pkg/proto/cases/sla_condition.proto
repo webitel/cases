@@ -178,10 +178,10 @@ service SLAConditions {
     // RPC method to update an existing SLACondition
     rpc UpdateSLACondition(UpdateSLAConditionRequest) returns (SLACondition) {
       option (google.api.http) = {
-        put: "/slas/{sla_id}/sla_conditions/{id}"
+        put: "/slas/{sla_id}/sla_condition/{id}"
         body: "input"
         additional_bindings {
-          patch: "/slas/{sla_id}/sla_conditions/{id}"
+          patch: "/slas/{sla_id}/sla_condition/{id}"
           body: "input"
         }
       };
@@ -194,7 +194,7 @@ service SLAConditions {
     // RPC method to delete an existing SLACondition
     rpc DeleteSLACondition(DeleteSLAConditionRequest) returns (SLACondition) {
       option (google.api.http) = {
-        delete: "/slas/{sla_id}/sla_conditions/{id}"
+        delete: "/slas/{sla_id}/sla_condition/{id}"
       };
 
       option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
@@ -205,7 +205,7 @@ service SLAConditions {
     // RPC method to locate a specific SLACondition by ID
     rpc LocateSLACondition(LocateSLAConditionRequest) returns (LocateSLAConditionResponse) {
       option (google.api.http) = {
-        get: "/slas/{sla_id}/sla_conditions/{id}"
+        get: "/slas/{sla_id}/sla_condition/{id}"
       };
 
       option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
