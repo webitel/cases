@@ -123,7 +123,11 @@ func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 		var tempCreatedAt, tempUpdatedAt time.Time
 		var tempValidFrom, tempValidTo time.Time
 
-		scanArgs := s.buildScanArgs(rpc.Fields, sla, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt, &tempValidFrom, &tempValidTo)
+		scanArgs := s.buildScanArgs(
+			rpc.Fields, sla, &createdBy,
+			&updatedBy, &tempCreatedAt, &tempUpdatedAt,
+			&tempValidFrom, &tempValidTo,
+		)
 		if err := rows.Scan(scanArgs...); err != nil {
 			return nil, model.NewInternalError("postgres.sla.list.row_scan_error", err.Error())
 		}

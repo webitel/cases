@@ -361,30 +361,37 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 
 	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
 
-	groupByFields := []string{"g.id"} // Start with the default group by the field
+	//-----ALWAYS INCLUDE ID FIELD-----
+	rpc.Fields = append(fields, "id") // FIXME ------ NEED to pass only if absent
 
-	for _, field := range fields {
+	groupByFields := []string{"g.id"} // Start with the mandatory fields for GROUP BY
+
+	for _, field := range rpc.Fields {
 		switch field {
 		case "id", "name", "reaction_time_hours", "reaction_time_minutes",
 			"resolution_time_hours", "resolution_time_minutes", "sla_id",
 			"created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
-			groupByFields = append(groupByFields, "g."+field) // Add to group by fields
+			groupByFields = append(groupByFields, "g."+field) // Add non-aggregated fields to GROUP BY
 		case "created_by":
+			// cbi = created_by_id
+			// cbn = created_by_name
 			queryBuilder = queryBuilder.Column("created_by.id AS cbi, created_by.name AS cbn").
 				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
-			groupByFields = append(groupByFields, "created_by.id", "created_by.name") // Add to group by fields
+			groupByFields = append(groupByFields, "created_by.id", "created_by.name")
 		case "updated_by":
+			// ubi = updated_by_id
+			// ubn = updated_by_name
 			queryBuilder = queryBuilder.Column("updated_by.id AS ubi, updated_by.name AS ubn").
 				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
-			groupByFields = append(groupByFields, "updated_by.id", "updated_by.name") // Add to group by fields
+			groupByFields = append(groupByFields, "updated_by.id", "updated_by.name")
 		case "priority":
 			// Aggregate priorities as JSON array
 			queryBuilder = queryBuilder.
 				Column("json_agg(json_build_object('id', p.id, 'name', p.name)) AS priorities").
 				LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
-				LeftJoin("cases.priority AS p ON p.id = ps.priority_id").
-				GroupBy("g.id") // Group by SLACondition ID
+				LeftJoin("cases.priority AS p ON p.id = ps.priority_id")
+			// No need to add aggregated columns to GROUP BY
 		}
 	}
 	if len(ids) > 0 {
@@ -441,8 +448,10 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 	if size != -1 {
 		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
 	}
-	// Add the GROUP BY clause with all non-aggregated fields
+
+	// Apply GROUP BY clause
 	queryBuilder = queryBuilder.GroupBy(groupByFields...)
+
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return "", nil, model.NewInternalError("postgres.sla_condition.query_build.sql_generation_error", err.Error())
@@ -554,10 +563,12 @@ func (s *SLAConditionStore) buildScanArgs(
 	createdAt, updatedAt *time.Time,
 	prioritiesJSON *[]byte,
 ) []interface{} {
-	scanArgs := []interface{}{&slaCondition.Id}
+	var scanArgs []interface{}
 
 	for _, field := range fields {
 		switch field {
+		case "id":
+			scanArgs = append(scanArgs, &slaCondition.Id)
 		case "name":
 			scanArgs = append(scanArgs, &slaCondition.Name)
 		case "reaction_time_hours":
