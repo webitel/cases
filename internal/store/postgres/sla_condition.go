@@ -199,22 +199,21 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 	txManager := store.NewTxManager(tx)
 
 	// Update priorities first if there are any IDs
+
 	if len(rpc.IDs) > 0 {
-		// Example usage of Exec and checking rows affected
 		priorityQuery, priorityArgs := s.buildUpdatePrioritiesQuery(rpc, l)
 
-		// Execute the query to update priorities
-		commandTag, execErr := txManager.Exec(rpc.Context, priorityQuery, priorityArgs...)
-		if execErr != nil {
-			return nil, model.NewInternalError("postgres.sla_condition.update.priorities_execution_error", execErr.Error())
+		// Execute the query and get the total number of rows affected
+		var totalRowsAffected int
+		err = txManager.QueryRow(rpc.Context, priorityQuery, priorityArgs...).Scan(&totalRowsAffected)
+		if err != nil {
+			return nil, model.NewInternalError("postgres.sla_condition.update.priorities_execution_error", err.Error())
 		}
 
-		// Check rows affected using commandTag
-		rowsAffected := commandTag.RowsAffected()
-		if rowsAffected == 0 {
+		// Check if any rows were affected
+		if totalRowsAffected == 0 {
 			return nil, model.NewInternalError("postgres.sla_condition.update.no_priorities_affected", "No priorities were updated or deleted.")
 		}
-
 	}
 
 	// Build and execute the update query for sla_condition and return priorities JSON in one query
@@ -467,26 +466,30 @@ func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc *model.UpdateOptions,
 		rpc.Session.GetUserId(),   // $2: created_by and updated_by
 		rpc.Session.GetDomainId(), // $3: dc
 		pq.Array(rpc.IDs),         // $4: ARRAY of priority IDs
+		rpc.Time,                  // $5: timestamp for updated_at
 	}
 
+	// query that updates or inserts priorities and deletes non-selected ones
 	query := `
- WITH updated_priorities AS (
-    -- Insert new priorities or update existing ones
+WITH updated_priorities AS (
     INSERT INTO cases.priority_sla_condition (created_at, updated_at, created_by, updated_by, sla_condition_id,
                                               priority_id, dc)
-        SELECT CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $2, $2, $1, unnest($4::bigint[]), $3
+        SELECT $5, $5, $2, $2, $1, unnest($4::bigint[]), $3
         ON CONFLICT (sla_condition_id, priority_id)
             DO UPDATE SET updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
         RETURNING sla_condition_id, priority_id),
      deleted_priorities AS (
-         -- Delete priorities that are not in the selected list
          DELETE FROM cases.priority_sla_condition
              WHERE sla_condition_id = $1
                  AND priority_id != ALL ($4::bigint[])
              RETURNING sla_condition_id, priority_id)
-SELECT 1; -- Dummy select to complete the query
-
-    `
+SELECT COUNT(*)
+FROM (SELECT sla_condition_id
+      FROM updated_priorities
+      UNION ALL
+      SELECT sla_condition_id
+      FROM deleted_priorities) AS total_affected;
+	`
 
 	return query, args
 }

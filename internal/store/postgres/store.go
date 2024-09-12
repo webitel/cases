@@ -19,6 +19,8 @@ type Store struct {
 	priorityStore        store.PriorityStore
 	slaStore             store.SLAStore
 	slaConditionStore    store.SLAConditionStore
+	catalogStore         store.CatalogStore
+	serviceStore         store.ServiceStore
 	accessControllStore  store.AccessControlStore
 	config               *model.DatabaseConfig
 	conn                 *pgxpool.Pool
@@ -114,6 +116,28 @@ func (s *Store) SLACondition() store.SLAConditionStore {
 		s.slaConditionStore = sc
 	}
 	return s.slaConditionStore
+}
+
+func (s *Store) Catalog() store.CatalogStore {
+	if s.catalogStore == nil {
+		catalog, err := NewCatalogStore(s)
+		if err != nil {
+			return nil
+		}
+		s.catalogStore = catalog
+	}
+	return s.catalogStore
+}
+
+func (s *Store) Service() store.ServiceStore {
+	if s.serviceStore == nil {
+		service, err := NewServiceStore(s)
+		if err != nil {
+			return nil
+		}
+		s.serviceStore = service
+	}
+	return s.serviceStore
 }
 
 func (s *Store) AccessControl() store.AccessControlStore {

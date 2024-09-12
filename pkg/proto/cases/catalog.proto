@@ -1,0 +1,171 @@
+syntax = "proto3";
+package webitel.cases;
+
+option go_package = "github.com/webitel/cases/api/cases;cases";
+
+import "cases/lookup.proto";
+import "google/api/visibility.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+import "google/api/annotations.proto";
+
+// Catalog message represents the main catalog entity with metadata
+message Catalog {
+  int64 id = 1;                  // Unique identifier for the catalog
+  string name = 2;                // Name of the catalog
+  string description = 3;         // Description of the catalog (optional)
+  string prefix = 4;              // Prefix used for case identification (optional)
+  string code = 5;                // Code for external integrations (optional)
+  bool state = 6;                 // State of the catalog (true for active, false for inactive)
+  Lookup sla = 7;                 // SLA associated with the catalog
+  Lookup status = 8;              // Status associated with the catalog
+  Lookup close_reason = 9;        // Close reason associated with the catalog
+  repeated Lookup teams = 11;     // Teams associated with the catalog
+  repeated Lookup skills = 12;    // Skills associated with the catalog
+  int32 level = 13;               // Level of the catalog in the hierarchy
+  bool has_services = 14;         // Indicates if the catalog has associated services
+  int64 created_at = 15;          // Timestamp when the catalog was created
+  int64 updated_at = 16;          // Timestamp when the catalog was last updated
+  Lookup created_by = 17;         // User who created the catalog
+  Lookup updated_by = 18;         // User who last updated the catalog
+}
+
+// CatalogList message contains a list of catalogs with pagination
+message CatalogList {
+  int32 page = 1;                 // Page number for pagination
+  bool next = 2;                  // Indicates if there are more pages
+  repeated Catalog items = 3;     // List of catalog items
+}
+
+// InputCatalog message contains the fields for creating or updating a catalog
+message InputCatalog {
+  string name = 1;                // Name of the catalog (required)
+  string description = 2;         // Description of the catalog (optional)
+  string prefix = 3;              // Prefix for case identification (optional)
+  string code = 4;                // Code for external integrations (optional)
+  bool state = 5;                 // State of the catalog (true for active, false for inactive)
+  int64 sla_id = 6;               // SLA ID associated with the catalog
+  int64 status_id = 7;            // Status ID associated with the catalog
+  int64 close_reason_id = 8;      // Close reason ID associated with the catalog
+  repeated int64 team_ids = 10;   // List of team IDs associated with the catalog
+  repeated int64 skill_ids = 11;  // List of skill IDs associated with the catalog
+}
+
+// CreateCatalogRequest message for creating a new catalog
+message CreateCatalogRequest {
+  string name = 1;                // Name of the catalog (required)
+  string description = 2;         // Description of the catalog (optional)
+  string prefix = 3;              // Prefix for case identification (optional)
+  string code = 4;                // Code for external integrations (optional)
+  bool state = 5;                 // State of the catalog (true for active, false for inactive)
+  int64 sla_id = 6;               // SLA ID associated with the catalog
+  int64 status_id = 7;            // Status ID associated with the catalog
+  int64 close_reason_id = 8;      // Close reason ID associated with the catalog
+  repeated int64 team_ids = 10;   // List of team IDs associated with the catalog
+  repeated int64 skill_ids = 11;  // List of skill IDs associated with the catalog
+}
+
+// UpdateCatalogRequest message for updating an existing catalog
+message UpdateCatalogRequest {
+  int64 id = 1;                   // ID of the catalog to be updated
+  InputCatalog input = 2;         // Input data for updating the catalog
+
+  // ---- JSON PATCH fields mask ----
+  repeated string x_json_mask = 3
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+}
+
+// DeleteCatalogRequest message for deleting a catalog
+message DeleteCatalogRequest {
+ repeated int64 id = 1;                   // ID of the catalog to be deleted
+}
+
+// ListCatalogRequest message for listing catalogs
+message ListCatalogRequest {
+  int32 page = 1;                 // Page number for pagination
+  int32 size = 2;                 // Number of records per page
+  repeated string sort = 3;       // Sorting options by fields
+  repeated int64 id = 4;          // List of IDs to filter the catalogs
+  string q = 5;                   // Search query string for filtering by name
+  bool state = 6;                 // Filter by state (true for active, false for inactive)
+}
+
+// LocateCatalogRequest message for locating a specific catalog by ID
+message LocateCatalogRequest {
+  int64 id = 1;                   // ID of the catalog to be located
+  repeated string fields = 2;     // Fields to be retrieved in the response
+}
+
+// LocateCatalogResponse message contains a single catalog entity
+message LocateCatalogResponse {
+  Catalog catalog = 1;            // The located catalog
+}
+
+// Service definition for managing catalog entities
+service Catalogs {
+  // RPC method to list or search catalogs
+  rpc ListCatalogs(ListCatalogRequest) returns (CatalogList) {
+    option (google.api.http) = {
+      get: "/cases/catalogs"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve a list of catalogs or search catalogs"
+    };
+  }
+
+  // RPC method to create a new catalog
+  rpc CreateCatalog(CreateCatalogRequest) returns (Catalog) {
+    option (google.api.http) = {
+      post: "/cases/catalogs",
+      body: "*"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Create a new catalog"
+    };
+  }
+
+  // RPC method to update an existing catalog
+  rpc UpdateCatalog(UpdateCatalogRequest) returns (Catalog) {
+    option (google.api.http) = {
+      put: "/cases/catalogs/{id}",
+      body: "input"
+      additional_bindings {
+        patch: "/cases/catalogs/{id}"
+        body: "input"
+      }
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Update an existing catalog"
+    };
+  }
+
+  // RPC method to delete a catalog
+  rpc DeleteCatalog(DeleteCatalogRequest) returns (CatalogList) {
+    option (google.api.http) = {
+      delete: "/cases/catalogs/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Delete a catalog"
+    };
+  }
+
+  // RPC method to locate a specific catalog by ID
+  rpc LocateCatalog(LocateCatalogRequest) returns (LocateCatalogResponse) {
+    option (google.api.http) = {
+      get: "/cases/catalogs/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Locate a catalog by ID"
+    };
+  }
+}

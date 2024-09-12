@@ -15,6 +15,8 @@ $src/status.proto \
 $src/priority.proto \
 $src/sla.proto \
 $src/sla_condition.proto \
+$src/catalog.proto \
+$src/service.proto \
 "
 
 #openapiv2_format=yaml

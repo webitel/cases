@@ -128,6 +128,18 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 		return nil, appErr
 	}
 
+	// Catalog service
+	catalog, appErr := NewCatalogService(app)
+	if appErr != nil {
+		return nil, appErr
+	}
+
+	// Service service
+	service, appErr := NewServiceService(app)
+	if appErr != nil {
+		return nil, appErr
+	}
+
 	// * Register the services
 	grpcservice.RegisterAppealsServer(grpcServer, l)
 	grpcservice.RegisterStatusesServer(grpcServer, c)
@@ -137,6 +149,8 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 	grpcservice.RegisterPrioritiesServer(grpcServer, p)
 	grpcservice.RegisterSLAsServer(grpcServer, sla)
 	grpcservice.RegisterSLAConditionsServer(grpcServer, slaC)
+	grpcservice.RegisterCatalogsServer(grpcServer, catalog)
+	grpcservice.RegisterServicesServer(grpcServer, service)
 
 	return grpcServer, nil
 }

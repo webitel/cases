@@ -19,6 +19,8 @@ type Store interface {
 	Priority() PriorityStore
 	SLA() SLAStore
 	SLACondition() SLAConditionStore
+	Catalog() CatalogStore
+	Service() ServiceStore
 
 	// ------------ Access Control ------------ //
 	AccessControl() AccessControlStore
@@ -122,4 +124,26 @@ type SLAConditionStore interface {
 	Delete(ctx *model.DeleteOptions) error
 	// Update SLA сondition
 	Update(ctx *model.UpdateOptions, lookup *_go.SLACondition) (*_go.SLACondition, error)
+}
+
+type CatalogStore interface {
+	// Create a new catalog
+	Create(rpc *model.CreateOptions, add *_go.Catalog) (*_go.Catalog, error)
+	// List catalogs
+	List(rpc *model.SearchOptions) (*_go.CatalogList, error)
+	// Delete catalog
+	Delete(rpc *model.DeleteOptions) error
+	// Update catalog
+	Update(rpc *model.UpdateOptions, lookup *_go.Catalog) (*_go.Catalog, error)
+}
+
+type ServiceStore interface {
+	// Create a new service
+	Create(rpc *model.CreateOptions, add *_go.Service) (*_go.Service, error)
+	// List services
+	List(rpc *model.SearchOptions) (*_go.ServiceList, error)
+	// Delete service
+	Delete(rpc *model.DeleteOptions) error
+	// Update service
+	Update(rpc *model.UpdateOptions, lookup *_go.Service) (*_go.Service, error)
 }
