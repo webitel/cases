@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"encoding/json"
+	"log"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -33,7 +34,8 @@ func (s *CatalogStore) Create(ctx *model.CreateOptions, add *cases.Catalog) (*ca
 	var teamLookups, skillLookups []byte
 
 	err := db.QueryRow(ctx.Context, query, args...).Scan(
-		&add.Id, &add.Name, &add.Description, &add.Prefix, &add.Code, &add.State,
+		&add.Id, &add.Name, &add.Description, &add.Prefix,
+		&add.Code, &add.State,
 		&createdAt, &updatedAt,
 		&add.Sla.Id, &add.Sla.Name,
 		&add.Status.Id, &add.Status.Name,
@@ -122,23 +124,34 @@ func (s *CatalogStore) List(ctx *model.SearchOptions) (*cases.CatalogList, error
 	next := false
 
 	for rows.Next() {
-		if count >= ctx.Size {
+		if count >= ctx.GetSize() {
 			next = true
 			break
 		}
 
-		var catalog cases.Catalog
+		// Initialize catalog and related fields
+		catalog := &cases.Catalog{
+			Sla:         &cases.Lookup{},
+			Status:      &cases.Lookup{},
+			CloseReason: &cases.Lookup{},
+		}
+		var createdBy, updatedBy cases.Lookup
+		var createdAt, updatedAt time.Time
 		var teamLookups, skillLookups []byte
 
-		err = rows.Scan(
-			&catalog.Id, &catalog.Name, &catalog.CreatedAt,
-			&catalog.Sla.Id, &catalog.Sla.Name,
-			&catalog.Status.Id, &catalog.Status.Name,
-			&catalog.CloseReason.Id, &catalog.CloseReason.Name,
-			&catalog.CreatedBy.Id, &catalog.CreatedBy.Name,
-			&catalog.UpdatedBy.Id, &catalog.UpdatedBy.Name, &catalog.UpdatedAt,
-			&teamLookups, &skillLookups, &catalog.HasServices,
+		// Build scan arguments using the helper function
+		scanArgs := s.buildCatalogScanArgs(
+			catalog, &createdBy,
+			&updatedBy, &createdAt,
+			&updatedAt, &teamLookups,
+			&skillLookups,
 		)
+
+		// Debug: print the scan arguments before scanning
+		log.Printf("Scan Args: %+v", scanArgs)
+
+		// Scan the result into the appropriate fields
+		err = rows.Scan(scanArgs...)
 		if err != nil {
 			return nil, model.NewInternalError("postgres.catalog.list.scan_error", err.Error())
 		}
@@ -151,7 +164,13 @@ func (s *CatalogStore) List(ctx *model.SearchOptions) (*cases.CatalogList, error
 			return nil, model.NewInternalError("postgres.catalog.list.unmarshal_skills_error", err.Error())
 		}
 
-		catalogs = append(catalogs, &catalog)
+		// Set timestamps and created/updated by fields
+		catalog.CreatedAt = util.Timestamp(createdAt)
+		catalog.UpdatedAt = util.Timestamp(updatedAt)
+		catalog.CreatedBy = &createdBy
+		catalog.UpdatedBy = &updatedBy
+
+		catalogs = append(catalogs, catalog)
 		count++
 	}
 
@@ -258,99 +277,110 @@ func (s *CatalogStore) Update(ctx *model.UpdateOptions, lookup *cases.Catalog) (
 	return lookup, nil
 }
 
-// Helper method to build the combined insert query for Catalog and related entities
 func (s *CatalogStore) buildCreateCatalogQuery(ctx *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
 	// Define arguments for the query
 	args := []interface{}{
-		add.Name,                  // $1: name
-		add.Description,           // $2: description (can be null)
-		add.Prefix,                // $3: prefix (can be null)
-		add.Code,                  // $4: code (can be null)
+		add.Name,                  // $1: name (cannot be null)
+		add.Description,           // $2: description (could be null)
+		add.Prefix,                // $3: prefix (could be null)
+		add.Code,                  // $4: code (could be null)
 		ctx.Time,                  // $5: created_at, updated_at
 		ctx.Session.GetUserId(),   // $6: created_by, updated_by
-		add.Sla.Id,                // $7: sla_id
-		add.Status.Id,             // $8: status_id
-		add.CloseReason.Id,        // $9: close_reason_id
-		add.State,                 // $10: state
+		add.Sla.Id,                // $7: sla_id (could be null)
+		add.Status.Id,             // $8: status_id (could be null)
+		add.CloseReason.Id,        // $9: close_reason_id (could be null)
+		add.State,                 // $10: state (cannot be null)
 		ctx.Session.GetDomainId(), // $11: domain ID (dc)
 	}
 
-	teamIds := make([]int64, len(add.Teams))
-	for i, team := range add.Teams {
-		teamIds[i] = team.Id
+	var teamIds []int64
+	if len(add.Teams) > 0 {
+		teamIds = make([]int64, len(add.Teams))
+		for i, team := range add.Teams {
+			teamIds[i] = team.Id
+		}
+	} else {
+		teamIds = nil
 	}
-	args = append(args, pq.Array(teamIds)) // $12: team_ids
+	args = append(args, pq.Array(teamIds)) // $12: team_ids (could be null)
 
-	skillIds := make([]int64, len(add.Skills))
-	for i, skill := range add.Skills {
-		skillIds[i] = skill.Id
+	var skillIds []int64
+	if len(add.Skills) > 0 {
+		skillIds = make([]int64, len(add.Skills))
+		for i, skill := range add.Skills {
+			skillIds[i] = skill.Id
+		}
+	} else {
+		skillIds = nil
 	}
-	args = append(args, pq.Array(skillIds)) // $13: skill_ids
+	args = append(args, pq.Array(skillIds)) // $13: skill_ids (could be null)
 
 	// SQL query construction
 	query := `
 WITH inserted_catalog AS (
     INSERT INTO cases.service_catalog (
-        name, description, prefix, code, created_at, created_by, updated_at,
-        updated_by, sla_id, status_id, close_reason_id, state, dc
-    ) VALUES ($1, $2, $3, $4, $5, $6, $5, $6, $7, $8, $9, $10, $11)
-    RETURNING id, name, description, prefix, code, state, sla_id, status_id, close_reason_id,
-              created_by, updated_by, created_at, updated_at
-),
-inserted_teams AS (
-    INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, created_at, updated_at, dc)
-    SELECT inserted_catalog.id, unnest($12::bigint[]), $6, $6, $5, $5, $11
-    FROM inserted_catalog
-    RETURNING catalog_id, team_id
-),
-inserted_skills AS (
-    INSERT INTO cases.skill_catalog (catalog_id, skill_id, created_by, updated_by, created_at, updated_at, dc)
-    SELECT inserted_catalog.id, unnest($13::bigint[]), $6, $6, $5, $5, $11
-    FROM inserted_catalog
-    RETURNING catalog_id, skill_id
-),
-teams_agg AS (
-    SELECT inserted_teams.catalog_id,
-           json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
-    FROM inserted_teams
-    LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
-    GROUP BY inserted_teams.catalog_id
-),
-skills_agg AS (
-    SELECT inserted_skills.catalog_id,
-           json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
-    FROM inserted_skills
-    LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
-    GROUP BY inserted_skills.catalog_id
-)
+                                       name, description, prefix, code, created_at, created_by, updated_at,
+                                       updated_by, sla_id, status_id, close_reason_id, state, dc
+        ) VALUES ($1,
+                  COALESCE(NULLIF($2, ''), NULL), -- Description (NULL if empty string)
+                  COALESCE(NULLIF($3, ''), NULL), -- Prefix (NULL if empty string)
+                  COALESCE(NULLIF($4, ''), NULL), -- Code (NULL if empty string)
+                  $5, $6, $5, $6,
+                  COALESCE(NULLIF($7, 0), NULL), -- SLA ID (NULL if 0)
+                  COALESCE(NULLIF($8, 0), NULL), -- Status ID (NULL if 0)
+                  COALESCE(NULLIF($9, 0), NULL), -- Close Reason ID (NULL if 0)
+                  $10,
+                  $11)
+        RETURNING id, name, description, prefix, code, state, sla_id, status_id, close_reason_id,
+            created_by, updated_by, created_at, updated_at),
+     inserted_teams AS (
+         INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, created_at, updated_at, dc)
+             SELECT inserted_catalog.id, unnest(COALESCE(NULLIF($12::bigint[], '{}'), NULL)), $6, $6, $5, $5, $11
+             FROM inserted_catalog
+             RETURNING catalog_id, team_id),
+     inserted_skills AS (
+         INSERT INTO cases.skill_catalog (catalog_id, skill_id, created_by, updated_by, created_at, updated_at, dc)
+             SELECT inserted_catalog.id, unnest(COALESCE(NULLIF($13::bigint[], '{}'), NULL)), $6, $6, $5, $5, $11
+             FROM inserted_catalog
+             RETURNING catalog_id, skill_id),
+     teams_agg AS (SELECT inserted_teams.catalog_id,
+                          json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+                   FROM inserted_teams
+                            LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+                   GROUP BY inserted_teams.catalog_id),
+     skills_agg AS (SELECT inserted_skills.catalog_id,
+                           json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+                    FROM inserted_skills
+                             LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+                    GROUP BY inserted_skills.catalog_id)
 SELECT inserted_catalog.id,
        inserted_catalog.name,
-       inserted_catalog.description,
-       inserted_catalog.prefix,
-       inserted_catalog.code,
+       COALESCE(inserted_catalog.description, '')    AS description,       -- Return empty string if null
+       COALESCE(inserted_catalog.prefix, '')         AS prefix,            -- Return empty string if null
+       COALESCE(inserted_catalog.code, '')           AS code,              -- Return empty string if null
        inserted_catalog.state,
        inserted_catalog.created_at,
        inserted_catalog.updated_at,
-       inserted_catalog.sla_id,
-       sla.name AS sla_name,
-       inserted_catalog.status_id,
-       status.name AS status_name,
-       inserted_catalog.close_reason_id,
-       close_reason.name AS close_reason_name,
-       inserted_catalog.created_by,
-       created_by_user.name  AS created_by_name,
-       inserted_catalog.updated_by,
-       updated_by_user.name  AS updated_by_name,
-       COALESCE(teams_agg.teams, '[]') AS teams,
-       COALESCE(skills_agg.skills, '[]') AS skills
+       COALESCE(inserted_catalog.sla_id, 0)          AS sla_id,            -- Return 0 if null
+       COALESCE(sla.name, '')                        AS sla_name,          -- Return empty string if null
+       COALESCE(inserted_catalog.status_id, 0)       AS status_id,         -- Return 0 if null
+       COALESCE(status.name, '')                     AS status_name,       -- Return empty string if null
+       COALESCE(inserted_catalog.close_reason_id, 0) AS close_reason_id,   -- Return 0 if null
+       COALESCE(close_reason.name, '')               AS close_reason_name, -- Return empty string if null
+       COALESCE(inserted_catalog.created_by, 0)      AS created_by,        -- Return 0 if null
+       COALESCE(created_by_user.name, '')            AS created_by_name,   -- Return empty string if null
+       COALESCE(inserted_catalog.updated_by, 0)      AS updated_by,        -- Return 0 if null
+       COALESCE(updated_by_user.name, '')            AS updated_by_name,   -- Return empty string if null
+       COALESCE(teams_agg.teams, '[]')               AS teams,             -- Return empty array if null
+       COALESCE(skills_agg.skills, '[]')             AS skills             -- Return empty array if null
 FROM inserted_catalog
-LEFT JOIN cases.sla ON sla.id = inserted_catalog.sla_id
-LEFT JOIN cases.status ON status.id = inserted_catalog.status_id
-LEFT JOIN cases.close_reason ON close_reason.id = inserted_catalog.close_reason_id
-LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_catalog.created_by
-LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_catalog.updated_by
-LEFT JOIN teams_agg ON teams_agg.catalog_id = inserted_catalog.id
-LEFT JOIN skills_agg ON skills_agg.catalog_id = inserted_catalog.id;
+         LEFT JOIN cases.sla ON sla.id = inserted_catalog.sla_id
+         LEFT JOIN cases.status ON status.id = inserted_catalog.status_id
+         LEFT JOIN cases.close_reason ON close_reason.id = inserted_catalog.close_reason_id
+         LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_catalog.created_by
+         LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_catalog.updated_by
+         LEFT JOIN teams_agg ON teams_agg.catalog_id = inserted_catalog.id
+         LEFT JOIN skills_agg ON skills_agg.catalog_id = inserted_catalog.id;
 `
 
 	return store.CompactSQL(query), args
@@ -373,33 +403,33 @@ func (s *CatalogStore) buildDeleteCatalogQuery(ctx *model.DeleteOptions) (string
 	return store.CompactSQL(query), args
 }
 
-// Helper method to build the search query for Catalog
 func (s *CatalogStore) buildSearchCatalogQuery(ctx *model.SearchOptions) (string, []interface{}, error) {
-	// Initialize query builder
+	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
+	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+	// Initialize query builder with Common Table Expressions (CTEs) for teams and skills aggregation
 	queryBuilder := sq.Select(
 		"catalog.id",
-		"catalog.name",
-		"catalog.description",
-		"catalog.prefix",
-		"catalog.code",
-		"catalog.state",
-		"catalog.sla_id",
-		"sla.name",
-		"catalog.status_id",
-		"status.name",
-		"catalog.close_reason_id",
-		"close_reason.name",
-		"grp.name",
-		"catalog.created_by",
-		"created_by_user.name AS created_by_name",
-		"catalog.updated_by",
-		"updated_by_user.name AS updated_by_name",
-		"catalog.created_at",
-		"catalog.updated_at",
-		`COALESCE(json_agg(json_build_object('id', team.id, 'name', team.name)) FILTER (WHERE team.id IS NOT NULL), '[]') AS teams`,
-		`COALESCE(json_agg(json_build_object('id', skill.id, 'name', skill.name)) FILTER (WHERE skill.id IS NOT NULL), '[]') AS skills`,
+		"catalog.name",                       // Mandatory
+		"catalog.prefix",                     // Mandatory
+		"catalog.sla_id",                     // Mandatory
+		"sla.name AS sla_name",               // Mandatory
+		"catalog.status_id",                  // Mandatory
+		"status.name AS status_name",         // Mandatory
+		"COALESCE(catalog.code, '') AS code", // Optional
+		"COALESCE(catalog.description, '') AS description",        // Optional
+		"COALESCE(catalog.close_reason_id, 0) AS close_reason_id", // Optional
+		"COALESCE(close_reason.name, '') AS close_reason_name",    // Optional
+		"catalog.state AS state",
+		"COALESCE(catalog.created_by, 0) AS created_by",
+		"COALESCE(created_by_user.name, '') AS created_by_name",
+		"COALESCE(catalog.updated_by, 0) AS updated_by",
+		"COALESCE(updated_by_user.name, '') AS updated_by_name",
+		"catalog.created_at AS created_at",
+		"catalog.updated_at AS updated_at",
+		"COALESCE(teams_agg.teams, '[]') AS teams",    // Aggregated teams from the CTE
+		"COALESCE(skills_agg.skills, '[]') AS skills", // Aggregated skills from the CTE
 		// Determine if the catalog has services
-		`EXISTS (SELECT 1 FROM cases.catalog cs WHERE cs.parent_id = catalog.id) AS has_services`,
+		`EXISTS (SELECT 1 FROM cases.service_catalog AS cs WHERE cs.root_id = catalog.id) AS has_services`,
 	).
 		From("cases.service_catalog AS catalog").
 		LeftJoin("cases.sla ON sla.id = catalog.sla_id").
@@ -407,14 +437,9 @@ func (s *CatalogStore) buildSearchCatalogQuery(ctx *model.SearchOptions) (string
 		LeftJoin("cases.close_reason ON close_reason.id = catalog.close_reason_id").
 		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
 		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by").
-		LeftJoin("call_center.cc_teams_catalog AS tc ON tc.catalog_id = catalog.id").
-		LeftJoin("call_center.cc_teams AS team ON team.id = tc.team_id").
-		LeftJoin("call_center.cc_skills_catalog AS sc ON sc.catalog_id = catalog.id").
-		LeftJoin("call_center.cc_skills AS skill ON skill.id = sc.skill_id").
-		GroupBy(
-			"catalog.id", "sla.name", "status.name", "close_reason.name", "grp.name", "created_by_user.name", "updated_by_user.name",
-		).
-		Where(sq.Eq{"catalog.parent_id": nil}). // Fetch only top-level catalogs (where parent_id is NULL)
+		LeftJoin("teams_agg ON teams_agg.catalog_id = catalog.id").   // Join teams aggregation
+		LeftJoin("skills_agg ON skills_agg.catalog_id = catalog.id"). // Join skills aggregation
+		Where(sq.Eq{"catalog.root_id": nil}).                         // Fetch only top-level catalogs (where root_id is NULL)
 		PlaceholderFormat(sq.Dollar)
 
 	// Apply filtering by name
@@ -428,18 +453,51 @@ func (s *CatalogStore) buildSearchCatalogQuery(ctx *model.SearchOptions) (string
 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
 	}
 
+	if len(ids) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.id": ids})
+	}
+
 	// Apply sorting
 	for _, sort := range ctx.Sort {
 		queryBuilder = queryBuilder.OrderBy(sort)
 	}
 
-	// Apply pagination
-	if ctx.Page > 0 && ctx.Size > 0 {
-		queryBuilder = queryBuilder.Limit(uint64(ctx.Size + 1)).Offset(uint64((ctx.Page - 1) * ctx.Size))
+	size := ctx.GetSize()
+	page := ctx.Page
+
+	// Apply offset only if page > 1
+	if ctx.Page > 1 {
+		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
 	}
 
-	// Build SQL query
-	query, args, err := queryBuilder.ToSql()
+	// Apply limit
+	if size != -1 {
+		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
+	}
+
+	// Build SQL query with CTEs for teams and skills aggregation
+	query, args, err := queryBuilder.Prefix(`
+		WITH inserted_teams AS (
+			SELECT catalog_id, team_id FROM cases.team_catalog
+		),
+		teams_agg AS (
+			SELECT inserted_teams.catalog_id,
+				   json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+			FROM inserted_teams
+			LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+			GROUP BY inserted_teams.catalog_id
+		),
+		inserted_skills AS (
+			SELECT catalog_id, skill_id FROM cases.skill_catalog
+		),
+		skills_agg AS (
+			SELECT inserted_skills.catalog_id,
+				   json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+			FROM inserted_skills
+			LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+			GROUP BY inserted_skills.catalog_id
+		)
+	`).ToSql()
 	if err != nil {
 		return "", nil, model.NewInternalError("postgres.catalog.query_build_error", err.Error())
 	}
@@ -575,7 +633,6 @@ func (s *CatalogStore) buildUpdateCatalogQuery(ctx *model.UpdateOptions, lookup 
 		"status.name",
 		"catalog.close_reason_id",
 		"close_reason.name",
-		"grp.name",
 		"catalog.created_by",
 		"created_by_user.name AS created_by_name",
 		"catalog.updated_by",
@@ -602,7 +659,6 @@ func (s *CatalogStore) buildUpdateCatalogQuery(ctx *model.UpdateOptions, lookup 
 			"sla.name",
 			"status.name",
 			"close_reason.name",
-			"grp.name",
 			"created_by_user.name",
 			"updated_by_user.name",
 		)
@@ -618,6 +674,55 @@ func (s *CatalogStore) buildUpdateCatalogQuery(ctx *model.UpdateOptions, lookup 
 	combinedArgs := append(args, selectArgs...)
 
 	return store.CompactSQL(query), combinedArgs, nil
+}
+
+// buildCatalogScanArgs prepares scan arguments for populating a Catalog object.
+func (s *CatalogStore) buildCatalogScanArgs(
+	catalog *cases.Catalog, // The catalog object to populate
+	createdBy, updatedBy *cases.Lookup, // Lookup objects for created_by and updated_by
+	createdAt, updatedAt *time.Time, // Temporary variables for created_at and updated_at
+	teamLookups, skillLookups *[]byte, // Byte arrays for teams and skills (as JSON or binary)
+) []interface{} {
+	return []interface{}{
+		// Catalog ID
+		&catalog.Id, // Catalog ID
+
+		// Catalog metadata
+		&catalog.Name,   // Catalog name
+		&catalog.Prefix, // Catalog prefix
+
+		// SLA fields
+		&catalog.Sla.Id,   // SLA ID
+		&catalog.Sla.Name, // SLA name
+
+		// Code and description
+		&catalog.Code,        // Catalog code (optional, can be null)
+		&catalog.Description, // Catalog description (optional, can be null)
+
+		// Close reason fields
+		&catalog.CloseReason.Id,   // Close reason ID
+		&catalog.CloseReason.Name, // Close reason name
+
+		// State field
+		&catalog.State, // Catalog state (active/inactive)
+
+		// Created by and updated by fields (Lookup)
+		&createdBy.Id,   // Created by user ID
+		&createdBy.Name, // Created by user name
+		&updatedBy.Id,   // Updated by user ID
+		&updatedBy.Name, // Updated by user name
+
+		// Timestamps
+		createdAt, // Created at timestamp
+		updatedAt, // Updated at timestamp
+
+		// Teams and skills lookups (usually in JSON or binary format)
+		teamLookups,  // Team lookups (can be null if no teams)
+		skillLookups, // Skill lookups (can be null if no skills)
+
+		// Additional fields
+		&catalog.HasServices, // Whether the catalog has related services
+	}
 }
 
 func NewCatalogStore(store store.Store) (store.CatalogStore, model.AppError) {

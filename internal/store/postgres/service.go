@@ -113,32 +113,35 @@ func (s *ServiceStore) List(ctx *model.SearchOptions) (*cases.ServiceList, error
 	next := false
 
 	for rows.Next() {
-		if count >= ctx.Size {
+		if count >= ctx.GetSize() {
 			next = true
 			break
 		}
 
-		var service cases.Service
-		var groupLookup, assigneeLookup cases.Lookup
+		// Create service and related lookup objects
+		service := &cases.Service{
+			Sla:      &cases.Lookup{},
+			Group:    &cases.Lookup{},
+			Assignee: &cases.Lookup{},
+		}
+		createdBy, updatedBy := &cases.Lookup{}, &cases.Lookup{}
+		var createdAt, updatedAt time.Time
 
-		err = rows.Scan(
-			&service.Id, &service.Name, &service.Description, &service.Code, &service.State,
-			&service.CreatedAt, &service.UpdatedAt,
-			&service.Sla.Id, &service.Sla.Name,
-			&groupLookup.Id, &groupLookup.Name,
-			&assigneeLookup.Id, &assigneeLookup.Name,
-			&service.CreatedBy.Id, &service.CreatedBy.Name,
-			&service.UpdatedBy.Id, &service.UpdatedBy.Name,
-			&service.HasServices, &service.RootId,
-		)
+		// Build the scan arguments for the current row
+		scanArgs := s.buildServiceScanArgs(service, createdBy, updatedBy, &createdAt, &updatedAt, service.Group, service.Assignee)
+
+		// Scan the row into the service object
+		err = rows.Scan(scanArgs...)
 		if err != nil {
 			return nil, model.NewInternalError("postgres.service.list.scan_error", err.Error())
 		}
 
-		service.Group = &groupLookup
-		service.Assignee = &assigneeLookup
+		// Assign the created and updated timestamp values
+		service.CreatedAt = util.Timestamp(createdAt)
+		service.UpdatedAt = util.Timestamp(updatedAt)
 
-		services = append(services, &service)
+		// Append the populated service object to the services slice
+		services = append(services, service)
 		count++
 	}
 
@@ -205,7 +208,6 @@ func (s *ServiceStore) Update(ctx *model.UpdateOptions, lookup *cases.Service) (
 	return lookup, nil
 }
 
-// Helper method to build the combined insert query for Service and related entities
 func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *cases.Service) (string, []interface{}) {
 	args := []interface{}{
 		add.Name,                  // $1: name
@@ -218,42 +220,50 @@ func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *ca
 		add.Assignee.Id,           // $8: assignee_id
 		add.State,                 // $9: state
 		rpc.Session.GetDomainId(), // $10: domain ID
-		add.RootId,                // $11: root_id
+		add.RootId,                // $11: root_id (can be null)
 	}
 
 	query := `
-    WITH inserted_service AS (
-        INSERT INTO cases.service_catalog (
-            name, description, code, created_at, created_by, updated_at,
-            updated_by, sla_id, group_id, assignee_id, state, dc, root_id
-        ) VALUES ($1, $2, $3, $4, $5, $4, $5, $6, $7, $8, $9, $10, $11)
+   WITH inserted_service AS (
+    INSERT INTO cases.service_catalog (
+                                       name, description, code, created_at, created_by, updated_at,
+                                       updated_by, sla_id, group_id, assignee_id, state, dc, root_id
+        ) VALUES ($1,
+                  COALESCE(NULLIF($2, ''), NULL), -- description (NULL if empty string)
+                  COALESCE(NULLIF($3, ''), NULL), -- code (NULL if empty string)
+                  $4, $5, $4, $5,
+                  COALESCE(NULLIF($6, 0), NULL), -- sla_id (NULL if 0)
+                  COALESCE(NULLIF($7, 0), NULL), -- group_id (NULL if 0)
+                  COALESCE(NULLIF($8, 0), NULL), -- assignee_id (NULL if 0)
+                  $9, $10,
+                  COALESCE(NULLIF($11, 0), NULL) -- root_id (NULL if 0)
+                 )
         RETURNING id, name, description, code, state, sla_id, group_id, assignee_id,
-                  created_by, updated_by, created_at, updated_at, root_id
-    )
-    SELECT inserted_service.id,
-           inserted_service.name,
-           inserted_service.description,
-           inserted_service.code,
-           inserted_service.state,
-           inserted_service.created_at,
-           inserted_service.updated_at,
-           inserted_service.sla_id,
-           sla.name AS sla_name,
-           inserted_service.group_id,
-           grp.name AS group_name,
-           inserted_service.assignee_id,
-           assignee.given_name AS assignee_name,
-           inserted_service.created_by,
-           created_by_user.name AS created_by_name,
-           inserted_service.updated_by,
-           updated_by_user.name AS updated_by_name,
-		   inserted_service.root_id
-    FROM inserted_service
-    LEFT JOIN cases.sla ON sla.id = inserted_service.sla_id
-    LEFT JOIN contacts.group grp ON grp.id = inserted_service.group_id
-    LEFT JOIN contacts.contact assignee ON assignee.id = inserted_service.assignee_id
-    LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_service.created_by
-    LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_service.updated_by;
+            created_by, updated_by, created_at, updated_at, root_id)
+SELECT inserted_service.id,
+       inserted_service.name,
+       COALESCE(inserted_service.description, '') AS description,     -- Return empty string if null
+       COALESCE(inserted_service.code, '')        AS code,            -- Return empty string if null
+       inserted_service.state,
+       inserted_service.created_at,
+       inserted_service.updated_at,
+       COALESCE(inserted_service.sla_id, 0)       AS sla_id,          -- Return 0 if null
+       COALESCE(sla.name, '')                     AS sla_name,        -- Return empty string if null
+       COALESCE(inserted_service.group_id, 0)     AS group_id,        -- Return 0 if null
+       COALESCE(grp.name, '')                     AS group_name,      -- Return empty string if null
+       COALESCE(inserted_service.assignee_id, 0)  AS assignee_id,     -- Return 0 if null
+       COALESCE(assignee.given_name, '')          AS assignee_name,   -- Return empty string if null
+       COALESCE(inserted_service.created_by, 0)   AS created_by,      -- Return 0 if null
+       COALESCE(created_by_user.name, '')         AS created_by_name, -- Return empty string if null
+       COALESCE(inserted_service.updated_by, 0)   AS updated_by,      -- Return 0 if null
+       COALESCE(updated_by_user.name, '')         AS updated_by_name, -- Return empty string if null
+       COALESCE(inserted_service.root_id, 0)      AS root_id          -- Return 0 if null
+FROM inserted_service
+         LEFT JOIN cases.sla ON sla.id = inserted_service.sla_id
+         LEFT JOIN contacts.group grp ON grp.id = inserted_service.group_id
+         LEFT JOIN contacts.contact assignee ON assignee.id = inserted_service.assignee_id
+         LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_service.created_by
+         LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_service.updated_by;
     `
 
 	return store.CompactSQL(query), args
@@ -275,28 +285,31 @@ func (s *ServiceStore) buildDeleteServiceQuery(ctx *model.DeleteOptions) (string
 
 // Helper method to build the search query for Service
 func (s *ServiceStore) buildSearchServiceQuery(ctx *model.SearchOptions) (string, []interface{}, error) {
-	// Initialize query builder
+	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
+	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+
+	// Initialize query builder with COALESCE for optional fields
 	queryBuilder := sq.Select(
 		"service.id",
-		"service.name",
-		"service.description",
-		"service.code",
-		"service.state",
-		"service.sla_id",
-		"sla.name",
-		"service.group_id",
-		"grp.name",
-		"service.assignee_id",
-		"assignee.name",
-		"service.created_by",
-		"created_by_user.name AS created_by_name",
-		"service.updated_by",
-		"updated_by_user.name AS updated_by_name",
-		"service.created_at",
-		"service.updated_at",
+		"service.name", // Name can't be null
+		"COALESCE(service.description, '') AS description",      // Default to empty string if NULL
+		"COALESCE(service.code, '') AS code",                    // Default to empty string if NULL
+		"service.state",                                         // State can't be null
+		"COALESCE(service.sla_id, 0) AS sla_id",                 // Default to 0 if NULL
+		"COALESCE(sla.name, '') AS sla_name",                    // Default to empty string if NULL
+		"COALESCE(service.group_id, 0) AS group_id",             // Default to 0 if NULL
+		"COALESCE(grp.name, '') AS group_name",                  // Default to empty string if NULL
+		"COALESCE(service.assignee_id, 0) AS assignee_id",       // Default to 0 if NULL
+		"COALESCE(assignee.given_name, '') AS assignee_name",    // Default to empty string if NULL
+		"service.created_by",                                    // created_by can't be null
+		"COALESCE(created_by_user.name, '') AS created_by_name", // Default to empty string if NULL
+		"service.updated_by",                                    // updated_by can't be null
+		"COALESCE(updated_by_user.name, '') AS updated_by_name", // Default to empty string if NULL
+		"service.created_at",                                    // created_at can't be null
+		"service.updated_at",                                    // updated_at can't be null
 		// Determine if the service has subservices
-		`EXISTS (SELECT 1 FROM cases.service cs WHERE cs.root_id = service.id) AS has_subservices`,
-		"service.root_id",
+		`EXISTS (SELECT 1 FROM cases.service_catalog cs WHERE cs.root_id = service.id) AS has_subservices`,
+		"COALESCE(service.root_id, 0) AS root_id", // Default to 0 if NULL
 	).
 		From("cases.service_catalog AS service").
 		LeftJoin("cases.sla ON sla.id = service.sla_id").
@@ -305,16 +318,16 @@ func (s *ServiceStore) buildSearchServiceQuery(ctx *model.SearchOptions) (string
 		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by").
 		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = service.updated_by").
 		GroupBy(
-			"service.id", "sla.name", "grp.name", "assignee.name", "created_by_user.name", "updated_by_user.name", "service.root_id",
+			"service.id", "sla.name", "grp.name", "assignee.given_name", "created_by_user.name", "updated_by_user.name", "service.root_id",
 		).
 		PlaceholderFormat(sq.Dollar)
 
-	// Apply filtering by catalog_id (using root_id)
+	// Apply filtering by root_id (using root_id from context)
 	if rootID, ok := ctx.Filter["root_id"].(int64); ok && rootID > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.root_id": rootID})
 	}
 
-	// Apply filtering by name
+	// Apply filtering by name (using case-insensitive matching)
 	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
 		substr := ctx.Match.Substring(name)
 		queryBuilder = queryBuilder.Where(sq.ILike{"service.name": substr})
@@ -325,14 +338,28 @@ func (s *ServiceStore) buildSearchServiceQuery(ctx *model.SearchOptions) (string
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.state": state})
 	}
 
-	// Apply sorting
+	// Apply filtering by IDs if provided
+	if len(ids) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"service.id": ids})
+	}
+
+	// Apply sorting based on context
 	for _, sort := range ctx.Sort {
 		queryBuilder = queryBuilder.OrderBy(sort)
 	}
 
-	// Apply pagination
-	if ctx.Page > 0 && ctx.Size > 0 {
-		queryBuilder = queryBuilder.Limit(uint64(ctx.Size + 1)).Offset(uint64((ctx.Page - 1) * ctx.Size))
+	// Get size and page for pagination
+	size := ctx.GetSize()
+	page := ctx.GetPage()
+
+	// Apply offset only if page > 1
+	if ctx.Page > 1 {
+		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
+	}
+
+	// Apply limit for pagination
+	if size != -1 {
+		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
 	}
 
 	// Build SQL query
@@ -421,6 +448,49 @@ func (s *ServiceStore) buildUpdateServiceQuery(ctx *model.UpdateOptions, lookup 
 	combinedArgs := append(args, selectArgs...)
 
 	return store.CompactSQL(query), combinedArgs, nil
+}
+
+// buildServiceScanArgs prepares scan arguments for populating a Service object.
+func (s *ServiceStore) buildServiceScanArgs(
+	service *cases.Service, // The service object to populate
+	createdBy, updatedBy *cases.Lookup, // Lookup objects for created_by and updated_by
+	createdAt, updatedAt *time.Time, // Temporary variables for created_at and updated_at
+	groupLookup, assigneeLookup *cases.Lookup, // Lookup objects for group and assignee
+) []interface{} {
+	return []interface{}{
+		// Service fields
+		&service.Id,          // Service ID
+		&service.Name,        // Service name
+		&service.Description, // Service description
+		&service.Code,        // Service code
+		&service.State,       // Service state
+
+		// SLA fields
+		&service.Sla.Id,   // SLA ID
+		&service.Sla.Name, // SLA name
+
+		// Group fields
+		&groupLookup.Id,   // Group ID
+		&groupLookup.Name, // Group name
+
+		// Assignee fields
+		&assigneeLookup.Id,   // Assignee ID
+		&assigneeLookup.Name, // Assignee name
+
+		// Created and updated by fields
+		&createdBy.Id,   // Created by user ID
+		&createdBy.Name, // Created by user name
+		&updatedBy.Id,   // Updated by user ID
+		&updatedBy.Name, // Updated by user name
+
+		// Timestamps
+		createdAt, // Created at timestamp
+		updatedAt, // Updated at timestamp
+
+		// Has services and root ID fields
+		&service.HasServices, // Whether service has related services
+		&service.RootId,      // Root service ID
+	}
 }
 
 func NewServiceStore(store store.Store) (store.ServiceStore, model.AppError) {
