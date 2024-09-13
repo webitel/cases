@@ -412,35 +412,32 @@ func (s *ServiceStore) buildUpdateServiceQuery(ctx *model.UpdateOptions, lookup 
 
 	// Now build the select query with a static SQL using a WITH clause
 	query := fmt.Sprintf(`
-		WITH updated_service AS (
-			%s
-			RETURNING id, name, description, code, state, sla_id, group_id, assignee_id, created_by, updated_by, created_at, updated_at, root_id
-		)
-		SELECT
-			service.id,
-			service.name,
-			service.description,
-			service.code,
-			service.state,
-			service.sla_id,
-			sla.name AS sla_name,
-			service.group_id,
-			grp.name AS group_name,
-			service.assignee_id,
-			assignee.given_name AS assignee_name,
-			service.created_by,
-			created_by_user.name AS created_by_name,
-			service.updated_by,
-			updated_by_user.name AS updated_by_name,
-			service.created_at,
-			service.updated_at,
-			service.root_id
-		FROM updated_service AS service
-		LEFT JOIN cases.sla ON sla.id = service.sla_id
-		LEFT JOIN contacts.group AS grp ON grp.id = service.group_id
-		LEFT JOIN contacts.contact AS assignee ON assignee.id = service.assignee_id
-		LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by
-		LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = service.updated_by;
+		WITH updated_service AS (%s
+			RETURNING id, name, description, code, state, sla_id, group_id, assignee_id, created_by, updated_by, created_at, updated_at, root_id)
+SELECT service.id,
+       service.name,
+       service.description,
+       service.code,
+       service.state,
+       service.sla_id,
+       sla.name             AS sla_name,
+       service.group_id,
+       grp.name             AS group_name,
+       service.assignee_id,
+       assignee.given_name  AS assignee_name,
+       service.created_by,
+       created_by_user.name AS created_by_name,
+       service.updated_by,
+       updated_by_user.name AS updated_by_name,
+       service.created_at,
+       service.updated_at,
+       service.root_id
+FROM updated_service AS service
+         LEFT JOIN cases.sla ON sla.id = service.sla_id
+         LEFT JOIN contacts.group AS grp ON grp.id = service.group_id
+         LEFT JOIN contacts.contact AS assignee ON assignee.id = service.assignee_id
+         LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by
+         LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = service.updated_by;
 	`, updateSQL)
 
 	// Return the final combined query and arguments
