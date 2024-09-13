@@ -49,14 +49,14 @@ message InputService {
 
 // CreateServiceRequest message for creating a new service
 message CreateServiceRequest {
-  int64 root_id = 1;           // **Parent catalog ID** (required)
-  string description = 2;         // Description of the service (optional)
-  string code = 3;                // Code for external integrations (optional)
-  bool state = 4;                 // State of the service (true for active, false for inactive)
-  int64 sla_id = 5;               // SLA ID associated with the service
-  int64 group_id = 6;             // Group ID responsible for the service
-  int64 assignee_id = 7;          // Assignee ID responsible for the service
-  string name = 8;                // Name of the service (required)
+  string name = 1;                // Name of the service (required)
+  int64 root_id = 2;           // **Parent catalog ID** (required)
+  string description = 3;         // Description of the service (optional)
+  string code = 4;                // Code for external integrations (optional)
+  bool state = 5;                 // State of the service (true for active, false for inactive)
+  int64 sla_id = 6;               // SLA ID associated with the service
+  int64 group_id = 7;             // Group ID responsible for the service
+  int64 assignee_id = 8;          // Assignee ID responsible for the service
 }
 
 // UpdateServiceRequest message for updating an existing service
@@ -94,7 +94,6 @@ message ListServiceRequest {
 // LocateServiceRequest message for locating a specific service by ID
 message LocateServiceRequest {
   int64 id = 1;                   // ID of the service to be located
-  repeated string fields = 2;     // Fields to be retrieved in the response
 }
 
 // LocateServiceResponse message contains a single service entity

@@ -259,6 +259,9 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		switch f {
 		case "name":
 			fields = append(fields, "name")
+			if req.Input.Name == "" {
+				return nil, model.NewBadRequestError("sla_service.update_sla.name.required", "SLA name is required and cannot be empty")
+			}
 		case "description":
 			fields = append(fields, "description")
 		case "valid_from":
@@ -267,6 +270,9 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 			fields = append(fields, "valid_to")
 		case "calendar_id":
 			fields = append(fields, "calendar_id")
+			if req.Input.CalendarId == 0 {
+				return nil, model.NewBadRequestError("sla_service.update_sla.calendar_id.required", "Calendar ID is required")
+			}
 		case "reaction_time_hours":
 			fields = append(fields, "reaction_time_hours")
 		case "reaction_time_minutes":

@@ -200,21 +200,39 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 
 	// Update priorities first if there are any IDs
 
-	if len(rpc.IDs) > 0 {
-		priorityQuery, priorityArgs := s.buildUpdatePrioritiesQuery(rpc, l)
+	for _, fields := range rpc.Fields {
+		if fields == "priority" {
+			priorityQuery, priorityArgs := s.buildUpdatePrioritiesQuery(rpc, l)
 
-		// Execute the query and get the total number of rows affected
-		var totalRowsAffected int
-		err = txManager.QueryRow(rpc.Context, priorityQuery, priorityArgs...).Scan(&totalRowsAffected)
-		if err != nil {
-			return nil, model.NewInternalError("postgres.sla_condition.update.priorities_execution_error", err.Error())
-		}
+			// Execute the query and get the total number of rows affected
+			var totalRowsAffected int
+			err = txManager.QueryRow(rpc.Context, priorityQuery, priorityArgs...).Scan(&totalRowsAffected)
+			if err != nil {
+				return nil, model.NewInternalError("postgres.sla_condition.update.priorities_execution_error", err.Error())
+			}
 
-		// Check if any rows were affected
-		if totalRowsAffected == 0 {
-			return nil, model.NewInternalError("postgres.sla_condition.update.no_priorities_affected", "No priorities were updated or deleted.")
+			// Check if any rows were affected
+			if totalRowsAffected == 0 {
+				return nil, model.NewInternalError("postgres.sla_condition.update.no_priorities_affected", "No priorities were updated or deleted.")
+			}
 		}
 	}
+
+	// if len(rpc.IDs) > 0 {
+	// 	priorityQuery, priorityArgs := s.buildUpdatePrioritiesQuery(rpc, l)
+
+	// 	// Execute the query and get the total number of rows affected
+	// 	var totalRowsAffected int
+	// 	err = txManager.QueryRow(rpc.Context, priorityQuery, priorityArgs...).Scan(&totalRowsAffected)
+	// 	if err != nil {
+	// 		return nil, model.NewInternalError("postgres.sla_condition.update.priorities_execution_error", err.Error())
+	// 	}
+
+	// 	// Check if any rows were affected
+	// 	if totalRowsAffected == 0 {
+	// 		return nil, model.NewInternalError("postgres.sla_condition.update.no_priorities_affected", "No priorities were updated or deleted.")
+	// 	}
+	// }
 
 	// Build and execute the update query for sla_condition and return priorities JSON in one query
 	query, args, err := s.buildUpdateSLAConditionQuery(rpc, l)

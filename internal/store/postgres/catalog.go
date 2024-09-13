@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -197,24 +198,55 @@ func (s *CatalogStore) Update(ctx *model.UpdateOptions, lookup *cases.Catalog) (
 	txManager := store.NewTxManager(tx)   // Create a new TxManager instance
 	defer txManager.Rollback(ctx.Context) // Ensure rollback on error
 
-	// Handle teams and skills updates if they exist
-	if len(lookup.Teams) > 0 || len(lookup.Skills) > 0 {
-		// Extract team and skill IDs from Lookup
-		teamIDs := make([]int64, len(lookup.Teams))
-		for i, team := range lookup.Teams {
-			teamIDs[i] = team.Id
+	// Check if rpc.Fields contains team_ids or skill_ids
+	updateTeams := false
+	updateSkills := false
+
+	// Check if the fields exist in rpc.Fields
+	for _, field := range ctx.Fields {
+		switch field {
+		case "teams":
+			updateTeams = true
+		case "skills":
+			updateSkills = true
+		}
+	}
+
+	// Handle teams and skills updates if rpc.Fields contain team_ids or skill_ids
+	if updateTeams || updateSkills {
+		// Initialize empty slices for teamIDs and skillIDs
+		teamIDs := []int64{}
+		skillIDs := []int64{}
+
+		// If the user has provided team updates, extract team IDs
+		if updateTeams {
+			if len(lookup.Teams) > 0 {
+				teamIDs = make([]int64, len(lookup.Teams))
+				for i, team := range lookup.Teams {
+					teamIDs[i] = team.Id
+				}
+			} // Else, teamIDs remains as an empty slice
 		}
 
-		skillIDs := make([]int64, len(lookup.Skills))
-		for i, skill := range lookup.Skills {
-			skillIDs[i] = skill.Id
+		// If the user has provided skill updates, extract skill IDs
+		if updateSkills {
+			if len(lookup.Skills) > 0 {
+				skillIDs = make([]int64, len(lookup.Skills))
+				for i, skill := range lookup.Skills {
+					skillIDs[i] = skill.Id
+				}
+			} // Else, skillIDs remains as an empty slice
 		}
 
 		// Build query to update teams and skills
 		query, args := s.buildUpdateTeamsAndSkillsQuery(
-			lookup.Id, teamIDs,
-			skillIDs, ctx.Session.GetUserId(),
-			ctx.Time, ctx.Session.GetDomainId(),
+			ctx,
+			lookup.Id,
+			teamIDs,  // Pass empty slice if no team IDs are provided
+			skillIDs, // Pass empty slice if no skill IDs are provided
+			ctx.Session.GetUserId(),
+			ctx.Time,
+			ctx.Session.GetDomainId(),
 		)
 
 		// Execute the teams and skills update query and check for affected rows
@@ -477,26 +509,20 @@ func (s *CatalogStore) buildSearchCatalogQuery(ctx *model.SearchOptions) (string
 
 	// Build SQL query with CTEs for teams and skills aggregation
 	query, args, err := queryBuilder.Prefix(`
-		WITH inserted_teams AS (
-			SELECT catalog_id, team_id FROM cases.team_catalog
-		),
-		teams_agg AS (
-			SELECT inserted_teams.catalog_id,
-				   json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
-			FROM inserted_teams
-			LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
-			GROUP BY inserted_teams.catalog_id
-		),
-		inserted_skills AS (
-			SELECT catalog_id, skill_id FROM cases.skill_catalog
-		),
-		skills_agg AS (
-			SELECT inserted_skills.catalog_id,
-				   json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
-			FROM inserted_skills
-			LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
-			GROUP BY inserted_skills.catalog_id
-		)
+WITH inserted_teams AS (SELECT catalog_id, team_id
+                        FROM cases.team_catalog),
+     teams_agg AS (SELECT inserted_teams.catalog_id,
+                          json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+                   FROM inserted_teams
+                            LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+                   GROUP BY inserted_teams.catalog_id),
+     inserted_skills AS (SELECT catalog_id, skill_id
+                         FROM cases.skill_catalog),
+     skills_agg AS (SELECT inserted_skills.catalog_id,
+                           json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+                    FROM inserted_skills
+                             LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+                    GROUP BY inserted_skills.catalog_id)
 	`).ToSql()
 	if err != nil {
 		return "", nil, model.NewInternalError("postgres.catalog.query_build_error", err.Error())
@@ -505,7 +531,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(ctx *model.SearchOptions) (string
 	return store.CompactSQL(query), args, nil
 }
 
-func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(catalogID int64, teamIDs, skillIDs []int64, updatedBy int64, updatedAt time.Time, domainID int64) (string, []interface{}) {
+func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(ctx *model.UpdateOptions, catalogID int64, teamIDs, skillIDs []int64, updatedBy int64, updatedAt time.Time, domainID int64) (string, []interface{}) {
 	args := []interface{}{
 		catalogID, // $1: catalog_id
 		updatedBy, // $2: updated_by
@@ -514,13 +540,12 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(catalogID int64, teamIDs, 
 	}
 
 	// Initialize base query
-	query := `
-	WITH `
+	query := `WITH `
 
-	// Check if teams are provided and build the query for teams
-	if len(teamIDs) > 0 {
+	// Check if "teams" is in ctx.Fields, even if teamIDs is empty
+	if util.FieldExists("teams", ctx.Fields) {
 		query += `
-	updated_teams AS (
+		updated_teams AS (
 			INSERT INTO cases.team_catalog (catalog_id, team_id, updated_by, updated_at, dc)
 			SELECT $1, unnest($5::bigint[]), $2, $4, $3
 			ON CONFLICT (catalog_id, team_id)
@@ -533,11 +558,14 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(catalogID int64, teamIDs, 
 			AND team_id != ALL ($5::bigint[])
 			RETURNING catalog_id
 		),`
-		args = append(args, pq.Array(teamIDs)) // Append team IDs to the args
+		args = append(args, pq.Array(teamIDs)) // Append team IDs to args (even if empty)
+	} else {
+		// Pass an empty array if "teams" is not provided to avoid null issues
+		args = append(args, pq.Array([]int64{}))
 	}
 
-	// Check if skills are provided and build the query for skills
-	if len(skillIDs) > 0 {
+	// Check if "skills" is in ctx.Fields, even if skillIDs is empty
+	if util.FieldExists("skills", ctx.Fields) {
 		query += `
 		updated_skills AS (
 			INSERT INTO cases.skill_catalog (catalog_id, skill_id, updated_by, updated_at, dc)
@@ -551,41 +579,30 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(catalogID int64, teamIDs, 
 			WHERE catalog_id = $1
 			AND skill_id != ALL ($6::bigint[])
 			RETURNING catalog_id
-		),`
-		args = append(args, pq.Array(skillIDs)) // Append skill IDs to the args
+		)`
+		args = append(args, pq.Array(skillIDs)) // Append skill IDs to args (even if empty)
+	} else {
+		// Pass an empty array if "skills" is not provided to avoid null issues
+		args = append(args, pq.Array([]int64{}))
 	}
 
-	// Finish the query
+	// Finish the query with UNION logic for teams and skills
 	query += `
 	SELECT COUNT(*)
-	FROM (` +
-		// If teams were provided, use the teams' CTE in the result union
-		func() string {
-			if len(teamIDs) > 0 {
-				return `SELECT catalog_id FROM updated_teams
-					UNION ALL
-					SELECT catalog_id FROM deleted_teams`
+	FROM (
+		` + func() string {
+		var result string
+		if util.FieldExists("teams", ctx.Fields) {
+			result += `SELECT catalog_id FROM updated_teams UNION ALL SELECT catalog_id FROM deleted_teams`
+		}
+		if util.FieldExists("skills", ctx.Fields) {
+			if util.FieldExists("teams", ctx.Fields) {
+				result += ` UNION ALL `
 			}
-			return ""
-		}() +
-		// If skills were provided, use the skills' CTE in the result union
-		func() string {
-			if len(skillIDs) > 0 {
-				if len(teamIDs) > 0 {
-					return ` UNION ALL ` // Add the union operator only if teams also exist
-				}
-				return ""
-			}
-			return ""
-		}() +
-		func() string {
-			if len(skillIDs) > 0 {
-				return `SELECT catalog_id FROM updated_skills
-					UNION ALL
-					SELECT catalog_id FROM deleted_skills`
-			}
-			return ""
-		}() + `
+			result += `SELECT catalog_id FROM updated_skills UNION ALL SELECT catalog_id FROM deleted_skills`
+		}
+		return result
+	}() + `
 	) AS total_affected;
 	`
 
@@ -593,7 +610,6 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(catalogID int64, teamIDs, 
 	return store.CompactSQL(query), args
 }
 
-// Helper method to build the combined update and select query for Catalog using Squirrel
 func (s *CatalogStore) buildUpdateCatalogQuery(ctx *model.UpdateOptions, lookup *cases.Catalog) (string, []interface{}, error) {
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
@@ -607,6 +623,14 @@ func (s *CatalogStore) buildUpdateCatalogQuery(ctx *model.UpdateOptions, lookup 
 		switch field {
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)
+		case "description":
+			updateQueryBuilder = updateQueryBuilder.Set("description", lookup.Description)
+		case "prefix":
+			updateQueryBuilder = updateQueryBuilder.Set("prefix", lookup.Prefix)
+		case "code":
+			updateQueryBuilder = updateQueryBuilder.Set("code", lookup.Code)
+		case "state":
+			updateQueryBuilder = updateQueryBuilder.Set("state", lookup.State)
 		case "sla_id":
 			updateQueryBuilder = updateQueryBuilder.Set("sla_id", lookup.Sla.Id)
 		case "status_id":
@@ -617,63 +641,50 @@ func (s *CatalogStore) buildUpdateCatalogQuery(ctx *model.UpdateOptions, lookup 
 	}
 
 	// Convert the update query to SQL
-	updateQuery, args, err := updateQueryBuilder.ToSql()
+	updateSQL, args, err := updateQueryBuilder.ToSql()
 	if err != nil {
 		return "", nil, err
 	}
 
-	// Now build the select query to return the updated catalog
-	selectQueryBuilder := sq.Select(
-		"catalog.id",
-		"catalog.name",
-		"catalog.created_at",
-		"catalog.sla_id",
-		"sla.name",
-		"catalog.status_id",
-		"status.name",
-		"catalog.close_reason_id",
-		"close_reason.name",
-		"catalog.created_by",
-		"created_by_user.name AS created_by_name",
-		"catalog.updated_by",
-		"updated_by_user.name AS updated_by_name",
-		"catalog.updated_at",
-		// Teams JSON aggregation
-		`COALESCE(json_agg(json_build_object('id', team.id, 'name', team.name)) FILTER (WHERE team.id IS NOT NULL), '[]') AS teams`,
-		// Skills JSON aggregation
-		`COALESCE(json_agg(json_build_object('id', skill.id, 'name', skill.name)) FILTER (WHERE skill.id IS NOT NULL), '[]') AS skills`,
-	).
-		From("cases.service_catalog AS catalog").
-		LeftJoin("cases.sla ON sla.id = catalog.sla_id").
-		LeftJoin("cases.status ON status.id = catalog.status_id").
-		LeftJoin("cases.close_reason ON close_reason.id = catalog.close_reason_id").
-		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
-		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by").
-		LeftJoin("call_center.cc_teams_catalog AS tc ON tc.catalog_id = catalog.id").
-		LeftJoin("call_center.cc_teams AS team ON team.id = tc.team_id").
-		LeftJoin("call_center.cc_skills_catalog AS sc ON sc.catalog_id = catalog.id").
-		LeftJoin("call_center.cc_skills AS skill ON skill.id = sc.skill_id").
-		Where(sq.Eq{"catalog.id": lookup.Id, "catalog.dc": ctx.Session.GetDomainId()}).
-		GroupBy(
-			"catalog.id",
-			"sla.name",
-			"status.name",
-			"close_reason.name",
-			"created_by_user.name",
-			"updated_by_user.name",
-		)
+	// Combine the update query with the select query using the WITH clause
+	query := fmt.Sprintf(`
+		WITH updated_catalog AS (%s
+			RETURNING id, name, created_at, updated_at, sla_id, created_by, updated_by, status_id, close_reason_id)
+SELECT catalog.id,
+       catalog.name,
+       catalog.created_at,
+       catalog.sla_id,
+       sla.name,
+       catalog.status_id,
+       status.name,
+       catalog.close_reason_id,
+       close_reason.name,
+       catalog.created_by,
+       created_by_user.name                               AS created_by_name,
+       catalog.updated_by,
+       updated_by_user.name                               AS updated_by_name,
+       catalog.updated_at,
+       COALESCE((SELECT json_agg(json_build_object('id', team.id, 'name', team.name))
+                 FROM cases.team_catalog ts
+                          LEFT JOIN call_center.cc_team team ON team.id = ts.team_id
+                 WHERE ts.catalog_id = catalog.id), '[]') AS teams,
+       COALESCE((SELECT json_agg(json_build_object('id', skill.id, 'name', skill.name))
+                 FROM cases.skill_catalog ss
+                          LEFT JOIN call_center.cc_skill skill ON skill.id = ss.skill_id
+                 WHERE ss.catalog_id = catalog.id), '[]') AS skills
+FROM updated_catalog AS catalog
+         LEFT JOIN cases.sla ON sla.id = catalog.sla_id
+         LEFT JOIN cases.status ON status.id = catalog.status_id
+         LEFT JOIN cases.close_reason ON close_reason.id = catalog.close_reason_id
+         LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by
+         LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by
+GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name, catalog.status_id,
+         status.name, catalog.close_reason_id, close_reason.name, catalog.created_by, created_by_user.name,
+         catalog.updated_by, updated_by_user.name, catalog.updated_at;
+	`, updateSQL)
 
-	// Convert the select query to SQL
-	selectQuery, selectArgs, err := selectQueryBuilder.ToSql()
-	if err != nil {
-		return "", nil, err
-	}
-
-	// Combine update and select query
-	query := updateQuery + "; " + selectQuery
-	combinedArgs := append(args, selectArgs...)
-
-	return store.CompactSQL(query), combinedArgs, nil
+	// Return the final combined query and arguments
+	return store.CompactSQL(query), args, nil
 }
 
 // buildCatalogScanArgs prepares scan arguments for populating a Catalog object.
@@ -694,6 +705,10 @@ func (s *CatalogStore) buildCatalogScanArgs(
 		// SLA fields
 		&catalog.Sla.Id,   // SLA ID
 		&catalog.Sla.Name, // SLA name
+
+		// Status fields
+		&catalog.Status.Id,   // Status ID
+		&catalog.Status.Name, // Status name
 
 		// Code and description
 		&catalog.Code,        // Catalog code (optional, can be null)

@@ -165,6 +165,9 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	for _, f := range req.XJsonMask {
 		if f == "name" {
 			fields = append(fields, "name")
+			if req.Input.Name != "" {
+				return nil, model.NewBadRequestError("status_condition.update_status_condition.name.required", "Status name is required and cannot be empty")
+			}
 		}
 		if f == "description" {
 			fields = append(fields, "description")

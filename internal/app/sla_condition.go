@@ -258,6 +258,9 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		switch f {
 		case "name":
 			fields = append(fields, "name")
+			if req.Input.Name == "" {
+				return nil, model.NewBadRequestError("sla_condition_service.update_sla_condition.name.required", "SLA Condition name is required and cannot be empty")
+			}
 		case "reaction_time_hours":
 			fields = append(fields, "reaction_time_hours")
 		case "reaction_time_minutes":

@@ -224,6 +224,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		Name: session.GetUserName(),
 	}
 
+	// Build catalog from the request input
 	catalog := &cases.Catalog{
 		Id:          req.Id,
 		Name:        req.Input.Name,
@@ -236,6 +237,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		UpdatedBy:   u,
 	}
 
+	// Add teams if provided
 	if len(req.Input.TeamIds) > 0 {
 		catalog.Teams = make([]*cases.Lookup, len(req.Input.TeamIds))
 		for i, teamId := range req.Input.TeamIds {
@@ -243,6 +245,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		}
 	}
 
+	// Add skills if provided
 	if len(req.Input.SkillIds) > 0 {
 		catalog.Skills = make([]*cases.Lookup, len(req.Input.SkillIds))
 		for i, skillId := range req.Input.SkillIds {
@@ -250,26 +253,38 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		}
 	}
 
+	// List of fields to update
 	fields := []string{"id"}
 
+	// Validate required fields and build the list of fields for update
 	for _, f := range req.XJsonMask {
 		switch f {
 		case "name":
+			if req.Input.Name == "" {
+				return nil, model.NewBadRequestError("catalog.update_catalog.name.required", "Catalog name is required and cannot be empty")
+			}
 			fields = append(fields, "name")
-		case "description":
-			fields = append(fields, "description")
 		case "prefix":
+			if req.Input.Prefix == "" {
+				return nil, model.NewBadRequestError("catalog.update_catalog.prefix.required", "Catalog prefix is required and cannot be empty")
+			}
 			fields = append(fields, "prefix")
-		case "code":
-			fields = append(fields, "code")
 		case "sla_id":
+			if req.Input.SlaId == 0 {
+				return nil, model.NewBadRequestError("catalog.update_catalog.sla.required", "Catalog SLA is required and cannot be empty")
+			}
 			fields = append(fields, "sla_id")
 		case "status_id":
+			if req.Input.StatusId == 0 {
+				return nil, model.NewBadRequestError("catalog.update_catalog.status.required", "Catalog status is required and cannot be empty")
+			}
 			fields = append(fields, "status_id")
+		case "description":
+			fields = append(fields, "description")
+		case "code":
+			fields = append(fields, "code")
 		case "close_reason_id":
 			fields = append(fields, "close_reason_id")
-		case "group_id":
-			fields = append(fields, "group_id")
 		case "team_ids":
 			fields = append(fields, "teams")
 		case "skill_ids":
@@ -277,8 +292,10 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		}
 	}
 
+	// Capture current time
 	t := time.Now()
 
+	// Build update options
 	updateOpts := model.UpdateOptions{
 		Session: session,
 		Context: ctx,
@@ -286,6 +303,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		Time:    t,
 	}
 
+	// Update the catalog
 	r, e := s.app.Store.Catalog().Update(&updateOpts, catalog)
 	if e != nil {
 		return nil, model.NewInternalError("catalog.update_catalog.store.update.failed", e.Error())

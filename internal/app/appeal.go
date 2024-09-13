@@ -124,7 +124,7 @@ func (s AppealService) ListAppeals(ctx context.Context, req *_go.ListAppealReque
 func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRequest) (*_go.Appeal, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("appeal_service.update_appeal.id.required", "Lookup ID is required")
+		return nil, model.NewBadRequestError("appeal_service.update_appeal.id.required", "Appeal ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -154,15 +154,27 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 		UpdatedBy:   currentU,
 	}
 
+	// Fields to update
 	fields := []string{"id", "updated_at", "updated_by"}
 
+	// Validate fields and add them to the update list
 	for _, f := range req.XJsonMask {
 		switch f {
 		case "name":
+			// Validate that name is not empty
+			if req.Name == "" {
+				return nil, model.NewBadRequestError("appeal_service.update_appeal.name.required", "Name is required and cannot be empty")
+			}
 			fields = append(fields, "name")
+
 		case "description":
 			fields = append(fields, "description")
+
 		case "type":
+			// Validate that type is not zero
+			if req.Type == 0 {
+				return nil, model.NewBadRequestError("appeal_service.update_appeal.type.required", "Type is required and cannot be empty")
+			}
 			fields = append(fields, "type")
 		}
 	}

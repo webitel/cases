@@ -108,3 +108,13 @@ func (f FieldsUtils) Int64SliceToStringSlice(ids []int64) []string {
 	}
 	return strIds
 }
+
+// Helper function to check if a field exists in the update options
+func FieldExists(field string, fields []string) bool {
+	for _, f := range fields {
+		if f == field {
+			return true
+		}
+	}
+	return false
+}

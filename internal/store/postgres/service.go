@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"fmt"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -180,12 +181,12 @@ func (s *ServiceStore) Update(ctx *model.UpdateOptions, lookup *cases.Service) (
 	var groupLookup, assigneeLookup cases.Lookup
 
 	err = txManager.QueryRow(ctx.Context, query, args...).Scan(
-		&lookup.Id, &lookup.Name, &createdAt,
-		&lookup.Sla.Id, &lookup.Sla.Name,
-		&groupLookup.Id, &groupLookup.Name,
-		&assigneeLookup.Id, &assigneeLookup.Name,
-		&createdByLookup.Id, &createdByLookup.Name,
-		&updatedByLookup.Id, &updatedByLookup.Name, &updatedAt, &lookup.RootId,
+		&lookup.Id, &lookup.Name, &lookup.Description,
+		&lookup.Code, &lookup.State, &lookup.Sla.Id,
+		&lookup.Sla.Name, &groupLookup.Id, &groupLookup.Name,
+		&assigneeLookup.Id, &assigneeLookup.Name, &createdByLookup.Id,
+		&createdByLookup.Name, &updatedByLookup.Id, &updatedByLookup.Name,
+		&createdAt, &updatedAt, &lookup.RootId,
 	)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.service.update.execution_error", err.Error())
@@ -309,7 +310,7 @@ func (s *ServiceStore) buildSearchServiceQuery(ctx *model.SearchOptions) (string
 		"service.updated_at",                                    // updated_at can't be null
 		// Determine if the service has subservices
 		`EXISTS (SELECT 1 FROM cases.service_catalog cs WHERE cs.root_id = service.id) AS has_subservices`,
-		"COALESCE(service.root_id, 0) AS root_id", // Default to 0 if NULL
+		"service.root_id AS root_id",
 	).
 		From("cases.service_catalog AS service").
 		LeftJoin("cases.sla ON sla.id = service.sla_id").
@@ -320,6 +321,7 @@ func (s *ServiceStore) buildSearchServiceQuery(ctx *model.SearchOptions) (string
 		GroupBy(
 			"service.id", "sla.name", "grp.name", "assignee.given_name", "created_by_user.name", "updated_by_user.name", "service.root_id",
 		).
+		Where("service.root_id IS NOT NULL").
 		PlaceholderFormat(sq.Dollar)
 
 	// Apply filtering by root_id (using root_id from context)
@@ -385,69 +387,64 @@ func (s *ServiceStore) buildUpdateServiceQuery(ctx *model.UpdateOptions, lookup 
 		switch field {
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)
+		case "description":
+			updateQueryBuilder = updateQueryBuilder.Set("description", lookup.Description)
+		case "code":
+			updateQueryBuilder = updateQueryBuilder.Set("code", lookup.Code)
 		case "sla_id":
 			updateQueryBuilder = updateQueryBuilder.Set("sla_id", lookup.Sla.Id)
 		case "group_id":
 			updateQueryBuilder = updateQueryBuilder.Set("group_id", lookup.Group.Id)
 		case "assignee_id":
 			updateQueryBuilder = updateQueryBuilder.Set("assignee_id", lookup.Assignee.Id)
+		case "state":
+			updateQueryBuilder = updateQueryBuilder.Set("state", lookup.State)
+		case "root_id":
+			updateQueryBuilder = updateQueryBuilder.Set("root_id", lookup.RootId)
 		}
 	}
 
 	// Convert the update query to SQL
-	updateQuery, args, err := updateQueryBuilder.ToSql()
+	updateSQL, args, err := updateQueryBuilder.ToSql()
 	if err != nil {
 		return "", nil, err
 	}
 
-	// Now build the select query to return the updated service
-	selectQueryBuilder := sq.Select(
-		"service.id",
-		"service.name",
-		"service.description",
-		"service.code",
-		"service.state",
-		"service.sla_id",
-		"sla.name",
-		"service.group_id",
-		"grp.name",
-		"service.assignee_id",
-		"assignee.name",
-		"service.created_by",
-		"created_by_user.name AS created_by_name",
-		"service.updated_by",
-		"updated_by_user.name AS updated_by_name",
-		"service.created_at",
-		"service.updated_at",
-		"service.root_id",
-	).
-		From("cases.service_catalog AS service").
-		LeftJoin("cases.sla ON sla.id = service.sla_id").
-		LeftJoin("contacts.group AS grp ON grp.id = service.group_id").
-		LeftJoin("contacts.contact AS assignee ON assignee.id = service.assignee_id").
-		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by").
-		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = service.updated_by").
-		Where(sq.Eq{"service.id": lookup.Id, "service.dc": ctx.Session.GetDomainId()}).
-		GroupBy(
-			"service.id",
-			"sla.name",
-			"grp.name",
-			"assignee.name",
-			"created_by_user.name",
-			"updated_by_user.name",
+	// Now build the select query with a static SQL using a WITH clause
+	query := fmt.Sprintf(`
+		WITH updated_service AS (
+			%s
+			RETURNING id, name, description, code, state, sla_id, group_id, assignee_id, created_by, updated_by, created_at, updated_at, root_id
 		)
+		SELECT
+			service.id,
+			service.name,
+			service.description,
+			service.code,
+			service.state,
+			service.sla_id,
+			sla.name AS sla_name,
+			service.group_id,
+			grp.name AS group_name,
+			service.assignee_id,
+			assignee.given_name AS assignee_name,
+			service.created_by,
+			created_by_user.name AS created_by_name,
+			service.updated_by,
+			updated_by_user.name AS updated_by_name,
+			service.created_at,
+			service.updated_at,
+			service.root_id
+		FROM updated_service AS service
+		LEFT JOIN cases.sla ON sla.id = service.sla_id
+		LEFT JOIN contacts.group AS grp ON grp.id = service.group_id
+		LEFT JOIN contacts.contact AS assignee ON assignee.id = service.assignee_id
+		LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by
+		LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = service.updated_by;
+	`, updateSQL)
 
-	// Convert the select query to SQL
-	selectQuery, selectArgs, err := selectQueryBuilder.ToSql()
-	if err != nil {
-		return "", nil, err
-	}
-
-	// Combine update and select query
-	query := updateQuery + "; " + selectQuery
-	combinedArgs := append(args, selectArgs...)
-
-	return store.CompactSQL(query), combinedArgs, nil
+	// Return the final combined query and arguments
+	return store.CompactSQL(query), args, nil
 }
 
 // buildServiceScanArgs prepares scan arguments for populating a Service object.

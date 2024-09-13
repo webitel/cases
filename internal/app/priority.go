@@ -161,6 +161,9 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 		switch f {
 		case "name":
 			fields = append(fields, "name")
+			if req.Name == "" {
+				return nil, model.NewBadRequestError("priority_service.update_priority.name.required", "Lookup name is required and cannot be empty")
+			}
 		case "description":
 			fields = append(fields, "description")
 		}

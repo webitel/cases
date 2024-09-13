@@ -20,6 +20,10 @@ func (s *ServiceService) CreateService(ctx context.Context, req *cases.CreateSer
 		return nil, model.NewBadRequestError("service.create_service.name.required", "Service name is required")
 	}
 
+	if req.RootId == 0 {
+		return nil, model.NewBadRequestError("service.create_service.root_id.required", "Root ID is required")
+	}
+
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, model.NewUnauthorizedError("service.create_service.authorization.failed", err.Error())
@@ -229,6 +233,9 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *cases.UpdateSer
 		switch f {
 		case "name":
 			fields = append(fields, "name")
+			if req.Input.Name == "" {
+				return nil, model.NewBadRequestError("service.update_service.name.required", "Service name is required and cannot be empty")
+			}
 		case "description":
 			fields = append(fields, "description")
 		case "root_id":

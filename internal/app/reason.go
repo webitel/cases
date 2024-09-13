@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"time"
+
 	_go "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/model"
@@ -160,6 +161,9 @@ func (s *ReasonService) UpdateReason(ctx context.Context, req *_go.UpdateReasonR
 		switch f {
 		case "name":
 			fields = append(fields, "name")
+			if req.Input.Name == "" {
+				return nil, model.NewBadRequestError("reason_service.update_reason.name.required", "Reason name is required and cannot be empty")
+			}
 		case "description":
 			fields = append(fields, "description")
 		}

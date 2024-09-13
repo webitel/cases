@@ -431,17 +431,6 @@
             "required": true,
             "type": "string",
             "format": "int64"
-          },
-          {
-            "name": "fields",
-            "description": "Fields to be retrieved in the response",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1136,17 +1125,6 @@
             "required": true,
             "type": "string",
             "format": "int64"
-          },
-          {
-            "name": "fields",
-            "description": "Fields to be retrieved in the response",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -2975,6 +2953,10 @@
     "webitel.cases.CreateServiceRequest": {
       "type": "object",
       "properties": {
+        "name": {
+          "type": "string",
+          "title": "Name of the service (required)"
+        },
         "root_id": {
           "type": "string",
           "format": "int64",
@@ -3006,10 +2988,6 @@
           "type": "string",
           "format": "int64",
           "title": "Assignee ID responsible for the service"
-        },
-        "name": {
-          "type": "string",
-          "title": "Name of the service (required)"
         }
       },
       "title": "CreateServiceRequest message for creating a new service"

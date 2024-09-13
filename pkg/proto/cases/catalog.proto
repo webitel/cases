@@ -98,7 +98,6 @@ message ListCatalogRequest {
 // LocateCatalogRequest message for locating a specific catalog by ID
 message LocateCatalogRequest {
   int64 id = 1;                   // ID of the catalog to be located
-  repeated string fields = 2;     // Fields to be retrieved in the response
 }
 
 // LocateCatalogResponse message contains a single catalog entity
