@@ -11,19 +11,28 @@ import (
 )
 
 type Store struct {
-	appealStore          store.AppealStore
+	appealStore store.AppealStore
+
+	//-----Status + StatusCondition
 	statusStore          store.StatusStore
 	statusConditionStore store.StatusConditionStore
-	closeReasonStore     store.CloseReasonStore
-	reasonStore          store.ReasonStore
-	priorityStore        store.PriorityStore
-	slaStore             store.SLAStore
-	slaConditionStore    store.SLAConditionStore
-	catalogStore         store.CatalogStore
-	serviceStore         store.ServiceStore
-	accessControllStore  store.AccessControlStore
-	config               *model.DatabaseConfig
-	conn                 *pgxpool.Pool
+
+	//-----CloseReason + Reason
+	closeReasonStore store.CloseReasonStore
+	reasonStore      store.ReasonStore
+
+	priorityStore store.PriorityStore
+
+	//-----SLA + SLACondition
+	slaStore          store.SLAStore
+	slaConditionStore store.SLAConditionStore
+
+	//-----Catalog + Service
+	catalogStore        store.CatalogStore
+	serviceStore        store.ServiceStore
+	accessControllStore store.AccessControlStore
+	config              *model.DatabaseConfig
+	conn                *pgxpool.Pool
 }
 
 func New(config *model.DatabaseConfig) *Store {

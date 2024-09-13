@@ -110,6 +110,9 @@ func (f FieldsUtils) Int64SliceToStringSlice(ids []int64) []string {
 }
 
 // Helper function to check if a field exists in the update options
+// ---------------------------------------------------------------------//
+// ---- Example Usage ----
+// if !util.FieldExists("name", rpc.Fields) {
 func FieldExists(field string, fields []string) bool {
 	for _, f := range fields {
 		if f == field {

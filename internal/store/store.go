@@ -10,27 +10,35 @@ import (
 
 // Store is an interface that defines all the methods and properties that a store should implement in Cases service
 type Store interface {
-	// ------------ Dictionary ------------ //
-	Status() StatusStore
-	StatusCondition() StatusConditionStore
-	CloseReason() CloseReasonStore
-	Reason() ReasonStore
-	Appeal() AppealStore
-	Priority() PriorityStore
-	SLA() SLAStore
-	SLACondition() SLAConditionStore
-	Catalog() CatalogStore
-	Service() ServiceStore
+	// ------------ Dictionary Stores ------------ //
+	Appeal() AppealStore     // Manages appeals.
+	Priority() PriorityStore // Handles priority levels.
+
+	// ------------ Closure reasons Stores ------------ //
+	CloseReason() CloseReasonStore // Manages closure reasons.
+	Reason() ReasonStore           // Supports reasons.
+
+	// ------------ Status ------------ //
+	Status() StatusStore                   // Manages statuses.
+	StatusCondition() StatusConditionStore // Handles status conditions.
+
+	// ------------ SLA Stores ------------ //
+	SLA() SLAStore                   // Manages SLAs.
+	SLACondition() SLAConditionStore // Manages SLA conditions.
+
+	// ------------ Catalog and Service Stores ------------ //
+	Catalog() CatalogStore // The parent store managing service catalogs.
+	Service() ServiceStore // The child store managing services within catalogs.
+
+	//
 
 	// ------------ Access Control ------------ //
-	AccessControl() AccessControlStore
+	AccessControl() AccessControlStore // Manages access permissions.
 
-	// Database connection
-	Database() (*pgxpool.Pool, model.AppError)
-	// Open database connection
-	Open() model.AppError
-	// Close database connection
-	Close() model.AppError
+	// ------------ Database Management ------------ //
+	Database() (*pgxpool.Pool, model.AppError) // Returns database connection.
+	Open() model.AppError                      // Opens database connection.
+	Close() model.AppError                     // Closes database connection.
 }
 
 type AccessControlStore interface {
@@ -126,6 +134,7 @@ type SLAConditionStore interface {
 	Update(ctx *model.UpdateOptions, lookup *_go.SLACondition) (*_go.SLACondition, error)
 }
 
+// CatalogStore is parent store managing service catalogs.
 type CatalogStore interface {
 	// Create a new catalog
 	Create(rpc *model.CreateOptions, add *_go.Catalog) (*_go.Catalog, error)
@@ -137,6 +146,7 @@ type CatalogStore interface {
 	Update(rpc *model.UpdateOptions, lookup *_go.Catalog) (*_go.Catalog, error)
 }
 
+// Service is child store managing services within catalogs.
 type ServiceStore interface {
 	// Create a new service
 	Create(rpc *model.CreateOptions, add *_go.Service) (*_go.Service, error)
