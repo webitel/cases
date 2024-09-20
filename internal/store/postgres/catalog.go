@@ -19,7 +19,7 @@ type CatalogStore struct {
 }
 
 // Create implements store.CatalogStore.
-func (s *CatalogStore) Create(ctx *model.CreateOptions, add *cases.Catalog) (*cases.Catalog, error) {
+func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*cases.Catalog, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -27,14 +27,14 @@ func (s *CatalogStore) Create(ctx *model.CreateOptions, add *cases.Catalog) (*ca
 	}
 
 	// Build the combined query for inserting Catalog, teams, and skills
-	query, args := s.buildCreateCatalogQuery(ctx, add)
+	query, args := s.buildCreateCatalogQuery(rpc, add)
 
 	// Execute the query and scan the result into the Catalog fields
 	var createdByLookup, updatedByLookup cases.Lookup
 	var createdAt, updatedAt time.Time
 	var teamLookups, skillLookups []byte
 
-	err := db.QueryRow(ctx.Context, query, args...).Scan(
+	err := db.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Prefix,
 		&add.Code, &add.State,
 		&createdAt, &updatedAt,
@@ -69,7 +69,7 @@ func (s *CatalogStore) Create(ctx *model.CreateOptions, add *cases.Catalog) (*ca
 }
 
 // Delete implements store.CatalogStore.
-func (s *CatalogStore) Delete(ctx *model.DeleteOptions) error {
+func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -77,15 +77,15 @@ func (s *CatalogStore) Delete(ctx *model.DeleteOptions) error {
 	}
 
 	// Ensure that there are IDs to delete
-	if len(ctx.IDs) == 0 {
+	if len(rpc.IDs) == 0 {
 		return model.NewBadRequestError("postgres.catalog.delete.no_ids_provided", "No IDs provided for deletion")
 	}
 
 	// Build the delete query
-	query, args := s.buildDeleteCatalogQuery(ctx)
+	query, args := s.buildDeleteCatalogQuery(rpc)
 
 	// Execute the delete query
-	res, err := db.Exec(ctx.Context, query, args...)
+	res, err := db.Exec(rpc.Context, query, args...)
 	if err != nil {
 		return model.NewInternalError("postgres.catalog.delete.execution_error", err.Error())
 	}
@@ -99,7 +99,7 @@ func (s *CatalogStore) Delete(ctx *model.DeleteOptions) error {
 }
 
 // List implements store.CatalogStore.
-func (s *CatalogStore) List(ctx *model.SearchOptions) (*cases.CatalogList, error) {
+func (s *CatalogStore) List(rpc *model.SearchOptions) (*cases.CatalogList, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -107,13 +107,13 @@ func (s *CatalogStore) List(ctx *model.SearchOptions) (*cases.CatalogList, error
 	}
 
 	// Build SQL query
-	query, args, err := s.buildSearchCatalogQuery(ctx)
+	query, args, err := s.buildSearchCatalogQuery(rpc)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.catalog.list.query_build_error", err.Error())
 	}
 
 	// Execute the query
-	rows, err := db.Query(ctx.Context, query, args...)
+	rows, err := db.Query(rpc.Context, query, args...)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.catalog.list.query_execution_error", err.Error())
 	}
@@ -121,11 +121,16 @@ func (s *CatalogStore) List(ctx *model.SearchOptions) (*cases.CatalogList, error
 
 	// Parse the result
 	var catalogs []*cases.Catalog
-	count := 0
+	lCount := 0
 	next := false
+	// Check if we want to fetch all records
+	//
+	// If the size is -1, we want to fetch all records
+	fetchAll := rpc.GetSize() == -1
 
 	for rows.Next() {
-		if count >= ctx.GetSize() {
+		// If not fetching all records, check the size limit
+		if !fetchAll && lCount >= rpc.GetSize() {
 			next = true
 			break
 		}
@@ -172,18 +177,18 @@ func (s *CatalogStore) List(ctx *model.SearchOptions) (*cases.CatalogList, error
 		catalog.UpdatedBy = &updatedBy
 
 		catalogs = append(catalogs, catalog)
-		count++
+		lCount++
 	}
 
 	return &cases.CatalogList{
-		Page:  int32(ctx.Page),
+		Page:  int32(rpc.Page),
 		Next:  next,
 		Items: catalogs,
 	}, nil
 }
 
 // Update implements store.CatalogStore.
-func (s *CatalogStore) Update(ctx *model.UpdateOptions, lookup *cases.Catalog) (*cases.Catalog, error) {
+func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (*cases.Catalog, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -191,19 +196,19 @@ func (s *CatalogStore) Update(ctx *model.UpdateOptions, lookup *cases.Catalog) (
 	}
 
 	// Start a transaction using the TxManager
-	tx, err := db.Begin(ctx.Context)
+	tx, err := db.Begin(rpc.Context)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.catalog.update.transaction_start_error", err.Error())
 	}
 	txManager := store.NewTxManager(tx)   // Create a new TxManager instance
-	defer txManager.Rollback(ctx.Context) // Ensure rollback on error
+	defer txManager.Rollback(rpc.Context) // Ensure rollback on error
 
 	// Check if rpc.Fields contains team_ids or skill_ids
 	updateTeams := false
 	updateSkills := false
 
 	// Check if the fields exist in rpc.Fields
-	for _, field := range ctx.Fields {
+	for _, field := range rpc.Fields {
 		switch field {
 		case "teams":
 			updateTeams = true
@@ -240,18 +245,18 @@ func (s *CatalogStore) Update(ctx *model.UpdateOptions, lookup *cases.Catalog) (
 
 		// Build query to update teams and skills
 		query, args := s.buildUpdateTeamsAndSkillsQuery(
-			ctx,
+			rpc,
 			lookup.Id,
 			teamIDs,  // Pass empty slice if no team IDs are provided
 			skillIDs, // Pass empty slice if no skill IDs are provided
-			ctx.Session.GetUserId(),
-			ctx.Time,
-			ctx.Session.GetDomainId(),
+			rpc.Session.GetUserId(),
+			rpc.Time,
+			rpc.Session.GetDomainId(),
 		)
 
 		// Execute the teams and skills update query and check for affected rows
 		var affectedRows int
-		err = txManager.QueryRow(ctx.Context, query, args...).Scan(&affectedRows)
+		err = txManager.QueryRow(rpc.Context, query, args...).Scan(&affectedRows)
 		if err != nil {
 			return nil, model.NewInternalError("postgres.catalog.update.teams_skills_update_error", err.Error())
 		}
@@ -263,7 +268,7 @@ func (s *CatalogStore) Update(ctx *model.UpdateOptions, lookup *cases.Catalog) (
 	}
 
 	// Build the update query for the Catalog
-	query, args, err := s.buildUpdateCatalogQuery(ctx, lookup)
+	query, args, err := s.buildUpdateCatalogQuery(rpc, lookup)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.catalog.update.query_build_error", err.Error())
 	}
@@ -273,7 +278,7 @@ func (s *CatalogStore) Update(ctx *model.UpdateOptions, lookup *cases.Catalog) (
 	var createdAt, updatedAt time.Time
 	var teamLookups, skillLookups []byte
 
-	err = txManager.QueryRow(ctx.Context, query, args...).Scan(
+	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &createdAt,
 		&lookup.Sla.Id, &lookup.Sla.Name,
 		&lookup.Status.Id, &lookup.Status.Name,
@@ -287,7 +292,7 @@ func (s *CatalogStore) Update(ctx *model.UpdateOptions, lookup *cases.Catalog) (
 	}
 
 	// Commit the transaction
-	if err := txManager.Commit(ctx.Context); err != nil {
+	if err := txManager.Commit(rpc.Context); err != nil {
 		return nil, model.NewInternalError("postgres.catalog.update.transaction_commit_error", err.Error())
 	}
 
@@ -309,20 +314,20 @@ func (s *CatalogStore) Update(ctx *model.UpdateOptions, lookup *cases.Catalog) (
 	return lookup, nil
 }
 
-func (s *CatalogStore) buildCreateCatalogQuery(ctx *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
+func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
 	// Define arguments for the query
 	args := []interface{}{
 		add.Name,                  // $1: name (cannot be null)
 		add.Description,           // $2: description (could be null)
 		add.Prefix,                // $3: prefix (could be null)
 		add.Code,                  // $4: code (could be null)
-		ctx.Time,                  // $5: created_at, updated_at
-		ctx.Session.GetUserId(),   // $6: created_by, updated_by
+		rpc.Time,                  // $5: created_at, updated_at
+		rpc.Session.GetUserId(),   // $6: created_by, updated_by
 		add.Sla.Id,                // $7: sla_id (could be null)
 		add.Status.Id,             // $8: status_id (could be null)
 		add.CloseReason.Id,        // $9: close_reason_id (could be null)
 		add.State,                 // $10: state (cannot be null)
-		ctx.Session.GetDomainId(), // $11: domain ID (dc)
+		rpc.Session.GetDomainId(), // $11: domain ID (dc)
 	}
 
 	var teamIds []int64
@@ -419,8 +424,8 @@ FROM inserted_catalog
 }
 
 // Helper method to build the delete query for Catalog
-func (s *CatalogStore) buildDeleteCatalogQuery(ctx *model.DeleteOptions) (string, []interface{}) {
-	// Build the SQL query using the provided IDs in ctx.IDs
+func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string, []interface{}) {
+	// Build the SQL query using the provided IDs in rpc.IDs
 	query := `
 		DELETE FROM cases.service_catalog
 		WHERE id = ANY($1) AND dc = $2
@@ -428,16 +433,16 @@ func (s *CatalogStore) buildDeleteCatalogQuery(ctx *model.DeleteOptions) (string
 
 	// Use the array of IDs and domain ID (dc) for the deletion
 	args := []interface{}{
-		pq.Array(ctx.IDs),         // $1: array of catalog IDs to delete
-		ctx.Session.GetDomainId(), // $2: domain ID to ensure proper scoping
+		pq.Array(rpc.IDs),         // $1: array of catalog IDs to delete
+		rpc.Session.GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
 	return store.CompactSQL(query), args
 }
 
-func (s *CatalogStore) buildSearchCatalogQuery(ctx *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+func (s *CatalogStore) buildSearchCatalogQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
+	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
+	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 	// Initialize query builder with Common Table Expressions (CTEs) for teams and skills aggregation
 	queryBuilder := sq.Select(
 		"catalog.id",
@@ -475,13 +480,13 @@ func (s *CatalogStore) buildSearchCatalogQuery(ctx *model.SearchOptions) (string
 		PlaceholderFormat(sq.Dollar)
 
 	// Apply filtering by name
-	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
-		substr := ctx.Match.Substring(name)
+	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+		substr := rpc.Match.Substring(name)
 		queryBuilder = queryBuilder.Where(sq.ILike{"catalog.name": substr})
 	}
 
 	// Apply filtering by state
-	if state, ok := ctx.Filter["state"]; ok {
+	if state, ok := rpc.Filter["state"]; ok {
 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
 	}
 
@@ -490,15 +495,15 @@ func (s *CatalogStore) buildSearchCatalogQuery(ctx *model.SearchOptions) (string
 	}
 
 	// Apply sorting
-	for _, sort := range ctx.Sort {
+	for _, sort := range rpc.Sort {
 		queryBuilder = queryBuilder.OrderBy(sort)
 	}
 
-	size := ctx.GetSize()
-	page := ctx.Page
+	size := rpc.GetSize()
+	page := rpc.Page
 
 	// Apply offset only if page > 1
-	if ctx.Page > 1 {
+	if rpc.Page > 1 {
 		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
 	}
 
@@ -531,7 +536,15 @@ WITH inserted_teams AS (SELECT catalog_id, team_id
 	return store.CompactSQL(query), args, nil
 }
 
-func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(ctx *model.UpdateOptions, catalogID int64, teamIDs, skillIDs []int64, updatedBy int64, updatedAt time.Time, domainID int64) (string, []interface{}) {
+func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
+	rpc *model.UpdateOptions,
+	catalogID int64,
+	teamIDs,
+	skillIDs []int64,
+	updatedBy int64,
+	updatedAt time.Time,
+	domainID int64,
+) (string, []interface{}) {
 	args := []interface{}{
 		catalogID, // $1: catalog_id
 		updatedBy, // $2: updated_by
@@ -542,8 +555,8 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(ctx *model.UpdateOptions, 
 	// Initialize base query
 	query := `WITH `
 
-	// Check if "teams" is in ctx.Fields, even if teamIDs is empty
-	if util.FieldExists("teams", ctx.Fields) {
+	// Check if "teams" is in rpc.Fields, even if teamIDs is empty
+	if util.FieldExists("teams", rpc.Fields) {
 		query += `
 		updated_teams AS (
 			INSERT INTO cases.team_catalog (catalog_id, team_id, updated_by, updated_at, dc)
@@ -564,8 +577,8 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(ctx *model.UpdateOptions, 
 		args = append(args, pq.Array([]int64{}))
 	}
 
-	// Check if "skills" is in ctx.Fields, even if skillIDs is empty
-	if util.FieldExists("skills", ctx.Fields) {
+	// Check if "skills" is in rpc.Fields, even if skillIDs is empty
+	if util.FieldExists("skills", rpc.Fields) {
 		query += `
 		updated_skills AS (
 			INSERT INTO cases.skill_catalog (catalog_id, skill_id, updated_by, updated_at, dc)
@@ -592,11 +605,11 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(ctx *model.UpdateOptions, 
 	FROM (
 		` + func() string {
 		var result string
-		if util.FieldExists("teams", ctx.Fields) {
+		if util.FieldExists("teams", rpc.Fields) {
 			result += `SELECT catalog_id FROM updated_teams UNION ALL SELECT catalog_id FROM deleted_teams`
 		}
-		if util.FieldExists("skills", ctx.Fields) {
-			if util.FieldExists("teams", ctx.Fields) {
+		if util.FieldExists("skills", rpc.Fields) {
+			if util.FieldExists("teams", rpc.Fields) {
 				result += ` UNION ALL `
 			}
 			result += `SELECT catalog_id FROM updated_skills UNION ALL SELECT catalog_id FROM deleted_skills`
@@ -610,16 +623,16 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(ctx *model.UpdateOptions, 
 	return store.CompactSQL(query), args
 }
 
-func (s *CatalogStore) buildUpdateCatalogQuery(ctx *model.UpdateOptions, lookup *cases.Catalog) (string, []interface{}, error) {
+func (s *CatalogStore) buildUpdateCatalogQuery(rpc *model.UpdateOptions, lookup *cases.Catalog) (string, []interface{}, error) {
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", ctx.Time).
-		Set("updated_by", ctx.Session.GetUserId()).
-		Where(sq.Eq{"id": lookup.Id, "dc": ctx.Session.GetDomainId()})
+		Set("updated_at", rpc.Time).
+		Set("updated_by", rpc.Session.GetUserId()).
+		Where(sq.Eq{"id": lookup.Id, "dc": rpc.Session.GetDomainId()})
 
 	// Dynamically set fields based on what the user wants to update
-	for _, field := range ctx.Fields {
+	for _, field := range rpc.Fields {
 		switch field {
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)

@@ -18,13 +18,13 @@ type Priority struct {
 }
 
 // Create implements store.PriorityStore.
-func (p *Priority) Create(ctx *model.CreateOptions, add *api.Priority) (*api.Priority, error) {
+func (p *Priority) Create(rpc *model.CreateOptions, add *api.Priority) (*api.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.priority.create.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := p.buildCreatePriorityQuery(ctx, add)
+	query, args, err := p.buildCreatePriorityQuery(rpc, add)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.priority.create.query_build_error", err.Error())
 	}
@@ -32,7 +32,7 @@ func (p *Priority) Create(ctx *model.CreateOptions, add *api.Priority) (*api.Pri
 	var createdByLookup, updatedByLookup api.Lookup
 	var createdAt, updatedAt time.Time
 
-	err = d.QueryRow(ctx.Context, query, args...).Scan(
+	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
@@ -53,18 +53,18 @@ func (p *Priority) Create(ctx *model.CreateOptions, add *api.Priority) (*api.Pri
 }
 
 // Delete implements store.PriorityStore.
-func (p *Priority) Delete(ctx *model.DeleteOptions) error {
+func (p *Priority) Delete(rpc *model.DeleteOptions) error {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return model.NewInternalError("postgres.cases.priority.delete.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := p.buildDeletePriorityQuery(ctx)
+	query, args, err := p.buildDeletePriorityQuery(rpc)
 	if err != nil {
 		return model.NewInternalError("postgres.cases.priority.delete.query_build_error", err.Error())
 	}
 
-	res, err := d.Exec(ctx.Context, query, args...)
+	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
 		return model.NewInternalError("postgres.cases.priority.delete.execution_error", err.Error())
 	}
@@ -78,18 +78,18 @@ func (p *Priority) Delete(ctx *model.DeleteOptions) error {
 }
 
 // List implements store.PriorityStore.
-func (p *Priority) List(ctx *model.SearchOptions) (*api.PriorityList, error) {
+func (p *Priority) List(rpc *model.SearchOptions) (*api.PriorityList, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.priority.list.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := p.buildSearchPriorityQuery(ctx)
+	query, args, err := p.buildSearchPriorityQuery(rpc)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.priority.list.query_build_error", err.Error())
 	}
 
-	rows, err := d.Query(ctx.Context, query, args...)
+	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.priority.list.execution_error", err.Error())
 	}
@@ -98,8 +98,14 @@ func (p *Priority) List(ctx *model.SearchOptions) (*api.PriorityList, error) {
 	var lookupList []*api.Priority
 	lCount := 0
 	next := false
+	// Check if we want to fetch all records
+	//
+	// If the size is -1, we want to fetch all records
+	fetchAll := rpc.GetSize() == -1
+
 	for rows.Next() {
-		if lCount >= ctx.GetSize() {
+		// If not fetching all records, check the size limit
+		if !fetchAll && lCount >= rpc.GetSize() {
 			next = true
 			break
 		}
@@ -109,7 +115,7 @@ func (p *Priority) List(ctx *model.SearchOptions) (*api.PriorityList, error) {
 		var tempUpdatedAt, tempCreatedAt time.Time
 		var scanArgs []interface{}
 
-		for _, field := range ctx.Fields {
+		for _, field := range rpc.Fields {
 			switch field {
 			case "id":
 				scanArgs = append(scanArgs, &l.Id)
@@ -134,16 +140,16 @@ func (p *Priority) List(ctx *model.SearchOptions) (*api.PriorityList, error) {
 			return nil, model.NewInternalError("postgres.cases.close_reason.list.row_scan_error", err.Error())
 		}
 
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_by") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_by") {
 			l.CreatedBy = &createdBy
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_by") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_by") {
 			l.UpdatedBy = &updatedBy
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_at") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_at") {
 			l.CreatedAt = util.Timestamp(tempCreatedAt)
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_at") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_at") {
 			l.UpdatedAt = util.Timestamp(tempUpdatedAt)
 		}
 
@@ -152,20 +158,20 @@ func (p *Priority) List(ctx *model.SearchOptions) (*api.PriorityList, error) {
 	}
 
 	return &api.PriorityList{
-		Page:  int32(ctx.Page), // TODO page should be correctly passes even if user pass negative value
+		Page:  int32(rpc.Page), // TODO page should be correctly passes even if user pass negative value
 		Next:  next,
 		Items: lookupList,
 	}, nil
 }
 
 // Update implements store.PriorityStore.
-func (p *Priority) Update(ctx *model.UpdateOptions, l *api.Priority) (*api.Priority, error) {
+func (p *Priority) Update(rpc *model.UpdateOptions, l *api.Priority) (*api.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.priority.update.database_connection_error", dbErr.Error())
 	}
 
-	query, args, queryErr := p.buildUpdatePriorityQuery(ctx, l)
+	query, args, queryErr := p.buildUpdatePriorityQuery(rpc, l)
 	if queryErr != nil {
 		return nil, model.NewInternalError("postgres.cases.priority.update.query_build_error", queryErr.Error())
 	}
@@ -173,7 +179,7 @@ func (p *Priority) Update(ctx *model.UpdateOptions, l *api.Priority) (*api.Prior
 	var createdBy, updatedByLookup api.Lookup
 	var createdAt, updatedAt time.Time
 
-	err := d.QueryRow(ctx.Context, query, args...).Scan(
+	err := d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt,
 		&l.Description, &createdBy.Id, &createdBy.Name, &updatedByLookup.Id,
 		&updatedByLookup.Name, &l.Color,
@@ -190,19 +196,19 @@ func (p *Priority) Update(ctx *model.UpdateOptions, l *api.Priority) (*api.Prior
 	return l, nil
 }
 
-func (s Priority) buildSearchPriorityQuery(ctx *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+func (s Priority) buildSearchPriorityQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
+	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
+	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
 	queryBuilder := sq.Select().
 		From("cases.priority AS p").
-		Where(sq.Eq{"p.dc": ctx.Session.GetDomainId()}).
+		Where(sq.Eq{"p.dc": rpc.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
-	ctx.Fields = append(fields, "id")
+	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
+	rpc.Fields = append(fields, "id")
 
-	for _, field := range ctx.Fields {
+	for _, field := range rpc.Fields {
 		switch field {
 		case "id", "name", "description", "created_at", "updated_at", "color":
 			queryBuilder = queryBuilder.Column("p." + field)
@@ -223,12 +229,12 @@ func (s Priority) buildSearchPriorityQuery(ctx *model.SearchOptions) (string, []
 		queryBuilder = queryBuilder.Where(sq.Eq{"p.id": ids})
 	}
 
-	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
-		substr := ctx.Match.Substring(name)
+	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+		substr := rpc.Match.Substring(name)
 		queryBuilder = queryBuilder.Where(sq.ILike{"p.name": substr})
 	}
 
-	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
+	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)
 	var sortFields []string
 
 	for _, sortField := range parsedFields {
@@ -249,14 +255,14 @@ func (s Priority) buildSearchPriorityQuery(ctx *model.SearchOptions) (string, []
 
 	queryBuilder = queryBuilder.OrderBy(sortFields...)
 
-	size := ctx.GetSize()
-	page := ctx.Page
+	size := rpc.GetSize()
+	page := rpc.Page
 
-	if ctx.Page > 1 {
+	if rpc.Page > 1 {
 		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
 	}
 
-	if ctx.GetSize() != -1 {
+	if rpc.GetSize() != -1 {
 		queryBuilder = queryBuilder.Limit(uint64(size + 1))
 	}
 
@@ -268,15 +274,15 @@ func (s Priority) buildSearchPriorityQuery(ctx *model.SearchOptions) (string, []
 	return store.CompactSQL(query), args, nil
 }
 
-func (s Priority) buildUpdatePriorityQuery(ctx *model.UpdateOptions, l *api.Priority) (string, []interface{}, error) {
+func (s Priority) buildUpdatePriorityQuery(rpc *model.UpdateOptions, l *api.Priority) (string, []interface{}, error) {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	// Initialize the SQL builder
 	builder := psql.Update("cases.priority").
-		Set("updated_at", ctx.Time).
-		Set("updated_by", ctx.Session.GetUserId()).
+		Set("updated_at", rpc.Time).
+		Set("updated_by", rpc.Session.GetUserId()).
 		Where(sq.Eq{"id": l.Id}).
-		Where(sq.Eq{"dc": ctx.Session.GetDomainId()})
+		Where(sq.Eq{"dc": rpc.Session.GetDomainId()})
 
 	// Fields that could be updated
 	updateFields := []string{"name", "description"} // TODO make it empty  |  add XJsonMask to proto
@@ -330,24 +336,24 @@ LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
 }
 
 // buildDeleteCloseReasonLookupQuery constructs the SQL delete query and returns the query string and arguments.
-func (s Priority) buildDeletePriorityQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
-	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+func (s Priority) buildDeletePriorityQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
+	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
 	query := deletePriorityQuery
-	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
+	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
 	return query, args, nil
 }
 
 // buildCreatePriorityQuery constructs the SQL insert query and returns the query string and arguments.
-func (s Priority) buildCreatePriorityQuery(ctx *model.CreateOptions, lookup *api.Priority) (string, []interface{}, error) {
+func (s Priority) buildCreatePriorityQuery(rpc *model.CreateOptions, lookup *api.Priority) (string, []interface{}, error) {
 	query := createPriorityQuery
 	args := []interface{}{
 		lookup.Name,
-		ctx.Session.GetDomainId(),
-		ctx.Time,
+		rpc.Session.GetDomainId(),
+		rpc.Time,
 		lookup.Description,
-		ctx.Session.GetUserId(),
+		rpc.Session.GetUserId(),
 		lookup.Color,
 	}
 	return query, args, nil

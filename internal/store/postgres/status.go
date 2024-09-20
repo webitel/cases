@@ -19,14 +19,14 @@ type Status struct {
 }
 
 // Create creates a new status in the database. Implements the store.StatusStore interface.
-func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, error) {
+func (s Status) Create(rpc *model.CreateOptions, add *_go.Status) (*_go.Status, error) {
 	d, dbErr := s.storage.Database()
 
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.status.create.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildCreateStatusQuery(ctx, add)
+	query, args, err := s.buildCreateStatusQuery(rpc, add)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.status.create.query_build_error", err.Error())
 	}
@@ -34,7 +34,7 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 	var createdByLookup, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
 
-	err = d.QueryRow(ctx.Context, query, args...).Scan(
+	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
@@ -43,7 +43,7 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 		return nil, model.NewInternalError("postgres.cases.status.create.execution_error", err.Error())
 	}
 
-	t := ctx.Time
+	t := rpc.Time
 
 	return &_go.Status{
 		Id:          add.Id,
@@ -57,18 +57,18 @@ func (s Status) Create(ctx *model.CreateOptions, add *_go.Status) (*_go.Status, 
 }
 
 // List retrieves a list of statuses from the database. Implements the store.StatusStore interface.
-func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
+func (s Status) List(rpc *model.SearchOptions) (*_go.StatusList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.status.list.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildSearchStatusQuery(ctx)
+	query, args, err := s.buildSearchStatusQuery(rpc)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.status.list.query_build_error", err.Error())
 	}
 
-	rows, err := d.Query(ctx.Context, query, args...)
+	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.status.list.execution_error", err.Error())
 	}
@@ -78,8 +78,14 @@ func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
 
 	lCount := 0
 	next := false
+	// Check if we want to fetch all records
+	//
+	// If the size is -1, we want to fetch all records
+	fetchAll := rpc.GetSize() == -1
+
 	for rows.Next() {
-		if lCount >= ctx.GetSize() {
+		// If not fetching all records, check the size limit
+		if !fetchAll && lCount >= rpc.GetSize() {
 			next = true
 			break
 		}
@@ -90,7 +96,7 @@ func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
 		var scanArgs []interface{}
 
 		// Prepare scan arguments based on requested fields
-		for _, field := range ctx.Fields {
+		for _, field := range rpc.Fields {
 			switch field {
 			case "id":
 				scanArgs = append(scanArgs, &l.Id)
@@ -114,17 +120,17 @@ func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
 			return nil, model.NewInternalError("postgres.cases.status.list.row_scan_error", err.Error())
 		}
 
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_by") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_by") {
 			l.CreatedBy = &createdBy
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_by") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_by") {
 			l.UpdatedBy = &updatedBy
 		}
 
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_at") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_at") {
 			l.CreatedAt = util.Timestamp(tempCreatedAt)
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_at") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_at") {
 			l.UpdatedAt = util.Timestamp(tempUpdatedAt)
 		}
 
@@ -133,25 +139,25 @@ func (s Status) List(ctx *model.SearchOptions) (*_go.StatusList, error) {
 	}
 
 	return &_go.StatusList{
-		Page:  int32(ctx.Page),
+		Page:  int32(rpc.Page),
 		Next:  next,
 		Items: lookupList,
 	}, nil
 }
 
 // Delete removes a status from the database. Implements the store.StatusStore interface.
-func (s Status) Delete(ctx *model.DeleteOptions) error {
+func (s Status) Delete(rpc *model.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return model.NewInternalError("postgres.cases.status.delete.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildDeleteStatusQuery(ctx)
+	query, args, err := s.buildDeleteStatusQuery(rpc)
 	if err != nil {
 		return model.NewInternalError("postgres.cases.status.delete.query_build_error", err.Error())
 	}
 
-	res, err := d.Exec(ctx.Context, query, args...)
+	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
 		log.Printf("postgres.cases.status.delete Failed to execute SQL query: %v", err)
 		return model.NewInternalError("postgres.cases.status.delete.execution_error", err.Error())
@@ -166,13 +172,13 @@ func (s Status) Delete(ctx *model.DeleteOptions) error {
 }
 
 // Update modifies a status in the database. Implements the store.StatusStore interface.
-func (s Status) Update(ctx *model.UpdateOptions, l *_go.Status) (*_go.Status, error) {
+func (s Status) Update(rpc *model.UpdateOptions, l *_go.Status) (*_go.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.status.update.database_connection_error", dbErr.Error())
 	}
 
-	query, args, queryErr := s.buildUpdateStatusQuery(ctx, l)
+	query, args, queryErr := s.buildUpdateStatusQuery(rpc, l)
 
 	if queryErr != nil {
 		return nil, model.NewInternalError("postgres.cases.status.update.query_build_error", queryErr.Error())
@@ -181,7 +187,7 @@ func (s Status) Update(ctx *model.UpdateOptions, l *_go.Status) (*_go.Status, er
 	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
 
-	err := d.QueryRow(ctx.Context, query, args...).Scan(
+	err := d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
@@ -199,30 +205,30 @@ func (s Status) Update(ctx *model.UpdateOptions, l *_go.Status) (*_go.Status, er
 }
 
 // buildCreateStatusLookupQuery constructs the SQL insert query and returns the query string and arguments.
-func (s Status) buildCreateStatusQuery(ctx *model.CreateOptions, lookup *_go.Status) (string, []interface{}, error) {
+func (s Status) buildCreateStatusQuery(rpc *model.CreateOptions, lookup *_go.Status) (string, []interface{}, error) {
 	args := []interface{}{
 		lookup.Name,
-		ctx.Session.GetDomainId(),
-		ctx.Time,
+		rpc.Session.GetDomainId(),
+		rpc.Time,
 		lookup.Description,
-		ctx.Session.GetUserId(),
+		rpc.Session.GetUserId(),
 	}
 	return createStatusQuery, args, nil
 }
 
-func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+func (s Status) buildSearchStatusQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
+	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
+	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
 	queryBuilder := sq.Select().
 		From("cases.status AS g").
-		Where(sq.Eq{"g.dc": ctx.Session.GetDomainId()}).
+		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
-	ctx.Fields = append(fields, "id")
+	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
+	rpc.Fields = append(fields, "id")
 
-	for _, field := range ctx.Fields {
+	for _, field := range rpc.Fields {
 		switch field {
 		case "id", "name", "description", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
@@ -243,13 +249,13 @@ func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (string, []inte
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
-	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
-		substrs := ctx.Match.Substring(name)
+	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+		substrs := rpc.Match.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": "%" + combinedLike + "%"})
 	}
 
-	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
+	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)
 
 	var sortFields []string
 
@@ -280,11 +286,11 @@ func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (string, []inte
 	// Apply sorting
 	queryBuilder = queryBuilder.OrderBy(sortFields...)
 
-	size := ctx.GetSize()
-	page := ctx.GetPage()
+	size := rpc.GetSize()
+	page := rpc.GetPage()
 
 	// Apply offset only if page > 1
-	if ctx.Page > 1 {
+	if rpc.Page > 1 {
 		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
 	}
 
@@ -302,22 +308,22 @@ func (s Status) buildSearchStatusQuery(ctx *model.SearchOptions) (string, []inte
 }
 
 // buildDeleteStatusLookupQuery constructs the SQL delete query and returns the query string and arguments.
-func (s Status) buildDeleteStatusQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
-	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+func (s Status) buildDeleteStatusQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
+	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
-	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
+	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
 	return deleteStatusQuery, args, nil
 }
 
-func (s Status) buildUpdateStatusQuery(ctx *model.UpdateOptions, l *_go.Status) (string, []interface{}, error) {
+func (s Status) buildUpdateStatusQuery(rpc *model.UpdateOptions, l *_go.Status) (string, []interface{}, error) {
 	// Initialize Squirrel builder
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	// Create a Squirrel update builder
 	updateBuilder := psql.Update("cases.status").
-		Set("updated_at", ctx.Time).
-		Set("updated_by", ctx.Session.GetUserId())
+		Set("updated_at", rpc.Time).
+		Set("updated_by", rpc.Session.GetUserId())
 
 	// Fields that could be updated
 	updateFields := map[string]string{
@@ -333,7 +339,7 @@ func (s Status) buildUpdateStatusQuery(ctx *model.UpdateOptions, l *_go.Status) 
 	}
 
 	// Add the WHERE clause for id and dc
-	updateBuilder = updateBuilder.Where(sq.Eq{"id": l.Id, "dc": ctx.Session.GetDomainId()})
+	updateBuilder = updateBuilder.Where(sq.Eq{"id": l.Id, "dc": rpc.Session.GetDomainId()})
 
 	// Build the SQL string and the arguments slice
 	sql, args, err := updateBuilder.ToSql()

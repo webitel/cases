@@ -18,13 +18,13 @@ type CloseReason struct {
 	storage db.Store
 }
 
-func (s CloseReason) Create(ctx *model.CreateOptions, add *_go.CloseReason) (*_go.CloseReason, error) {
+func (s CloseReason) Create(rpc *model.CreateOptions, add *_go.CloseReason) (*_go.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.close_reason.create.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildCreateCloseReasonQuery(ctx, add)
+	query, args, err := s.buildCreateCloseReasonQuery(rpc, add)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.close_reason.create.query_build_error", err.Error())
 	}
@@ -32,7 +32,7 @@ func (s CloseReason) Create(ctx *model.CreateOptions, add *_go.CloseReason) (*_g
 	var createdByLookup, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
 
-	err = d.QueryRow(ctx.Context, query, args...).Scan(
+	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
@@ -52,18 +52,18 @@ func (s CloseReason) Create(ctx *model.CreateOptions, add *_go.CloseReason) (*_g
 	}, nil
 }
 
-func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error) {
+func (s CloseReason) List(rpc *model.SearchOptions) (*_go.CloseReasonList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.close_reason.list.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildSearchCloseReasonQuery(ctx)
+	query, args, err := s.buildSearchCloseReasonQuery(rpc)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.close_reason.list.query_build_error", err.Error())
 	}
 
-	rows, err := d.Query(ctx.Context, query, args...)
+	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.close_reason.list.execution_error", err.Error())
 	}
@@ -72,8 +72,14 @@ func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error
 	var lookupList []*_go.CloseReason
 	lCount := 0
 	next := false
+	// Check if we want to fetch all records
+	//
+	// If the size is -1, we want to fetch all records
+	fetchAll := rpc.GetSize() == -1
+
 	for rows.Next() {
-		if lCount >= ctx.GetSize() {
+		// If not fetching all records, check the size limit
+		if !fetchAll && lCount >= rpc.GetSize() {
 			next = true
 			break
 		}
@@ -83,7 +89,7 @@ func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error
 		var tempUpdatedAt, tempCreatedAt time.Time
 		var scanArgs []interface{}
 
-		for _, field := range ctx.Fields {
+		for _, field := range rpc.Fields {
 			switch field {
 			case "id":
 				scanArgs = append(scanArgs, &l.Id)
@@ -106,16 +112,16 @@ func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error
 			return nil, model.NewInternalError("postgres.cases.close_reason.list.row_scan_error", err.Error())
 		}
 
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_by") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_by") {
 			l.CreatedBy = &createdBy
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_by") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_by") {
 			l.UpdatedBy = &updatedBy
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_at") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_at") {
 			l.CreatedAt = util.Timestamp(tempCreatedAt)
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_at") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_at") {
 			l.UpdatedAt = util.Timestamp(tempUpdatedAt)
 		}
 
@@ -124,24 +130,24 @@ func (s CloseReason) List(ctx *model.SearchOptions) (*_go.CloseReasonList, error
 	}
 
 	return &_go.CloseReasonList{
-		Page:  int32(ctx.Page), // TODO page should be correctly passes even if user pass negative value
+		Page:  int32(rpc.Page), // TODO page should be correctly passes even if user pass negative value
 		Next:  next,
 		Items: lookupList,
 	}, nil
 }
 
-func (s CloseReason) Delete(ctx *model.DeleteOptions) error {
+func (s CloseReason) Delete(rpc *model.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return model.NewInternalError("postgres.cases.close_reason.delete.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildDeleteCloseReasonQuery(ctx)
+	query, args, err := s.buildDeleteCloseReasonQuery(rpc)
 	if err != nil {
 		return model.NewInternalError("postgres.cases.close_reason.delete.query_build_error", err.Error())
 	}
 
-	res, err := d.Exec(ctx.Context, query, args...)
+	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
 		return model.NewInternalError("postgres.cases.close_reason.delete.execution_error", err.Error())
 	}
@@ -154,13 +160,13 @@ func (s CloseReason) Delete(ctx *model.DeleteOptions) error {
 	return nil
 }
 
-func (s CloseReason) Update(ctx *model.UpdateOptions, l *_go.CloseReason) (*_go.CloseReason, error) {
+func (s CloseReason) Update(rpc *model.UpdateOptions, l *_go.CloseReason) (*_go.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.close_reason.update.database_connection_error", dbErr.Error())
 	}
 
-	query, args, queryErr := s.buildUpdateCloseReasonQuery(ctx, l)
+	query, args, queryErr := s.buildUpdateCloseReasonQuery(rpc, l)
 	if queryErr != nil {
 		return nil, model.NewInternalError("postgres.cases.close_reason.update.query_build_error", queryErr.Error())
 	}
@@ -168,7 +174,7 @@ func (s CloseReason) Update(ctx *model.UpdateOptions, l *_go.CloseReason) (*_go.
 	var createdBy, updatedByLookup _go.Lookup
 	var createdAt, updatedAt time.Time
 
-	err := d.QueryRow(ctx.Context, query, args...).Scan(
+	err := d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
@@ -185,27 +191,27 @@ func (s CloseReason) Update(ctx *model.UpdateOptions, l *_go.CloseReason) (*_go.
 }
 
 // buildCreateCloseReasonLookupQuery constructs the SQL insert query and returns the query string and arguments.
-func (s CloseReason) buildCreateCloseReasonQuery(ctx *model.CreateOptions, lookup *_go.CloseReason) (string, []interface{}, error) {
+func (s CloseReason) buildCreateCloseReasonQuery(rpc *model.CreateOptions, lookup *_go.CloseReason) (string, []interface{}, error) {
 	query := createCloseReasonQuery
 	args := []interface{}{
-		lookup.Name, ctx.Session.GetDomainId(), ctx.Time, lookup.Description, ctx.Session.GetUserId(),
+		lookup.Name, rpc.Session.GetDomainId(), rpc.Time, lookup.Description, rpc.Session.GetUserId(),
 	}
 	return query, args, nil
 }
 
-func (s CloseReason) buildSearchCloseReasonQuery(ctx *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+func (s CloseReason) buildSearchCloseReasonQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
+	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
+	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
 	queryBuilder := sq.Select().
 		From("cases.close_reason AS g").
-		Where(sq.Eq{"g.dc": ctx.Session.GetDomainId()}).
+		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
-	ctx.Fields = append(fields, "id")
+	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
+	rpc.Fields = append(fields, "id")
 
-	for _, field := range ctx.Fields {
+	for _, field := range rpc.Fields {
 		switch field {
 		case "id", "name", "description", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
@@ -226,12 +232,12 @@ func (s CloseReason) buildSearchCloseReasonQuery(ctx *model.SearchOptions) (stri
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
-	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
-		substr := ctx.Match.Substring(name)
+	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+		substr := rpc.Match.Substring(name)
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": substr})
 	}
 
-	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
+	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)
 	var sortFields []string
 
 	for _, sortField := range parsedFields {
@@ -252,14 +258,14 @@ func (s CloseReason) buildSearchCloseReasonQuery(ctx *model.SearchOptions) (stri
 
 	queryBuilder = queryBuilder.OrderBy(sortFields...)
 
-	size := ctx.GetSize()
-	page := ctx.Page
+	size := rpc.GetSize()
+	page := rpc.Page
 
-	if ctx.Page > 1 {
+	if rpc.Page > 1 {
 		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
 	}
 
-	if ctx.GetSize() != -1 {
+	if rpc.GetSize() != -1 {
 		queryBuilder = queryBuilder.Limit(uint64(size + 1))
 	}
 
@@ -272,24 +278,24 @@ func (s CloseReason) buildSearchCloseReasonQuery(ctx *model.SearchOptions) (stri
 }
 
 // buildDeleteCloseReasonLookupQuery constructs the SQL delete query and returns the query string and arguments.
-func (s CloseReason) buildDeleteCloseReasonQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
-	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+func (s CloseReason) buildDeleteCloseReasonQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
+	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
 	query := deleteCloseReasonQuery
-	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
+	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
 	return query, args, nil
 }
 
-func (s CloseReason) buildUpdateCloseReasonQuery(ctx *model.UpdateOptions, l *_go.CloseReason) (string, []interface{}, error) {
+func (s CloseReason) buildUpdateCloseReasonQuery(rpc *model.UpdateOptions, l *_go.CloseReason) (string, []interface{}, error) {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	// Initialize the SQL builder
 	builder := psql.Update("cases.close_reason").
-		Set("updated_at", ctx.Time).
-		Set("updated_by", ctx.Session.GetUserId()).
+		Set("updated_at", rpc.Time).
+		Set("updated_by", rpc.Session.GetUserId()).
 		Where(sq.Eq{"id": l.Id}).
-		Where(sq.Eq{"dc": ctx.Session.GetDomainId()})
+		Where(sq.Eq{"dc": rpc.Session.GetDomainId()})
 
 	// Fields that could be updated
 	updateFields := []string{"name", "description"} // TODO make it empty  |  add XJsonMask to proto

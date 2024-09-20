@@ -111,9 +111,14 @@ func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 	var slaList []*cases.SLA
 	lCount := 0
 	next := false
+	// Check if we want to fetch all records
+	//
+	// If the size is -1, we want to fetch all records
+	fetchAll := rpc.GetSize() == -1
 
 	for rows.Next() {
-		if lCount >= rpc.GetSize() {
+		// If not fetching all records, check the size limit
+		if !fetchAll && lCount >= rpc.GetSize() {
 			next = true
 			break
 		}

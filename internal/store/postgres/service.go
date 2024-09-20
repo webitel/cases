@@ -16,7 +16,7 @@ type ServiceStore struct {
 	storage store.Store
 }
 
-func (s *ServiceStore) Create(ctx *model.CreateOptions, add *cases.Service) (*cases.Service, error) {
+func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*cases.Service, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -24,14 +24,14 @@ func (s *ServiceStore) Create(ctx *model.CreateOptions, add *cases.Service) (*ca
 	}
 
 	// Build the combined query for inserting Service and related entities
-	query, args := s.buildCreateServiceQuery(ctx, add)
+	query, args := s.buildCreateServiceQuery(rpc, add)
 
 	// Execute the query and scan the result into the Service fields
 	var createdByLookup, updatedByLookup cases.Lookup
 	var createdAt, updatedAt time.Time
 	var groupLookup, assigneeLookup cases.Lookup
 
-	err := db.QueryRow(ctx.Context, query, args...).Scan(
+	err := db.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Code, &add.State,
 		&createdAt, &updatedAt,
 		&add.Sla.Id, &add.Sla.Name,
@@ -58,7 +58,7 @@ func (s *ServiceStore) Create(ctx *model.CreateOptions, add *cases.Service) (*ca
 }
 
 // Delete implements store.ServiceStore.
-func (s *ServiceStore) Delete(ctx *model.DeleteOptions) error {
+func (s *ServiceStore) Delete(rpc *model.DeleteOptions) error {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -66,15 +66,15 @@ func (s *ServiceStore) Delete(ctx *model.DeleteOptions) error {
 	}
 
 	// Ensure that there are IDs to delete
-	if len(ctx.IDs) == 0 {
+	if len(rpc.IDs) == 0 {
 		return model.NewBadRequestError("postgres.service.delete.no_ids_provided", "No IDs provided for deletion")
 	}
 
 	// Build the delete query
-	query, args := s.buildDeleteServiceQuery(ctx)
+	query, args := s.buildDeleteServiceQuery(rpc)
 
 	// Execute the delete query
-	res, err := db.Exec(ctx.Context, query, args...)
+	res, err := db.Exec(rpc.Context, query, args...)
 	if err != nil {
 		return model.NewInternalError("postgres.service.delete.execution_error", err.Error())
 	}
@@ -88,7 +88,7 @@ func (s *ServiceStore) Delete(ctx *model.DeleteOptions) error {
 }
 
 // List implements store.ServiceStore.
-func (s *ServiceStore) List(ctx *model.SearchOptions) (*cases.ServiceList, error) {
+func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -96,13 +96,13 @@ func (s *ServiceStore) List(ctx *model.SearchOptions) (*cases.ServiceList, error
 	}
 
 	// Build SQL query with filtering by root_id
-	query, args, err := s.buildSearchServiceQuery(ctx)
+	query, args, err := s.buildSearchServiceQuery(rpc)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.service.list.query_build_error", err.Error())
 	}
 
 	// Execute the query
-	rows, err := db.Query(ctx.Context, query, args...)
+	rows, err := db.Query(rpc.Context, query, args...)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.service.list.query_execution_error", err.Error())
 	}
@@ -110,11 +110,16 @@ func (s *ServiceStore) List(ctx *model.SearchOptions) (*cases.ServiceList, error
 
 	// Parse the result
 	var services []*cases.Service
-	count := 0
+	lCount := 0
 	next := false
+	// Check if we want to fetch all records
+	//
+	// If the size is -1, we want to fetch all records
+	fetchAll := rpc.GetSize() == -1
 
 	for rows.Next() {
-		if count >= ctx.GetSize() {
+		// If not fetching all records, check the size limit
+		if !fetchAll && lCount >= rpc.GetSize() {
 			next = true
 			break
 		}
@@ -143,18 +148,18 @@ func (s *ServiceStore) List(ctx *model.SearchOptions) (*cases.ServiceList, error
 
 		// Append the populated service object to the services slice
 		services = append(services, service)
-		count++
+		lCount++
 	}
 
 	return &cases.ServiceList{
-		Page:  int32(ctx.Page),
+		Page:  int32(rpc.Page),
 		Next:  next,
 		Items: services,
 	}, nil
 }
 
 // Update implements store.ServiceStore.
-func (s *ServiceStore) Update(ctx *model.UpdateOptions, lookup *cases.Service) (*cases.Service, error) {
+func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (*cases.Service, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -162,15 +167,15 @@ func (s *ServiceStore) Update(ctx *model.UpdateOptions, lookup *cases.Service) (
 	}
 
 	// Start a transaction using the TxManager
-	tx, err := db.Begin(ctx.Context)
+	tx, err := db.Begin(rpc.Context)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.service.update.transaction_start_error", err.Error())
 	}
 	txManager := store.NewTxManager(tx)   // Create a new TxManager instance
-	defer txManager.Rollback(ctx.Context) // Ensure rollback on error
+	defer txManager.Rollback(rpc.Context) // Ensure rollback on error
 
 	// Build the update query for the Service
-	query, args, err := s.buildUpdateServiceQuery(ctx, lookup)
+	query, args, err := s.buildUpdateServiceQuery(rpc, lookup)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.service.update.query_build_error", err.Error())
 	}
@@ -180,7 +185,7 @@ func (s *ServiceStore) Update(ctx *model.UpdateOptions, lookup *cases.Service) (
 	var createdAt, updatedAt time.Time
 	var groupLookup, assigneeLookup cases.Lookup
 
-	err = txManager.QueryRow(ctx.Context, query, args...).Scan(
+	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &lookup.Description,
 		&lookup.Code, &lookup.State, &lookup.Sla.Id,
 		&lookup.Sla.Name, &groupLookup.Id, &groupLookup.Name,
@@ -193,7 +198,7 @@ func (s *ServiceStore) Update(ctx *model.UpdateOptions, lookup *cases.Service) (
 	}
 
 	// Commit the transaction
-	if err := txManager.Commit(ctx.Context); err != nil {
+	if err := txManager.Commit(rpc.Context); err != nil {
 		return nil, model.NewInternalError("postgres.service.update.transaction_commit_error", err.Error())
 	}
 
@@ -271,23 +276,23 @@ FROM inserted_service
 }
 
 // Helper method to build the delete query for Service
-func (s *ServiceStore) buildDeleteServiceQuery(ctx *model.DeleteOptions) (string, []interface{}) {
+func (s *ServiceStore) buildDeleteServiceQuery(rpc *model.DeleteOptions) (string, []interface{}) {
 	query := `
 		DELETE FROM cases.service
 		WHERE id = ANY($1) AND dc = $2
 	`
 	args := []interface{}{
-		pq.Array(ctx.IDs),         // $1: array of service IDs to delete
-		ctx.Session.GetDomainId(), // $2: domain ID to ensure proper scoping
+		pq.Array(rpc.IDs),         // $1: array of service IDs to delete
+		rpc.Session.GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
 	return store.CompactSQL(query), args
 }
 
 // Helper method to build the search query for Service
-func (s *ServiceStore) buildSearchServiceQuery(ctx *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
+	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
+	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
 	// Initialize query builder with COALESCE for optional fields
 	queryBuilder := sq.Select(
@@ -325,18 +330,18 @@ func (s *ServiceStore) buildSearchServiceQuery(ctx *model.SearchOptions) (string
 		PlaceholderFormat(sq.Dollar)
 
 	// Apply filtering by root_id (using root_id from context)
-	if rootID, ok := ctx.Filter["root_id"].(int64); ok && rootID > 0 {
+	if rootID, ok := rpc.Filter["root_id"].(int64); ok && rootID > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.root_id": rootID})
 	}
 
 	// Apply filtering by name (using case-insensitive matching)
-	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
-		substr := ctx.Match.Substring(name)
+	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+		substr := rpc.Match.Substring(name)
 		queryBuilder = queryBuilder.Where(sq.ILike{"service.name": substr})
 	}
 
 	// Apply filtering by state
-	if state, ok := ctx.Filter["state"]; ok {
+	if state, ok := rpc.Filter["state"]; ok {
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.state": state})
 	}
 
@@ -346,16 +351,16 @@ func (s *ServiceStore) buildSearchServiceQuery(ctx *model.SearchOptions) (string
 	}
 
 	// Apply sorting based on context
-	for _, sort := range ctx.Sort {
+	for _, sort := range rpc.Sort {
 		queryBuilder = queryBuilder.OrderBy(sort)
 	}
 
 	// Get size and page for pagination
-	size := ctx.GetSize()
-	page := ctx.GetPage()
+	size := rpc.GetSize()
+	page := rpc.GetPage()
 
 	// Apply offset only if page > 1
-	if ctx.Page > 1 {
+	if rpc.Page > 1 {
 		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
 	}
 
@@ -374,16 +379,16 @@ func (s *ServiceStore) buildSearchServiceQuery(ctx *model.SearchOptions) (string
 }
 
 // Helper method to build the combined update and select query for Service using Squirrel
-func (s *ServiceStore) buildUpdateServiceQuery(ctx *model.UpdateOptions, lookup *cases.Service) (string, []interface{}, error) {
+func (s *ServiceStore) buildUpdateServiceQuery(rpc *model.UpdateOptions, lookup *cases.Service) (string, []interface{}, error) {
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", ctx.Time).
-		Set("updated_by", ctx.Session.GetUserId()).
-		Where(sq.Eq{"id": lookup.Id, "dc": ctx.Session.GetDomainId()})
+		Set("updated_at", rpc.Time).
+		Set("updated_by", rpc.Session.GetUserId()).
+		Where(sq.Eq{"id": lookup.Id, "dc": rpc.Session.GetDomainId()})
 
 	// Dynamically set fields based on what the user wants to update
-	for _, field := range ctx.Fields {
+	for _, field := range rpc.Fields {
 		switch field {
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)

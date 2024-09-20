@@ -18,13 +18,13 @@ type Appeal struct {
 	storage db.Store
 }
 
-func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, error) {
+func (s Appeal) Create(rpc *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.appeal.create.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildCreateAppealQuery(ctx, add)
+	query, args, err := s.buildCreateAppealQuery(rpc, add)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.appeal.create.query_build_error", err.Error())
 	}
@@ -33,7 +33,7 @@ func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 	var createdAt, updatedAt time.Time
 	var tempType string
 
-	err = d.QueryRow(ctx.Context, query, args...).Scan(
+	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description, &tempType,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
@@ -60,18 +60,18 @@ func (s Appeal) Create(ctx *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 	}, nil
 }
 
-func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
+func (s Appeal) List(rpc *model.SearchOptions) (*_go.AppealList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.appeal.list.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildSearchAppealQuery(ctx)
+	query, args, err := s.buildSearchAppealQuery(rpc)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.appeal.list.query_build_error", err.Error())
 	}
 
-	rows, err := d.Query(ctx.Context, query, args...)
+	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.cases.appeal.list.execution_error", err.Error())
 	}
@@ -80,8 +80,14 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 	var lookupList []*_go.Appeal
 	lCount := 0
 	next := false
+	// Check if we want to fetch all records
+	//
+	// If the size is -1, we want to fetch all records
+	fetchAll := rpc.GetSize() == -1
+
 	for rows.Next() {
-		if lCount >= ctx.GetSize() {
+		// If not fetching all records, check the size limit
+		if !fetchAll && lCount >= rpc.GetSize() {
 			next = true
 			break
 		}
@@ -92,7 +98,7 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 		var tempType string
 		var scanArgs []interface{}
 
-		for _, field := range ctx.Fields {
+		for _, field := range rpc.Fields {
 			switch field {
 			case "id":
 				scanArgs = append(scanArgs, &l.Id)
@@ -118,23 +124,23 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 		}
 
 		// Convert tempType (string) to the enum Type if "type" is in the requested fields
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "type") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "type") {
 			l.Type, err = stringToType(tempType)
 			if err != nil {
 				return nil, model.NewInternalError("postgres.cases.appeal.list.type_conversion_error", err.Error())
 			}
 		}
 
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_by") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_by") {
 			l.CreatedBy = &createdBy
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_by") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_by") {
 			l.UpdatedBy = &updatedBy
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "created_at") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_at") {
 			l.CreatedAt = util.Timestamp(tempCreatedAt)
 		}
-		if ctx.FieldsUtil.ContainsField(ctx.Fields, "updated_at") {
+		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_at") {
 			l.UpdatedAt = util.Timestamp(tempUpdatedAt)
 		}
 
@@ -142,25 +148,30 @@ func (s Appeal) List(ctx *model.SearchOptions) (*_go.AppealList, error) {
 		lCount++
 	}
 
+	// If fetching all records, set `next` to false as there's no pagination
+	if fetchAll {
+		next = false
+	}
+
 	return &_go.AppealList{
-		Page:  int32(ctx.Page),
+		Page:  int32(rpc.Page),
 		Next:  next,
 		Items: lookupList,
 	}, nil
 }
 
-func (s Appeal) Delete(ctx *model.DeleteOptions) error {
+func (s Appeal) Delete(rpc *model.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return model.NewInternalError("postgres.cases.appeal.delete.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildDeleteAppealQuery(ctx)
+	query, args, err := s.buildDeleteAppealQuery(rpc)
 	if err != nil {
 		return model.NewInternalError("postgres.cases.appeal.delete.query_build_error", err.Error())
 	}
 
-	res, err := d.Exec(ctx.Context, query, args...)
+	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
 		return model.NewInternalError("postgres.cases.appeal.delete.execution_error", err.Error())
 	}
@@ -173,13 +184,13 @@ func (s Appeal) Delete(ctx *model.DeleteOptions) error {
 	return nil
 }
 
-func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, error) {
+func (s Appeal) Update(rpc *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, model.NewInternalError("postgres.cases.appeal.update.database_connection_error", dbErr.Error())
 	}
 
-	query, args, queryErr := s.buildUpdateAppealQuery(ctx, l)
+	query, args, queryErr := s.buildUpdateAppealQuery(rpc, l)
 	if queryErr != nil {
 		return nil, model.NewInternalError("postgres.cases.appeal.update.query_build_error", queryErr.Error())
 	}
@@ -188,7 +199,7 @@ func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 	var createdAt, updatedAt time.Time
 	var tempType string
 
-	err := d.QueryRow(ctx.Context, query, args...).Scan(
+	err := d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description, &tempType,
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
@@ -210,29 +221,29 @@ func (s Appeal) Update(ctx *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 	return l, nil
 }
 
-func (s Appeal) buildCreateAppealQuery(ctx *model.CreateOptions, lookup *_go.Appeal) (string, []interface{}, error) {
+func (s Appeal) buildCreateAppealQuery(rpc *model.CreateOptions, lookup *_go.Appeal) (string, []interface{}, error) {
 	query := createAppealQuery
 	args := []interface{}{
-		lookup.Name, ctx.Session.GetDomainId(), ctx.CurrentTime(), lookup.Description, lookup.Type,
-		ctx.Session.GetUserId(),
+		lookup.Name, rpc.Session.GetDomainId(), rpc.CurrentTime(), lookup.Description, lookup.Type,
+		rpc.Session.GetUserId(),
 	}
 	return query, args, nil
 }
 
-func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+func (s Appeal) buildSearchAppealQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
+	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
+	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
 	queryBuilder := sq.Select().
 		From("cases.appeal AS g").
-		Where(sq.Eq{"g.dc": ctx.Session.GetDomainId()}).
+		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	fields := ctx.FieldsUtil.FieldsFunc(ctx.Fields, ctx.FieldsUtil.InlineFields)
-	ctx.Fields = append(fields, "id")
+	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
+	rpc.Fields = append(fields, "id")
 
 	// Adding columns based on fields
-	for _, field := range ctx.Fields {
+	for _, field := range rpc.Fields {
 		switch field {
 		case "id", "name", "description", "type", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
@@ -254,17 +265,17 @@ func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (string, []inte
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
-	if name, ok := ctx.Filter["name"].(string); ok && len(name) > 0 {
-		substr := ctx.Match.Substring(name)
+	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+		substr := rpc.Match.Substring(name)
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": substr})
 	}
 
-	if types, ok := ctx.Filter["type"].([]_go.Type); ok && len(types) > 0 {
+	if types, ok := rpc.Filter["type"].([]_go.Type); ok && len(types) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.type": types})
 	}
 
 	// Sorting logic
-	parsedFields := ctx.FieldsUtil.FieldsFunc(ctx.Sort, ctx.FieldsUtil.InlineFields)
+	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)
 	var sortFields []string
 
 	for _, sortField := range parsedFields {
@@ -286,15 +297,15 @@ func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (string, []inte
 	// Applying sorting
 	queryBuilder = queryBuilder.OrderBy(sortFields...)
 
-	size := ctx.GetSize()
-	page := ctx.Page
+	size := rpc.GetSize()
+	page := rpc.Page
 
 	// Applying pagination
-	if ctx.Page > 1 {
+	if rpc.Page > 1 {
 		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
 	}
 
-	if ctx.GetSize() != -1 {
+	if rpc.GetSize() != -1 {
 		queryBuilder = queryBuilder.Limit(uint64(size + 1))
 	}
 
@@ -307,23 +318,23 @@ func (s Appeal) buildSearchAppealQuery(ctx *model.SearchOptions) (string, []inte
 	return db.CompactSQL(query), args, nil
 }
 
-func (s Appeal) buildDeleteAppealQuery(ctx *model.DeleteOptions) (string, []interface{}, error) {
-	convertedIds := ctx.FieldsUtil.Int64SliceToStringSlice(ctx.IDs)
-	ids := ctx.FieldsUtil.FieldsFunc(convertedIds, ctx.FieldsUtil.InlineFields)
+func (s Appeal) buildDeleteAppealQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
+	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
 	query := deleteAppealQuery
-	args := []interface{}{pq.Array(ids), ctx.Session.GetDomainId()}
+	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
 	return query, args, nil
 }
 
-func (s Appeal) buildUpdateAppealQuery(ctx *model.UpdateOptions, l *_go.Appeal) (string, []interface{}, error) {
+func (s Appeal) buildUpdateAppealQuery(rpc *model.UpdateOptions, l *_go.Appeal) (string, []interface{}, error) {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	builder := psql.Update("cases.appeal").
-		Set("updated_at", ctx.CurrentTime()).
-		Set("updated_by", ctx.Session.GetUserId()).
+		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_by", rpc.Session.GetUserId()).
 		Where(sq.Eq{"id": l.Id}).
-		Where(sq.Eq{"dc": ctx.Session.GetDomainId()})
+		Where(sq.Eq{"dc": rpc.Session.GetDomainId()})
 
 	updateFields := []string{"name", "description", "type"}
 
@@ -373,6 +384,8 @@ LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
 }
 
 // StringToType converts a string into the corresponding Type enum value.
+//
+// Types are specified ONLY for Appeal dictionary and are ENUMS in API.
 func stringToType(typeStr string) (_go.Type, error) {
 	switch strings.ToUpper(typeStr) {
 	case "CALL":
