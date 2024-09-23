@@ -45,6 +45,10 @@ message CreateStatusRequest {
   string description = 3;
 }
 
+message InputStatus{
+  string name = 1;
+  string description = 2;
+}
 // UpdateStatusRequest message for updating an existing status
 message UpdateStatusRequest {
   option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
@@ -54,12 +58,11 @@ message UpdateStatusRequest {
   };
 
   int64 id = 1;
-  string name = 2;
-  string description = 4;
+  InputStatus input = 2;
 
     // ---- JSON PATCH fields mask ----
   // List of JPath fields specified in body(input).
-  repeated string x_json_mask = 5
+  repeated string x_json_mask = 3
   [(google.api.field_visibility) = {
     restriction: "PREVIEW" // "INTERNAL"
   },
@@ -148,10 +151,10 @@ service Statuses {
   rpc UpdateStatus(UpdateStatusRequest) returns (Status) {
     option (google.api.http) = {
       put: "/cases/statuses/{id}"
-      body: "*"
+      body: "input"
       additional_bindings {
         patch: "/cases/statuses/{id}"
-        body: "*"
+        body: "input"
       }
     };
 

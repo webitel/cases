@@ -146,8 +146,8 @@ func (s CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.Upda
 	// Update lookup model
 	lookup := &_go.CloseReason{
 		Id:          req.Id,
-		Name:        req.Name,
-		Description: req.Description,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
 		UpdatedBy:   currentU,
 	}
 
@@ -157,7 +157,7 @@ func (s CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.Upda
 		switch f {
 		case "name":
 			fields = append(fields, "name")
-			if req.Name == "" {
+			if req.Input.Name == "" {
 				return nil, model.NewBadRequestError("close_reason_service.update_close_reason.name.required", "Lookup name is required and cannot be empty")
 			}
 		case "description":

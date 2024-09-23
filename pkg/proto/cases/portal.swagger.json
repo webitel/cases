@@ -261,18 +261,17 @@
         "parameters": [
           {
             "name": "id",
-            "description": "The unique ID of the appeal to update.",
             "in": "path",
             "required": true,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "body",
+            "name": "input",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Appeals.UpdateAppealBody"
+              "$ref": "#/definitions/webitel.cases.InputAppeal"
             }
           }
         ],
@@ -294,18 +293,17 @@
         "parameters": [
           {
             "name": "id",
-            "description": "The unique ID of the appeal to update.",
             "in": "path",
             "required": true,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "body",
+            "name": "input",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Appeals.UpdateAppealBody"
+              "$ref": "#/definitions/webitel.cases.InputAppeal"
             }
           }
         ],
@@ -723,11 +721,11 @@
             "format": "int64"
           },
           {
-            "name": "body",
+            "name": "input",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.CloseReasons.UpdateCloseReasonBody"
+              "$ref": "#/definitions/webitel.cases.InputCloseReason"
             }
           }
         ],
@@ -755,11 +753,11 @@
             "format": "int64"
           },
           {
-            "name": "body",
+            "name": "input",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.CloseReasons.UpdateCloseReasonBody"
+              "$ref": "#/definitions/webitel.cases.InputCloseReason"
             }
           }
         ],
@@ -955,11 +953,11 @@
             "format": "int64"
           },
           {
-            "name": "body",
+            "name": "input",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Priorities.UpdatePriorityBody"
+              "$ref": "#/definitions/webitel.cases.InputPriority"
             }
           }
         ],
@@ -987,11 +985,11 @@
             "format": "int64"
           },
           {
-            "name": "body",
+            "name": "input",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Priorities.UpdatePriorityBody"
+              "$ref": "#/definitions/webitel.cases.InputPriority"
             }
           }
         ],
@@ -1656,11 +1654,11 @@
             "format": "int64"
           },
           {
-            "name": "body",
+            "name": "input",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Statuses.UpdateStatusBody"
+              "$ref": "#/definitions/webitel.cases.InputStatus"
             }
           }
         ],
@@ -1688,11 +1686,11 @@
             "format": "int64"
           },
           {
-            "name": "body",
+            "name": "input",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Statuses.UpdateStatusBody"
+              "$ref": "#/definitions/webitel.cases.InputStatus"
             }
           }
         ],
@@ -2594,24 +2592,6 @@
       },
       "description": "A list of appeals."
     },
-    "webitel.cases.Appeals.UpdateAppealBody": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The new name of the appeal."
-        },
-        "description": {
-          "type": "string",
-          "description": "The new description of the appeal."
-        },
-        "type": {
-          "$ref": "#/definitions/webitel.cases.Type",
-          "description": "The new source type of the appeal."
-        }
-      },
-      "description": "Request message for updating an existing appeal."
-    },
     "webitel.cases.Catalog": {
       "type": "object",
       "properties": {
@@ -2777,18 +2757,6 @@
         }
       },
       "title": "CloseReasonList message contains a list of CloseReason items with pagination"
-    },
-    "webitel.cases.CloseReasons.UpdateCloseReasonBody": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        }
-      },
-      "title": "UpdateCloseReasonRequest message for updating an existing close reason"
     },
     "webitel.cases.CreateAppealRequest": {
       "type": "object",
@@ -3007,6 +2975,23 @@
         "name"
       ]
     },
+    "webitel.cases.InputAppeal": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the appeal."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the appeal."
+        },
+        "type": {
+          "$ref": "#/definitions/webitel.cases.Type",
+          "description": "The source type of the appeal."
+        }
+      }
+    },
     "webitel.cases.InputCatalog": {
       "type": "object",
       "properties": {
@@ -3063,6 +3048,31 @@
         }
       },
       "title": "InputCatalog message contains the fields for creating or updating a catalog"
+    },
+    "webitel.cases.InputCloseReason": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "webitel.cases.InputPriority": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        }
+      }
     },
     "webitel.cases.InputReason": {
       "type": "object",
@@ -3206,6 +3216,17 @@
       },
       "title": "InputService message contains the fields for creating or updating a service"
     },
+    "webitel.cases.InputStatus": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
     "webitel.cases.InputStatusCondition": {
       "type": "object",
       "properties": {
@@ -3329,21 +3350,6 @@
         }
       },
       "title": "Lookup message represents a lookup entity with metadata"
-    },
-    "webitel.cases.Priorities.UpdatePriorityBody": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "color": {
-          "type": "string"
-        }
-      },
-      "title": "UpdatePriorityRequest message for updating an existing priority"
     },
     "webitel.cases.Priority": {
       "type": "object",
@@ -3934,18 +3940,6 @@
         }
       },
       "title": "StatusList message contains a list of Status items with pagination"
-    },
-    "webitel.cases.Statuses.UpdateStatusBody": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        }
-      },
-      "title": "UpdateStatusRequest message for updating an existing status"
     },
     "webitel.cases.Type": {
       "type": "string",

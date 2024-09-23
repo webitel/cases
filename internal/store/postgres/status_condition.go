@@ -237,18 +237,23 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "description", "initial", "final", "created_at", "updated_at":
+		case "id", "name", "initial", "final", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("s." + field)
+		case "description":
+			// Separate case for description: return '' if NULL
+			queryBuilder = queryBuilder.Column("COALESCE(s.description, '') AS description")
 		case "created_by":
-			// cbi = created_by_id
-			// cbn = created_by_name
-			queryBuilder = queryBuilder.Column("created_by.id AS cbi, created_by.name AS cbn").
-				LeftJoin("directory.wbt_auth AS created_by ON s.created_by = created_by.id")
+			// Handle nulls using COALESCE for created_by
+			queryBuilder = queryBuilder.
+				Column("COALESCE(created_by.id, 0) AS cbi").
+				Column("COALESCE(created_by.name, '') AS cbn").
+				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
 		case "updated_by":
-			// ubi = updated_by_id
-			// ubn = updated_by_name
-			queryBuilder = queryBuilder.Column("updated_by.id AS ubi, updated_by.name AS ubn").
-				LeftJoin("directory.wbt_auth AS updated_by ON s.updated_by = updated_by.id")
+			// Handle nulls using COALESCE for updated_by
+			queryBuilder = queryBuilder.
+				Column("COALESCE(updated_by.id, 0) AS ubi").
+				Column("COALESCE(updated_by.name, '') AS ubn").
+				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
 		}
 	}
 
@@ -343,9 +348,8 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc *model.UpdateO
 				updBuilder = updBuilder.Set("name", st.Name)
 			}
 		case "description":
-			if st.Description != "" {
-				updBuilder = updBuilder.Set("description", st.Description)
-			}
+			// Set description to NULL if it's an empty string
+			updBuilder = updBuilder.Set("description", sq.Expr("NULLIF(?, '')", st.Description))
 		case "initial":
 			updBuilder = updBuilder.Set("initial", st.Initial)
 			updateInitial = true
@@ -388,13 +392,13 @@ SELECT upd.id,
        upd.name,
        upd.created_at,
        upd.updated_at,
-       upd.description,
+       COALESCE(upd.description, '')              AS description,
        upd.initial,
        upd.final,
-       upd.created_by                     AS created_by_id,
-       COALESCE(c.name::text, c.username) AS created_by_name,
-       upd.updated_by                     AS updated_by_id,
-       COALESCE(u.name::text, u.username) AS updated_by_name,
+       upd.created_by                             AS created_by_id,
+       COALESCE(c.name::text, c.username,'')      AS created_by_name,
+       upd.updated_by                             AS updated_by_id,
+       COALESCE(u.name::text, u.username)         AS updated_by_name,
        upd.status_id
 FROM upd
          LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
@@ -670,26 +674,20 @@ func (s StatusConditionStore) containsField(fields []string, field string) bool 
 // ---- STATIC SQL QUERIES ----
 var (
 	createStatusConditionQuery = store.CompactSQL(`
-	WITH existing_status AS (SELECT COUNT(*) AS count
-                         FROM cases.status_condition
-                         WHERE dc = $5
-                           AND status_id = $6),
+WITH existing_status AS (SELECT COUNT(*) AS count FROM cases.status_condition WHERE dc = $5 AND status_id = $6),
      default_values
          AS (SELECT CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS initial_default,
                     CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS final_default),
-     ins AS (
-         INSERT INTO cases.status_condition (name, created_at, description, initial, final, created_by, updated_at,
-                                             updated_by, dc, status_id)
-             VALUES ($1, $2, $3,
-                     (SELECT initial_default FROM default_values),
-                     (SELECT final_default FROM default_values),
-                     $4, $2, $4, $5, $6)
-             RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id)
+     ins AS (INSERT INTO cases.status_condition (name, created_at, description, initial, final, created_by, updated_at,
+                                                 updated_by, dc, status_id)
+         VALUES ($1, $2, NULLIF($3, ''), (SELECT initial_default FROM default_values),
+                 (SELECT final_default FROM default_values), $4, $2, $4, $5, $6)
+         RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id)
 SELECT ins.id,
        ins.name,
        ins.created_at,
        ins.updated_at,
-       ins.description,
+       COALESCE(ins.description, '')      AS description,
        ins.initial,
        ins.final,
        ins.created_by                     AS created_by_id,

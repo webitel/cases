@@ -221,10 +221,10 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *cases.UpdateSer
 		Code:        req.Input.Code,
 		Sla:         &cases.Lookup{Id: req.Input.SlaId},
 		Group:       &cases.Lookup{Id: req.Input.GroupId},
-		Assignee:    &cases.Lookup{Id: req.Input.AssigneeId}, // Added Assignee field
+		Assignee:    &cases.Lookup{Id: req.Input.AssigneeId},
 		UpdatedBy:   u,
 		State:       req.Input.State,
-		RootId:      req.Input.RootId, // Added RootId field for updates
+		RootId:      req.Input.RootId,
 	}
 
 	fields := []string{"id"}
@@ -239,7 +239,7 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *cases.UpdateSer
 		case "description":
 			fields = append(fields, "description")
 		case "root_id":
-			fields = append(fields, "root_id") // Update RootId field
+			fields = append(fields, "root_id")
 		case "code":
 			fields = append(fields, "code")
 		case "sla_id":
@@ -247,7 +247,7 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *cases.UpdateSer
 		case "group_id":
 			fields = append(fields, "group_id")
 		case "assignee_id":
-			fields = append(fields, "assignee_id") // Update Assignee field
+			fields = append(fields, "assignee_id")
 		case "state":
 			fields = append(fields, "state")
 		}

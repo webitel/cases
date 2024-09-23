@@ -154,8 +154,8 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 	// Update lookup model
 	lookup := &_go.Status{
 		Id:          req.Id,
-		Name:        req.Name,
-		Description: req.Description,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
 		UpdatedBy:   currentU,
 	}
 
@@ -165,7 +165,7 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 		switch f {
 		case "name":
 			fields = append(fields, "name")
-			if req.Name == "" {
+			if req.Input.Name == "" {
 				return nil, model.NewBadRequestError("status.update_status.name.required", "Lookup name is required and cannot be empty")
 			}
 		case "description":

@@ -191,18 +191,27 @@ func (s Reason) buildSearchReasonQuery(rpc *model.SearchOptions, closeReasonId i
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "description", "created_at", "updated_at":
+		case "id", "name", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
+		case "description":
+			// Use COALESCE to handle null values for description
+			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")
 		case "created_by":
 			// cbi = created_by_id
 			// cbn = created_by_name
-			queryBuilder = queryBuilder.Column("created_by.id AS cbi, created_by.name AS cbn").
-				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
+			// Use COALESCE to handle null values
+			queryBuilder = queryBuilder.
+				Column("COALESCE(created_by.id, 0) AS cbi").    // Handle NULL as 0 for created_by_id
+				Column("COALESCE(created_by.name, '') AS cbn"). // Handle NULL as '' for created_by_name
+				LeftJoin("directory.wbt_auth AS created_by ON p.created_by = created_by.id")
 		case "updated_by":
 			// ubi = updated_by_id
 			// ubn = updated_by_name
-			queryBuilder = queryBuilder.Column("updated_by.id AS ubi, updated_by.name AS ubn").
-				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
+			// Use COALESCE to handle null values
+			queryBuilder = queryBuilder.
+				Column("COALESCE(updated_by.id, 0) AS ubi").    // Handle NULL as 0 for updated_by_id
+				Column("COALESCE(updated_by.name, '') AS ubn"). // Handle NULL as '' for updated_by_name
+				LeftJoin("directory.wbt_auth AS updated_by ON p.updated_by = updated_by.id")
 		}
 	}
 
@@ -286,20 +295,16 @@ func (s Reason) buildUpdateReasonQuery(rpc *model.UpdateOptions, l *_go.Reason) 
 		Set("updated_at", rpc.Time).
 		Set("updated_by", rpc.Session.GetUserId())
 
-	// Fields that could be updated
-	updateFields := []string{"name", "description"}
-
 	// Add the fields to the update query if they are provided
-	for _, field := range updateFields {
+	for _, field := range rpc.Fields {
 		switch field {
 		case "name":
 			if l.Name != "" {
 				updateBuilder = updateBuilder.Set("name", l.Name)
 			}
 		case "description":
-			if l.Description != "" {
-				updateBuilder = updateBuilder.Set("description", l.Description)
-			}
+			// Use NULLIF to store NULL if description is an empty string
+			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", l.Description))
 		}
 	}
 
@@ -314,23 +319,21 @@ func (s Reason) buildUpdateReasonQuery(rpc *model.UpdateOptions, l *_go.Reason) 
 
 	// Construct the final SQL query with joins for created_by and updated_by
 	query := fmt.Sprintf(`
-with upd as (
-    %s
-    RETURNING id, name, created_at, updated_at, description, created_by, updated_by
-)
-select upd.id,
+WITH upd AS (%s
+    RETURNING id, name, created_at, updated_at, description, created_by, updated_by)
+SELECT upd.id,
        upd.name,
        upd.created_at,
        upd.updated_at,
-       upd.description,
-       upd.created_by as created_by_id,
-       coalesce(c.name::text, c.username) as created_by_name,
-       upd.updated_by as updated_by_id,
-       coalesce(u.name::text, u.username) as updated_by_name
-from upd
-  left join directory.wbt_user u on u.id = upd.updated_by
-  left join directory.wbt_user c on c.id = upd.created_by;
-    `, sql)
+       COALESCE(upd.description, '')          AS description, -- Use COALESCE to return '' if description is NULL
+       upd.created_by                         AS created_by_id,
+       COALESCE(c.name::text, c.username, '') AS created_by_name,
+       upd.updated_by                         AS updated_by_id,
+       COALESCE(u.name::text, u.username)     AS updated_by_name
+FROM upd
+         LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
+         LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
+`, sql)
 
 	return store.CompactSQL(query), args, nil
 }
@@ -387,26 +390,25 @@ func (s Reason) containsField(fields []string, field string) bool {
 
 var (
 	createReasonQuery = store.CompactSQL(`
-with ins as (
-    INSERT INTO cases.reason (name, dc, created_at, description, created_by, updated_at,
-updated_by, close_reason_id)
-    VALUES ($1, $2, $3, $4, $5, $3, $5, $6)
-    returning *
-)
-select ins.id,
-    ins.name,
-    ins.created_at,
-    ins.description,
-    ins.created_by created_by_id,
-    coalesce(c.name::text, c.username) created_by_name,
-    ins.updated_at,
-    ins.updated_by updated_by_id,
-    coalesce(u.name::text, u.username) updated_by_name,
-    ins.close_reason_id
-from ins
-  left join directory.wbt_user u on u.id = ins.updated_by
-  left join directory.wbt_user c on c.id = ins.created_by;
-`)
+	WITH ins AS (
+		INSERT INTO cases.reason (name, dc, created_at, description, created_by, updated_at, updated_by, close_reason_id)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $3, $5, $6)  -- Use NULLIF to set NULL if description is ''
+		RETURNING *
+	)
+	SELECT ins.id,
+		   ins.name,
+		   ins.created_at,
+		   COALESCE(ins.description, '')      AS description,  -- Use COALESCE to return '' if description is NULL
+		   ins.created_by                     AS created_by_id,
+		   COALESCE(c.name::text, c.username) AS created_by_name,
+		   ins.updated_at,
+		   ins.updated_by                     AS updated_by_id,
+		   COALESCE(u.name::text, u.username) AS updated_by_name,
+		   ins.close_reason_id
+	FROM ins
+	LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
+	LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
+	`)
 
 	deleteReasonQuery = store.CompactSQL(`
 DELETE FROM cases.reason

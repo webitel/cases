@@ -148,9 +148,9 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 	// Update appeal model
 	appeal := &_go.Appeal{
 		Id:          req.Id,
-		Name:        req.Name,
-		Description: req.Description,
-		Type:        req.Type,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		Type:        req.Input.Type,
 		UpdatedBy:   currentU,
 	}
 
@@ -162,7 +162,7 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 		switch f {
 		case "name":
 			// Validate that name is not empty
-			if req.Name == "" {
+			if req.Input.Name == "" {
 				return nil, model.NewBadRequestError("appeal_service.update_appeal.name.required", "Name is required and cannot be empty")
 			}
 			fields = append(fields, "name")
@@ -172,7 +172,7 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 
 		case "type":
 			// Validate that type is not zero
-			if req.Type == 0 {
+			if req.Input.Type == 0 {
 				return nil, model.NewBadRequestError("appeal_service.update_appeal.type.required", "Type is required and cannot be empty")
 			}
 			fields = append(fields, "type")

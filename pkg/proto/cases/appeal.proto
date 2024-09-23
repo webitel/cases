@@ -67,6 +67,17 @@ message CreateAppealRequest {
   Type type = 4;
 }
 
+message InputAppeal{
+  // The name of the appeal.
+  string name = 1;
+
+  // The description of the appeal.
+  string description = 2;
+
+  // The source type of the appeal.
+  Type type = 3;
+}
+
 // Request message for updating an existing appeal.
 message UpdateAppealRequest {
   option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
@@ -75,21 +86,12 @@ message UpdateAppealRequest {
     }
   };
 
-  // The unique ID of the appeal to update.
   int64 id = 1;
-
-  // The new name of the appeal.
-  string name = 2;
-
-  // The new description of the appeal.
-  string description = 4;
-
-  // The new source type of the appeal.
-  Type type = 5;
+  InputAppeal input = 2;
 
      // ---- JSON PATCH fields mask ----
   // List of JPath fields specified in body(input).
-  repeated string x_json_mask = 6
+  repeated string x_json_mask = 3
   [(google.api.field_visibility) = {
     restriction: "PREVIEW" // "INTERNAL"
   },
@@ -181,10 +183,10 @@ service Appeals {
   rpc UpdateAppeal(UpdateAppealRequest) returns (Appeal) {
     option (google.api.http) = {
       put: "/cases/appeals/{id}"
-      body: "*"
+      body: "input"
       additional_bindings {
         patch: "/cases/appeals/{id}"
-        body: "*"
+        body: "input"
       }
     };
 

@@ -237,20 +237,30 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "description", "valid_from",
-			"valid_to", "calendar_id", "reaction_time_hours",
+		case "id", "name", "calendar_id", "reaction_time_hours",
 			"reaction_time_minutes", "resolution_time_hours",
 			"resolution_time_minutes", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
+		case "description":
+			// Use COALESCE to handle null values for description
+			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")
+		case "valid_from":
+			// Use COALESCE to handle null values for valid_from
+			queryBuilder = queryBuilder.Column("COALESCE(g.valid_from, '') AS valid_from")
+		case "valid_to":
+			// Use COALESCE to handle null values for valid_to
+			queryBuilder = queryBuilder.Column("COALESCE(g.valid_to, '') AS valid_to")
 		case "created_by":
-			// cbi = created_by_id
-			// cbn = created_by_name
-			queryBuilder = queryBuilder.Column("created_by.id AS cbi, created_by.name AS cbn").
+			// Handle nulls using COALESCE for created_by
+			queryBuilder = queryBuilder.
+				Column("COALESCE(created_by.id, 0) AS cbi").
+				Column("COALESCE(created_by.name, '') AS cbn").
 				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
 		case "updated_by":
-			// ubi = updated_by_id
-			// ubn = updated_by_name
-			queryBuilder = queryBuilder.Column("updated_by.id AS ubi, updated_by.name AS ubn").
+			// Handle nulls using COALESCE for updated_by
+			queryBuilder = queryBuilder.
+				Column("COALESCE(updated_by.id, 0) AS ubi").
+				Column("COALESCE(updated_by.name, '') AS ubn").
 				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
 		}
 	}
@@ -338,17 +348,14 @@ func (s SLAStore) buildUpdateSLAQuery(rpc *model.UpdateOptions, l *cases.SLA) (s
 				updateBuilder = updateBuilder.Set("name", l.Name)
 			}
 		case "description":
-			if l.Description != "" {
-				updateBuilder = updateBuilder.Set("description", l.Description)
-			}
+			// Use NULLIF to set NULL if description is an empty string
+			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", l.Description))
 		case "valid_from":
-			if l.ValidFrom != 0 {
-				updateBuilder = updateBuilder.Set("valid_from", validFrom)
-			}
+			// Use NULLIF to set NULL if valid_from is 0
+			updateBuilder = updateBuilder.Set("valid_from", sq.Expr("NULLIF(?, 0)", validFrom))
 		case "valid_to":
-			if l.ValidTo != 0 {
-				updateBuilder = updateBuilder.Set("valid_to", validTo)
-			}
+			// Use NULLIF to set NULL if valid_to is 0
+			updateBuilder = updateBuilder.Set("valid_to", sq.Expr("NULLIF(?, 0)", validTo))
 		case "calendar_id":
 			if l.CalendarId != 0 {
 				updateBuilder = updateBuilder.Set("calendar_id", l.CalendarId)
@@ -393,21 +400,21 @@ SELECT upd.id,
        upd.name,
        upd.created_at,
        upd.updated_at,
-       upd.description,
-       upd.valid_from,
-       upd.valid_to,
+       COALESCE(upd.description, '')              AS description,
+       COALESCE(upd.valid_from, '')               AS valid_from,
+       COALESCE(upd.valid_to, '')                 AS valid_to,
        upd.calendar_id,
        upd.reaction_time_hours,
        upd.reaction_time_minutes,
        upd.resolution_time_hours,
        upd.resolution_time_minutes,
-       upd.created_by                     as created_by_id,
-       coalesce(c.name::text, c.username) as created_by_name,
-       upd.updated_by                     as updated_by_id,
-       coalesce(u.name::text, u.username) as updated_by_name
+       upd.created_by                             AS created_by_id,
+       COALESCE(c.name::text, c.username, '')     AS created_by_name,
+       upd.updated_by                             AS updated_by_id,
+       COALESCE(u.name::text, u.username, '')     AS updated_by_name
 FROM upd
-         left join directory.wbt_user u on u.id = upd.updated_by
-         left join directory.wbt_user c on c.id = upd.created_by;
+         LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
+         LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
     `, sql)
 
 	return store.CompactSQL(query), args, nil
@@ -415,36 +422,36 @@ FROM upd
 
 var (
 	createSLAQuery = store.CompactSQL(`
-WITH ins as (
-    INSERT INTO cases.sla (
-                           name, dc, created_at, description,
-                           created_by, updated_at, updated_by,
-                           valid_from, valid_to, calendar_id,
-                           reaction_time_hours, reaction_time_minutes,
-                           resolution_time_hours, resolution_time_minutes
-        )
-        VALUES ($1, $2, $3, $4, $5, $3, $5, $6, $7, $8, $9, $10, $11, $12)
-        RETURNING *)
-SELECT ins.id,
-       ins.name,
-       ins.created_at,
-       ins.description,
-       ins.valid_from,
-       ins.valid_to,
-       ins.calendar_id,
-       ins.reaction_time_hours,
-       ins.reaction_time_minutes,
-       ins.resolution_time_hours,
-       ins.resolution_time_minutes,
-       ins.created_by                     created_by_id,
-       coalesce(c.name::text, c.username) created_by_name,
-       ins.updated_at,
-       ins.updated_by                     updated_by_id,
-       coalesce(u.name::text, u.username) updated_by_name
-from ins
-         left join directory.wbt_user u on u.id = ins.updated_by
-         left join directory.wbt_user c on c.id = ins.created_by;
-	`)
+	WITH ins as (
+		INSERT INTO cases.sla (
+							   name, dc, created_at, description,
+							   created_by, updated_at, updated_by,
+							   valid_from, valid_to, calendar_id,
+							   reaction_time_hours, reaction_time_minutes,
+							   resolution_time_hours, resolution_time_minutes
+			)
+			VALUES ($1, $2, $3, NULLIF($4, ''), $5, $3, $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11, $12)
+			RETURNING *)
+	SELECT ins.id,
+		   ins.name,
+		   ins.created_at,
+		   COALESCE(ins.description, '') AS description,
+		   COALESCE(ins.valid_from, '')  AS valid_from,
+		   COALESCE(ins.valid_to, '')    AS valid_to,
+		   ins.calendar_id,
+		   ins.reaction_time_hours,
+		   ins.reaction_time_minutes,
+		   ins.resolution_time_hours,
+		   ins.resolution_time_minutes,
+		   ins.created_by                     created_by_id,
+		   COALESCE(c.name::text, c.username) AS created_by_name,
+		   ins.updated_at,
+		   ins.updated_by                     updated_by_id,
+		   COALESCE(u.name::text, u.username) AS updated_by_name
+	FROM ins
+			 LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
+			 LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
+		`)
 
 	deleteSLAQuery = store.CompactSQL(`
                    DELETE FROM cases.sla

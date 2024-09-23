@@ -213,17 +213,26 @@ func (s CloseReason) buildSearchCloseReasonQuery(rpc *model.SearchOptions) (stri
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "description", "created_at", "updated_at":
+		case "id", "name", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
+			// Use COALESCE to handle null values
+		case "description":
+			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")
 		case "created_by":
 			// cbi = created_by_id
 			// cbn = created_by_name
-			queryBuilder = queryBuilder.Column("created_by.id AS cbi, created_by.name AS cbn").
+			// Use COALESCE to return '' if description is NULL
+			queryBuilder = queryBuilder.
+				Column("COALESCE(created_by.id, 0) AS cbi").    // Handle NULL as 0 for created_by_id
+				Column("COALESCE(created_by.name, '') AS cbn"). // Handle NULL as '' for created_by_name
 				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
 		case "updated_by":
 			// ubi = updated_by_id
 			// ubn = updated_by_name
-			queryBuilder = queryBuilder.Column("updated_by.id AS ubi, updated_by.name AS ubn").
+			// Use COALESCE to handle null values
+			queryBuilder = queryBuilder.
+				Column("COALESCE(updated_by.id, 0) AS ubi").    // Handle NULL as 0 for updated_by_id
+				Column("COALESCE(updated_by.name, '') AS ubn"). // Handle NULL as '' for updated_by_name
 				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
 		}
 	}
@@ -297,20 +306,16 @@ func (s CloseReason) buildUpdateCloseReasonQuery(rpc *model.UpdateOptions, l *_g
 		Where(sq.Eq{"id": l.Id}).
 		Where(sq.Eq{"dc": rpc.Session.GetDomainId()})
 
-	// Fields that could be updated
-	updateFields := []string{"name", "description"} // TODO make it empty  |  add XJsonMask to proto
-
 	// Add the fields to the update statement
-	for _, field := range updateFields {
+	for _, field := range rpc.Fields {
 		switch field {
 		case "name":
 			if l.Name != "" {
 				builder = builder.Set("name", l.Name)
 			}
 		case "description":
-			if l.Description != "" {
-				builder = builder.Set("description", l.Description)
-			}
+			// Use NULLIF to set description to NULL if it's an empty string
+			builder = builder.Set("description", sq.Expr("NULLIF(?, '')", l.Description))
 		}
 	}
 
@@ -330,9 +335,9 @@ SELECT upd.id,
        upd.name,
        upd.created_at,
        upd.updated_at,
-       upd.description,
+       COALESCE(upd.description, '') AS description, -- Use COALESCE to return '' if description is NULL
        upd.created_by AS created_by_id,
-       COALESCE(c.name::text, c.username) AS created_by_name,
+       COALESCE(c.name::text, c.username, '') AS created_by_name,
        upd.updated_by AS updated_by_id,
        COALESCE(u.name::text, u.username) AS updated_by_name
 FROM upd
@@ -345,24 +350,23 @@ LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
 
 var (
 	createCloseReasonQuery = db.CompactSQL(`
-	with ins as (
-		INSERT INTO cases.close_reason (name, dc, created_at, description, created_by, updated_at,
-	updated_by)
-		VALUES ($1, $2, $3, $4, $5, $3, $5)
-		returning *
+	WITH ins AS (
+		INSERT INTO cases.close_reason (name, dc, created_at, description, created_by, updated_at, updated_by)
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $3, $5)  -- Use NULLIF to set NULL if description is ''
+		RETURNING *
 	)
-	select ins.id,
-		ins.name,
-		ins.created_at,
-		ins.description,
-		ins.created_by created_by_id,
-		coalesce(c.name::text, c.username) created_by_name,
-		ins.updated_at,
-		ins.updated_by updated_by_id,
-		coalesce(u.name::text, u.username) updated_by_name
-	from ins
-	  left join directory.wbt_user u on u.id = ins.updated_by
-	  left join directory.wbt_user c on c.id = ins.created_by;
+	SELECT ins.id,
+		   ins.name,
+		   ins.created_at,
+		   COALESCE(ins.description, '')      AS description,   -- Use COALESCE to return '' if description is NULL
+		   ins.created_by                     AS created_by_id,
+		   COALESCE(c.name::text, c.username) AS created_by_name,
+		   ins.updated_at,
+		   ins.updated_by                     AS updated_by_id,
+		   COALESCE(u.name::text, u.username) AS updated_by_name
+	FROM ins
+			 LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
+			 LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
 	`)
 
 	deleteCloseReasonQuery = db.CompactSQL(`

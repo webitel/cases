@@ -397,13 +397,19 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 		case "created_by":
 			// cbi = created_by_id
 			// cbn = created_by_name
-			queryBuilder = queryBuilder.Column("created_by.id AS cbi, created_by.name AS cbn").
+			// Use COALESCE to handle null values
+			queryBuilder = queryBuilder.
+				Column("COALESCE(created_by.id, 0) AS cbi").    // Handle NULL as 0 for created_by_id
+				Column("COALESCE(created_by.name, '') AS cbn"). // Handle NULL as '' for created_by_name
 				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
 			groupByFields = append(groupByFields, "created_by.id", "created_by.name")
 		case "updated_by":
 			// ubi = updated_by_id
 			// ubn = updated_by_name
-			queryBuilder = queryBuilder.Column("updated_by.id AS ubi, updated_by.name AS ubn").
+			// Use COALESCE to handle null values
+			queryBuilder = queryBuilder.
+				Column("COALESCE(updated_by.id, 0) AS ubi").    // Handle NULL as 0 for updated_by_id
+				Column("COALESCE(updated_by.name, '') AS ubn"). // Handle NULL as '' for updated_by_name
 				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
 			groupByFields = append(groupByFields, "updated_by.id", "updated_by.name")
 		case "priority":
@@ -562,7 +568,7 @@ SELECT usc.id,
        usc.resolution_time_minutes,
        usc.sla_id,
        usc.created_by,
-       c.name                                                  AS created_by_name,
+       COALESCE(c.name, '')                                    AS created_by_name,
        usc.updated_by,
        u.name                                                  AS updated_by_name,
        json_agg(json_build_object('id', p.id, 'name', p.name)) AS priorities_json

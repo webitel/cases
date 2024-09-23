@@ -457,10 +457,10 @@ func (s *CatalogStore) buildSearchCatalogQuery(rpc *model.SearchOptions) (string
 		"COALESCE(catalog.close_reason_id, 0) AS close_reason_id", // Optional
 		"COALESCE(close_reason.name, '') AS close_reason_name",    // Optional
 		"catalog.state AS state",
-		"COALESCE(catalog.created_by, 0) AS created_by",
-		"COALESCE(created_by_user.name, '') AS created_by_name",
-		"COALESCE(catalog.updated_by, 0) AS updated_by",
-		"COALESCE(updated_by_user.name, '') AS updated_by_name",
+		"COALESCE(catalog.created_by, 0) AS created_by",         // Handle null with default 0 for ID
+		"COALESCE(created_by_user.name, '') AS created_by_name", // Handle null with default empty string for name
+		"COALESCE(catalog.updated_by, 0) AS updated_by",         // Handle null with default 0 for ID
+		"COALESCE(updated_by_user.name, '') AS updated_by_name", // Handle null with default empty string for name
 		"catalog.created_at AS created_at",
 		"catalog.updated_at AS updated_at",
 		"COALESCE(teams_agg.teams, '[]') AS teams",    // Aggregated teams from the CTE
@@ -547,63 +547,77 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 ) (string, []interface{}) {
 	args := []interface{}{
 		catalogID, // $1: catalog_id
-		updatedBy, // $2: updated_by
+		updatedBy, // $2: updated_by (will also be used for created_by)
 		domainID,  // $3: dc (domain context)
 		updatedAt, // $4: timestamp for updated_at
 	}
 
 	// Initialize base query
-	query := `WITH `
+	query := `WITH`
+
+	// Flag to manage if we've added any CTEs
+	cteAdded := false
 
 	// Check if "teams" is in rpc.Fields, even if teamIDs is empty
 	if util.FieldExists("teams", rpc.Fields) {
 		query += `
-		updated_teams AS (
-			INSERT INTO cases.team_catalog (catalog_id, team_id, updated_by, updated_at, dc)
-			SELECT $1, unnest($5::bigint[]), $2, $4, $3
-			ON CONFLICT (catalog_id, team_id)
-			DO UPDATE SET updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
-			RETURNING catalog_id
-		),
-		deleted_teams AS (
-			DELETE FROM cases.team_catalog
-			WHERE catalog_id = $1
-			AND team_id != ALL ($5::bigint[])
-			RETURNING catalog_id
-		),`
+ updated_teams AS (
+    INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, updated_at, dc)
+        SELECT $1, unnest(NULLIF($5::bigint[], '{}')), $2, $2, $4, $3 -- created_by and updated_by are both set to $2
+        ON CONFLICT (catalog_id, team_id)
+            DO UPDATE SET updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
+        RETURNING catalog_id
+    ),
+ deleted_teams AS (
+     DELETE FROM cases.team_catalog
+     WHERE catalog_id = $1
+       AND (
+         array_length($5, 1) IS NULL -- If array is empty, delete all teams
+         OR team_id != ALL ($5) -- If array is not empty, delete teams not in the array
+       )
+     RETURNING catalog_id
+    )`
 		args = append(args, pq.Array(teamIDs)) // Append team IDs to args (even if empty)
+		cteAdded = true
 	} else {
-		// Pass an empty array if "teams" is not provided to avoid null issues
+		// Pass an empty array if "teams" is not provided
 		args = append(args, pq.Array([]int64{}))
 	}
 
-	// Check if "skills" is in rpc.Fields, even if skillIDs is empty
+	// Check if "skills" is in rpc.Fields, even if skillIDs are empty
 	if util.FieldExists("skills", rpc.Fields) {
+		if cteAdded {
+			query += `,` // Only add a comma if there is already a CTE defined (for teams)
+		}
 		query += `
-		updated_skills AS (
-			INSERT INTO cases.skill_catalog (catalog_id, skill_id, updated_by, updated_at, dc)
-			SELECT $1, unnest($6::bigint[]), $2, $4, $3
-			ON CONFLICT (catalog_id, skill_id)
-			DO UPDATE SET updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
-			RETURNING catalog_id
-		),
-		deleted_skills AS (
-			DELETE FROM cases.skill_catalog
-			WHERE catalog_id = $1
-			AND skill_id != ALL ($6::bigint[])
-			RETURNING catalog_id
-		)`
+ updated_skills AS (
+    INSERT INTO cases.skill_catalog (catalog_id, skill_id, created_by, updated_by, updated_at, dc)
+        SELECT $1, unnest(NULLIF($6::bigint[], '{}')), $2, $2, $4, $3 -- created_by and updated_by are both set to $2
+        ON CONFLICT (catalog_id, skill_id)
+            DO UPDATE SET updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
+        RETURNING catalog_id
+    ),
+ deleted_skills AS (
+     DELETE FROM cases.skill_catalog
+     WHERE catalog_id = $1
+       AND (
+         array_length($6, 1) IS NULL -- if array is empty, delete all skills
+         OR skill_id != ALL ($6) -- if array is not empty, delete skills not in the array
+       )
+     RETURNING catalog_id
+    )`
 		args = append(args, pq.Array(skillIDs)) // Append skill IDs to args (even if empty)
+		cteAdded = true
 	} else {
-		// Pass an empty array if "skills" is not provided to avoid null issues
+		// Pass an empty array if "skills" is not provided
 		args = append(args, pq.Array([]int64{}))
 	}
 
-	// Finish the query with UNION logic for teams and skills
+	// Construct the final SELECT query after the CTE block
 	query += `
-	SELECT COUNT(*)
-	FROM (
-		` + func() string {
+SELECT COUNT(*)
+FROM (
+    ` + func() string {
 		var result string
 		if util.FieldExists("teams", rpc.Fields) {
 			result += `SELECT catalog_id FROM updated_teams UNION ALL SELECT catalog_id FROM deleted_teams`
@@ -616,8 +630,7 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 		}
 		return result
 	}() + `
-	) AS total_affected;
-	`
+) AS total_affected;`
 
 	// Return the constructed query and arguments
 	return store.CompactSQL(query), args
@@ -637,11 +650,13 @@ func (s *CatalogStore) buildUpdateCatalogQuery(rpc *model.UpdateOptions, lookup 
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)
 		case "description":
-			updateQueryBuilder = updateQueryBuilder.Set("description", lookup.Description)
+			// Use NULLIF to store NULL if description is an empty string
+			updateQueryBuilder = updateQueryBuilder.Set("description", sq.Expr("NULLIF(?, '')", lookup.Description))
 		case "prefix":
 			updateQueryBuilder = updateQueryBuilder.Set("prefix", lookup.Prefix)
 		case "code":
-			updateQueryBuilder = updateQueryBuilder.Set("code", lookup.Code)
+			// Use NULLIF to store NULL if code is an empty string
+			updateQueryBuilder = updateQueryBuilder.Set("code", sq.Expr("NULLIF(?, '')", lookup.Code))
 		case "state":
 			updateQueryBuilder = updateQueryBuilder.Set("state", lookup.State)
 		case "sla_id":
@@ -649,7 +664,8 @@ func (s *CatalogStore) buildUpdateCatalogQuery(rpc *model.UpdateOptions, lookup 
 		case "status_id":
 			updateQueryBuilder = updateQueryBuilder.Set("status_id", lookup.Status.Id)
 		case "close_reason_id":
-			updateQueryBuilder = updateQueryBuilder.Set("close_reason_id", lookup.CloseReason.Id)
+			// Use NULLIF to store NULL if close_reason_id is an empty string
+			updateQueryBuilder = updateQueryBuilder.Set("close_reason_id", sq.Expr("NULLIF(?, 0)", lookup.CloseReason.Id))
 		}
 	}
 
@@ -661,7 +677,7 @@ func (s *CatalogStore) buildUpdateCatalogQuery(rpc *model.UpdateOptions, lookup 
 
 	// Combine the update query with the select query using the WITH clause
 	query := fmt.Sprintf(`
-		WITH updated_catalog AS (%s
+WITH updated_catalog AS (%s
 			RETURNING id, name, created_at, updated_at, sla_id, created_by, updated_by, status_id, close_reason_id)
 SELECT catalog.id,
        catalog.name,
@@ -671,9 +687,9 @@ SELECT catalog.id,
        catalog.status_id,
        status.name,
        catalog.close_reason_id,
-       close_reason.name,
+       COALESCE(close_reason.name, '')                    AS close_reason_name, -- Handle NULL close_reason as empty string
        catalog.created_by,
-       created_by_user.name                               AS created_by_name,
+       COALESCE(created_by_user.name, '')                 AS created_by_name,   -- Handle NULL created_by as empty string
        catalog.updated_by,
        updated_by_user.name                               AS updated_by_name,
        catalog.updated_at,

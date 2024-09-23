@@ -210,18 +210,27 @@ func (s Priority) buildSearchPriorityQuery(rpc *model.SearchOptions) (string, []
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "description", "created_at", "updated_at", "color":
+		case "id", "name", "created_at", "updated_at", "color":
 			queryBuilder = queryBuilder.Column("p." + field)
+		case "description":
+			// Use COALESCE to handle NULL values for description
+			queryBuilder = queryBuilder.Column("COALESCE(p.description, '') AS description")
 		case "created_by":
 			// cbi = created_by_id
 			// cbn = created_by_name
-			queryBuilder = queryBuilder.Column("created_by.id AS cbi, created_by.name AS cbn").
-				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
+			// Use COALESCE to handle null values
+			queryBuilder = queryBuilder.
+				Column("COALESCE(created_by.id, 0) AS cbi").    // Handle NULL as 0 for created_by_id
+				Column("COALESCE(created_by.name, '') AS cbn"). // Handle NULL as '' for created_by_name
+				LeftJoin("directory.wbt_auth AS created_by ON p.created_by = created_by.id")
 		case "updated_by":
 			// ubi = updated_by_id
 			// ubn = updated_by_name
-			queryBuilder = queryBuilder.Column("updated_by.id AS ubi, updated_by.name AS ubn").
-				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
+			// Use COALESCE to handle null values
+			queryBuilder = queryBuilder.
+				Column("COALESCE(updated_by.id, 0) AS ubi").    // Handle NULL as 0 for updated_by_id
+				Column("COALESCE(updated_by.name, '') AS ubn"). // Handle NULL as '' for updated_by_name
+				LeftJoin("directory.wbt_auth AS updated_by ON p.updated_by = updated_by.id")
 		}
 	}
 
@@ -284,20 +293,16 @@ func (s Priority) buildUpdatePriorityQuery(rpc *model.UpdateOptions, l *api.Prio
 		Where(sq.Eq{"id": l.Id}).
 		Where(sq.Eq{"dc": rpc.Session.GetDomainId()})
 
-	// Fields that could be updated
-	updateFields := []string{"name", "description"} // TODO make it empty  |  add XJsonMask to proto
-
 	// Add the fields to the update statement
-	for _, field := range updateFields {
+	for _, field := range rpc.Fields {
 		switch field {
 		case "name":
 			if l.Name != "" {
 				builder = builder.Set("name", l.Name)
 			}
 		case "description":
-			if l.Description != "" {
-				builder = builder.Set("description", l.Description)
-			}
+			// Use NULLIF to store NULL if description is an empty string
+			builder = builder.Set("description", sq.Expr("NULLIF(?, '')", l.Description))
 		case "color":
 			if l.Color != "" {
 				builder = builder.Set("color", l.Color)
@@ -323,7 +328,7 @@ SELECT upd.id,
        upd.updated_at,
        upd.description,
        upd.created_by AS created_by_id,
-       COALESCE(c.name::text, c.username) AS created_by_name,
+       COALESCE(c.name::text, c.username, '') AS created_by_name,
        upd.updated_by AS updated_by_id,
        COALESCE(u.name::text, u.username) AS updated_by_name,
 	   upd.color
@@ -361,23 +366,23 @@ func (s Priority) buildCreatePriorityQuery(rpc *model.CreateOptions, lookup *api
 
 var (
 	createPriorityQuery = store.CompactSQL(`
-	with ins as (
+	WITH ins AS (
 		INSERT INTO cases.priority (name, dc, created_at, description, created_by, updated_at, updated_by, color)
-		VALUES ($1, $2, $3, $4, $5, $3, $5, $6)
-		returning *
+		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $3, $5, $6) -- Use NULLIF to set NULL if description is ''
+		RETURNING *
 	)
-	select ins.id,
-		ins.name,
-		ins.created_at,
-		ins.description,
-		ins.created_by created_by_id,
-		coalesce(c.name::text, c.username) created_by_name,
-		ins.updated_at,
-		ins.updated_by updated_by_id,
-		coalesce(u.name::text, u.username) updated_by_name
-	from ins
-	  left join directory.wbt_user u on u.id = ins.updated_by
-	  left join directory.wbt_user c on c.id = ins.created_by;
+	SELECT ins.id,
+		   ins.name,
+		   ins.created_at,
+		   COALESCE(ins.description, '')      AS description, -- Use COALESCE to return '' if description is NULL
+		   ins.created_by                     AS created_by_id,
+		   COALESCE(c.name::text, c.username) AS created_by_name,
+		   ins.updated_at,
+		   ins.updated_by                     AS updated_by_id,
+		   COALESCE(u.name::text, u.username) AS updated_by_name
+	FROM ins
+	LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
+	LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
 	`)
 
 	deletePriorityQuery = store.CompactSQL(`

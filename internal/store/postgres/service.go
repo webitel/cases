@@ -393,15 +393,20 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc *model.UpdateOptions, lookup 
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)
 		case "description":
-			updateQueryBuilder = updateQueryBuilder.Set("description", lookup.Description)
+			// Use NULLIF to store NULL if description is an empty string
+			updateQueryBuilder = updateQueryBuilder.Set("description", sq.Expr("NULLIF(?, '')", lookup.Description))
 		case "code":
-			updateQueryBuilder = updateQueryBuilder.Set("code", lookup.Code)
+			// Use NULLIF to store NULL if code is an empty string
+			updateQueryBuilder = updateQueryBuilder.Set("code", sq.Expr("NULLIF(?, '')", lookup.Code))
 		case "sla_id":
-			updateQueryBuilder = updateQueryBuilder.Set("sla_id", lookup.Sla.Id)
+			// Use NULLIF to store NULL if sla_id is 0
+			updateQueryBuilder = updateQueryBuilder.Set("sla_id", sq.Expr("NULLIF(?, 0)", lookup.Sla.Id))
 		case "group_id":
-			updateQueryBuilder = updateQueryBuilder.Set("group_id", lookup.Group.Id)
+			// Use NULLIF to store NULL if group_id is 0
+			updateQueryBuilder = updateQueryBuilder.Set("group_id", sq.Expr("NULLIF(?, 0)", lookup.Group.Id))
 		case "assignee_id":
-			updateQueryBuilder = updateQueryBuilder.Set("assignee_id", lookup.Assignee.Id)
+			// Use NULLIF to store NULL if assignee_id is 0
+			updateQueryBuilder = updateQueryBuilder.Set("assignee_id", sq.Expr("NULLIF(?, 0)", lookup.Assignee.Id))
 		case "state":
 			updateQueryBuilder = updateQueryBuilder.Set("state", lookup.State)
 		case "root_id":
@@ -417,23 +422,23 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc *model.UpdateOptions, lookup 
 
 	// Now build the select query with a static SQL using a WITH clause
 	query := fmt.Sprintf(`
-		WITH updated_service AS (%s
+WITH updated_service AS (%s
 			RETURNING id, name, description, code, state, sla_id, group_id, assignee_id, created_by, updated_by, created_at, updated_at, root_id)
 SELECT service.id,
        service.name,
-       service.description,
-       service.code,
+       COALESCE(service.description, '') AS description,  -- Use COALESCE to return an empty string if description is NULL
+       COALESCE(service.code, '')        AS code,         -- Use COALESCE to return an empty string if code is NULL
        service.state,
        service.sla_id,
-       sla.name             AS sla_name,
+       COALESCE(sla.name, '')            AS sla_name,     -- Handle NULL SLA as empty string
        service.group_id,
-       grp.name             AS group_name,
+       COALESCE(grp.name, '')            AS group_name,   -- Handle NULL group as empty string
        service.assignee_id,
-       assignee.given_name  AS assignee_name,
+       COALESCE(assignee.given_name, '') AS assignee_name, -- Handle NULL assignee as empty string
        service.created_by,
-       created_by_user.name AS created_by_name,
+       COALESCE(created_by_user.name, '') AS created_by_name,  -- Handle NULL created_by as empty string
        service.updated_by,
-       updated_by_user.name AS updated_by_name,
+       updated_by_user.name              AS updated_by_name,
        service.created_at,
        service.updated_at,
        service.root_id

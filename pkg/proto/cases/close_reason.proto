@@ -46,6 +46,11 @@ message CreateCloseReasonRequest {
   string description = 3;
 }
 
+message InputCloseReason{
+  string name = 2;
+  string description = 4;
+}
+
 // UpdateCloseReasonRequest message for updating an existing close reason
 message UpdateCloseReasonRequest {
   option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
@@ -55,12 +60,11 @@ message UpdateCloseReasonRequest {
   };
 
   int64 id = 1;
-  string name = 2;
-  string description = 4;
+  InputCloseReason input = 2;
 
      // ---- JSON PATCH fields mask ----
   // List of JPath fields specified in body(input).
-  repeated string x_json_mask = 5
+  repeated string x_json_mask = 3
   [(google.api.field_visibility) = {
     restriction: "PREVIEW" // "INTERNAL"
   },
@@ -147,10 +151,10 @@ service CloseReasons {
   rpc UpdateCloseReason(UpdateCloseReasonRequest) returns (CloseReason) {
     option (google.api.http) = {
       put: "/cases/closeReasons/{id}"
-      body: "*"
+      body: "input"
       additional_bindings {
         patch: "/cases/closeReasons/{id}"
-        body: "*"
+        body: "input"
       }
     };
 

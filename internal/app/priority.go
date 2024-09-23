@@ -21,6 +21,10 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 		return nil, model.NewBadRequestError("priority_service.create_priority.name.required", "Lookup name is required")
 	}
 
+	if req.Color == "" {
+		return nil, model.NewBadRequestError("priority_service.create_priority.color.required", "Color is required")
+	}
+
 	session, err := p.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, model.NewUnauthorizedError("priority_service.create_priority.authorization.failed", err.Error())
@@ -149,10 +153,10 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 	// Update lookup model
 	lookup := &api.Priority{
 		Id:          req.Id,
-		Name:        req.Name,
-		Description: req.Description,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
 		UpdatedBy:   currentU,
-		Color:       req.Color,
+		Color:       req.Input.Color,
 	}
 
 	fields := []string{"id", "updated_at", "updated_by"}
@@ -161,11 +165,16 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 		switch f {
 		case "name":
 			fields = append(fields, "name")
-			if req.Name == "" {
+			if req.Input.Name == "" {
 				return nil, model.NewBadRequestError("priority_service.update_priority.name.required", "Lookup name is required and cannot be empty")
 			}
 		case "description":
 			fields = append(fields, "description")
+		case "color":
+			fields = append(fields, "color")
+			if req.Input.Color == "" {
+				return nil, model.NewBadRequestError("priority_service.update_priority.color.required", "Color is required")
+			}
 		}
 	}
 
