@@ -30,8 +30,10 @@ func (s *Reason) Create(rpc *model.CreateOptions, add *_go.Reason) (*_go.Reason,
 		return nil, model.NewInternalError("postgres.reason.create.query_build_error", err.Error())
 	}
 
-	var createdByLookup, updatedByLookup _go.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdByLookup, updatedByLookup _go.Lookup
+		createdAt, updatedAt             time.Time
+	)
 
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
@@ -89,8 +91,11 @@ func (s *Reason) List(rpc *model.SearchOptions, closeReasonId int64) (*_go.Reaso
 		}
 
 		l := &_go.Reason{}
-		var createdBy, updatedBy _go.Lookup
-		var tempCreatedAt, tempUpdatedAt time.Time
+
+		var (
+			createdBy, updatedBy         _go.Lookup
+			tempCreatedAt, tempUpdatedAt time.Time
+		)
 
 		scanArgs := s.buildScanArgs(rpc.Fields, l, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt)
 		if err := rows.Scan(scanArgs...); err != nil {
@@ -146,8 +151,10 @@ func (s *Reason) Update(rpc *model.UpdateOptions, l *_go.Reason) (*_go.Reason, e
 		return nil, model.NewInternalError("postgres.reason.update.query_build_error", err.Error())
 	}
 
-	var createdBy, updatedBy _go.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdBy, updatedBy _go.Lookup
+		createdAt, updatedAt time.Time
+	)
 
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
@@ -341,6 +348,7 @@ FROM upd
 // buildScanArgs prepares the arguments for scanning SQL rows.
 func (s Reason) buildScanArgs(fields []string, r *_go.Reason, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt *time.Time) []interface{} {
 	var scanArgs []interface{}
+
 	for _, field := range fields {
 		switch field {
 		case "id":

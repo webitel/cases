@@ -30,9 +30,11 @@ func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA,
 		return nil, model.NewInternalError("postgres.sla.create.query_build_error", err.Error())
 	}
 
-	var createdByLookup, updatedByLookup cases.Lookup
-	var createdAt, updatedAt time.Time
-	var validFrom, validTo time.Time
+	var (
+		createdByLookup, updatedByLookup cases.Lookup
+		createdAt, updatedAt             time.Time
+		validFrom, validTo               time.Time
+	)
 
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
@@ -124,9 +126,12 @@ func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 		}
 
 		sla := &cases.SLA{}
-		var createdBy, updatedBy cases.Lookup
-		var tempCreatedAt, tempUpdatedAt time.Time
-		var tempValidFrom, tempValidTo time.Time
+
+		var (
+			createdBy, updatedBy         cases.Lookup
+			tempCreatedAt, tempUpdatedAt time.Time
+			tempValidFrom, tempValidTo   time.Time
+		)
 
 		scanArgs := s.buildScanArgs(
 			rpc.Fields, sla, &createdBy,
@@ -161,9 +166,11 @@ func (s *SLAStore) Update(rpc *model.UpdateOptions, l *cases.SLA) (*cases.SLA, e
 		return nil, model.NewInternalError("postgres.sla.update.query_build_error", err.Error())
 	}
 
-	var createdBy, updatedBy cases.Lookup
-	var createdAt, updatedAt time.Time
-	var validFrom, validTo time.Time
+	var (
+		createdBy, updatedBy cases.Lookup
+		createdAt, updatedAt time.Time
+		validFrom, validTo   time.Time
+	)
 
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
@@ -196,18 +203,18 @@ func (s SLAStore) buildCreateSLAQuery(rpc *model.CreateOptions, sla *cases.SLA) 
 
 	query := createSLAQuery
 	args := []interface{}{
-		sla.Name,
-		rpc.Session.GetDomainId(),
-		rpc.Time,
-		sla.Description,
-		rpc.Session.GetUserId(),
-		validFrom,
-		validTo,
-		sla.CalendarId,
-		sla.ReactionTimeHours,
-		sla.ReactionTimeMinutes,
-		sla.ResolutionTimeHours,
-		sla.ResolutionTimeMinutes,
+		sla.Name,                  // $1 name
+		rpc.Session.GetDomainId(), // $2 dc
+		rpc.Time,                  // $3 created_at
+		sla.Description,           // $4 description
+		rpc.Session.GetUserId(),   // $5 created_by
+		validFrom,                 // $6 valid_from
+		validTo,                   // $7 valid_to
+		sla.CalendarId,            // $8 calendar_id
+		sla.ReactionTimeHours,     // $9 reaction_time_hours
+		sla.ReactionTimeMinutes,   // $10 reaction_time_minutes
+		sla.ResolutionTimeHours,   // $11 resolution_time_hours
+		sla.ResolutionTimeMinutes, // $12 resolution_time_minutes
 	}
 	return query, args, nil
 }

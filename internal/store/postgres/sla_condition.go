@@ -27,9 +27,10 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 	// Build the combined SLACondition and Priority insert query
 	query, args := s.buildCreateSLAConditionQuery(rpc, add)
 
-	// Execute the combined insert query and get the resulting fields
-	var createdByLookup, updatedByLookup cases.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdByLookup, updatedByLookup cases.Lookup
+		createdAt, updatedAt             time.Time
+	)
 
 	prio := []*cases.Lookup{}
 
@@ -143,12 +144,12 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 		}
 
 		slaCondition := &cases.SLACondition{}
-		var createdBy, updatedBy cases.Lookup
-		var tempCreatedAt, tempUpdatedAt time.Time
 
-		// Priorities will be scanned as JSON
-		var prioritiesJSON []byte
-
+		var (
+			createdBy, updatedBy         cases.Lookup
+			tempCreatedAt, tempUpdatedAt time.Time
+			prioritiesJSON               []byte
+		)
 		// Build scan arguments dynamically based on the requested fields
 		scanArgs := s.buildScanArgs(
 			rpc.Fields, slaCondition, &createdBy,
@@ -244,9 +245,11 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 		return nil, model.NewInternalError("postgres.sla_condition.update.query_build_error", err.Error())
 	}
 
-	var createdBy, updatedBy cases.Lookup
-	var createdAt, updatedAt time.Time
-	var prioritiesJSON []byte // For JSON aggregated priorities
+	var (
+		createdBy, updatedBy cases.Lookup
+		createdAt, updatedAt time.Time
+		prioritiesJSON       []byte
+	)
 
 	// Execute the update query for sla_condition and fetch priorities JSON
 	err = txManager.QueryRow(rpc.Context, query, args...).Scan(

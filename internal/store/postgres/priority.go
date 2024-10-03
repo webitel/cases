@@ -29,8 +29,10 @@ func (p *Priority) Create(rpc *model.CreateOptions, add *api.Priority) (*api.Pri
 		return nil, model.NewInternalError("postgres.cases.priority.create.query_build_error", err.Error())
 	}
 
-	var createdByLookup, updatedByLookup api.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdByLookup, updatedByLookup api.Lookup
+		createdAt, updatedAt             time.Time
+	)
 
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
@@ -111,9 +113,12 @@ func (p *Priority) List(rpc *model.SearchOptions) (*api.PriorityList, error) {
 		}
 
 		l := &api.Priority{}
-		var createdBy, updatedBy api.Lookup
-		var tempUpdatedAt, tempCreatedAt time.Time
-		var scanArgs []interface{}
+
+		var (
+			createdBy, updatedBy         api.Lookup
+			tempUpdatedAt, tempCreatedAt time.Time
+			scanArgs                     []interface{}
+		)
 
 		for _, field := range rpc.Fields {
 			switch field {
@@ -158,7 +163,7 @@ func (p *Priority) List(rpc *model.SearchOptions) (*api.PriorityList, error) {
 	}
 
 	return &api.PriorityList{
-		Page:  int32(rpc.Page), // TODO page should be correctly passes even if user pass negative value
+		Page:  int32(rpc.Page),
 		Next:  next,
 		Items: lookupList,
 	}, nil
@@ -176,8 +181,10 @@ func (p *Priority) Update(rpc *model.UpdateOptions, l *api.Priority) (*api.Prior
 		return nil, model.NewInternalError("postgres.cases.priority.update.query_build_error", queryErr.Error())
 	}
 
-	var createdBy, updatedByLookup api.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdBy, updatedByLookup api.Lookup
+		createdAt, updatedAt       time.Time
+	)
 
 	err := d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt,

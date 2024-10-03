@@ -38,8 +38,10 @@ func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCo
 		return nil, model.NewInternalError("postgres.status_condition.create.query_build_error", err.Error())
 	}
 
-	var createdBy, updatedBy _go.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdBy, updatedBy _go.Lookup
+		createdAt, updatedAt time.Time
+	)
 
 	err = tx.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &updatedAt, &add.Description, &add.Initial, &add.Final,
@@ -90,8 +92,11 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 		}
 
 		st := &_go.StatusCondition{}
-		var createdBy, updatedBy _go.Lookup
-		var tempCreatedAt, tempUpdatedAt time.Time
+
+		var (
+			createdBy, updatedBy         _go.Lookup
+			tempCreatedAt, tempUpdatedAt time.Time
+		)
 
 		scanArgs := s.buildScanArgs(rpc.Fields, st, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt)
 		if err := rows.Scan(scanArgs...); err != nil {
@@ -198,8 +203,10 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 
 	query, args := s.buildUpdateStatusConditionQuery(rpc, st)
 
-	var createdBy, updatedBy _go.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdBy, updatedBy _go.Lookup
+		createdAt, updatedAt time.Time
+	)
 
 	err = tx.QueryRow(rpc.Context, query, args...).Scan(
 		&st.Id, &st.Name, &createdAt, &updatedAt, &st.Description, &st.Initial, &st.Final,
@@ -220,8 +227,12 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc *model.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
 	query := createStatusConditionQuery
 	args := []interface{}{
-		status.Name, rpc.Time, status.Description,
-		rpc.Session.GetUserId(), rpc.Session.GetDomainId(), status.StatusId,
+		status.Name,               // $1 name
+		rpc.Time,                  // $2 created_at / updated_at
+		status.Description,        // $3 description
+		rpc.Session.GetUserId(),   // $4 created_by / updated_by
+		rpc.Session.GetDomainId(), // $5 dc
+		status.StatusId,           // $6 status_id
 	}
 	return query, args, nil
 }
@@ -324,7 +335,12 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 
 func (s StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domainId, statusId int64) (string, []interface{}, error) {
 	query := deleteStatusConditionQuery
-	args := []interface{}{pq.Array(ids), domainId, statusId}
+
+	args := []interface{}{
+		pq.Array(ids), // $1 ids
+		domainId,      // $2 dc
+		statusId,      // $3 status_id
+	}
 	return query, args, nil
 }
 

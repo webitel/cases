@@ -29,9 +29,11 @@ func (s Appeal) Create(rpc *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 		return nil, model.NewInternalError("postgres.cases.appeal.create.query_build_error", err.Error())
 	}
 
-	var createdByLookup, updatedByLookup _go.Lookup
-	var createdAt, updatedAt time.Time
-	var tempType string
+	var (
+		createdByLookup, updatedByLookup _go.Lookup
+		createdAt, updatedAt             time.Time
+		tempType                         string
+	)
 
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description, &tempType,
@@ -93,10 +95,12 @@ func (s Appeal) List(rpc *model.SearchOptions) (*_go.AppealList, error) {
 		}
 
 		l := &_go.Appeal{}
-		var createdBy, updatedBy _go.Lookup
-		var tempUpdatedAt, tempCreatedAt time.Time
-		var tempType string
-		var scanArgs []interface{}
+		var (
+			createdBy, updatedBy         _go.Lookup
+			tempUpdatedAt, tempCreatedAt time.Time
+			tempType                     string
+			scanArgs                     []interface{}
+		)
 
 		for _, field := range rpc.Fields {
 			switch field {
@@ -195,9 +199,11 @@ func (s Appeal) Update(rpc *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 		return nil, model.NewInternalError("postgres.cases.appeal.update.query_build_error", queryErr.Error())
 	}
 
-	var createdBy, updatedByLookup _go.Lookup
-	var createdAt, updatedAt time.Time
-	var tempType string
+	var (
+		createdBy, updatedByLookup _go.Lookup
+		createdAt, updatedAt       time.Time
+		tempType                   string
+	)
 
 	err := d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description, &tempType,

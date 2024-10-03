@@ -29,8 +29,10 @@ func (s CloseReason) Create(rpc *model.CreateOptions, add *_go.CloseReason) (*_g
 		return nil, model.NewInternalError("postgres.cases.close_reason.create.query_build_error", err.Error())
 	}
 
-	var createdByLookup, updatedByLookup _go.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdByLookup, updatedByLookup _go.Lookup
+		createdAt, updatedAt             time.Time
+	)
 
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
@@ -85,9 +87,12 @@ func (s CloseReason) List(rpc *model.SearchOptions) (*_go.CloseReasonList, error
 		}
 
 		l := &_go.CloseReason{}
-		var createdBy, updatedBy _go.Lookup
-		var tempUpdatedAt, tempCreatedAt time.Time
-		var scanArgs []interface{}
+
+		var (
+			createdBy, updatedBy         _go.Lookup
+			tempUpdatedAt, tempCreatedAt time.Time
+			scanArgs                     []interface{}
+		)
 
 		for _, field := range rpc.Fields {
 			switch field {
@@ -171,8 +176,10 @@ func (s CloseReason) Update(rpc *model.UpdateOptions, l *_go.CloseReason) (*_go.
 		return nil, model.NewInternalError("postgres.cases.close_reason.update.query_build_error", queryErr.Error())
 	}
 
-	var createdBy, updatedByLookup _go.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdBy, updatedByLookup _go.Lookup
+		createdAt, updatedAt       time.Time
+	)
 
 	err := d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,

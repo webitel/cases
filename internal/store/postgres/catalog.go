@@ -3,7 +3,6 @@ package postgres
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -29,10 +28,11 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 	// Build the combined query for inserting Catalog, teams, and skills
 	query, args := s.buildCreateCatalogQuery(rpc, add)
 
-	// Execute the query and scan the result into the Catalog fields
-	var createdByLookup, updatedByLookup cases.Lookup
-	var createdAt, updatedAt time.Time
-	var teamLookups, skillLookups []byte
+	var (
+		createdByLookup, updatedByLookup cases.Lookup
+		createdAt, updatedAt             time.Time
+		teamLookups, skillLookups        []byte
+	)
 
 	err := db.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Prefix,
@@ -141,9 +141,12 @@ func (s *CatalogStore) List(rpc *model.SearchOptions) (*cases.CatalogList, error
 			Status:      &cases.Lookup{},
 			CloseReason: &cases.Lookup{},
 		}
-		var createdBy, updatedBy cases.Lookup
-		var createdAt, updatedAt time.Time
-		var teamLookups, skillLookups []byte
+
+		var (
+			createdBy, updatedBy      cases.Lookup
+			createdAt, updatedAt      time.Time
+			teamLookups, skillLookups []byte
+		)
 
 		// Build scan arguments using the helper function
 		scanArgs := s.buildCatalogScanArgs(
@@ -152,9 +155,6 @@ func (s *CatalogStore) List(rpc *model.SearchOptions) (*cases.CatalogList, error
 			&updatedAt, &teamLookups,
 			&skillLookups,
 		)
-
-		// Debug: print the scan arguments before scanning
-		log.Printf("Scan Args: %+v", scanArgs)
 
 		// Scan the result into the appropriate fields
 		err = rows.Scan(scanArgs...)
@@ -273,10 +273,11 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 		return nil, model.NewInternalError("postgres.catalog.update.query_build_error", err.Error())
 	}
 
-	// Execute the update query for the catalog
-	var createdByLookup, updatedByLookup cases.Lookup
-	var createdAt, updatedAt time.Time
-	var teamLookups, skillLookups []byte
+	var (
+		createdByLookup, updatedByLookup cases.Lookup
+		createdAt, updatedAt             time.Time
+		teamLookups, skillLookups        []byte
+	)
 
 	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &createdAt,

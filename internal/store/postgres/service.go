@@ -26,10 +26,11 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 	// Build the combined query for inserting Service and related entities
 	query, args := s.buildCreateServiceQuery(rpc, add)
 
-	// Execute the query and scan the result into the Service fields
-	var createdByLookup, updatedByLookup cases.Lookup
-	var createdAt, updatedAt time.Time
-	var groupLookup, assigneeLookup cases.Lookup
+	var (
+		createdByLookup, updatedByLookup cases.Lookup
+		createdAt, updatedAt             time.Time
+		groupLookup, assigneeLookup      cases.Lookup
+	)
 
 	err := db.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Code, &add.State,
@@ -180,10 +181,11 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 		return nil, model.NewInternalError("postgres.service.update.query_build_error", err.Error())
 	}
 
-	// Execute the update query for the service
-	var createdByLookup, updatedByLookup cases.Lookup
-	var createdAt, updatedAt time.Time
-	var groupLookup, assigneeLookup cases.Lookup
+	var (
+		createdByLookup, updatedByLookup cases.Lookup
+		createdAt, updatedAt             time.Time
+		groupLookup, assigneeLookup      cases.Lookup
+	)
 
 	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &lookup.Description,

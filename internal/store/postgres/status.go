@@ -31,8 +31,10 @@ func (s Status) Create(rpc *model.CreateOptions, add *_go.Status) (*_go.Status, 
 		return nil, model.NewInternalError("postgres.cases.status.create.query_build_error", err.Error())
 	}
 
-	var createdByLookup, updatedByLookup _go.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdByLookup, updatedByLookup _go.Lookup
+		createdAt, updatedAt             time.Time
+	)
 
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
@@ -91,9 +93,12 @@ func (s Status) List(rpc *model.SearchOptions) (*_go.StatusList, error) {
 		}
 
 		l := &_go.Status{}
-		var createdBy, updatedBy _go.Lookup
-		var tempUpdatedAt, tempCreatedAt time.Time
-		var scanArgs []interface{}
+
+		var (
+			createdBy, updatedBy         _go.Lookup
+			tempUpdatedAt, tempCreatedAt time.Time
+			scanArgs                     []interface{}
+		)
 
 		// Prepare scan arguments based on requested fields
 		for _, field := range rpc.Fields {
@@ -184,8 +189,10 @@ func (s Status) Update(rpc *model.UpdateOptions, l *_go.Status) (*_go.Status, er
 		return nil, model.NewInternalError("postgres.cases.status.update.query_build_error", queryErr.Error())
 	}
 
-	var createdBy, updatedByLookup _go.Lookup
-	var createdAt, updatedAt time.Time
+	var (
+		createdBy, updatedByLookup _go.Lookup
+		createdAt, updatedAt       time.Time
+	)
 
 	err := d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
@@ -207,11 +214,11 @@ func (s Status) Update(rpc *model.UpdateOptions, l *_go.Status) (*_go.Status, er
 // buildCreateStatusLookupQuery constructs the SQL insert query and returns the query string and arguments.
 func (s Status) buildCreateStatusQuery(rpc *model.CreateOptions, lookup *_go.Status) (string, []interface{}, error) {
 	args := []interface{}{
-		lookup.Name,
-		rpc.Session.GetDomainId(),
-		rpc.Time,
-		lookup.Description,
-		rpc.Session.GetUserId(),
+		lookup.Name,               // $1 - name
+		rpc.Session.GetDomainId(), // $2 - dc
+		rpc.Time,                  // $3 - created_at / updated_at
+		lookup.Description,        // $4 - description
+		rpc.Session.GetUserId(),   // $5 - created_by / updated_by
 	}
 	return createStatusQuery, args, nil
 }
@@ -317,7 +324,10 @@ func (s Status) buildDeleteStatusQuery(rpc *model.DeleteOptions) (string, []inte
 	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
 	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
-	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
+	args := []interface{}{
+		pq.Array(ids),             // $1 - id
+		rpc.Session.GetDomainId(), // $2 - dc
+	}
 	return deleteStatusQuery, args, nil
 }
 
