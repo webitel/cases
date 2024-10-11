@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/webitel/cases/api/cases"
@@ -12,6 +13,10 @@ import (
 type CatalogService struct {
 	app *App
 }
+
+const (
+	defaultCatalogFields = "id, root_id, name, description, prefix, code, state, sla, status, close_reason, teams, skills, created_at, created_by"
+)
 
 // CreateCatalog implements cases.CatalogsServer.
 func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCatalogRequest) (*cases.Catalog, error) {
@@ -153,12 +158,18 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		page = 1
 	}
 
+	fields := req.Fields
+	if len(fields) == 0 {
+		fields = strings.Split(defaultCatalogFields, ", ")
+	}
+
 	t := time.Now()
 	searchOptions := model.SearchOptions{
 		IDs:     req.Id,
 		Session: session,
 		Context: ctx,
 		Sort:    req.Sort,
+		Fields:  fields,
 		Page:    int(page),
 		Size:    int(req.Size),
 		Time:    t,
@@ -169,7 +180,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		searchOptions.Filter["name"] = req.Q
 	}
 
-	catalogs, e := s.app.Store.Catalog().List(&searchOptions)
+	catalogs, e := s.app.Store.Catalog().List(&searchOptions, req.Depth)
 	if e != nil {
 		return nil, model.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
 	}

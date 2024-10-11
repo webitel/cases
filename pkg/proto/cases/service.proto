@@ -10,59 +10,98 @@ import "google/api/annotations.proto";
 
 // Service message represents a service entity within a catalog
 message Service {
-  int64 id = 1;                  // Unique identifier for the service
-  string name = 2;                // Name of the service
-  int64 catalog_id = 3;           // ID of the parent catalog
-  string description = 4;         // Description of the service (optional)
-  string code = 5;                // Code for external integrations (optional)
-  bool state = 6;                 // State of the service (true for active, false for inactive)
-  Lookup sla = 7;                 // SLA associated with the service
-  Lookup group = 8;               // Group responsible for the service
-  Lookup assignee = 9;            // Assignee responsible for the service
-  bool has_services = 10;       // Indicates if the service has subservices
-  int64 created_at = 11;          // Timestamp when the service was created
-  int64 updated_at = 12;          // Timestamp when the service was last updated
-  Lookup created_by = 13;         // User who created the service
-  Lookup updated_by = 14;         // User who last updated the service
-  int64 root_id = 15;           // ID of the root catalog
+  // Unique identifier for the service
+  int64 id = 1;
+  // Name of the service
+  string name = 2;
+  // ID of the parent catalog
+  int64 root_id = 3;
+  // Description of the service (optional)
+  string description = 4;
+  // Code for external integrations (optional)
+  string code = 5;
+  // State of the service (true for active, false for inactive)
+  bool state = 6;
+  // SLA associated with the service
+  Lookup sla = 7;
+  // Group responsible for the service
+  Lookup group = 8;
+  // Assignee responsible for the service
+  Lookup assignee = 9;
+  // Timestamp when the service was created
+  int64 created_at = 11;
+  // Timestamp when the service was last updated
+  int64 updated_at = 12;
+  // User who created the service
+  Lookup created_by = 13;
+  // User who last updated the service
+  Lookup updated_by = 14;
+  //Catalogs associated with the service
+  int64 catalog_id = 15;
+  // Service associated with the service
+  repeated Service service = 16;
 }
 
 // ServiceList message contains a list of services with pagination
 message ServiceList {
-  int32 page = 1;                 // Page number for pagination
-  bool next = 2;                  // Indicates if there are more pages
-  repeated Service items = 3;     // List of service items
+  // Page number for pagination
+  int32 page = 1;
+  // Indicates if there are more pages
+  bool next = 2;
+  // List of service items
+  repeated Service items = 3;
 }
 
 // InputService message contains the fields for creating or updating a service
 message InputService {
-  string name = 1;                // Name of the service (required)
-  int64 catalog_id = 2;           // The parent catalog (required)
-  string description = 3;         // Description of the service (optional)
-  string code = 4;                // Code for external integrations (optional)
-  bool state = 5;                 // State of the service (true for active, false for inactive)
-  int64 sla_id = 6;               // SLA ID associated with the service
-  int64 group_id = 7;             // Group ID responsible for the service
-  int64 assignee_id = 8;          // Assignee ID responsible for the service
-  int64 root_id = 9;           // ID of the root catalog
+  // Name of the service (required)
+  string name = 1;
+  // The parent catalog (required)
+  int64 catalog_id = 2;
+  // Description of the service (optional)
+  string description = 3;
+  // Code for external integrations (optional)
+  string code = 4;
+  // State of the service (true for active, false for inactive)
+  bool state = 5;
+  // SLA ID associated with the service
+  int64 sla_id = 6;
+  // Group ID responsible for the service
+  int64 group_id = 7;
+  // Assignee ID responsible for the service
+  int64 assignee_id = 8;
+  // ID of the root catalog
+  int64 root_id = 9;
 }
 
 // CreateServiceRequest message for creating a new service
 message CreateServiceRequest {
-  string name = 1;                // Name of the service (required)
-  int64 root_id = 2;           // **Parent catalog ID** (required)
-  string description = 3;         // Description of the service (optional)
-  string code = 4;                // Code for external integrations (optional)
-  bool state = 5;                 // State of the service (true for active, false for inactive)
-  int64 sla_id = 6;               // SLA ID associated with the service
-  int64 group_id = 7;             // Group ID responsible for the service
-  int64 assignee_id = 8;          // Assignee ID responsible for the service
+  // Name of the service (required)
+  string name = 1;
+  // Parent catalog ID (required)
+  int64 root_id = 2;
+  // Description of the service (optional)
+  string description = 3;
+  // Code for external integrations (optional)
+  string code = 4;
+  // State of the service (true for active, false for inactive)
+  bool state = 5;
+  // SLA ID associated with the service
+  int64 sla_id = 6;
+  // Group ID responsible for the service
+  int64 group_id = 7;
+  // Assignee ID responsible for the service
+  int64 assignee_id = 8;
+  // ID of the root catalog
+  int64 catalog_id = 9;
 }
 
 // UpdateServiceRequest message for updating an existing service
 message UpdateServiceRequest {
-  int64 id = 1;                   // ID of the service to be updated
-  InputService input = 2;         // Input data for updating the service
+  // ID of the service to be updated
+  int64 id = 1;
+  // Input data for updating the service
+  InputService input = 2;
 
   // ---- JSON PATCH fields mask ----
   repeated string x_json_mask = 3
@@ -77,28 +116,38 @@ message UpdateServiceRequest {
 
 // DeleteServiceRequest message for deleting a service
 message DeleteServiceRequest {
-  repeated int64 id = 1;          // ID of the service to be deleted
+  // ID of the service to be deleted
+  repeated int64 id = 1;
 }
 
 // ListServiceRequest message for listing services within a catalog
 message ListServiceRequest {
-  int32 page = 1;                 // Page number for pagination
-  int32 size = 2;                 // Number of records per page
-  repeated string sort = 3;       // Sorting options by fields
-  repeated int64 id = 4;          // List of IDs to filter the services
-  string q = 5;                   // Search query string for filtering by name
-  int64 root_id = 6;           // **Filter services by catalog ID** (required)
-  bool state = 7;                 // Filter by state (true for active, false for inactive)
+  // Page number for pagination
+  int32 page = 1;
+  // Number of records per page
+  int32 size = 2;
+  // Sorting options by fields
+  repeated string sort = 3;
+  // List of IDs to filter the services
+  repeated int64 id = 4;
+  // Search query string for filtering by name
+  string q = 5;
+  // Filter services by catalog ID (required)
+  int64 root_id = 6;
+  // Filter by state (true for active, false for inactive)
+  bool state = 7;
 }
 
 // LocateServiceRequest message for locating a specific service by ID
 message LocateServiceRequest {
-  int64 id = 1;                   // ID of the service to be located
+  // ID of the service to be located
+  int64 id = 1;
 }
 
 // LocateServiceResponse message contains a single service entity
 message LocateServiceResponse {
-  Service service = 1;            // The located service
+  // The located service
+  Service service = 1;
 }
 
 // Service definition for managing services within catalogs

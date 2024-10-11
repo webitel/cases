@@ -9,6 +9,18 @@ import "google/protobuf/timestamp.proto";
 import "google/api/annotations.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 
+// ReactionTime message represents the reaction time in hours and minutes
+message ReactionTime {
+  int32 hours = 1;
+  int32 minutes = 2;
+}
+
+// ResolutionTime message represents the resolution time in hours and minutes
+message ResolutionTime {
+  int32 hours = 1;
+  int32 minutes = 2;
+}
+
 // SLA message represents an SLA entity with metadata
 message SLA {
   // Unique identifier of the SLA
@@ -22,12 +34,10 @@ message SLA {
   int64 valid_to = 5;
   // Calendar ID from the "Calendars" dictionary - required
   int64 calendar_id = 6;
-  // Reaction time in hours and minutes - required
-  int32 reaction_time_hours = 7;
-  int32 reaction_time_minutes = 8;
-  // Resolution time in hours and minutes - required
-  int32 resolution_time_hours = 9;
-  int32 resolution_time_minutes = 10;
+  // Reaction time - required
+  ReactionTime reaction_time = 7;
+  // Resolution time - required
+  ResolutionTime resolution_time = 8;
   // CreatedAt timestamp of the SLA
   int64 created_at = 20;
   // UpdatedAt timestamp of the SLA
@@ -49,12 +59,10 @@ message InputSLA {
   google.protobuf.Timestamp valid_to = 5;
   // Calendar ID from the "Calendars" dictionary
   int64 calendar_id = 6;
-  // Reaction time in hours and minutes
-  int32 reaction_time_hours = 7;
-  int32 reaction_time_minutes = 8;
-  // Resolution time in hours and minutes
-  int32 resolution_time_hours = 9;
-  int32 resolution_time_minutes = 10;
+  // Reaction time
+  ReactionTime reaction_time = 7;
+  // Resolution time
+  ResolutionTime resolution_time = 8;
 }
 
 // SLAList message contains a list of SLA items with pagination
@@ -68,7 +76,7 @@ message SLAList {
 message CreateSLARequest {
   option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
     json_schema: {
-      required: ["name", "calendar_id", "reaction_time_hours", "reaction_time_minutes", "resolution_time_hours", "resolution_time_minutes"]
+      required: ["name", "calendar_id", "reaction_time", "resolution_time"]
     }
   };
 
@@ -77,10 +85,8 @@ message CreateSLARequest {
   google.protobuf.Timestamp valid_from = 4;
   google.protobuf.Timestamp valid_to = 5;
   int64 calendar_id = 6;
-  int32 reaction_time_hours = 7;
-  int32 reaction_time_minutes = 8;
-  int32 resolution_time_hours = 9;
-  int32 resolution_time_minutes = 10;
+  ReactionTime reaction_time = 7;
+  ResolutionTime resolution_time = 8;
 }
 
 // UpdateSLARequest message for updating an existing SLA
@@ -119,7 +125,7 @@ message DeleteSLARequest {
 
 // ListSLARequest message for listing or searching SLAs
 message ListSLARequest {
-    // Page number of result dataset records. offset = (page*size)
+  // Page number of result dataset records. offset = (page*size)
   int32 page = 1;
 
   // Size count of records on result page. limit = (size++)

@@ -342,6 +342,17 @@
             "format": "int32"
           },
           {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.\nIf the user passes \"-\" as the value for fields,\nit will retrieve all available fields for each catalog.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
             "name": "sort",
             "description": "Sorting options by fields",
             "in": "query",
@@ -377,6 +388,14 @@
             "in": "query",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "depth",
+            "description": "Filter by the depth of the hierarchy to retrieve services.\nThe depth indicates how many ancestor levels of services\nwill be included for each catalog.\n- A depth of 0 includes only the direct catalog.\n- A depth of 1 includes the catalog and its immediate services.\n- By default the depth is unlimited,\n  meaning all nested services and sub-services will be included.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
           }
         ],
         "tags": [
@@ -1059,7 +1078,7 @@
           },
           {
             "name": "root_id",
-            "description": "**Filter services by catalog ID** (required)",
+            "description": "Filter services by catalog ID (required)",
             "in": "query",
             "required": false,
             "type": "string",
@@ -2648,15 +2667,6 @@
           },
           "title": "Skills associated with the catalog"
         },
-        "level": {
-          "type": "integer",
-          "format": "int32",
-          "title": "Level of the catalog in the hierarchy"
-        },
-        "has_services": {
-          "type": "boolean",
-          "title": "Indicates if the catalog has associated services"
-        },
         "created_at": {
           "type": "string",
           "format": "int64",
@@ -2674,6 +2684,14 @@
         "updated_by": {
           "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "User who last updated the catalog"
+        },
+        "service": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.Service"
+          },
+          "title": "Service associated with the catalog"
         }
       },
       "title": "Catalog message represents the main catalog entity with metadata"
@@ -2891,31 +2909,19 @@
           "type": "string",
           "format": "int64"
         },
-        "reaction_time_hours": {
-          "type": "integer",
-          "format": "int32"
+        "reaction_time": {
+          "$ref": "#/definitions/webitel.cases.ReactionTime"
         },
-        "reaction_time_minutes": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "resolution_time_hours": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "resolution_time_minutes": {
-          "type": "integer",
-          "format": "int32"
+        "resolution_time": {
+          "$ref": "#/definitions/webitel.cases.ResolutionTime"
         }
       },
       "title": "CreateSLARequest message for creating a new SLA",
       "required": [
         "name",
         "calendar_id",
-        "reaction_time_hours",
-        "reaction_time_minutes",
-        "resolution_time_hours",
-        "resolution_time_minutes"
+        "reaction_time",
+        "resolution_time"
       ]
     },
     "webitel.cases.CreateServiceRequest": {
@@ -2928,7 +2934,7 @@
         "root_id": {
           "type": "string",
           "format": "int64",
-          "title": "**Parent catalog ID** (required)"
+          "title": "Parent catalog ID (required)"
         },
         "description": {
           "type": "string",
@@ -2956,6 +2962,11 @@
           "type": "string",
           "format": "int64",
           "title": "Assignee ID responsible for the service"
+        },
+        "catalog_id": {
+          "type": "string",
+          "format": "int64",
+          "title": "ID of the root catalog"
         }
       },
       "title": "CreateServiceRequest message for creating a new service"
@@ -3111,23 +3122,13 @@
           "format": "int64",
           "title": "Calendar ID from the \"Calendars\" dictionary"
         },
-        "reaction_time_hours": {
-          "type": "integer",
-          "format": "int32",
-          "title": "Reaction time in hours and minutes"
+        "reaction_time": {
+          "$ref": "#/definitions/webitel.cases.ReactionTime",
+          "title": "Reaction time"
         },
-        "reaction_time_minutes": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "resolution_time_hours": {
-          "type": "integer",
-          "format": "int32",
-          "title": "Resolution time in hours and minutes"
-        },
-        "resolution_time_minutes": {
-          "type": "integer",
-          "format": "int32"
+        "resolution_time": {
+          "$ref": "#/definitions/webitel.cases.ResolutionTime",
+          "title": "Resolution time"
         }
       },
       "title": "InputSLA message for inputting SLA data"
@@ -3146,21 +3147,11 @@
           },
           "title": "List of priority IDs for creation"
         },
-        "reaction_time_hours": {
-          "type": "integer",
-          "format": "int32"
+        "reaction_time": {
+          "$ref": "#/definitions/webitel.cases.ReactionTime"
         },
-        "reaction_time_minutes": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "resolution_time_hours": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "resolution_time_minutes": {
-          "type": "integer",
-          "format": "int32"
+        "resolution_time": {
+          "$ref": "#/definitions/webitel.cases.ResolutionTime"
         },
         "sla_id": {
           "type": "string",
@@ -3412,6 +3403,20 @@
       },
       "title": "PriorityList message contains a list of Priority items with pagination"
     },
+    "webitel.cases.ReactionTime": {
+      "type": "object",
+      "properties": {
+        "hours": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "minutes": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "title": "ReactionTime message represents the reaction time in hours and minutes"
+    },
     "webitel.cases.Reason": {
       "type": "object",
       "properties": {
@@ -3490,6 +3495,20 @@
         "lookup_id"
       ]
     },
+    "webitel.cases.ResolutionTime": {
+      "type": "object",
+      "properties": {
+        "hours": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "minutes": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "title": "ResolutionTime message represents the resolution time in hours and minutes"
+    },
     "webitel.cases.SLA": {
       "type": "object",
       "properties": {
@@ -3520,23 +3539,13 @@
           "format": "int64",
           "title": "Calendar ID from the \"Calendars\" dictionary - required"
         },
-        "reaction_time_hours": {
-          "type": "integer",
-          "format": "int32",
-          "title": "Reaction time in hours and minutes - required"
+        "reaction_time": {
+          "$ref": "#/definitions/webitel.cases.ReactionTime",
+          "title": "Reaction time - required"
         },
-        "reaction_time_minutes": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "resolution_time_hours": {
-          "type": "integer",
-          "format": "int32",
-          "title": "Resolution time in hours and minutes - required"
-        },
-        "resolution_time_minutes": {
-          "type": "integer",
-          "format": "int32"
+        "resolution_time": {
+          "$ref": "#/definitions/webitel.cases.ResolutionTime",
+          "title": "Resolution time - required"
         },
         "created_at": {
           "type": "string",
@@ -3579,23 +3588,13 @@
           },
           "title": "Priorities associated with the SLACondition - fetched as Lookup entities [ Priority name + ID ]"
         },
-        "reaction_time_hours": {
-          "type": "integer",
-          "format": "int32",
-          "title": "Reaction time in hours and minutes - required"
+        "reaction_time": {
+          "$ref": "#/definitions/webitel.cases.ReactionTime",
+          "title": "Reaction time - required"
         },
-        "reaction_time_minutes": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "resolution_time_hours": {
-          "type": "integer",
-          "format": "int32",
-          "title": "Resolution time in hours and minutes - required"
-        },
-        "resolution_time_minutes": {
-          "type": "integer",
-          "format": "int32"
+        "resolution_time": {
+          "$ref": "#/definitions/webitel.cases.ResolutionTime",
+          "title": "Resolution time - required"
         },
         "sla_id": {
           "type": "string",
@@ -3655,33 +3654,21 @@
             "type": "string",
             "format": "int64"
           },
-          "title": "List of priority IDs for creation [FROM Priority Dictionary ]"
+          "title": "List of priority IDs for creation [FROM Priority Dictionary]"
         },
-        "reaction_time_hours": {
-          "type": "integer",
-          "format": "int32"
+        "reaction_time": {
+          "$ref": "#/definitions/webitel.cases.ReactionTime"
         },
-        "reaction_time_minutes": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "resolution_time_hours": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "resolution_time_minutes": {
-          "type": "integer",
-          "format": "int32"
+        "resolution_time": {
+          "$ref": "#/definitions/webitel.cases.ResolutionTime"
         }
       },
       "title": "CreateSLAConditionRequest message for creating a new SLACondition",
       "required": [
         "name",
         "priorities",
-        "reaction_time_hours",
-        "reaction_time_minutes",
-        "resolution_time_hours",
-        "resolution_time_minutes"
+        "reaction_time",
+        "resolution_time"
       ]
     },
     "webitel.cases.SLAList": {
@@ -3716,7 +3703,7 @@
           "type": "string",
           "title": "Name of the service"
         },
-        "catalog_id": {
+        "root_id": {
           "type": "string",
           "format": "int64",
           "title": "ID of the parent catalog"
@@ -3745,10 +3732,6 @@
           "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "Assignee responsible for the service"
         },
-        "has_services": {
-          "type": "boolean",
-          "title": "Indicates if the service has subservices"
-        },
         "created_at": {
           "type": "string",
           "format": "int64",
@@ -3767,10 +3750,18 @@
           "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "User who last updated the service"
         },
-        "root_id": {
+        "catalog_id": {
           "type": "string",
           "format": "int64",
-          "title": "ID of the root catalog"
+          "title": "Catalogs associated with the service"
+        },
+        "service": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.Service"
+          },
+          "title": "Service associated with the service"
         }
       },
       "title": "Service message represents a service entity within a catalog"

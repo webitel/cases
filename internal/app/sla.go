@@ -27,10 +27,10 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 	if req.CalendarId == 0 {
 		return nil, model.NewBadRequestError("SLA_service.create_sla.calendar_id.required", "Calendar ID is required")
 	}
-	if req.ReactionTimeHours == 0 && req.ReactionTimeMinutes == 0 {
+	if req.ReactionTime.Hours == 0 && req.ReactionTime.Minutes == 0 {
 		return nil, model.NewBadRequestError("SLA_service.create_sla.reaction_time.required", "Reaction time is required")
 	}
-	if req.ResolutionTimeHours == 0 && req.ResolutionTimeMinutes == 0 {
+	if req.ResolutionTime.Hours == 0 && req.ResolutionTime.Minutes == 0 {
 		return nil, model.NewBadRequestError("SLA_service.create_sla.resolution_time.required", "Resolution time is required")
 	}
 
@@ -54,17 +54,21 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 
 	// Create a new SLA model
 	sla := &cases.SLA{
-		Name:                  req.Name,
-		Description:           req.Description,
-		ValidFrom:             req.ValidFrom.AsTime().Unix(),
-		ValidTo:               req.ValidTo.AsTime().Unix(),
-		CalendarId:            req.CalendarId,
-		ReactionTimeHours:     req.ReactionTimeHours,
-		ReactionTimeMinutes:   req.ReactionTimeMinutes,
-		ResolutionTimeHours:   req.ResolutionTimeHours,
-		ResolutionTimeMinutes: req.ResolutionTimeMinutes,
-		CreatedBy:             currentU,
-		UpdatedBy:             currentU,
+		Name:        req.Name,
+		Description: req.Description,
+		ValidFrom:   req.ValidFrom.AsTime().Unix(),
+		ValidTo:     req.ValidTo.AsTime().Unix(),
+		CalendarId:  req.CalendarId,
+		ReactionTime: &cases.ReactionTime{
+			Hours:   req.ReactionTime.Hours,
+			Minutes: req.ReactionTime.Minutes,
+		},
+		ResolutionTime: &cases.ResolutionTime{
+			Hours:   req.ResolutionTime.Hours,
+			Minutes: req.ResolutionTime.Minutes,
+		},
+		CreatedBy: currentU,
+		UpdatedBy: currentU,
 	}
 
 	fields := []string{
@@ -239,17 +243,21 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 
 	// Update SLA model
 	sla := &cases.SLA{
-		Id:                    req.Id,
-		Name:                  req.Input.Name,
-		Description:           req.Input.Description,
-		ValidFrom:             req.Input.ValidFrom.AsTime().Unix(),
-		ValidTo:               req.Input.ValidTo.AsTime().Unix(),
-		CalendarId:            req.Input.CalendarId,
-		ReactionTimeHours:     req.Input.ReactionTimeHours,
-		ReactionTimeMinutes:   req.Input.ReactionTimeMinutes,
-		ResolutionTimeHours:   req.Input.ResolutionTimeHours,
-		ResolutionTimeMinutes: req.Input.ResolutionTimeMinutes,
-		UpdatedBy:             u,
+		Id:          req.Id,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		ValidFrom:   req.Input.ValidFrom.AsTime().Unix(),
+		ValidTo:     req.Input.ValidTo.AsTime().Unix(),
+		CalendarId:  req.Input.CalendarId,
+		ReactionTime: &cases.ReactionTime{
+			Hours:   req.Input.ReactionTime.Hours,
+			Minutes: req.Input.ReactionTime.Minutes,
+		},
+		ResolutionTime: &cases.ResolutionTime{
+			Hours:   req.Input.ResolutionTime.Hours,
+			Minutes: req.Input.ResolutionTime.Minutes,
+		},
+		UpdatedBy: u,
 	}
 
 	fields := []string{"id"}

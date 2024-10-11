@@ -40,7 +40,7 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 		&assigneeLookup.Id, &assigneeLookup.Name,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedByLookup.Id, &updatedByLookup.Name,
-		&add.RootId,
+		&add.RootId, &add.CatalogId,
 	)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.service.create.scan_error", err.Error())
@@ -229,13 +229,14 @@ func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *ca
 		add.State,                 // $9: state
 		rpc.Session.GetDomainId(), // $10: domain ID
 		add.RootId,                // $11: root_id (can be null)
+		add.CatalogId,             // $12: catalog_id
 	}
 
 	query := `
    WITH inserted_service AS (
     INSERT INTO cases.service_catalog (
                                        name, description, code, created_at, created_by, updated_at,
-                                       updated_by, sla_id, group_id, assignee_id, state, dc, root_id
+                                       updated_by, sla_id, group_id, assignee_id, state, dc, root_id, catalog_id
         ) VALUES ($1,
                   COALESCE(NULLIF($2, ''), NULL), -- description (NULL if empty string)
                   COALESCE(NULLIF($3, ''), NULL), -- code (NULL if empty string)
@@ -244,10 +245,11 @@ func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *ca
                   COALESCE(NULLIF($7, 0), NULL), -- group_id (NULL if 0)
                   COALESCE(NULLIF($8, 0), NULL), -- assignee_id (NULL if 0)
                   $9, $10,
-                  COALESCE(NULLIF($11, 0), NULL) -- root_id (NULL if 0)
+                  COALESCE(NULLIF($11, 0), NULL), -- root_id (NULL if 0)
+				  $12
                  )
         RETURNING id, name, description, code, state, sla_id, group_id, assignee_id,
-            created_by, updated_by, created_at, updated_at, root_id)
+            created_by, updated_by, created_at, updated_at, root_id, catalog_id)
 SELECT inserted_service.id,
        inserted_service.name,
        COALESCE(inserted_service.description, '') AS description,     -- Return empty string if null
@@ -265,7 +267,8 @@ SELECT inserted_service.id,
        COALESCE(created_by_user.name, '')         AS created_by_name, -- Return empty string if null
        COALESCE(inserted_service.updated_by, 0)   AS updated_by,      -- Return 0 if null
        COALESCE(updated_by_user.name, '')         AS updated_by_name, -- Return empty string if null
-       COALESCE(inserted_service.root_id, 0)      AS root_id          -- Return 0 if null
+       COALESCE(inserted_service.root_id, 0)      AS root_id,          -- Return 0 if null
+	   inserted_service.catalog_id
 FROM inserted_service
          LEFT JOIN cases.sla ON sla.id = inserted_service.sla_id
          LEFT JOIN contacts.group grp ON grp.id = inserted_service.group_id
@@ -315,9 +318,8 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 		"COALESCE(updated_by_user.name, '') AS updated_by_name", // Default to empty string if NULL
 		"service.created_at",                                    // created_at can't be null
 		"service.updated_at",                                    // updated_at can't be null
-		// Determine if the service has subservices
-		`EXISTS (SELECT 1 FROM cases.service_catalog cs WHERE cs.root_id = service.id) AS has_subservices`,
 		"service.root_id AS root_id",
+		"service.catalog_id AS catalog_id",
 	).
 		From("cases.service_catalog AS service").
 		LeftJoin("cases.sla ON sla.id = service.sla_id").
@@ -493,9 +495,8 @@ func (s *ServiceStore) buildServiceScanArgs(
 		createdAt, // Created at timestamp
 		updatedAt, // Updated at timestamp
 
-		// Has services and root ID fields
-		&service.HasServices, // Whether service has related services
-		&service.RootId,      // Root service ID
+		&service.RootId,    // Root service ID
+		&service.CatalogId, // Catalog ID
 	}
 }
 

@@ -27,10 +27,10 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 	if len(req.Priorities) == 0 {
 		return nil, model.NewBadRequestError("sla_condition_service.create_sla_condition.priorities.required", "At least one priority is required")
 	}
-	if req.ReactionTimeHours == 0 && req.ReactionTimeMinutes == 0 {
+	if req.ReactionTime.Hours == 0 && req.ReactionTime.Minutes == 0 {
 		return nil, model.NewBadRequestError("sla_condition_service.create_sla_condition.reaction_time.required", "Reaction time is required")
 	}
-	if req.ResolutionTimeHours == 0 && req.ResolutionTimeMinutes == 0 {
+	if req.ResolutionTime.Hours == 0 && req.ResolutionTime.Minutes == 0 {
 		return nil, model.NewBadRequestError("sla_condition_service.create_sla_condition.resolution_time.required", "Resolution time is required")
 	}
 	if req.SlaId == 0 {
@@ -57,14 +57,18 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 
 	// Create a new SLACondition model
 	slaCondition := &cases.SLACondition{
-		Name:                  req.Name,
-		ReactionTimeHours:     req.ReactionTimeHours,
-		ReactionTimeMinutes:   req.ReactionTimeMinutes,
-		ResolutionTimeHours:   req.ResolutionTimeHours,
-		ResolutionTimeMinutes: req.ResolutionTimeMinutes,
-		SlaId:                 req.SlaId,
-		CreatedBy:             currentU,
-		UpdatedBy:             currentU,
+		Name: req.Name,
+		ReactionTime: &cases.ReactionTime{
+			Hours:   req.ReactionTime.Hours,
+			Minutes: req.ReactionTime.Minutes,
+		},
+		ResolutionTime: &cases.ResolutionTime{
+			Hours:   req.ResolutionTime.Hours,
+			Minutes: req.ResolutionTime.Minutes,
+		},
+		SlaId:     req.SlaId,
+		CreatedBy: currentU,
+		UpdatedBy: currentU,
 	}
 
 	fields := []string{
@@ -241,14 +245,18 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 
 	// Update SLACondition model
 	slaCondition := &cases.SLACondition{
-		Id:                    req.Id,
-		Name:                  req.Input.Name,
-		ReactionTimeHours:     req.Input.ReactionTimeHours,
-		ReactionTimeMinutes:   req.Input.ReactionTimeMinutes,
-		ResolutionTimeHours:   req.Input.ResolutionTimeHours,
-		ResolutionTimeMinutes: req.Input.ResolutionTimeMinutes,
-		SlaId:                 req.Input.SlaId,
-		UpdatedBy:             u,
+		Id:   req.Id,
+		Name: req.Input.Name,
+		ReactionTime: &cases.ReactionTime{
+			Hours:   req.Input.ReactionTime.Hours,
+			Minutes: req.Input.ReactionTime.Minutes,
+		},
+		ResolutionTime: &cases.ResolutionTime{
+			Hours:   req.Input.ResolutionTime.Hours,
+			Minutes: req.Input.ResolutionTime.Minutes,
+		},
+		SlaId:     req.Input.SlaId,
+		UpdatedBy: u,
 	}
 
 	fields := []string{"id"}

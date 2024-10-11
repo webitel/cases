@@ -53,7 +53,8 @@ func (s *ServiceService) CreateService(ctx context.Context, req *cases.CreateSer
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
 		State:       req.State,
-		RootId:      req.RootId, // Added RootId field
+		RootId:      req.RootId,
+		CatalogId:   req.CatalogId,
 	}
 
 	t := time.Now()
@@ -217,7 +218,6 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *cases.UpdateSer
 		Id:          req.Id,
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
-		CatalogId:   req.Input.CatalogId,
 		Code:        req.Input.Code,
 		Sla:         &cases.Lookup{Id: req.Input.SlaId},
 		Group:       &cases.Lookup{Id: req.Input.GroupId},

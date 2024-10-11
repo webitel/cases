@@ -135,7 +135,7 @@ func (s CloseReason) List(rpc *model.SearchOptions) (*_go.CloseReasonList, error
 	}
 
 	return &_go.CloseReasonList{
-		Page:  int32(rpc.Page), // TODO page should be correctly passes even if user pass negative value
+		Page:  int32(rpc.Page),
 		Next:  next,
 		Items: lookupList,
 	}, nil

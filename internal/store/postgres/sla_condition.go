@@ -45,8 +45,8 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 		var lookup cases.Lookup
 		if err := rows.Scan(
 			&add.Id, &add.Name, &createdAt,
-			&add.ReactionTimeHours, &add.ReactionTimeMinutes, &add.ResolutionTimeHours,
-			&add.ResolutionTimeMinutes, &add.SlaId, &createdByLookup.Id,
+			&add.ReactionTime.Hours, &add.ReactionTime.Minutes, &add.ResolutionTime.Hours,
+			&add.ResolutionTime.Minutes, &add.SlaId, &createdByLookup.Id,
 			&createdByLookup.Name, &updatedAt, &updatedByLookup.Id,
 			&updatedByLookup.Name, &lookup.Id, &lookup.Name,
 		); err != nil {
@@ -63,18 +63,22 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 	// Prepare the SLACondition object to return
 	t := rpc.Time
 	return &cases.SLACondition{
-		Id:                    add.Id,
-		Name:                  add.Name,
-		ReactionTimeHours:     add.ReactionTimeHours,
-		ReactionTimeMinutes:   add.ReactionTimeMinutes,
-		ResolutionTimeHours:   add.ResolutionTimeHours,
-		ResolutionTimeMinutes: add.ResolutionTimeMinutes,
-		SlaId:                 add.SlaId,
-		CreatedAt:             util.Timestamp(t),
-		UpdatedAt:             util.Timestamp(t),
-		CreatedBy:             &createdByLookup,
-		UpdatedBy:             &updatedByLookup,
-		Priorities:            prio,
+		Id:   add.Id,
+		Name: add.Name,
+		ReactionTime: &cases.ReactionTime{
+			Hours:   add.ReactionTime.Hours,
+			Minutes: add.ReactionTime.Minutes,
+		},
+		ResolutionTime: &cases.ResolutionTime{
+			Hours:   add.ResolutionTime.Hours,
+			Minutes: add.ResolutionTime.Minutes,
+		},
+		SlaId:      add.SlaId,
+		CreatedAt:  util.Timestamp(t),
+		UpdatedAt:  util.Timestamp(t),
+		CreatedBy:  &createdByLookup,
+		UpdatedBy:  &updatedByLookup,
+		Priorities: prio,
 	}, nil
 }
 
@@ -254,8 +258,8 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 	// Execute the update query for sla_condition and fetch priorities JSON
 	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt,
-		&l.ReactionTimeHours, &l.ReactionTimeMinutes,
-		&l.ResolutionTimeHours, &l.ResolutionTimeMinutes, &l.SlaId,
+		&l.ReactionTime.Hours, &l.ReactionTime.Minutes,
+		&l.ResolutionTime.Hours, &l.ResolutionTime.Minutes, &l.SlaId,
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, // Corrected to include user names
 		&prioritiesJSON, // Fetch JSON aggregated priorities
 	)
@@ -290,15 +294,15 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc *model.CreateOptions, sla *cases.SLACondition) (string, []interface{}) {
 	// Create arguments for the SQL query
 	args := []interface{}{
-		sla.Name,                  // $1
-		rpc.Time,                  // $2
-		rpc.Session.GetUserId(),   // $3
-		sla.ReactionTimeHours,     // $4
-		sla.ReactionTimeMinutes,   // $5
-		sla.ResolutionTimeHours,   // $6
-		sla.ResolutionTimeMinutes, // $7
-		sla.SlaId,                 // $8
-		rpc.Session.GetDomainId(), // $9
+		sla.Name,                   // $1
+		rpc.Time,                   // $2
+		rpc.Session.GetUserId(),    // $3
+		sla.ReactionTime.Hours,     // $4
+		sla.ReactionTime.Minutes,   // $5
+		sla.ResolutionTime.Hours,   // $6
+		sla.ResolutionTime.Minutes, // $7
+		sla.SlaId,                  // $8
+		rpc.Session.GetDomainId(),  // $9
 	}
 
 	// SQL query construction
@@ -539,13 +543,13 @@ func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc *model.UpdateOption
 		case "name":
 			updateBuilder = updateBuilder.Set("name", l.Name)
 		case "reaction_time_hours":
-			updateBuilder = updateBuilder.Set("reaction_time_hours", l.ReactionTimeHours)
+			updateBuilder = updateBuilder.Set("reaction_time_hours", l.ReactionTime.Hours)
 		case "reaction_time_minutes":
-			updateBuilder = updateBuilder.Set("reaction_time_minutes", l.ReactionTimeMinutes)
+			updateBuilder = updateBuilder.Set("reaction_time_minutes", l.ReactionTime.Minutes)
 		case "resolution_time_hours":
-			updateBuilder = updateBuilder.Set("resolution_time_hours", l.ResolutionTimeHours)
+			updateBuilder = updateBuilder.Set("resolution_time_hours", l.ResolutionTime.Hours)
 		case "resolution_time_minutes":
-			updateBuilder = updateBuilder.Set("resolution_time_minutes", l.ResolutionTimeMinutes)
+			updateBuilder = updateBuilder.Set("resolution_time_minutes", l.ResolutionTime.Minutes)
 		case "sla_id":
 			updateBuilder = updateBuilder.Set("sla_id", l.SlaId)
 		}
@@ -606,13 +610,13 @@ func (s *SLAConditionStore) buildScanArgs(
 		case "name":
 			scanArgs = append(scanArgs, &slaCondition.Name)
 		case "reaction_time_hours":
-			scanArgs = append(scanArgs, &slaCondition.ReactionTimeHours)
+			scanArgs = append(scanArgs, &slaCondition.ReactionTime.Hours)
 		case "reaction_time_minutes":
-			scanArgs = append(scanArgs, &slaCondition.ReactionTimeMinutes)
+			scanArgs = append(scanArgs, &slaCondition.ReactionTime.Minutes)
 		case "resolution_time_hours":
-			scanArgs = append(scanArgs, &slaCondition.ResolutionTimeHours)
+			scanArgs = append(scanArgs, &slaCondition.ResolutionTime.Hours)
 		case "resolution_time_minutes":
-			scanArgs = append(scanArgs, &slaCondition.ResolutionTimeMinutes)
+			scanArgs = append(scanArgs, &slaCondition.ResolutionTime.Minutes)
 		case "sla_id":
 			scanArgs = append(scanArgs, &slaCondition.SlaId)
 		case "created_at":

@@ -3,6 +3,7 @@ package postgres
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -68,6 +69,115 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 	return add, nil
 }
 
+func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
+	// Define arguments for the query
+	args := []interface{}{
+		add.Name,                  // $1: name (cannot be null)
+		add.Description,           // $2: description (could be null)
+		add.Prefix,                // $3: prefix (could be null)
+		add.Code,                  // $4: code (could be null)
+		rpc.Time,                  // $5: created_at, updated_at
+		rpc.Session.GetUserId(),   // $6: created_by, updated_by
+		add.Sla.Id,                // $7: sla_id (could be null)
+		add.Status.Id,             // $8: status_id (could be null)
+		add.CloseReason.Id,        // $9: close_reason_id (could be null)
+		add.State,                 // $10: state (cannot be null)
+		rpc.Session.GetDomainId(), // $11: domain ID (dc)
+	}
+
+	var teamIds []int64
+	if len(add.Teams) > 0 {
+		teamIds = make([]int64, len(add.Teams))
+		for i, team := range add.Teams {
+			teamIds[i] = team.Id
+		}
+	} else {
+		teamIds = nil
+	}
+	args = append(args, pq.Array(teamIds)) // $12: team_ids (could be null)
+
+	var skillIds []int64
+	if len(add.Skills) > 0 {
+		skillIds = make([]int64, len(add.Skills))
+		for i, skill := range add.Skills {
+			skillIds[i] = skill.Id
+		}
+	} else {
+		skillIds = nil
+	}
+	args = append(args, pq.Array(skillIds)) // $13: skill_ids (could be null)
+
+	// SQL query construction
+	query := `
+WITH inserted_catalog AS (
+    INSERT INTO cases.service_catalog (
+                                       name, description, prefix, code, created_at, created_by, updated_at,
+                                       updated_by, sla_id, status_id, close_reason_id, state, dc
+        ) VALUES ($1,
+                  COALESCE(NULLIF($2, ''), NULL), -- Description (NULL if empty string)
+                  COALESCE(NULLIF($3, ''), NULL), -- Prefix (NULL if empty string)
+                  COALESCE(NULLIF($4, ''), NULL), -- Code (NULL if empty string)
+                  $5, $6, $5, $6,
+                  COALESCE(NULLIF($7, 0), NULL), -- SLA ID (NULL if 0)
+                  COALESCE(NULLIF($8, 0), NULL), -- Status ID (NULL if 0)
+                  COALESCE(NULLIF($9, 0), NULL), -- Close Reason ID (NULL if 0)
+                  $10,
+                  $11)
+        RETURNING id, name, description, prefix, code, state, sla_id, status_id, close_reason_id,
+            created_by, updated_by, created_at, updated_at),
+     inserted_teams AS (
+         INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, created_at, updated_at, dc)
+             SELECT inserted_catalog.id, unnest(COALESCE(NULLIF($12::bigint[], '{}'), NULL)), $6, $6, $5, $5, $11
+             FROM inserted_catalog
+             RETURNING catalog_id, team_id),
+     inserted_skills AS (
+         INSERT INTO cases.skill_catalog (catalog_id, skill_id, created_by, updated_by, created_at, updated_at, dc)
+             SELECT inserted_catalog.id, unnest(COALESCE(NULLIF($13::bigint[], '{}'), NULL)), $6, $6, $5, $5, $11
+             FROM inserted_catalog
+             RETURNING catalog_id, skill_id),
+     teams_agg AS (SELECT inserted_teams.catalog_id,
+                          json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+                   FROM inserted_teams
+                            LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+                   GROUP BY inserted_teams.catalog_id),
+     skills_agg AS (SELECT inserted_skills.catalog_id,
+                           json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+                    FROM inserted_skills
+                             LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+                    GROUP BY inserted_skills.catalog_id)
+SELECT inserted_catalog.id,
+       inserted_catalog.name,
+       COALESCE(inserted_catalog.description, '')    AS description,       -- Return empty string if null
+       COALESCE(inserted_catalog.prefix, '')         AS prefix,            -- Return empty string if null
+       COALESCE(inserted_catalog.code, '')           AS code,              -- Return empty string if null
+       inserted_catalog.state,
+       inserted_catalog.created_at,
+       inserted_catalog.updated_at,
+       COALESCE(inserted_catalog.sla_id, 0)          AS sla_id,            -- Return 0 if null
+       COALESCE(sla.name, '')                        AS sla_name,          -- Return empty string if null
+       COALESCE(inserted_catalog.status_id, 0)       AS status_id,         -- Return 0 if null
+       COALESCE(status.name, '')                     AS status_name,       -- Return empty string if null
+       COALESCE(inserted_catalog.close_reason_id, 0) AS close_reason_id,   -- Return 0 if null
+       COALESCE(close_reason.name, '')               AS close_reason_name, -- Return empty string if null
+       COALESCE(inserted_catalog.created_by, 0)      AS created_by,        -- Return 0 if null
+       COALESCE(created_by_user.name, '')            AS created_by_name,   -- Return empty string if null
+       COALESCE(inserted_catalog.updated_by, 0)      AS updated_by,        -- Return 0 if null
+       COALESCE(updated_by_user.name, '')            AS updated_by_name,   -- Return empty string if null
+       COALESCE(teams_agg.teams, '[]')               AS teams,             -- Return empty array if null
+       COALESCE(skills_agg.skills, '[]')             AS skills             -- Return empty array if null
+FROM inserted_catalog
+         LEFT JOIN cases.sla ON sla.id = inserted_catalog.sla_id
+         LEFT JOIN cases.status ON status.id = inserted_catalog.status_id
+         LEFT JOIN cases.close_reason ON close_reason.id = inserted_catalog.close_reason_id
+         LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_catalog.created_by
+         LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_catalog.updated_by
+         LEFT JOIN teams_agg ON teams_agg.catalog_id = inserted_catalog.id
+         LEFT JOIN skills_agg ON skills_agg.catalog_id = inserted_catalog.id;
+`
+
+	return store.CompactSQL(query), args
+}
+
 // Delete implements store.CatalogStore.
 func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 	// Establish a connection to the database
@@ -98,8 +208,28 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 	return nil
 }
 
+// Helper method to build the delete query for Catalog
+func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string, []interface{}) {
+	// Build the SQL query using the provided IDs in rpc.IDs
+	query := `
+		DELETE FROM cases.service_catalog
+		WHERE id = ANY($1) AND dc = $2
+	`
+
+	// Use the array of IDs and domain ID (dc) for the deletion
+	args := []interface{}{
+		pq.Array(rpc.IDs),         // $1: array of catalog IDs to delete
+		rpc.Session.GetDomainId(), // $2: domain ID to ensure proper scoping
+	}
+
+	return store.CompactSQL(query), args
+}
+
 // List implements store.CatalogStore.
-func (s *CatalogStore) List(rpc *model.SearchOptions) (*cases.CatalogList, error) {
+func (s *CatalogStore) List(
+	rpc *model.SearchOptions,
+	depth int64,
+) (*cases.CatalogList, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -107,7 +237,7 @@ func (s *CatalogStore) List(rpc *model.SearchOptions) (*cases.CatalogList, error
 	}
 
 	// Build SQL query
-	query, args, err := s.buildSearchCatalogQuery(rpc)
+	query, args, err := s.buildSearchCatalogQuery(rpc, depth)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.catalog.list.query_build_error", err.Error())
 	}
@@ -123,9 +253,6 @@ func (s *CatalogStore) List(rpc *model.SearchOptions) (*cases.CatalogList, error
 	var catalogs []*cases.Catalog
 	lCount := 0
 	next := false
-	// Check if we want to fetch all records
-	//
-	// If the size is -1, we want to fetch all records
 	fetchAll := rpc.GetSize() == -1
 
 	for rows.Next() {
@@ -143,23 +270,38 @@ func (s *CatalogStore) List(rpc *model.SearchOptions) (*cases.CatalogList, error
 		}
 
 		var (
-			createdBy, updatedBy      cases.Lookup
-			createdAt, updatedAt      time.Time
-			teamLookups, skillLookups []byte
+			createdBy, updatedBy                      cases.Lookup
+			createdAt, updatedAt                      time.Time
+			teamLookups, skillLookups, serviceLookups []byte
+			rootID                                    int64
+
+			// Services slice to hold the nested services
+			services []map[string]interface{}
 		)
 
-		// Build scan arguments using the helper function
-		scanArgs := s.buildCatalogScanArgs(
-			catalog, &createdBy,
-			&updatedBy, &createdAt,
-			&updatedAt, &teamLookups,
-			&skillLookups,
+		// Build scan arguments to include services
+		scanArgs, err := s.buildCatalogScanArgs(
+			catalog,
+			&createdBy, &updatedBy,
+			&createdAt, &updatedAt,
+			&teamLookups, &skillLookups, &serviceLookups,
+			&rootID,
+			// ----- Fields to scan -----
+			rpc.Fields,
 		)
+		if err != nil {
+			return nil, model.NewInternalError("postgres.catalog.list.scan_args_error", err.Error())
+		}
 
 		// Scan the result into the appropriate fields
 		err = rows.Scan(scanArgs...)
 		if err != nil {
 			return nil, model.NewInternalError("postgres.catalog.list.scan_error", err.Error())
+		}
+
+		// If rootID is not 0, it's a subservice, so we skip it
+		if rootID != 0 {
+			continue
 		}
 
 		// Unmarshal the JSON arrays into the Lookup slices
@@ -170,7 +312,23 @@ func (s *CatalogStore) List(rpc *model.SearchOptions) (*cases.CatalogList, error
 			return nil, model.NewInternalError("postgres.catalog.list.unmarshal_skills_error", err.Error())
 		}
 
-		// Set timestamps and created/updated by fields
+		// Handle services unmarshal
+		if len(serviceLookups) > 0 {
+			if err := json.Unmarshal(serviceLookups, &services); err != nil {
+				return nil, model.NewInternalError("postgres.catalog.list.unmarshal_services_error", err.Error())
+			}
+
+			// Nest services by root_id
+			nestedServices, err := s.nestServicesByRootID(catalog.Id, services)
+			if err != nil {
+				return nil, model.NewInternalError("postgres.catalog.list.nesting_services_error", err.Error())
+			}
+
+			// Add the nested services to the catalog
+			catalog.Service = nestedServices
+		}
+
+		// Set timestamps and created/updated by fields for the catalog
 		catalog.CreatedAt = util.Timestamp(createdAt)
 		catalog.UpdatedAt = util.Timestamp(updatedAt)
 		catalog.CreatedBy = &createdBy
@@ -185,6 +343,498 @@ func (s *CatalogStore) List(rpc *model.SearchOptions) (*cases.CatalogList, error
 		Next:  next,
 		Items: catalogs,
 	}, nil
+}
+
+// buildCatalogScanArgs prepares scan arguments based on rpc.Fields.
+// If rpc.Fields contains only "-", all fields will be scanned. Otherwise, fields are selectively scanned.
+func (s *CatalogStore) buildCatalogScanArgs(
+	catalog *cases.Catalog, // The catalog object to populate
+	createdBy, updatedBy *cases.Lookup, // Lookup objects for created_by and updated_by
+	createdAt, updatedAt *time.Time, // Temporary variables for created_at and updated_at
+	teamLookups, skillLookups, serviceLookups *[]byte, // Byte arrays for teams, skills, and services (as JSON or binary)
+	rootId *int64, // Root ID for hierarchy placement
+	rpcFields []string, // List of fields to scan based on the request
+) ([]interface{}, error) {
+	// ------ If rpc.Fields is "-", scan all fields ------
+	if rpcFields[0] == "-" {
+		return []interface{}{
+			// ------ Catalog Basic Information ------
+			&catalog.Id,     // Catalog ID
+			&catalog.Name,   // Catalog Name
+			&catalog.Prefix, // Catalog Prefix
+
+			// ------ SLA Fields ------
+			&catalog.Sla.Id,   // SLA ID
+			&catalog.Sla.Name, // SLA Name
+
+			// ------ Status Fields ------
+			&catalog.Status.Id,   // Status ID
+			&catalog.Status.Name, // Status Name
+
+			// ------ Catalog Metadata ------
+			&catalog.Code,        // Catalog Code
+			&catalog.Description, // Catalog Description
+
+			// ------ Close Reason Fields ------
+			&catalog.CloseReason.Id,   // Close Reason ID
+			&catalog.CloseReason.Name, // Close Reason Name
+
+			// ------ Catalog State ------
+			&catalog.State, // Catalog State (active/inactive)
+
+			// ------ Created By and Updated By Fields ------
+			&createdBy.Id,   // Created By User ID
+			&createdBy.Name, // Created By User Name
+			&updatedBy.Id,   // Updated By User ID
+			&updatedBy.Name, // Updated By User Name
+
+			// ------ Timestamps ------
+			createdAt, // Created At Timestamp
+			updatedAt, // Updated At Timestamp
+
+			// ------ Teams, Skills, and Services Lookups ------
+			teamLookups,    // Team Lookups (JSON/binary)
+			skillLookups,   // Skill Lookups (JSON/binary)
+			serviceLookups, // Service Lookups (JSON/binary)
+
+			// ------ Root ID and Hierarchy Info ------
+			rootId, // Root ID for hierarchy
+		}, nil
+	}
+
+	// ------ If rpc.Fields contains specific fields, scan accordingly ------
+	var scanArgs []interface{}
+
+	for _, field := range rpcFields {
+		switch field {
+
+		// ------ Catalog Basic Information ------
+		case "id":
+			scanArgs = append(scanArgs, &catalog.Id) // Catalog ID
+		case "name":
+			scanArgs = append(scanArgs, &catalog.Name) // Catalog Name
+		case "prefix":
+			scanArgs = append(scanArgs, &catalog.Prefix) // Catalog Prefix
+
+		// ------ SLA Fields ------
+		case "sla":
+			scanArgs = append(scanArgs, &catalog.Sla.Id, &catalog.Sla.Name) // SLA ID and Name
+
+		// ------ Status Fields ------
+		case "status":
+			scanArgs = append(scanArgs, &catalog.Status.Id, &catalog.Status.Name) // Status ID and Name
+
+		// ------ Catalog Metadata ------
+		case "code":
+			scanArgs = append(scanArgs, &catalog.Code) // Catalog Code
+		case "description":
+			scanArgs = append(scanArgs, &catalog.Description) // Catalog Description
+
+		// ------ Close Reason Fields ------
+		case "close_reason":
+			scanArgs = append(scanArgs, &catalog.CloseReason.Id, &catalog.CloseReason.Name) // Close Reason ID and Name
+
+		// ------ Catalog State ------
+		case "state":
+			scanArgs = append(scanArgs, &catalog.State) // Catalog State (active/inactive)
+
+		// ------ Created By and Updated By Fields ------
+		case "created_by":
+			scanArgs = append(scanArgs, &createdBy.Id, &createdBy.Name) // Created By User ID and Name
+		case "updated_by":
+			scanArgs = append(scanArgs, &updatedBy.Id, &updatedBy.Name) // Updated By User ID and Name
+
+		// ------ Timestamps ------
+		case "created_at":
+			scanArgs = append(scanArgs, createdAt) // Created At Timestamp
+		case "updated_at":
+			scanArgs = append(scanArgs, updatedAt) // Updated At Timestamp
+
+		// ------ Teams, Skills, and Services Lookups ------
+		case "teams":
+			scanArgs = append(scanArgs, teamLookups) // Team Lookups (JSON/binary)
+		case "skills":
+			scanArgs = append(scanArgs, skillLookups) // Skill Lookups (JSON/binary)
+		case "services":
+			scanArgs = append(scanArgs, serviceLookups) // Service Lookups (JSON/binary)
+
+		// ------ Root ID and Hierarchy Info ------
+		case "root_id":
+			scanArgs = append(scanArgs, rootId) // Root ID for hierarchy
+		}
+	}
+
+	return scanArgs, nil
+}
+
+func (s *CatalogStore) mapServiceData(serviceData map[string]interface{}) (*cases.Service, error) {
+	// Extract necessary fields from the service data map
+	serviceSlaID := int64(serviceData["sla_id"].(float64))
+	serviceSlaName := serviceData["sla_name"].(string)
+	serviceGroupID := int64(serviceData["group_id"].(float64))
+	serviceGroupName := serviceData["group_name"].(string)
+	serviceAssigneeID := int64(serviceData["assignee_id"].(float64))
+	serviceAssigneeName := serviceData["assignee_name"].(string)
+
+	// Extract created_at, updated_at as strings and convert them to int64 timestamps
+	createdAtStr := serviceData["created_at"].(string)
+	updatedAtStr := serviceData["updated_at"].(string)
+
+	// Convert time strings to timestamps (using time.RFC3339Nano format)
+	createdAt, err := util.TimeStringToTimestamp(createdAtStr, time.RFC3339Nano)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing created_at: %v", err)
+	}
+	updatedAt, err := util.TimeStringToTimestamp(updatedAtStr, time.RFC3339Nano)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing updated_at: %v", err)
+	}
+
+	createdByID := int64(serviceData["created_by_id"].(float64))
+	createdByName := serviceData["created_by"].(string)
+	updatedByID := int64(serviceData["updated_by_id"].(float64))
+	updatedByName := serviceData["updated_by"].(string)
+
+	// Construct the service object
+	service := &cases.Service{
+		Id:          int64(serviceData["id"].(float64)),
+		Name:        serviceData["name"].(string),
+		Description: serviceData["description"].(string),
+		Code:        serviceData["code"].(string),
+		State:       serviceData["state"].(bool),
+		RootId:      int64(serviceData["root_id"].(float64)),
+		CatalogId:   int64(serviceData["catalog_id"].(float64)),
+		Sla: &cases.Lookup{
+			Id:   serviceSlaID,
+			Name: serviceSlaName,
+		},
+		Group: &cases.Lookup{
+			Id:   serviceGroupID,
+			Name: serviceGroupName,
+		},
+		Assignee: &cases.Lookup{
+			Id:   serviceAssigneeID,
+			Name: serviceAssigneeName,
+		},
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
+		CreatedBy: &cases.Lookup{
+			Id:   createdByID,
+			Name: createdByName,
+		},
+		UpdatedBy: &cases.Lookup{
+			Id:   updatedByID,
+			Name: updatedByName,
+		},
+		Service: []*cases.Service{}, // Initialize empty slice for children services
+	}
+
+	return service, nil
+}
+
+func (s *CatalogStore) nestServicesByRootID(catalogID int64, services []map[string]interface{}) ([]*cases.Service, error) {
+	// Step 1: Group services by their root_id
+	serviceMap := make(map[int64][]map[string]interface{})
+	var topServices []map[string]interface{}
+
+	for _, serviceData := range services {
+		rootID := int64(serviceData["root_id"].(float64))
+		if rootID == catalogID {
+			// Top-level services (directly under the catalog)
+			topServices = append(topServices, serviceData)
+		} else {
+			// Group by root_id (services under other services)
+			serviceMap[rootID] = append(serviceMap[rootID], serviceData)
+		}
+	}
+
+	// Step 2: Recursively build the hierarchy
+	return s.buildServiceHierarchy(topServices, serviceMap)
+}
+
+func (s *CatalogStore) buildServiceHierarchy(
+	serviceDataList []map[string]interface{},
+	serviceMap map[int64][]map[string]interface{},
+) ([]*cases.Service, error) {
+	var services []*cases.Service
+
+	for _, serviceData := range serviceDataList {
+		// Map service data into a Service object
+		service, err := s.mapServiceData(serviceData)
+		if err != nil {
+			return nil, err
+		}
+
+		// Recursively build children (sub-services)
+		if childrenData, exists := serviceMap[service.Id]; exists {
+			children, err := s.buildServiceHierarchy(childrenData, serviceMap)
+			if err != nil {
+				return nil, err
+			}
+			// Assign children to the service
+			service.Service = children
+		}
+
+		// Append the service to the list of services
+		services = append(services, service)
+	}
+
+	return services, nil
+}
+
+func (s *CatalogStore) buildSearchCatalogQuery(
+	rpc *model.SearchOptions,
+	depth int64,
+) (string, []interface{}, error) {
+	// Default fields: includes all teams, skills, services, etc.
+	defaultCatalogFields := []string{
+		"catalog.id",
+		"catalog.name",                                            // Mandatory
+		"COALESCE(catalog.prefix, '') AS prefix",                  // Use COALESCE for prefix to handle null values
+		"COALESCE(catalog.sla_id, 0) AS sla_id",                   // Use COALESCE for SLA ID to handle null values
+		"COALESCE(sla.name, '') AS sla_name",                      // Use COALESCE for SLA name to handle null values
+		"COALESCE(catalog.status_id, 0) AS status_id",             // Use COALESCE for status ID to handle null values
+		"COALESCE(status.name, '') AS status_name",                // Use COALESCE for status name to handle null values
+		"COALESCE(catalog.code, '') AS code",                      // Optional
+		"COALESCE(catalog.description, '') AS description",        // Optional
+		"COALESCE(catalog.close_reason_id, 0) AS close_reason_id", // Optional
+		"COALESCE(close_reason.name, '') AS close_reason_name",    // Optional
+		"catalog.state AS state",
+		"COALESCE(catalog.created_by, 0) AS created_by",         // Handle null with default 0 for ID
+		"COALESCE(created_by_user.name, '') AS created_by_name", // Handle null with default empty string for name
+		"COALESCE(catalog.updated_by, 0) AS updated_by",         // Handle null with default 0 for ID
+		"COALESCE(updated_by_user.name, '') AS updated_by_name", // Handle null with default empty string for name
+		"catalog.created_at AS created_at",
+		"catalog.updated_at AS updated_at",
+		"COALESCE(teams_agg.teams, '[]') AS teams",          // Aggregated teams from the CTE
+		"COALESCE(skills_agg.skills, '[]') AS skills",       // Aggregated skills from the CTE
+		"COALESCE(services_agg.services, '[]') AS services", // Aggregated services from the recursive CTE
+		"COALESCE(catalog.root_id, 0) AS root_id",           // Aggregated services from the recursive CTE
+	}
+
+	// Initialize flags for recursion
+	selectFlags := map[string]bool{
+		"services": false,
+		"teams":    false,
+		"skills":   false,
+	}
+
+	// Selected fields handling
+	var selectedFields []string
+
+	// If fields are set to "-", use defaultCatalogFields and enable recursion for all entities
+	if rpc.Fields[0] == "-" {
+		selectedFields = defaultCatalogFields
+		selectFlags["services"] = true
+		selectFlags["teams"] = true
+		selectFlags["skills"] = true
+	} else {
+		// Handle specific fields from rpc.Fields
+		for _, field := range rpc.Fields {
+			switch field {
+			case "id":
+				selectedFields = append(selectedFields, "catalog.id")
+			case "name":
+				selectedFields = append(selectedFields, "catalog.name")
+			case "prefix":
+				selectedFields = append(selectedFields, "COALESCE(catalog.prefix, '') AS prefix")
+				selectFlags["services"] = true // Enable services recursion if prefix is selected
+			case "sla":
+				selectedFields = append(selectedFields, "COALESCE(catalog.sla_id, 0) AS sla_id", "COALESCE(sla.name, '') AS sla_name")
+			case "status":
+				selectedFields = append(selectedFields, "COALESCE(catalog.status_id, 0) AS status_id", "COALESCE(status.name, '') AS status_name")
+			case "code":
+				selectedFields = append(selectedFields, "COALESCE(catalog.code, '') AS code")
+			case "description":
+				selectedFields = append(selectedFields, "COALESCE(catalog.description, '') AS description")
+			case "close_reason":
+				selectedFields = append(selectedFields, "COALESCE(catalog.close_reason_id, 0) AS close_reason_id", "COALESCE(close_reason.name, '') AS close_reason_name")
+			case "state":
+				selectedFields = append(selectedFields, "catalog.state AS state")
+			case "created_by":
+				selectedFields = append(selectedFields, "COALESCE(catalog.created_by, 0) AS created_by", "COALESCE(created_by_user.name, '') AS created_by_name")
+			case "updated_by":
+				selectedFields = append(selectedFields, "COALESCE(catalog.updated_by, 0) AS updated_by", "COALESCE(updated_by_user.name, '') AS updated_by_name")
+			case "created_at":
+				selectedFields = append(selectedFields, "catalog.created_at AS created_at")
+			case "updated_at":
+				selectedFields = append(selectedFields, "catalog.updated_at AS updated_at")
+			case "teams":
+				selectedFields = append(selectedFields, "COALESCE(teams_agg.teams, '[]') AS teams")
+				selectFlags["teams"] = true
+			case "skills":
+				selectedFields = append(selectedFields, "COALESCE(skills_agg.skills, '[]') AS skills")
+				selectFlags["skills"] = true
+			case "services":
+				selectedFields = append(selectedFields, "COALESCE(services_agg.services, '[]') AS services")
+				selectFlags["services"] = true // Enable services recursion
+			case "root_id":
+				selectedFields = append(selectedFields, "COALESCE(catalog.root_id, 0) AS root_id")
+			}
+		}
+	}
+
+	// Build the base query with the selected fields
+	queryBuilder := sq.Select(selectedFields...).
+		From("cases.service_catalog AS catalog").
+		LeftJoin("cases.sla ON sla.id = catalog.sla_id").
+		LeftJoin("cases.status ON status.id = catalog.status_id").
+		LeftJoin("cases.close_reason ON close_reason.id = catalog.close_reason_id").
+		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
+		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by").
+		PlaceholderFormat(sq.Dollar)
+
+		// Conditionally add LeftJoin for teams if the field is selected
+	if selectFlags["teams"] {
+		queryBuilder = queryBuilder.LeftJoin("teams_agg ON teams_agg.catalog_id = catalog.id")
+	}
+
+	// Conditionally add LeftJoin for skills if the field is selected
+	if selectFlags["skills"] {
+		queryBuilder = queryBuilder.LeftJoin("skills_agg ON skills_agg.catalog_id = catalog.id")
+	}
+
+	// Conditionally add LeftJoin for services if the field is selected
+	if selectFlags["services"] {
+		queryBuilder = queryBuilder.LeftJoin("services_agg ON services_agg.catalog_id = catalog.id")
+	}
+
+	// Apply filtering by name
+	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+		queryBuilder = queryBuilder.Where(sq.ILike{"catalog.name": "%" + name + "%"})
+	}
+
+	// Apply filtering by state
+	if state, ok := rpc.Filter["state"]; ok {
+		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
+	}
+
+	// Apply filtering by IDs if provided
+	if len(rpc.IDs) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.id": rpc.IDs})
+	}
+
+	// Apply sorting
+	for _, sort := range rpc.Sort {
+		queryBuilder = queryBuilder.OrderBy(sort)
+	}
+
+	// Pagination: Apply limit and offset
+	size := rpc.GetSize()
+	if size != -1 {
+		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
+	}
+	if rpc.Page > 1 {
+		queryBuilder = queryBuilder.Offset(uint64((rpc.Page - 1) * size))
+	}
+
+	// Apply recursive CTEs based on flags and depth
+	if selectFlags["teams"] || selectFlags["skills"] || selectFlags["services"] {
+		var prefixQuery string
+		if selectFlags["teams"] {
+			prefixQuery += `
+WITH inserted_teams AS (SELECT catalog_id, team_id
+                        FROM cases.team_catalog),
+     teams_agg AS (SELECT inserted_teams.catalog_id,
+                          json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+                   FROM inserted_teams
+                            LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+                   GROUP BY inserted_teams.catalog_id),`
+		}
+		if selectFlags["skills"] {
+			prefixQuery += `
+ inserted_skills AS (SELECT catalog_id, skill_id
+                         FROM cases.skill_catalog),
+     skills_agg AS (SELECT inserted_skills.catalog_id,
+                           json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+                    FROM inserted_skills
+                             LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+                    GROUP BY inserted_skills.catalog_id),`
+		}
+		if selectFlags["services"] {
+			prefixQuery += fmt.Sprintf(`services_agg AS (
+   WITH RECURSIVE service_hierarchy AS (SELECT service.id,
+                                            service.name,
+                                            service.description,
+                                            service.code,
+                                            service.state,
+                                            service.sla_id,
+                                            service.group_id,
+                                            service.assignee_id,
+                                            service.root_id,
+                                            service.created_at,
+                                            service.updated_at,
+                                            service.created_by,
+                                            service.updated_by,
+                                            catalog.id AS catalog_id,
+                                            1          AS level
+                                     FROM cases.service_catalog service
+                                              JOIN cases.service_catalog catalog ON service.root_id = catalog.id
+                                     WHERE catalog.root_id IS NULL
+
+                                     UNION ALL
+
+                                     -- Recursively fetch subservices
+                                     SELECT subservice.id,
+                                            subservice.name,
+                                            subservice.description,
+                                            subservice.code,
+                                            subservice.state,
+                                            subservice.sla_id,
+                                            subservice.group_id,
+                                            subservice.assignee_id,
+                                            subservice.root_id,
+                                            subservice.created_at,
+                                            subservice.updated_at,
+                                            subservice.created_by,
+                                            subservice.updated_by,
+                                            parent.catalog_id,
+                                            parent.level + 1 AS level
+                                     FROM cases.service_catalog subservice
+                                              JOIN service_hierarchy parent ON subservice.root_id = parent.id
+                                     WHERE parent.level < CASE WHEN %[1]d > 0 THEN %[1]d ELSE 100 END)
+SELECT service_hierarchy.catalog_id,
+       json_agg(json_build_object(
+               'id', service_hierarchy.id,
+               'name', service_hierarchy.name,
+               'description', service_hierarchy.description,
+               'code', service_hierarchy.code,
+               'state', service_hierarchy.state,
+               'sla_id', COALESCE(service_hierarchy.sla_id, 0),
+               'sla_name', COALESCE(sla.name, ''),
+               'group_id', COALESCE(service_hierarchy.group_id, 0),
+               'group_name', COALESCE(grp.name, ''),
+               'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),
+               'assignee_name', COALESCE(assignee.given_name, ''),
+               'has_subservices',
+               EXISTS (SELECT 1 FROM cases.service_catalog sc WHERE sc.root_id = service_hierarchy.id),
+               'root_id', COALESCE(service_hierarchy.root_id, 0),
+               'created_at', service_hierarchy.created_at,
+               'updated_at', service_hierarchy.updated_at,
+               'created_by', COALESCE(created_by_user.name, ''),
+               'created_by_id', COALESCE(service_hierarchy.created_by, 0),
+               'updated_by', COALESCE(updated_by_user.name, ''),
+               'updated_by_id', COALESCE(service_hierarchy.updated_by, 0),
+               'catalog_id', service_hierarchy.catalog_id
+                )) AS services
+FROM service_hierarchy
+         LEFT JOIN cases.sla ON sla.id = service_hierarchy.sla_id
+         LEFT JOIN contacts.group AS grp ON grp.id = service_hierarchy.group_id
+         LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = service_hierarchy.created_by
+         LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = service_hierarchy.updated_by
+         LEFT JOIN contacts.contact AS assignee ON assignee.id = service_hierarchy.assignee_id
+GROUP BY service_hierarchy.catalog_id )`, depth)
+		}
+		queryBuilder = queryBuilder.Prefix(strings.TrimSuffix(prefixQuery, ","))
+	}
+
+	// Build the final SQL query and return
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return "", nil, model.NewInternalError("postgres.catalog.query_build_error", err.Error())
+	}
+
+	return store.CompactSQL(query), args, nil
 }
 
 // Update implements store.CatalogStore.
@@ -313,228 +963,6 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 
 	// Return the updated Catalog
 	return lookup, nil
-}
-
-func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
-	// Define arguments for the query
-	args := []interface{}{
-		add.Name,                  // $1: name (cannot be null)
-		add.Description,           // $2: description (could be null)
-		add.Prefix,                // $3: prefix (could be null)
-		add.Code,                  // $4: code (could be null)
-		rpc.Time,                  // $5: created_at, updated_at
-		rpc.Session.GetUserId(),   // $6: created_by, updated_by
-		add.Sla.Id,                // $7: sla_id (could be null)
-		add.Status.Id,             // $8: status_id (could be null)
-		add.CloseReason.Id,        // $9: close_reason_id (could be null)
-		add.State,                 // $10: state (cannot be null)
-		rpc.Session.GetDomainId(), // $11: domain ID (dc)
-	}
-
-	var teamIds []int64
-	if len(add.Teams) > 0 {
-		teamIds = make([]int64, len(add.Teams))
-		for i, team := range add.Teams {
-			teamIds[i] = team.Id
-		}
-	} else {
-		teamIds = nil
-	}
-	args = append(args, pq.Array(teamIds)) // $12: team_ids (could be null)
-
-	var skillIds []int64
-	if len(add.Skills) > 0 {
-		skillIds = make([]int64, len(add.Skills))
-		for i, skill := range add.Skills {
-			skillIds[i] = skill.Id
-		}
-	} else {
-		skillIds = nil
-	}
-	args = append(args, pq.Array(skillIds)) // $13: skill_ids (could be null)
-
-	// SQL query construction
-	query := `
-WITH inserted_catalog AS (
-    INSERT INTO cases.service_catalog (
-                                       name, description, prefix, code, created_at, created_by, updated_at,
-                                       updated_by, sla_id, status_id, close_reason_id, state, dc
-        ) VALUES ($1,
-                  COALESCE(NULLIF($2, ''), NULL), -- Description (NULL if empty string)
-                  COALESCE(NULLIF($3, ''), NULL), -- Prefix (NULL if empty string)
-                  COALESCE(NULLIF($4, ''), NULL), -- Code (NULL if empty string)
-                  $5, $6, $5, $6,
-                  COALESCE(NULLIF($7, 0), NULL), -- SLA ID (NULL if 0)
-                  COALESCE(NULLIF($8, 0), NULL), -- Status ID (NULL if 0)
-                  COALESCE(NULLIF($9, 0), NULL), -- Close Reason ID (NULL if 0)
-                  $10,
-                  $11)
-        RETURNING id, name, description, prefix, code, state, sla_id, status_id, close_reason_id,
-            created_by, updated_by, created_at, updated_at),
-     inserted_teams AS (
-         INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, created_at, updated_at, dc)
-             SELECT inserted_catalog.id, unnest(COALESCE(NULLIF($12::bigint[], '{}'), NULL)), $6, $6, $5, $5, $11
-             FROM inserted_catalog
-             RETURNING catalog_id, team_id),
-     inserted_skills AS (
-         INSERT INTO cases.skill_catalog (catalog_id, skill_id, created_by, updated_by, created_at, updated_at, dc)
-             SELECT inserted_catalog.id, unnest(COALESCE(NULLIF($13::bigint[], '{}'), NULL)), $6, $6, $5, $5, $11
-             FROM inserted_catalog
-             RETURNING catalog_id, skill_id),
-     teams_agg AS (SELECT inserted_teams.catalog_id,
-                          json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
-                   FROM inserted_teams
-                            LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
-                   GROUP BY inserted_teams.catalog_id),
-     skills_agg AS (SELECT inserted_skills.catalog_id,
-                           json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
-                    FROM inserted_skills
-                             LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
-                    GROUP BY inserted_skills.catalog_id)
-SELECT inserted_catalog.id,
-       inserted_catalog.name,
-       COALESCE(inserted_catalog.description, '')    AS description,       -- Return empty string if null
-       COALESCE(inserted_catalog.prefix, '')         AS prefix,            -- Return empty string if null
-       COALESCE(inserted_catalog.code, '')           AS code,              -- Return empty string if null
-       inserted_catalog.state,
-       inserted_catalog.created_at,
-       inserted_catalog.updated_at,
-       COALESCE(inserted_catalog.sla_id, 0)          AS sla_id,            -- Return 0 if null
-       COALESCE(sla.name, '')                        AS sla_name,          -- Return empty string if null
-       COALESCE(inserted_catalog.status_id, 0)       AS status_id,         -- Return 0 if null
-       COALESCE(status.name, '')                     AS status_name,       -- Return empty string if null
-       COALESCE(inserted_catalog.close_reason_id, 0) AS close_reason_id,   -- Return 0 if null
-       COALESCE(close_reason.name, '')               AS close_reason_name, -- Return empty string if null
-       COALESCE(inserted_catalog.created_by, 0)      AS created_by,        -- Return 0 if null
-       COALESCE(created_by_user.name, '')            AS created_by_name,   -- Return empty string if null
-       COALESCE(inserted_catalog.updated_by, 0)      AS updated_by,        -- Return 0 if null
-       COALESCE(updated_by_user.name, '')            AS updated_by_name,   -- Return empty string if null
-       COALESCE(teams_agg.teams, '[]')               AS teams,             -- Return empty array if null
-       COALESCE(skills_agg.skills, '[]')             AS skills             -- Return empty array if null
-FROM inserted_catalog
-         LEFT JOIN cases.sla ON sla.id = inserted_catalog.sla_id
-         LEFT JOIN cases.status ON status.id = inserted_catalog.status_id
-         LEFT JOIN cases.close_reason ON close_reason.id = inserted_catalog.close_reason_id
-         LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_catalog.created_by
-         LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_catalog.updated_by
-         LEFT JOIN teams_agg ON teams_agg.catalog_id = inserted_catalog.id
-         LEFT JOIN skills_agg ON skills_agg.catalog_id = inserted_catalog.id;
-`
-
-	return store.CompactSQL(query), args
-}
-
-// Helper method to build the delete query for Catalog
-func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string, []interface{}) {
-	// Build the SQL query using the provided IDs in rpc.IDs
-	query := `
-		DELETE FROM cases.service_catalog
-		WHERE id = ANY($1) AND dc = $2
-	`
-
-	// Use the array of IDs and domain ID (dc) for the deletion
-	args := []interface{}{
-		pq.Array(rpc.IDs),         // $1: array of catalog IDs to delete
-		rpc.Session.GetDomainId(), // $2: domain ID to ensure proper scoping
-	}
-
-	return store.CompactSQL(query), args
-}
-
-func (s *CatalogStore) buildSearchCatalogQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
-	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
-	// Initialize query builder with Common Table Expressions (CTEs) for teams and skills aggregation
-	queryBuilder := sq.Select(
-		"catalog.id",
-		"catalog.name",                       // Mandatory
-		"catalog.prefix",                     // Mandatory
-		"catalog.sla_id",                     // Mandatory
-		"sla.name AS sla_name",               // Mandatory
-		"catalog.status_id",                  // Mandatory
-		"status.name AS status_name",         // Mandatory
-		"COALESCE(catalog.code, '') AS code", // Optional
-		"COALESCE(catalog.description, '') AS description",        // Optional
-		"COALESCE(catalog.close_reason_id, 0) AS close_reason_id", // Optional
-		"COALESCE(close_reason.name, '') AS close_reason_name",    // Optional
-		"catalog.state AS state",
-		"COALESCE(catalog.created_by, 0) AS created_by",         // Handle null with default 0 for ID
-		"COALESCE(created_by_user.name, '') AS created_by_name", // Handle null with default empty string for name
-		"COALESCE(catalog.updated_by, 0) AS updated_by",         // Handle null with default 0 for ID
-		"COALESCE(updated_by_user.name, '') AS updated_by_name", // Handle null with default empty string for name
-		"catalog.created_at AS created_at",
-		"catalog.updated_at AS updated_at",
-		"COALESCE(teams_agg.teams, '[]') AS teams",    // Aggregated teams from the CTE
-		"COALESCE(skills_agg.skills, '[]') AS skills", // Aggregated skills from the CTE
-		// Determine if the catalog has services
-		`EXISTS (SELECT 1 FROM cases.service_catalog AS cs WHERE cs.root_id = catalog.id) AS has_services`,
-	).
-		From("cases.service_catalog AS catalog").
-		LeftJoin("cases.sla ON sla.id = catalog.sla_id").
-		LeftJoin("cases.status ON status.id = catalog.status_id").
-		LeftJoin("cases.close_reason ON close_reason.id = catalog.close_reason_id").
-		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
-		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by").
-		LeftJoin("teams_agg ON teams_agg.catalog_id = catalog.id").   // Join teams aggregation
-		LeftJoin("skills_agg ON skills_agg.catalog_id = catalog.id"). // Join skills aggregation
-		Where(sq.Eq{"catalog.root_id": nil}).                         // Fetch only top-level catalogs (where root_id is NULL)
-		PlaceholderFormat(sq.Dollar)
-
-	// Apply filtering by name
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		substr := rpc.Match.Substring(name)
-		queryBuilder = queryBuilder.Where(sq.ILike{"catalog.name": substr})
-	}
-
-	// Apply filtering by state
-	if state, ok := rpc.Filter["state"]; ok {
-		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
-	}
-
-	if len(ids) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.id": ids})
-	}
-
-	// Apply sorting
-	for _, sort := range rpc.Sort {
-		queryBuilder = queryBuilder.OrderBy(sort)
-	}
-
-	size := rpc.GetSize()
-	page := rpc.Page
-
-	// Apply offset only if page > 1
-	if rpc.Page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
-	}
-
-	// Apply limit
-	if size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
-	}
-
-	// Build SQL query with CTEs for teams and skills aggregation
-	query, args, err := queryBuilder.Prefix(`
-WITH inserted_teams AS (SELECT catalog_id, team_id
-                        FROM cases.team_catalog),
-     teams_agg AS (SELECT inserted_teams.catalog_id,
-                          json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
-                   FROM inserted_teams
-                            LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
-                   GROUP BY inserted_teams.catalog_id),
-     inserted_skills AS (SELECT catalog_id, skill_id
-                         FROM cases.skill_catalog),
-     skills_agg AS (SELECT inserted_skills.catalog_id,
-                           json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
-                    FROM inserted_skills
-                             LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
-                    GROUP BY inserted_skills.catalog_id)
-	`).ToSql()
-	if err != nil {
-		return "", nil, model.NewInternalError("postgres.catalog.query_build_error", err.Error())
-	}
-
-	return store.CompactSQL(query), args, nil
 }
 
 func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
@@ -715,59 +1143,6 @@ GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name,
 
 	// Return the final combined query and arguments
 	return store.CompactSQL(query), args, nil
-}
-
-// buildCatalogScanArgs prepares scan arguments for populating a Catalog object.
-func (s *CatalogStore) buildCatalogScanArgs(
-	catalog *cases.Catalog, // The catalog object to populate
-	createdBy, updatedBy *cases.Lookup, // Lookup objects for created_by and updated_by
-	createdAt, updatedAt *time.Time, // Temporary variables for created_at and updated_at
-	teamLookups, skillLookups *[]byte, // Byte arrays for teams and skills (as JSON or binary)
-) []interface{} {
-	return []interface{}{
-		// Catalog ID
-		&catalog.Id, // Catalog ID
-
-		// Catalog metadata
-		&catalog.Name,   // Catalog name
-		&catalog.Prefix, // Catalog prefix
-
-		// SLA fields
-		&catalog.Sla.Id,   // SLA ID
-		&catalog.Sla.Name, // SLA name
-
-		// Status fields
-		&catalog.Status.Id,   // Status ID
-		&catalog.Status.Name, // Status name
-
-		// Code and description
-		&catalog.Code,        // Catalog code (optional, can be null)
-		&catalog.Description, // Catalog description (optional, can be null)
-
-		// Close reason fields
-		&catalog.CloseReason.Id,   // Close reason ID
-		&catalog.CloseReason.Name, // Close reason name
-
-		// State field
-		&catalog.State, // Catalog state (active/inactive)
-
-		// Created by and updated by fields (Lookup)
-		&createdBy.Id,   // Created by user ID
-		&createdBy.Name, // Created by user name
-		&updatedBy.Id,   // Updated by user ID
-		&updatedBy.Name, // Updated by user name
-
-		// Timestamps
-		createdAt, // Created at timestamp
-		updatedAt, // Updated at timestamp
-
-		// Teams and skills lookups (usually in JSON or binary format)
-		teamLookups,  // Team lookups (can be null if no teams)
-		skillLookups, // Skill lookups (can be null if no skills)
-
-		// Additional fields
-		&catalog.HasServices, // Whether the catalog has related services
-	}
 }
 
 func NewCatalogStore(store store.Store) (store.CatalogStore, model.AppError) {
