@@ -9,6 +9,22 @@ import "google/api/visibility.proto";
 import "protoc-gen-openapiv2/options/annotations.proto";
 import "google/api/annotations.proto";
 
+
+enum Fulfillment{
+  // The fulfillment field indicates whether the catalog should be
+  // fully filled with data ( FULLFILLED ) or partially filled
+  FULLFILLED = 0;
+   // with only the required fields ( PARTIAL ) - [ Id, Name, Description, Created / Updated at ].
+  PARTIAL = 1;
+}
+
+message Search {
+  // Search query string for filtering by name
+  string query = 1;
+  // The fulfillment of the catalog services
+  Fulfillment fulfillment = 2;
+}
+
 // Catalog message represents the main catalog entity with metadata
 message Catalog {
   // Unique identifier for the catalog
@@ -146,7 +162,11 @@ message ListCatalogRequest {
   repeated int64 id = 5;
 
   // Search query string for filtering by name
-  string q = 6;
+  // q contains the search term for filtering by name and fulfillment
+  // The fulfillment field indicates whether the catalog should be
+  // fully filled with data (FULLFILLED) or partially filled
+  // with only the required fields (PARTIAL) - [Id, Name, Description, Created / Updated at].
+  Search q = 6;
 
   // Filter by state (true for active, false for inactive)
   bool state = 7;

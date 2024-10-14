@@ -176,11 +176,11 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		Filter:  make(map[string]interface{}),
 	}
 
-	if req.Q != "" {
-		searchOptions.Filter["name"] = req.Q
+	if req.Q.Query != "" {
+		searchOptions.Filter["name"] = req.Q.Query
 	}
 
-	catalogs, e := s.app.Store.Catalog().List(&searchOptions, req.Depth)
+	catalogs, e := s.app.Store.Catalog().List(&searchOptions, req.Depth, req.Q.Fulfillment.String())
 	if e != nil {
 		return nil, model.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
 	}

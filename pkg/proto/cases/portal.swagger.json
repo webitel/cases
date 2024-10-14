@@ -376,11 +376,23 @@
             "collectionFormat": "multi"
           },
           {
-            "name": "q",
+            "name": "q.query",
             "description": "Search query string for filtering by name",
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "q.fulfillment",
+            "description": "The fulfillment of the catalog services\n\n - FULLFILLED: The fulfillment field indicates whether the catalog should be\nfully filled with data ( FULLFILLED ) or partially filled\n - PARTIAL: with only the required fields ( PARTIAL ) - [ Id, Name, Description, Created / Updated at ].",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "FULLFILLED",
+              "PARTIAL"
+            ],
+            "default": "FULLFILLED"
           },
           {
             "name": "state",
@@ -2986,6 +2998,15 @@
         "name"
       ]
     },
+    "webitel.cases.Fulfillment": {
+      "type": "string",
+      "enum": [
+        "FULLFILLED",
+        "PARTIAL"
+      ],
+      "default": "FULLFILLED",
+      "description": " - FULLFILLED: The fulfillment field indicates whether the catalog should be\nfully filled with data ( FULLFILLED ) or partially filled\n - PARTIAL: with only the required fields ( PARTIAL ) - [ Id, Name, Description, Created / Updated at ]."
+    },
     "webitel.cases.InputAppeal": {
       "type": "object",
       "properties": {
@@ -3690,6 +3711,19 @@
         }
       },
       "title": "SLAList message contains a list of SLA items with pagination"
+    },
+    "webitel.cases.Search": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "title": "Search query string for filtering by name"
+        },
+        "fulfillment": {
+          "$ref": "#/definitions/webitel.cases.Fulfillment",
+          "title": "The fulfillment of the catalog services"
+        }
+      }
     },
     "webitel.cases.Service": {
       "type": "object",
