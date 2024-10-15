@@ -105,8 +105,6 @@ func (s AppealService) ListAppeals(ctx context.Context, req *_go.ListAppealReque
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
-	} else if req.Name != "" {
-		searchOptions.Filter["name"] = req.Name
 	}
 
 	if len(req.Type) > 0 {

@@ -113,8 +113,6 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
-	} else if req.Name != "" {
-		searchOptions.Filter["name"] = req.Name
 	}
 
 	prios, e := p.app.Store.Priority().List(&searchOptions)

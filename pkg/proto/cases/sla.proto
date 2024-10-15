@@ -79,13 +79,19 @@ message CreateSLARequest {
       required: ["name", "calendar_id", "reaction_time", "resolution_time"]
     }
   };
-
+  // InputSLA message for creating a new SLA
+  // Name of the SLA
   string name = 2;
+  // Description of the SLA
   string description = 3;
+  // Validity period for the SLA
   google.protobuf.Timestamp valid_from = 4;
   google.protobuf.Timestamp valid_to = 5;
+  // Calendar ID from the "Calendars" dictionary
   int64 calendar_id = 6;
+  // Reaction time
   ReactionTime reaction_time = 7;
+  // Resolution time
   ResolutionTime resolution_time = 8;
 }
 
@@ -127,26 +133,19 @@ message DeleteSLARequest {
 message ListSLARequest {
   // Page number of result dataset records. offset = (page*size)
   int32 page = 1;
-
   // Size count of records on result page. limit = (size++)
   int32 size = 2;
-
   // Fields to be retrieved as a result.
   repeated string fields = 3;
-
   // Sort the result according to fields.
   repeated string sort = 4;
-
   // Filter by unique IDs.
   repeated int64 id = 5;
-
-  // Search term: SLA name;
-  // `?` - matches any one character
-  // `*` - matches 0 or more characters
+  // Search query string for filtering by name. Supports:
+  // - Wildcards (*) for substring matching
+  // - Placeholder (?) for single character substitution
+  // - Exact match for full names
   string q = 6;
-
-  // Filter by SLA name.
-  string name = 7;
 }
 
 // LocateSLARequest message for locating a specific SLA by ID

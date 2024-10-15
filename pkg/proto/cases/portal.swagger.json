@@ -121,21 +121,14 @@
           },
           {
             "name": "q",
-            "description": "Search term: appeal name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "name",
-            "description": "Filter by appeal name.",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "type",
-            "description": "Filter by appeal type.\n\n - TYPE_UNSPECIFIED: Default value\n - CALL: Call\n - CHAT: Chat\n - SOCIAL_MEDIA: Social Media\n - EMAIL: Email\n - API: API\n - MANUAL: Manual",
+            "description": "Filter by appeal type.\n\n - TYPE_UNSPECIFIED: Unspecified source type.\n - CALL: Phone call source type.\n - CHAT: Chat source type.\n - SOCIAL_MEDIA: Social media source type.\n - EMAIL: Email source type.\n - API: API source type.\n - MANUAL: Manual source type.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -377,22 +370,22 @@
           },
           {
             "name": "q.query",
-            "description": "Search query string for filtering by name",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "q.fulfillment",
-            "description": "The fulfillment of the catalog services\n\n - FULLFILLED: The fulfillment field indicates whether the catalog should be\nfully filled with data ( FULLFILLED ) or partially filled\n - PARTIAL: with only the required fields ( PARTIAL ) - [ Id, Name, Description, Created / Updated at ].",
+            "name": "q.fetch_type",
+            "description": "The type of data fetching for catalog services\n\nRenamed from fulfillment to fetch_type\n\n - PARTIAL: Only essential fields like [ Id, Name, Description, Created/Updated at ].\n\nPartial info includes only essential fields.\n - FULL: The fetch type indicates whether to retrieve\nall available data for the catalog ( FULL ) or only essential fields ( PARTIAL ).\n\nFull info includes all fields of the catalog.",
             "in": "query",
             "required": false,
             "type": "string",
             "enum": [
-              "FULLFILLED",
-              "PARTIAL"
+              "PARTIAL",
+              "FULL"
             ],
-            "default": "FULLFILLED"
+            "default": "PARTIAL"
           },
           {
             "name": "state",
@@ -630,14 +623,7 @@
           },
           {
             "name": "q",
-            "description": "Search term: close reason name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "name",
-            "description": "Filter by close reason name.",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
@@ -862,14 +848,7 @@
           },
           {
             "name": "q",
-            "description": "Search term: priority name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "name",
-            "description": "Filter by priority name.",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
@@ -920,6 +899,7 @@
         "parameters": [
           {
             "name": "id",
+            "description": "ID of the priority to be located",
             "in": "path",
             "required": true,
             "type": "string",
@@ -927,6 +907,7 @@
           },
           {
             "name": "fields",
+            "description": "Fields to be retrieved as a result.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -1083,7 +1064,7 @@
           },
           {
             "name": "q",
-            "description": "Search query string for filtering by name",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1324,14 +1305,7 @@
           },
           {
             "name": "q",
-            "description": "Search term: SLA name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "name",
-            "description": "Filter by SLA name.",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1563,14 +1537,7 @@
           },
           {
             "name": "q",
-            "description": "Search term: status name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "name",
-            "description": "Filter by status name.",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1745,6 +1712,7 @@
         "parameters": [
           {
             "name": "close_reason_id",
+            "description": "Upd close reason",
             "in": "path",
             "required": true,
             "type": "string",
@@ -1752,6 +1720,7 @@
           },
           {
             "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1759,6 +1728,7 @@
           },
           {
             "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1766,6 +1736,7 @@
           },
           {
             "name": "fields",
+            "description": "Fields to be retrieved as a result.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -1776,6 +1747,7 @@
           },
           {
             "name": "sort",
+            "description": "Sort the result according to fields.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -1797,12 +1769,7 @@
           },
           {
             "name": "q",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "name",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
@@ -2046,6 +2013,7 @@
         "parameters": [
           {
             "name": "sla_id",
+            "description": "Unique identifier of the SLACondition",
             "in": "path",
             "required": true,
             "type": "string",
@@ -2053,6 +2021,7 @@
           },
           {
             "name": "id",
+            "description": "Unique identifier of the SLACondition",
             "in": "path",
             "required": true,
             "type": "string",
@@ -2060,6 +2029,7 @@
           },
           {
             "name": "fields",
+            "description": "Fields to be retrieved as a result.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -2256,14 +2226,7 @@
           },
           {
             "name": "q",
-            "description": "Search term: SLACondition name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "name",
-            "description": "Filter by SLACondition name.",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
@@ -2355,14 +2318,7 @@
           },
           {
             "name": "q",
-            "description": "Search term: status name;\n`?` - matches any one character\n`*` - matches 0 or more characters",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "name",
-            "description": "Filter by status name.",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
@@ -2420,6 +2376,7 @@
         "parameters": [
           {
             "name": "status_id",
+            "description": "ID of the status to be located",
             "in": "path",
             "required": true,
             "type": "string",
@@ -2427,6 +2384,7 @@
           },
           {
             "name": "id",
+            "description": "ID of the status condition to be located",
             "in": "path",
             "required": true,
             "type": "string",
@@ -2434,6 +2392,7 @@
           },
           {
             "name": "fields",
+            "description": "Fields to be retrieved as a result.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -2904,14 +2863,17 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "title": "InputSLA message for creating a new SLA\nName of the SLA"
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "title": "Description of the SLA"
         },
         "valid_from": {
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "title": "Validity period for the SLA"
         },
         "valid_to": {
           "type": "string",
@@ -2919,13 +2881,16 @@
         },
         "calendar_id": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "title": "Calendar ID from the \"Calendars\" dictionary"
         },
         "reaction_time": {
-          "$ref": "#/definitions/webitel.cases.ReactionTime"
+          "$ref": "#/definitions/webitel.cases.ReactionTime",
+          "title": "Reaction time"
         },
         "resolution_time": {
-          "$ref": "#/definitions/webitel.cases.ResolutionTime"
+          "$ref": "#/definitions/webitel.cases.ResolutionTime",
+          "title": "Resolution time"
         }
       },
       "title": "CreateSLARequest message for creating a new SLA",
@@ -2998,14 +2963,14 @@
         "name"
       ]
     },
-    "webitel.cases.Fulfillment": {
+    "webitel.cases.FetchType": {
       "type": "string",
       "enum": [
-        "FULLFILLED",
-        "PARTIAL"
+        "PARTIAL",
+        "FULL"
       ],
-      "default": "FULLFILLED",
-      "description": " - FULLFILLED: The fulfillment field indicates whether the catalog should be\nfully filled with data ( FULLFILLED ) or partially filled\n - PARTIAL: with only the required fields ( PARTIAL ) - [ Id, Name, Description, Created / Updated at ]."
+      "default": "PARTIAL",
+      "description": " - PARTIAL: Only essential fields like [ Id, Name, Description, Created/Updated at ].\n\nPartial info includes only essential fields.\n - FULL: The fetch type indicates whether to retrieve\nall available data for the catalog ( FULL ) or only essential fields ( PARTIAL ).\n\nFull info includes all fields of the catalog."
     },
     "webitel.cases.InputAppeal": {
       "type": "object",
@@ -3096,24 +3061,30 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "title": "Name of the priority"
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "title": "Description of the priority"
         },
         "color": {
-          "type": "string"
+          "type": "string",
+          "title": "Color of the priority"
         }
-      }
+      },
+      "title": "InputPriority message for creating a new priority"
     },
     "webitel.cases.InputReason": {
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "title": "Name of the reason"
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "title": "Description of the reason"
         }
       },
       "title": "InputReason message for inputting reason data"
@@ -3243,16 +3214,20 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "title": "Name of the status condition"
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "title": "Description of the status condition"
         },
         "initial": {
-          "type": "boolean"
+          "type": "boolean",
+          "title": "Initial status condition"
         },
         "final": {
-          "type": "boolean"
+          "type": "boolean",
+          "title": "Final status condition"
         }
       },
       "title": "InputStatusCondition message for inputting status condition data"
@@ -3717,11 +3692,12 @@
       "properties": {
         "query": {
           "type": "string",
-          "title": "Search query string for filtering by name"
+          "title": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names"
         },
-        "fulfillment": {
-          "$ref": "#/definitions/webitel.cases.Fulfillment",
-          "title": "The fulfillment of the catalog services"
+        "fetch_type": {
+          "$ref": "#/definitions/webitel.cases.FetchType",
+          "description": "Renamed from fulfillment to fetch_type",
+          "title": "The type of data fetching for catalog services"
         }
       }
     },
@@ -3978,7 +3954,7 @@
         "MANUAL"
       ],
       "default": "TYPE_UNSPECIFIED",
-      "description": "Represents a source type for the appeal.\n\n - TYPE_UNSPECIFIED: Default value\n - CALL: Call\n - CHAT: Chat\n - SOCIAL_MEDIA: Social Media\n - EMAIL: Email\n - API: API\n - MANUAL: Manual"
+      "description": "Represents a source type for the appeal.\n\n - TYPE_UNSPECIFIED: Unspecified source type.\n - CALL: Phone call source type.\n - CHAT: Chat source type.\n - SOCIAL_MEDIA: Social media source type.\n - EMAIL: Email source type.\n - API: API source type.\n - MANUAL: Manual source type."
     }
   },
   "securityDefinitions": {

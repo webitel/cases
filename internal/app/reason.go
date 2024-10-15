@@ -109,8 +109,6 @@ func (s *ReasonService) ListReasons(ctx context.Context, req *_go.ListReasonRequ
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
-	} else if req.Name != "" {
-		searchOptions.Filter["name"] = req.Name
 	}
 
 	reasons, e := s.app.Store.Reason().List(&searchOptions, req.CloseReasonId)

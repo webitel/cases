@@ -130,7 +130,10 @@ message ListServiceRequest {
   repeated string sort = 3;
   // List of IDs to filter the services
   repeated int64 id = 4;
-  // Search query string for filtering by name
+  // Search query string for filtering by name. Supports:
+  // - Wildcards (*) for substring matching
+  // - Placeholder (?) for single character substitution
+  // - Exact match for full names
   string q = 5;
   // Filter services by catalog ID (required)
   int64 root_id = 6;

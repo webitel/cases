@@ -229,7 +229,7 @@ func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string
 func (s *CatalogStore) List(
 	rpc *model.SearchOptions,
 	depth int64,
-	searchType string,
+	fetchType *cases.FetchType,
 ) (*cases.CatalogList, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
@@ -238,7 +238,7 @@ func (s *CatalogStore) List(
 	}
 
 	// Build SQL query
-	query, args, err := s.buildSearchCatalogQuery(rpc, depth, searchType)
+	query, args, err := s.buildSearchCatalogQuery(rpc, depth, fetchType)
 	if err != nil {
 		return nil, model.NewInternalError("postgres.catalog.list.query_build_error", err.Error())
 	}
@@ -305,14 +305,6 @@ func (s *CatalogStore) List(
 			continue
 		}
 
-		var search bool
-
-		if rpc.Filter["name"] != nil {
-			search = true
-		} else {
-			search = false
-		}
-
 		if rpc.Fields[0] == "-" {
 			// Handle services unmarshal
 			if len(serviceLookups) > 0 {
@@ -321,7 +313,7 @@ func (s *CatalogStore) List(
 				}
 
 				// Nest services by root_id
-				nestedServices, err := s.nestServicesByRootID(catalog.Id, services, search)
+				nestedServices, err := s.nestServicesByRootID(catalog.Id, services)
 				if err != nil {
 					return nil, model.NewInternalError("postgres.catalog.list.nesting_services_error", err.Error())
 				}
@@ -349,7 +341,7 @@ func (s *CatalogStore) List(
 						}
 
 						// Nest services by root_id
-						nestedServices, err := s.nestServicesByRootID(catalog.Id, services, search)
+						nestedServices, err := s.nestServicesByRootID(catalog.Id, services)
 						if err != nil {
 							return nil, model.NewInternalError("postgres.catalog.list.nesting_services_error", err.Error())
 						}
@@ -511,7 +503,6 @@ func (s *CatalogStore) buildCatalogScanArgs(
 
 func (s *CatalogStore) mapServiceData(
 	serviceData map[string]interface{},
-	search bool,
 ) (*cases.Service, error) {
 	// Extract necessary fields from the service data map
 	serviceSlaID := int64(serviceData["sla_id"].(float64))
@@ -521,36 +512,35 @@ func (s *CatalogStore) mapServiceData(
 	serviceAssigneeID := int64(serviceData["assignee_id"].(float64))
 	serviceAssigneeName := serviceData["assignee_name"].(string)
 
-	// Extract created_at, updated_at as strings and convert them to int64 timestamps
-	createdAtStr := serviceData["created_at"].(string)
-	updatedAtStr := serviceData["updated_at"].(string)
+	var createdAt, updatedAt int64
+	var err error
 
-	// Convert time strings to timestamps (using time.RFC3339Nano format)
-	createdAt, err := util.TimeStringToTimestamp(createdAtStr, time.RFC3339Nano)
-	if err != nil {
-		return nil, fmt.Errorf("Error parsing created_at: %v", err)
+	// Check if created_at is present and not nil, then convert it
+	if createdAtStr, ok := serviceData["created_at"].(string); ok && createdAtStr != "" {
+		createdAt, err = util.TimeStringToTimestamp(createdAtStr, time.RFC3339Nano)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing created_at: %v", err)
+		}
+	} else {
+		// Handle the case when created_at is missing or nil
+		createdAt = 0 // or set it to a default value or nil depending on the case
 	}
-	updatedAt, err := util.TimeStringToTimestamp(updatedAtStr, time.RFC3339Nano)
-	if err != nil {
-		return nil, fmt.Errorf("Error parsing updated_at: %v", err)
+
+	// Check if updated_at is present and not nil, then convert it
+	if updatedAtStr, ok := serviceData["updated_at"].(string); ok && updatedAtStr != "" {
+		updatedAt, err = util.TimeStringToTimestamp(updatedAtStr, time.RFC3339Nano)
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing updated_at: %v", err)
+		}
+	} else {
+		// Handle the case when updated_at is missing or nil
+		updatedAt = 0 // or set it to a default value or nil depending on the case
 	}
 
 	createdByID := int64(serviceData["created_by_id"].(float64))
 	createdByName := serviceData["created_by"].(string)
 	updatedByID := int64(serviceData["updated_by_id"].(float64))
 	updatedByName := serviceData["updated_by"].(string)
-
-	var (
-		rootId    int64
-		catalogId float64
-	)
-	if search {
-		rootId = int64(serviceData["root_service_id"].(float64))
-		catalogId = serviceData["service_catalog_id"].(float64)
-	} else {
-		rootId = int64(serviceData["root_id"].(float64))
-		catalogId = serviceData["catalog_id"].(float64)
-	}
 
 	// Construct the service object
 	service := &cases.Service{
@@ -559,8 +549,8 @@ func (s *CatalogStore) mapServiceData(
 		Description: serviceData["description"].(string),
 		Code:        serviceData["code"].(string),
 		State:       serviceData["state"].(bool),
-		RootId:      rootId,
-		CatalogId:   int64(catalogId),
+		RootId:      int64(serviceData["root_id"].(float64)),
+		CatalogId:   int64(serviceData["service_catalog_id"].(float64)),
 		Sla: &cases.Lookup{
 			Id:   serviceSlaID,
 			Name: serviceSlaName,
@@ -593,51 +583,44 @@ func (s *CatalogStore) mapServiceData(
 func (s *CatalogStore) nestServicesByRootID(
 	catalogID int64,
 	services []map[string]interface{},
-	search bool,
 ) ([]*cases.Service, error) {
 	// Step 1: Group services by their root_id
 	serviceMap := make(map[int64][]map[string]interface{})
 	var topServices []map[string]interface{}
 
 	for _, serviceData := range services {
-		var root int64
-		if search {
-			rootID := int64(serviceData["root_service_id"].(float64))
-			root = rootID
-		} else {
-			rootID := int64(serviceData["root_id"].(float64))
-			root = rootID
-		}
-		if root == catalogID {
+
+		rootID := int64(serviceData["root_id"].(float64))
+
+		if rootID == catalogID {
 			// Top-level services (directly under the catalog)
 			topServices = append(topServices, serviceData)
 		} else {
 			// Group by root_id (services under other services)
-			serviceMap[root] = append(serviceMap[root], serviceData)
+			serviceMap[rootID] = append(serviceMap[rootID], serviceData)
 		}
 	}
 
 	// Step 2: Recursively build the hierarchy
-	return s.buildServiceHierarchy(topServices, serviceMap, search)
+	return s.buildServiceHierarchy(topServices, serviceMap)
 }
 
 func (s *CatalogStore) buildServiceHierarchy(
 	serviceDataList []map[string]interface{},
 	serviceMap map[int64][]map[string]interface{},
-	search bool,
 ) ([]*cases.Service, error) {
 	var services []*cases.Service
 
 	for _, serviceData := range serviceDataList {
 		// Map service data into a Service object
-		service, err := s.mapServiceData(serviceData, search)
+		service, err := s.mapServiceData(serviceData)
 		if err != nil {
 			return nil, err
 		}
 
 		// Recursively build children (sub-services)
 		if childrenData, exists := serviceMap[service.Id]; exists {
-			children, err := s.buildServiceHierarchy(childrenData, serviceMap, search)
+			children, err := s.buildServiceHierarchy(childrenData, serviceMap)
 			if err != nil {
 				return nil, err
 			}
@@ -655,7 +638,7 @@ func (s *CatalogStore) buildServiceHierarchy(
 func (s *CatalogStore) buildSearchCatalogQuery(
 	rpc *model.SearchOptions,
 	depth int64,
-	searchType string,
+	fetchType *cases.FetchType,
 ) (string, []interface{}, error) {
 	// FieldsFunc normalizes a selection list src of the attributes to be returned.
 	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
@@ -794,11 +777,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	}
 
 	if selectFlags["services"] {
-		if selectFlags["search"] {
-			queryBuilder = queryBuilder.LeftJoin("services_agg ON services_agg.service_catalog_id = catalog.id")
-		} else {
-			queryBuilder = queryBuilder.LeftJoin("services_agg ON services_agg.catalog_id = catalog.id")
-		}
+		queryBuilder = queryBuilder.LeftJoin("services_agg ON services_agg.service_catalog_id = catalog.id")
 	}
 
 	// Apply filtering by state
@@ -826,13 +805,11 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		queryBuilder = queryBuilder.Offset(uint64((rpc.Page - 1) * size))
 	}
 
-	var fullSearch bool
+	// Assuming fetchType is a FetchType and not a pointer
+	var fullFetch bool
 
-	switch searchType {
-	case "FULLFILLED":
-		fullSearch = true
-	case "PARTIAL":
-		fullSearch = false
+	if fetchType != nil {
+		fullFetch = *fetchType == cases.FetchType_FULL
 	}
 
 	// -------- Apply [Recursive CTEs Based on Flags] --------
@@ -847,36 +824,35 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		// Check if the search flag is active to apply search on both catalogs and services
 		if selectFlags["search"] {
 			prefixQuery += fmt.Sprintf(`search_catalog AS (
-			 SELECT catalog.id AS catalog_id,
-				   catalog.root_id AS root_service_id,
-				   CASE WHEN catalog.root_id IS NULL THEN catalog.id ELSE catalog.catalog_id END AS target_catalog_id
-			FROM cases.service_catalog catalog
-			   WHERE catalog.name ILIKE '%s'
-			),`, searchStr)
+					SELECT catalog.id AS catalog_id,
+						   catalog.root_id AS root_service_id,
+						   CASE WHEN catalog.root_id IS NULL THEN catalog.id ELSE catalog.catalog_id END AS target_catalog_id
+					FROM cases.service_catalog catalog
+					WHERE catalog.name ILIKE '%s'
+				),`, searchStr)
 		}
 
 		// Teams logic with conditional search filtering
 		if selectFlags["teams"] {
 			if selectFlags["search"] {
 				prefixQuery += `
-		inserted_teams AS (SELECT catalog_id, team_id
-                        FROM cases.team_catalog
-                        WHERE catalog_id IN (SELECT target_catalog_id
-                                             FROM search_catalog)),
-     teams_agg AS (SELECT inserted_teams.catalog_id,
-                          json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
-                   FROM inserted_teams
-                            LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
-                   GROUP BY inserted_teams.catalog_id),`
+					inserted_teams AS (SELECT catalog_id, team_id
+									   FROM cases.team_catalog
+									   WHERE catalog_id IN (SELECT target_catalog_id FROM search_catalog)),
+					teams_agg AS (SELECT inserted_teams.catalog_id,
+									  json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+							   FROM inserted_teams
+							   LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+							   GROUP BY inserted_teams.catalog_id),`
 			} else {
 				prefixQuery += `
-				 inserted_teams AS (SELECT catalog_id, team_id
-                        FROM cases.team_catalog),
-     teams_agg AS (SELECT inserted_teams.catalog_id,
-                          json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
-                   FROM inserted_teams
-                            LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
-                   GROUP BY inserted_teams.catalog_id),`
+					inserted_teams AS (SELECT catalog_id, team_id
+									   FROM cases.team_catalog),
+					teams_agg AS (SELECT inserted_teams.catalog_id,
+									  json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+							   FROM inserted_teams
+							   LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+							   GROUP BY inserted_teams.catalog_id),`
 			}
 		}
 
@@ -884,296 +860,141 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		if selectFlags["skills"] {
 			if selectFlags["search"] {
 				prefixQuery += `
-				 inserted_skills AS (SELECT catalog_id, skill_id
-                         FROM cases.skill_catalog
-                         WHERE catalog_id IN (SELECT target_catalog_id
-                                              FROM search_catalog)),
-     skills_agg AS (SELECT inserted_skills.catalog_id,
-                           json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
-                    FROM inserted_skills
-                             LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
-                    GROUP BY inserted_skills.catalog_id),`
+					inserted_skills AS (SELECT catalog_id, skill_id
+										FROM cases.skill_catalog
+										WHERE catalog_id IN (SELECT target_catalog_id FROM search_catalog)),
+					skills_agg AS (SELECT inserted_skills.catalog_id,
+									  json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+								FROM inserted_skills
+								LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+								GROUP BY inserted_skills.catalog_id),`
 			} else {
 				prefixQuery += `
-				 inserted_skills AS (SELECT catalog_id, skill_id
-                         FROM cases.skill_catalog),
-     skills_agg AS (SELECT inserted_skills.catalog_id,
-                           json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
-                    FROM inserted_skills
-                             LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
-                    GROUP BY inserted_skills.catalog_id),`
+					inserted_skills AS (SELECT catalog_id, skill_id
+										FROM cases.skill_catalog),
+					skills_agg AS (SELECT inserted_skills.catalog_id,
+									  json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+								FROM inserted_skills
+								LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+								GROUP BY inserted_skills.catalog_id),`
 			}
 		}
 
-		// Services logic with conditional search filtering
 		if selectFlags["services"] {
-			if selectFlags["search"] {
-				if fullSearch {
-					prefixQuery += fmt.Sprintf(`services_agg AS (WITH RECURSIVE service_hierarchy AS (SELECT service.id,
-                                                                  service.name,
-                                                                  service.description,
-                                                                  service.code,
-                                                                  service.state,
-                                                                  service.sla_id,
-                                                                  service.group_id,
-                                                                  service.assignee_id,
-                                                                  service.root_id AS root_service_id,
-                                                                  service.created_at,
-                                                                  service.updated_at,
-                                                                  service.created_by,
-                                                                  service.updated_by,
-                                                                  catalog.id      AS service_catalog_id,
-                                                                  1               AS level
-                                                           FROM cases.service_catalog service
-                                                                    JOIN cases.service_catalog catalog ON service.root_id = catalog.id
-                                                           WHERE catalog.id IN (SELECT target_catalog_id
-                                                                                FROM search_catalog)
-
-                                                           UNION ALL
-
-                                                           -- Recursively fetch subservices
-                                                           SELECT subservice.id,
-                                                                  subservice.name,
-                                                                  subservice.description,
-                                                                  subservice.code,
-                                                                  subservice.state,
-                                                                  subservice.sla_id,
-                                                                  subservice.group_id,
-                                                                  subservice.assignee_id,
-                                                                  subservice.root_id AS root_service_id,
-                                                                  subservice.created_at,
-                                                                  subservice.updated_at,
-                                                                  subservice.created_by,
-                                                                  subservice.updated_by,
-                                                                  parent.service_catalog_id,
-                                                                  parent.level + 1   AS level
-                                                           FROM cases.service_catalog subservice
-                                                                    JOIN service_hierarchy parent ON subservice.root_id = parent.id
-                                                           WHERE parent.level < CASE WHEN %[1]d > 0 THEN %[1]d ELSE 100 END)
-                      SELECT service_hierarchy.service_catalog_id,
-                             json_agg(json_build_object(
-                                     'id', service_hierarchy.id,
-                                     'name', service_hierarchy.name,
-                                     'description', service_hierarchy.description,
-                                     'code', service_hierarchy.code,
-                                     'state', service_hierarchy.state,
-                                     'sla_id', COALESCE(service_hierarchy.sla_id, 0),
-                                     'sla_name', COALESCE(sla.name, ''),
-                                     'group_id', COALESCE(service_hierarchy.group_id, 0),
-                                     'group_name', COALESCE(grp.name, ''),
-                                     'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),
-                                     'assignee_name', COALESCE(assignee.given_name, ''),
-                                     'has_subservices',
-                                     EXISTS (SELECT 1
-                                             FROM cases.service_catalog sc
-                                             WHERE sc.root_id = service_hierarchy.id),
-                                     'root_service_id', COALESCE(service_hierarchy.root_service_id, 0),
-                                     'created_at', service_hierarchy.created_at,
-                                     'updated_at', service_hierarchy.updated_at,
-                                     'created_by', COALESCE(created_by_user.name, ''),
-                                     'created_by_id', COALESCE(service_hierarchy.created_by, 0),
-                                     'updated_by', COALESCE(updated_by_user.name, ''),
-                                     'updated_by_id', COALESCE(service_hierarchy.updated_by, 0),
-                                     'service_catalog_id', service_hierarchy.service_catalog_id
-                                      )) AS services
-                      FROM service_hierarchy
-                               LEFT JOIN cases.sla ON sla.id = service_hierarchy.sla_id
-                               LEFT JOIN contacts.group AS grp ON grp.id = service_hierarchy.group_id
-                               LEFT JOIN directory.wbt_user AS created_by_user
-                                         ON created_by_user.id = service_hierarchy.created_by
-                               LEFT JOIN directory.wbt_user AS updated_by_user
-                                         ON updated_by_user.id = service_hierarchy.updated_by
-                               LEFT JOIN contacts.contact AS assignee ON assignee.id = service_hierarchy.assignee_id
-                      GROUP BY service_hierarchy.service_catalog_id)`, depth)
-				} else {
-					// Fetch basic info (id, name, description) for non-searched services, and full info for searched ones
-					prefixQuery += fmt.Sprintf(`services_agg AS (WITH RECURSIVE service_hierarchy AS (SELECT service.id,
-                                                                  service.name,
-                                                                  service.description,
-                                                                  service.code,
-                                                                  service.state,
-                                                                  service.sla_id,
-                                                                  service.group_id,
-                                                                  service.assignee_id,
-                                                                  service.root_id    AS root_service_id,
-                                                                  service.created_at,
-                                                                  service.updated_at,
-                                                                  service.created_by,
-                                                                  service.updated_by,
-                                                                  catalog.id         AS service_catalog_id,
-                                                                  1                  AS level,
-                                                                  CASE
-                                                                      WHEN service.id IN (SELECT catalog_id FROM search_catalog)
-                                                                          THEN true
-                                                                      ELSE false END AS is_searched
-                                                           FROM cases.service_catalog service
-                                                                    JOIN cases.service_catalog catalog ON service.root_id = catalog.id
-                                                           WHERE catalog.id IN (SELECT target_catalog_id
-                                                                                FROM search_catalog)
-
-                                                           UNION ALL
-
-                                                           -- Recursively fetch subservices
-                                                           SELECT subservice.id,
-                                                                  subservice.name,
-                                                                  subservice.description,
-                                                                  subservice.code,
-                                                                  subservice.state,
-                                                                  subservice.sla_id,
-                                                                  subservice.group_id,
-                                                                  subservice.assignee_id,
-                                                                  subservice.root_id AS root_service_id,
-                                                                  subservice.created_at,
-                                                                  subservice.updated_at,
-                                                                  subservice.created_by,
-                                                                  subservice.updated_by,
-                                                                  parent.service_catalog_id,
-                                                                  parent.level + 1   AS level,
-                                                                  parent.is_searched
-                                                           FROM cases.service_catalog subservice
-                                                                    JOIN service_hierarchy parent ON subservice.root_id = parent.id
-                                                           WHERE parent.level < CASE WHEN %[1]d > 0 THEN %[1]d ELSE 100 END)
-                      SELECT service_hierarchy.service_catalog_id,
-                             json_agg(json_build_object(
-                                     'id', service_hierarchy.id,
-                                     'name', service_hierarchy.name,
-                                     'description', service_hierarchy.description,
-                                     'code',
-                                     CASE WHEN service_hierarchy.is_searched THEN service_hierarchy.code ELSE '' END,
-                                     'state', CASE
-                                                  WHEN service_hierarchy.is_searched THEN service_hierarchy.state
-                                                  ELSE false END,
-                                     'sla_id', CASE
-                                                   WHEN service_hierarchy.is_searched
-                                                       THEN COALESCE(service_hierarchy.sla_id, 0)
-                                                   ELSE 0 END,
-                                     'sla_name',
-                                     CASE WHEN service_hierarchy.is_searched THEN COALESCE(sla.name, '') ELSE '' END,
-                                     'group_id', CASE
-                                                     WHEN service_hierarchy.is_searched
-                                                         THEN COALESCE(service_hierarchy.group_id, 0)
-                                                     ELSE 0 END,
-                                     'group_name',
-                                     CASE WHEN service_hierarchy.is_searched THEN COALESCE(grp.name, '') ELSE '' END,
-                                     'assignee_id', CASE
-                                                        WHEN service_hierarchy.is_searched
-                                                            THEN COALESCE(service_hierarchy.assignee_id, 0)
-                                                        ELSE 0 END,
-                                     'assignee_name', CASE
-                                                          WHEN service_hierarchy.is_searched
-                                                              THEN COALESCE(assignee.given_name, '')
-                                                          ELSE '' END,
-                                     'has_subservices', EXISTS (SELECT 1
-                                                                FROM cases.service_catalog sc
-                                                                WHERE sc.root_id = service_hierarchy.id),
-                                     'root_service_id', COALESCE(service_hierarchy.root_service_id, 0),
-                                     'created_at', service_hierarchy.created_at,
-                                     'updated_at', service_hierarchy.updated_at,
-                                     'created_by', CASE
-                                                       WHEN service_hierarchy.is_searched
-                                                           THEN COALESCE(created_by_user.name, '')
-                                                       ELSE '' END,
-                                     'created_by_id', CASE
-                                                          WHEN service_hierarchy.is_searched
-                                                              THEN COALESCE(service_hierarchy.created_by, 0)
-                                                          ELSE 0 END,
-                                     'updated_by', CASE
-                                                       WHEN service_hierarchy.is_searched
-                                                           THEN COALESCE(updated_by_user.name, '')
-                                                       ELSE '' END,
-                                     'updated_by_id', CASE
-                                                          WHEN service_hierarchy.is_searched
-                                                              THEN COALESCE(service_hierarchy.updated_by, 0)
-                                                          ELSE 0 END,
-                                     'service_catalog_id', service_hierarchy.service_catalog_id
-                                      )) AS services
-                      FROM service_hierarchy
-                               LEFT JOIN cases.sla ON sla.id = service_hierarchy.sla_id
-                               LEFT JOIN contacts.group AS grp ON grp.id = service_hierarchy.group_id
-                               LEFT JOIN directory.wbt_user AS created_by_user
-                                         ON created_by_user.id = service_hierarchy.created_by
-                               LEFT JOIN directory.wbt_user AS updated_by_user
-                                         ON updated_by_user.id = service_hierarchy.updated_by
-                               LEFT JOIN contacts.contact AS assignee ON assignee.id = service_hierarchy.assignee_id
-                      GROUP BY service_hierarchy.service_catalog_id)`, depth)
+			prefixQuery += fmt.Sprintf(`services_agg AS (WITH RECURSIVE service_hierarchy AS (
+			SELECT
+			  service.id,
+			  service.name,
+			  -- Conditionally fetch the description, created_at, updated_at, etc.
+			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.description ELSE '' END AS description,
+			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.created_at ELSE NULL END AS created_at,
+			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.updated_at ELSE NULL END AS updated_at,
+			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.created_by ELSE 0 END AS created_by,
+			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.updated_by ELSE 0 END AS updated_by,
+			  service.root_id AS root_id,
+			  catalog.id AS service_catalog_id,
+			  -- Fetch the code based on the search condition or default to an empty string
+			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.code ELSE '' END AS code,
+			  -- Fetch the state based on the search condition or default to false
+			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.state ELSE false END AS state,
+			  -- Fetch SLA, group, assignee, etc., conditionally
+			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN COALESCE(service.sla_id, 0) ELSE 0 END AS sla_id,
+			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN COALESCE(service.group_id, 0) ELSE 0 END AS group_id,
+			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN COALESCE(service.assignee_id, 0) ELSE 0 END AS assignee_id,
+			  1 AS level
+			FROM cases.service_catalog service
+			JOIN cases.service_catalog catalog ON service.root_id = catalog.id
+			`, depth, fullFetch, func() string {
+				if selectFlags["search"] {
+					return "search_catalog"
 				}
+				return "cases.service_catalog"
+			}())
+
+			if selectFlags["search"] {
+				prefixQuery += `
+			  WHERE catalog.id IN (SELECT target_catalog_id FROM search_catalog)
+			`
 			} else {
-				prefixQuery += fmt.Sprintf(`services_agg AS (WITH RECURSIVE service_hierarchy AS (SELECT service.id,
-                                                                 service.name,
-                                                                 service.description,
-                                                                 service.code,
-                                                                 service.state,
-                                                                 service.sla_id,
-                                                                 service.group_id,
-                                                                 service.assignee_id,
-                                                                 service.root_id,
-                                                                 service.created_at,
-                                                                 service.updated_at,
-                                                                 service.created_by,
-                                                                 service.updated_by,
-                                                                 catalog.id AS catalog_id,
-                                                                 1          AS level
-                                                          FROM cases.service_catalog service
-                                                                   JOIN cases.service_catalog catalog ON service.root_id = catalog.id
-                                                          WHERE catalog.root_id IS NULL
-                                                          UNION ALL
-                                                          SELECT subservice.id,
-                                                                 subservice.name,
-                                                                 subservice.description,
-                                                                 subservice.code,
-                                                                 subservice.state,
-                                                                 subservice.sla_id,
-                                                                 subservice.group_id,
-                                                                 subservice.assignee_id,
-                                                                 subservice.root_id,
-                                                                 subservice.created_at,
-                                                                 subservice.updated_at,
-                                                                 subservice.created_by,
-                                                                 subservice.updated_by,
-                                                                 parent.catalog_id,
-                                                                 parent.level + 1 AS level
-                                                          FROM cases.service_catalog subservice
-                                                                   JOIN service_hierarchy parent ON subservice.root_id = parent.id
-                                                          WHERE parent.level < CASE WHEN %[1]d > 0 THEN %[1]d ELSE 100 END)
-                     SELECT service_hierarchy.catalog_id,
-                            json_agg(json_build_object(
-                                    'id', service_hierarchy.id,
-                                    'name', service_hierarchy.name,
-                                    'description', service_hierarchy.description,
-                                    'code', service_hierarchy.code,
-                                    'state', service_hierarchy.state,
-                                    'sla_id', COALESCE(service_hierarchy.sla_id, 0),
-                                    'sla_name', COALESCE(sla.name, ''),
-                                    'group_id', COALESCE(service_hierarchy.group_id, 0),
-                                    'group_name', COALESCE(grp.name, ''),
-                                    'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),
-                                    'assignee_name', COALESCE(assignee.given_name, ''),
-                                    'has_subservices',
-                                    EXISTS (SELECT 1
-                                            FROM cases.service_catalog sc
-                                            WHERE sc.root_id = service_hierarchy.id),
-                                    'root_id', COALESCE(service_hierarchy.root_id, 0),
-                                    'created_at', service_hierarchy.created_at,
-                                    'updated_at', service_hierarchy.updated_at,
-                                    'created_by', COALESCE(created_by_user.name, ''),
-                                    'created_by_id', COALESCE(service_hierarchy.created_by, 0),
-                                    'updated_by', COALESCE(updated_by_user.name, ''),
-                                    'updated_by_id', COALESCE(service_hierarchy.updated_by, 0),
-                                    'catalog_id', service_hierarchy.catalog_id
-                                     )) AS services
-                     FROM service_hierarchy
-                              LEFT JOIN cases.sla ON sla.id = service_hierarchy.sla_id
-                              LEFT JOIN contacts.group AS grp ON grp.id = service_hierarchy.group_id
-                              LEFT JOIN directory.wbt_user AS created_by_user
-                                        ON created_by_user.id = service_hierarchy.created_by
-                              LEFT JOIN directory.wbt_user AS updated_by_user
-                                        ON updated_by_user.id = service_hierarchy.updated_by
-                              LEFT JOIN contacts.contact AS assignee ON assignee.id = service_hierarchy.assignee_id
-                     GROUP BY service_hierarchy.catalog_id),`, depth)
+				prefixQuery += `
+			  WHERE catalog.root_id IS NULL
+			`
 			}
+
+			prefixQuery += fmt.Sprintf(`
+			UNION ALL
+		SELECT subservice.id,
+       subservice.name,
+       -- Conditionally fetch the description, created_at, updated_at, etc.
+       CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM % s) THEN subservice.description ELSE '' END AS description,
+			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.created_at ELSE NULL
+END AS created_at,
+			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.updated_at ELSE NULL
+END AS updated_at,
+			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.created_by ELSE 0
+END AS created_by,
+			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.updated_by ELSE 0
+END AS updated_by,
+			  subservice.root_id AS root_id,
+			  parent.service_catalog_id,
+			  -- Fetch the code for subservices based on the search condition
+			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.code ELSE ''
+END AS code,
+			  -- Fetch the state for subservices based on the search condition
+			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.state ELSE false
+END AS state,
+			  -- Fetch SLA, group, assignee, etc., for subservices
+			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN COALESCE(subservice.sla_id, 0) ELSE 0
+END AS sla_id,
+			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN COALESCE(subservice.group_id, 0) ELSE 0
+END AS group_id,
+			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN COALESCE(subservice.assignee_id, 0) ELSE 0
+END AS assignee_id,
+			  parent.level + 1 AS level
+			FROM cases.service_catalog subservice
+			JOIN service_hierarchy parent ON subservice.root_id = parent.id
+			WHERE parent.level < CASE WHEN %[1]d > 0 THEN %[1]d ELSE 100
+END
+    )
+SELECT service_hierarchy.service_catalog_id,
+       json_agg(json_build_object(
+               'id', service_hierarchy.id,
+               'name', service_hierarchy.name,
+               'description', service_hierarchy.description,
+               'code', service_hierarchy.code,
+               'state', service_hierarchy.state,
+               'sla_id', COALESCE(service_hierarchy.sla_id, 0),
+               'sla_name', COALESCE(sla.name, ''),
+               'group_id', COALESCE(service_hierarchy.group_id, 0),
+               'group_name', COALESCE(grp.name, ''),
+               'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),
+               'assignee_name', COALESCE(assignee.given_name, ''),
+               'has_subservices',
+               EXISTS (SELECT 1 FROM cases.service_catalog sc WHERE sc.root_id = service_hierarchy.id),
+               'root_id', COALESCE(service_hierarchy.root_id, 0),
+               'created_at', service_hierarchy.created_at,
+               'updated_at', service_hierarchy.updated_at,
+               'created_by', COALESCE(created_by_user.name, ''),
+               'created_by_id', COALESCE(service_hierarchy.created_by, 0),
+               'updated_by', COALESCE(updated_by_user.name, ''),
+               'updated_by_id', COALESCE(service_hierarchy.updated_by, 0),
+               'service_catalog_id', service_hierarchy.service_catalog_id
+                )) AS services
+FROM service_hierarchy
+         LEFT JOIN cases.sla ON sla.id = service_hierarchy.sla_id
+         LEFT JOIN contacts.group AS grp ON grp.id = service_hierarchy.group_id
+         LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = service_hierarchy.created_by
+         LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = service_hierarchy.updated_by
+         LEFT JOIN contacts.contact AS assignee ON assignee.id = service_hierarchy.assignee_id
+GROUP BY service_hierarchy.service_catalog_id)`, depth, fullFetch, func() string {
+				if selectFlags["search"] {
+					return "search_catalog"
+				}
+				return "cases.service_catalog"
+			}())
 		}
 
-		// Prefix query and continue with other operations.
+		// Apply the constructed query to the queryBuilder
 		queryBuilder = queryBuilder.Prefix(strings.TrimSuffix(prefixQuery, ","))
 	}
 
@@ -1188,34 +1009,538 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	return store.CompactSQL(query), args, nil
 }
 
-// func (s *CatalogStore) buildServiceHierarchy(
-// 	serviceDataList []map[string]interface{},
-// 	serviceMap map[int64][]map[string]interface{},
-// ) ([]*cases.Service, error) {
-// 	var services []*cases.Service
+// func (s *CatalogStore) buildSearchCatalogQuery(
+// 	rpc *model.SearchOptions,
+// 	depth int64,
+// 	fetchType *cases.FetchType,
+// ) (string, []interface{}, error) {
+// 	// FieldsFunc normalizes a selection list src of the attributes to be returned.
+// 	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
 
-// 	for _, serviceData := range serviceDataList {
-// 		// Map service data into a Service object
-// 		service, err := s.mapServiceData(serviceData)
-// 		if err != nil {
-// 			return nil, err
-// 		}
+// 	// -------- Apply [Essential Fields Inclusion] --------
+// 	// Always required fields that should be part of the query
+// 	rpc.Fields = append(fields, "id", "name", "description", "root_id")
 
-// 		// Recursively build children (sub-services)
-// 		if childrenData, exists := serviceMap[service.Id]; exists {
-// 			children, err := s.buildServiceHierarchy(childrenData, serviceMap)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			// Assign children to the service
-// 			service.Service = children
-// 		}
-
-// 		// Append the service to the list of services
-// 		services = append(services, service)
+// 	allFields := []string{
+// 		"catalog.id",
+// 		"catalog.name",                                            // Mandatory
+// 		"COALESCE(catalog.prefix, '') AS prefix",                  // Use COALESCE for prefix to handle null values
+// 		"COALESCE(catalog.sla_id, 0) AS sla_id",                   // Use COALESCE for SLA ID to handle null values
+// 		"COALESCE(sla.name, '') AS sla_name",                      // Use COALESCE for SLA name to handle null values
+// 		"COALESCE(catalog.status_id, 0) AS status_id",             // Use COALESCE for status ID to handle null values
+// 		"COALESCE(status.name, '') AS status_name",                // Use COALESCE for status name to handle null values
+// 		"COALESCE(catalog.code, '') AS code",                      // Optional
+// 		"COALESCE(catalog.description, '') AS description",        // Optional
+// 		"COALESCE(catalog.close_reason_id, 0) AS close_reason_id", // Optional
+// 		"COALESCE(close_reason.name, '') AS close_reason_name",    // Optional
+// 		"catalog.state AS state",
+// 		"COALESCE(catalog.created_by, 0) AS created_by",         // Handle null with default 0 for ID
+// 		"COALESCE(created_by_user.name, '') AS created_by_name", // Handle null with default empty string for name
+// 		"COALESCE(catalog.updated_by, 0) AS updated_by",         // Handle null with default 0 for ID
+// 		"COALESCE(updated_by_user.name, '') AS updated_by_name", // Handle null with default empty string for name
+// 		"catalog.created_at AS created_at",
+// 		"catalog.updated_at AS updated_at",
+// 		"COALESCE(teams_agg.teams, '[]') AS teams",          // Aggregated teams from the CTE
+// 		"COALESCE(skills_agg.skills, '[]') AS skills",       // Aggregated skills from the CTE
+// 		"COALESCE(services_agg.services, '[]') AS services", // Aggregated services from the recursive CTE
+// 		"COALESCE(catalog.root_id, 0) AS root_id",           // Aggregated services from the recursive CTE
 // 	}
 
-// 	return services, nil
+// 	// -------- Apply [Select Flag Initialization] -------- //
+// 	// Initialize flags for recursion
+// 	// ONLY services are recursive
+// 	selectFlags := map[string]bool{
+// 		"services": false,
+// 		"teams":    false,
+// 		"skills":   false,
+// 		"search":   false,
+// 	}
+
+// 	// -------- Apply [Field Selection] --------
+// 	// Selected fields handling
+// 	var selectedFields []string
+
+// 	// If fields are set to "-", use defaultCatalogFields and enable recursion for all entities
+// 	if rpc.Fields[0] == "-" {
+// 		selectedFields = allFields
+// 		selectFlags["services"] = true
+// 		selectFlags["teams"] = true
+// 		selectFlags["skills"] = true
+// 	} else {
+// 		// Handle specific fields from rpc.Fields
+// 		for _, field := range rpc.Fields {
+// 			switch field {
+// 			case "id":
+// 				selectedFields = append(selectedFields, "catalog.id")
+// 			case "name":
+// 				selectedFields = append(selectedFields, "catalog.name")
+// 			case "prefix":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.prefix, '') AS prefix")
+// 				selectFlags["services"] = true // Enable services recursion if prefix is selected
+// 			case "sla":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.sla_id, 0) AS sla_id", "COALESCE(sla.name, '') AS sla_name")
+// 			case "status":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.status_id, 0) AS status_id", "COALESCE(status.name, '') AS status_name")
+// 			case "code":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.code, '') AS code")
+// 			case "description":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.description, '') AS description")
+// 			case "close_reason":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.close_reason_id, 0) AS close_reason_id", "COALESCE(close_reason.name, '') AS close_reason_name")
+// 			case "state":
+// 				selectedFields = append(selectedFields, "catalog.state AS state")
+// 			case "created_by":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.created_by, 0) AS created_by", "COALESCE(created_by_user.name, '') AS created_by_name")
+// 			case "updated_by":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.updated_by, 0) AS updated_by", "COALESCE(updated_by_user.name, '') AS updated_by_name")
+// 			case "created_at":
+// 				selectedFields = append(selectedFields, "catalog.created_at AS created_at")
+// 			case "updated_at":
+// 				selectedFields = append(selectedFields, "catalog.updated_at AS updated_at")
+// 			case "teams":
+// 				selectedFields = append(selectedFields, "COALESCE(teams_agg.teams, '[]') AS teams")
+// 				selectFlags["teams"] = true
+// 			case "skills":
+// 				selectedFields = append(selectedFields, "COALESCE(skills_agg.skills, '[]') AS skills")
+// 				selectFlags["skills"] = true
+// 			case "services":
+// 				selectedFields = append(selectedFields, "COALESCE(services_agg.services, '[]') AS services")
+// 				selectFlags["services"] = true // Enable services recursion
+// 			case "root_id":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.root_id, 0) AS root_id")
+// 			}
+// 		}
+// 	}
+
+// 	// -------- Apply [Base Query Construction] --------
+// 	// Build the base query with the selected fields
+// 	queryBuilder := sq.Select(selectedFields...).
+// 		From("cases.service_catalog AS catalog").
+// 		Where(sq.Eq{"catalog.dc": rpc.Session.GetDomainId()}).
+// 		LeftJoin("cases.sla ON sla.id = catalog.sla_id").
+// 		LeftJoin("cases.status ON status.id = catalog.status_id").
+// 		LeftJoin("cases.close_reason ON close_reason.id = catalog.close_reason_id").
+// 		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
+// 		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by").
+// 		PlaceholderFormat(sq.Dollar)
+
+// 	var searchStr string
+
+// 	// -------- Apply [Filtering] --------
+// 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+// 		substrs := rpc.Match.Substring(name)
+// 		combinedLike := strings.Join(substrs, "%")
+// 		searchStr = combinedLike
+// 		selectFlags["search"] = true
+// 	}
+
+// 	// -------- Apply [Search] --------
+// 	// filter by catalog_id if search is enabled
+// 	if selectFlags["search"] {
+// 		// Final filter to only return relevant catalogs based on target_catalog_id
+// 		queryBuilder = queryBuilder.Where(sq.Expr("catalog.id IN (SELECT target_catalog_id FROM search_catalog)"))
+// 	}
+
+// 	// -------- Apply [Teams - Skills - Services ] fetching  --------
+// 	if selectFlags["teams"] {
+// 		queryBuilder = queryBuilder.LeftJoin("teams_agg ON teams_agg.catalog_id = catalog.id")
+// 	}
+
+// 	if selectFlags["skills"] {
+// 		queryBuilder = queryBuilder.LeftJoin("skills_agg ON skills_agg.catalog_id = catalog.id")
+// 	}
+
+// 	if selectFlags["services"] {
+// 		if selectFlags["search"] {
+// 			queryBuilder = queryBuilder.LeftJoin("services_agg ON services_agg.service_catalog_id = catalog.id")
+// 		} else {
+// 			queryBuilder = queryBuilder.LeftJoin("services_agg ON services_agg.catalog_id = catalog.id")
+// 		}
+// 	}
+
+// 	// Apply filtering by state
+// 	if state, ok := rpc.Filter["state"]; ok {
+// 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
+// 	}
+
+// 	// Apply filtering by IDs if provided
+// 	if len(rpc.IDs) > 0 {
+// 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.id": rpc.IDs})
+// 	}
+
+// 	// -------- Apply [Sorting] --------
+// 	for _, sort := range rpc.Sort {
+// 		queryBuilder = queryBuilder.OrderBy(sort)
+// 	}
+
+// 	// -------- Apply [Pagination] --------
+// 	// Pagination: Apply limit and offset
+// 	size := rpc.GetSize()
+// 	if size != -1 {
+// 		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
+// 	}
+// 	if rpc.Page > 1 {
+// 		queryBuilder = queryBuilder.Offset(uint64((rpc.Page - 1) * size))
+// 	}
+// 	// Assuming fetchType is a FetchType and not a pointer
+// 	var fullFetch bool
+
+// 	if fetchType != nil {
+// 		fullFetch = *fetchType == cases.FetchType_FULL
+// 	}
+
+// 	// -------- Apply [Recursive CTEs Based on Flags] --------
+// 	// ONLY service aggregation is recursive
+// 	// -------- Apply [Recursive CTEs Based on Flags] --------
+// 	if selectFlags["teams"] || selectFlags["skills"] || selectFlags["services"] || selectFlags["search"] {
+// 		var prefixQuery string
+
+// 		// Add "WITH" only once
+// 		prefixQuery = "WITH "
+
+// 		// Check if the search flag is active to apply search on both catalogs and services
+// 		if selectFlags["search"] {
+// 			prefixQuery += fmt.Sprintf(`search_catalog AS (
+// 			 SELECT catalog.id AS catalog_id,
+// 				   catalog.root_id AS root_service_id,
+// 				   CASE WHEN catalog.root_id IS NULL THEN catalog.id ELSE catalog.catalog_id END AS target_catalog_id
+// 			FROM cases.service_catalog catalog
+// 			   WHERE catalog.name ILIKE '%s'
+// 			),`, searchStr)
+// 		}
+
+// 		// Teams logic with conditional search filtering
+// 		if selectFlags["teams"] {
+// 			if selectFlags["search"] {
+// 				prefixQuery += `
+// 		inserted_teams AS (SELECT catalog_id, team_id
+//                         FROM cases.team_catalog
+//                         WHERE catalog_id IN (SELECT target_catalog_id
+//                                              FROM search_catalog)),
+//      teams_agg AS (SELECT inserted_teams.catalog_id,
+//                           json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+//                    FROM inserted_teams
+//                             LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+//                    GROUP BY inserted_teams.catalog_id),`
+// 			} else {
+// 				prefixQuery += `
+// 				 inserted_teams AS (SELECT catalog_id, team_id
+//                         FROM cases.team_catalog),
+//      teams_agg AS (SELECT inserted_teams.catalog_id,
+//                           json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+//                    FROM inserted_teams
+//                             LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+//                    GROUP BY inserted_teams.catalog_id),`
+// 			}
+// 		}
+
+// 		// Skills logic with conditional search filtering
+// 		if selectFlags["skills"] {
+// 			if selectFlags["search"] {
+// 				prefixQuery += `
+// 				 inserted_skills AS (SELECT catalog_id, skill_id
+//                          FROM cases.skill_catalog
+//                          WHERE catalog_id IN (SELECT target_catalog_id
+//                                               FROM search_catalog)),
+//      skills_agg AS (SELECT inserted_skills.catalog_id,
+//                            json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+//                     FROM inserted_skills
+//                              LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+//                     GROUP BY inserted_skills.catalog_id),`
+// 			} else {
+// 				prefixQuery += `
+// 				 inserted_skills AS (SELECT catalog_id, skill_id
+//                          FROM cases.skill_catalog),
+//      skills_agg AS (SELECT inserted_skills.catalog_id,
+//                            json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+//                     FROM inserted_skills
+//                              LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+//                     GROUP BY inserted_skills.catalog_id),`
+// 			}
+// 		}
+
+// 		// Services logic with conditional search filtering
+// 		if selectFlags["services"] {
+// 			if selectFlags["search"] {
+// 				if fullFetch {
+// 					prefixQuery += fmt.Sprintf(`services_agg AS (WITH RECURSIVE service_hierarchy AS (SELECT service.id,
+//                                                                   service.name,
+//                                                                   service.description,
+//                                                                   service.code,
+//                                                                   service.state,
+//                                                                   service.sla_id,
+//                                                                   service.group_id,
+//                                                                   service.assignee_id,
+//                                                                   service.root_id AS root_service_id,
+//                                                                   service.created_at,
+//                                                                   service.updated_at,
+//                                                                   service.created_by,
+//                                                                   service.updated_by,
+//                                                                   catalog.id      AS service_catalog_id,
+//                                                                   1               AS level
+//                                                            FROM cases.service_catalog service
+//                                                                     JOIN cases.service_catalog catalog ON service.root_id = catalog.id
+//                                                            WHERE catalog.id IN (SELECT target_catalog_id
+//                                                                                 FROM search_catalog)
+
+//                                                            UNION ALL
+
+//                                                            -- Recursively fetch subservices
+//                                                            SELECT subservice.id,
+//                                                                   subservice.name,
+//                                                                   subservice.description,
+//                                                                   subservice.code,
+//                                                                   subservice.state,
+//                                                                   subservice.sla_id,
+//                                                                   subservice.group_id,
+//                                                                   subservice.assignee_id,
+//                                                                   subservice.root_id AS root_service_id,
+//                                                                   subservice.created_at,
+//                                                                   subservice.updated_at,
+//                                                                   subservice.created_by,
+//                                                                   subservice.updated_by,
+//                                                                   parent.service_catalog_id,
+//                                                                   parent.level + 1   AS level
+//                                                            FROM cases.service_catalog subservice
+//                                                                     JOIN service_hierarchy parent ON subservice.root_id = parent.id
+//                                                            WHERE parent.level < CASE WHEN %[1]d > 0 THEN %[1]d ELSE 100 END)
+//                       SELECT service_hierarchy.service_catalog_id,
+//                              json_agg(json_build_object(
+//                                      'id', service_hierarchy.id,
+//                                      'name', service_hierarchy.name,
+//                                      'description', service_hierarchy.description,
+//                                      'code', service_hierarchy.code,
+//                                      'state', service_hierarchy.state,
+//                                      'sla_id', COALESCE(service_hierarchy.sla_id, 0),
+//                                      'sla_name', COALESCE(sla.name, ''),
+//                                      'group_id', COALESCE(service_hierarchy.group_id, 0),
+//                                      'group_name', COALESCE(grp.name, ''),
+//                                      'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),
+//                                      'assignee_name', COALESCE(assignee.given_name, ''),
+//                                      'has_subservices',
+//                                      EXISTS (SELECT 1
+//                                              FROM cases.service_catalog sc
+//                                              WHERE sc.root_id = service_hierarchy.id),
+//                                      'root_service_id', COALESCE(service_hierarchy.root_service_id, 0),
+//                                      'created_at', service_hierarchy.created_at,
+//                                      'updated_at', service_hierarchy.updated_at,
+//                                      'created_by', COALESCE(created_by_user.name, ''),
+//                                      'created_by_id', COALESCE(service_hierarchy.created_by, 0),
+//                                      'updated_by', COALESCE(updated_by_user.name, ''),
+//                                      'updated_by_id', COALESCE(service_hierarchy.updated_by, 0),
+//                                      'service_catalog_id', service_hierarchy.service_catalog_id
+//                                       )) AS services
+//                       FROM service_hierarchy
+//                                LEFT JOIN cases.sla ON sla.id = service_hierarchy.sla_id
+//                                LEFT JOIN contacts.group AS grp ON grp.id = service_hierarchy.group_id
+//                                LEFT JOIN directory.wbt_user AS created_by_user
+//                                          ON created_by_user.id = service_hierarchy.created_by
+//                                LEFT JOIN directory.wbt_user AS updated_by_user
+//                                          ON updated_by_user.id = service_hierarchy.updated_by
+//                                LEFT JOIN contacts.contact AS assignee ON assignee.id = service_hierarchy.assignee_id
+//                       GROUP BY service_hierarchy.service_catalog_id)`, depth)
+// 				} else {
+// 					// Fetch basic info (id, name, description) for non-searched services, and full info for searched ones
+// 					prefixQuery += fmt.Sprintf(`services_agg AS (WITH RECURSIVE service_hierarchy AS (SELECT service.id,
+//                                                                   service.name,
+//                                                                   service.description,
+//                                                                   service.code,
+//                                                                   service.state,
+//                                                                   service.sla_id,
+//                                                                   service.group_id,
+//                                                                   service.assignee_id,
+//                                                                   service.root_id    AS root_service_id,
+//                                                                   service.created_at,
+//                                                                   service.updated_at,
+//                                                                   service.created_by,
+//                                                                   service.updated_by,
+//                                                                   catalog.id         AS service_catalog_id,
+//                                                                   1                  AS level,
+//                                                                   CASE
+//                                                                       WHEN service.id IN (SELECT catalog_id FROM search_catalog)
+//                                                                           THEN true
+//                                                                       ELSE false END AS is_searched
+//                                                            FROM cases.service_catalog service
+//                                                                     JOIN cases.service_catalog catalog ON service.root_id = catalog.id
+//                                                            WHERE catalog.id IN (SELECT target_catalog_id
+//                                                                                 FROM search_catalog)
+
+//                                                            UNION ALL
+
+//                                                            -- Recursively fetch subservices
+//                                                            SELECT subservice.id,
+//                                                                   subservice.name,
+//                                                                   subservice.description,
+//                                                                   subservice.code,
+//                                                                   subservice.state,
+//                                                                   subservice.sla_id,
+//                                                                   subservice.group_id,
+//                                                                   subservice.assignee_id,
+//                                                                   subservice.root_id AS root_service_id,
+//                                                                   subservice.created_at,
+//                                                                   subservice.updated_at,
+//                                                                   subservice.created_by,
+//                                                                   subservice.updated_by,
+//                                                                   parent.service_catalog_id,
+//                                                                   parent.level + 1   AS level,
+//                                                                   parent.is_searched
+//                                                            FROM cases.service_catalog subservice
+//                                                                     JOIN service_hierarchy parent ON subservice.root_id = parent.id
+//                                                            WHERE parent.level < CASE WHEN %[1]d > 0 THEN %[1]d ELSE 100 END)
+//                       SELECT service_hierarchy.service_catalog_id,
+//                              json_agg(json_build_object(
+//                                      'id', service_hierarchy.id,
+//                                      'name', service_hierarchy.name,
+//                                      'description', service_hierarchy.description,
+//                                      'code',
+//                                      CASE WHEN service_hierarchy.is_searched THEN service_hierarchy.code ELSE '' END,
+//                                      'state', CASE
+//                                                   WHEN service_hierarchy.is_searched THEN service_hierarchy.state
+//                                                   ELSE false END,
+//                                      'sla_id', CASE
+//                                                    WHEN service_hierarchy.is_searched
+//                                                        THEN COALESCE(service_hierarchy.sla_id, 0)
+//                                                    ELSE 0 END,
+//                                      'sla_name',
+//                                      CASE WHEN service_hierarchy.is_searched THEN COALESCE(sla.name, '') ELSE '' END,
+//                                      'group_id', CASE
+//                                                      WHEN service_hierarchy.is_searched
+//                                                          THEN COALESCE(service_hierarchy.group_id, 0)
+//                                                      ELSE 0 END,
+//                                      'group_name',
+//                                      CASE WHEN service_hierarchy.is_searched THEN COALESCE(grp.name, '') ELSE '' END,
+//                                      'assignee_id', CASE
+//                                                         WHEN service_hierarchy.is_searched
+//                                                             THEN COALESCE(service_hierarchy.assignee_id, 0)
+//                                                         ELSE 0 END,
+//                                      'assignee_name', CASE
+//                                                           WHEN service_hierarchy.is_searched
+//                                                               THEN COALESCE(assignee.given_name, '')
+//                                                           ELSE '' END,
+//                                      'has_subservices', EXISTS (SELECT 1
+//                                                                 FROM cases.service_catalog sc
+//                                                                 WHERE sc.root_id = service_hierarchy.id),
+//                                      'root_service_id', COALESCE(service_hierarchy.root_service_id, 0),
+//                                      'created_at', service_hierarchy.created_at,
+//                                      'updated_at', service_hierarchy.updated_at,
+//                                      'created_by', CASE
+//                                                        WHEN service_hierarchy.is_searched
+//                                                            THEN COALESCE(created_by_user.name, '')
+//                                                        ELSE '' END,
+//                                      'created_by_id', CASE
+//                                                           WHEN service_hierarchy.is_searched
+//                                                               THEN COALESCE(service_hierarchy.created_by, 0)
+//                                                           ELSE 0 END,
+//                                      'updated_by', CASE
+//                                                        WHEN service_hierarchy.is_searched
+//                                                            THEN COALESCE(updated_by_user.name, '')
+//                                                        ELSE '' END,
+//                                      'updated_by_id', CASE
+//                                                           WHEN service_hierarchy.is_searched
+//                                                               THEN COALESCE(service_hierarchy.updated_by, 0)
+//                                                           ELSE 0 END,
+//                                      'service_catalog_id', service_hierarchy.service_catalog_id
+//                                       )) AS services
+//                       FROM service_hierarchy
+//                                LEFT JOIN cases.sla ON sla.id = service_hierarchy.sla_id
+//                                LEFT JOIN contacts.group AS grp ON grp.id = service_hierarchy.group_id
+//                                LEFT JOIN directory.wbt_user AS created_by_user
+//                                          ON created_by_user.id = service_hierarchy.created_by
+//                                LEFT JOIN directory.wbt_user AS updated_by_user
+//                                          ON updated_by_user.id = service_hierarchy.updated_by
+//                                LEFT JOIN contacts.contact AS assignee ON assignee.id = service_hierarchy.assignee_id
+//                       GROUP BY service_hierarchy.service_catalog_id)`, depth)
+// 				}
+// 			} else {
+// 				prefixQuery += fmt.Sprintf(`services_agg AS (WITH RECURSIVE service_hierarchy AS (SELECT service.id,
+//                                                                  service.name,
+//                                                                  service.description,
+//                                                                  service.code,
+//                                                                  service.state,
+//                                                                  service.sla_id,
+//                                                                  service.group_id,
+//                                                                  service.assignee_id,
+//                                                                  service.root_id,
+//                                                                  service.created_at,
+//                                                                  service.updated_at,
+//                                                                  service.created_by,
+//                                                                  service.updated_by,
+//                                                                  catalog.id AS catalog_id,
+//                                                                  1          AS level
+//                                                           FROM cases.service_catalog service
+//                                                                    JOIN cases.service_catalog catalog ON service.root_id = catalog.id
+//                                                           WHERE catalog.root_id IS NULL
+//                                                           UNION ALL
+//                                                           SELECT subservice.id,
+//                                                                  subservice.name,
+//                                                                  subservice.description,
+//                                                                  subservice.code,
+//                                                                  subservice.state,
+//                                                                  subservice.sla_id,
+//                                                                  subservice.group_id,
+//                                                                  subservice.assignee_id,
+//                                                                  subservice.root_id,
+//                                                                  subservice.created_at,
+//                                                                  subservice.updated_at,
+//                                                                  subservice.created_by,
+//                                                                  subservice.updated_by,
+//                                                                  parent.catalog_id,
+//                                                                  parent.level + 1 AS level
+//                                                           FROM cases.service_catalog subservice
+//                                                                    JOIN service_hierarchy parent ON subservice.root_id = parent.id
+//                                                           WHERE parent.level < CASE WHEN %[1]d > 0 THEN %[1]d ELSE 100 END)
+//                      SELECT service_hierarchy.catalog_id,
+//                             json_agg(json_build_object(
+//                                     'id', service_hierarchy.id,
+//                                     'name', service_hierarchy.name,
+//                                     'description', service_hierarchy.description,
+//                                     'code', service_hierarchy.code,
+//                                     'state', service_hierarchy.state,
+//                                     'sla_id', COALESCE(service_hierarchy.sla_id, 0),
+//                                     'sla_name', COALESCE(sla.name, ''),
+//                                     'group_id', COALESCE(service_hierarchy.group_id, 0),
+//                                     'group_name', COALESCE(grp.name, ''),
+//                                     'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),
+//                                     'assignee_name', COALESCE(assignee.given_name, ''),
+//                                     'has_subservices',
+//                                     EXISTS (SELECT 1
+//                                             FROM cases.service_catalog sc
+//                                             WHERE sc.root_id = service_hierarchy.id),
+//                                     'root_id', COALESCE(service_hierarchy.root_id, 0),
+//                                     'created_at', service_hierarchy.created_at,
+//                                     'updated_at', service_hierarchy.updated_at,
+//                                     'created_by', COALESCE(created_by_user.name, ''),
+//                                     'created_by_id', COALESCE(service_hierarchy.created_by, 0),
+//                                     'updated_by', COALESCE(updated_by_user.name, ''),
+//                                     'updated_by_id', COALESCE(service_hierarchy.updated_by, 0),
+//                                     'catalog_id', service_hierarchy.catalog_id
+//                                      )) AS services
+//                      FROM service_hierarchy
+//                               LEFT JOIN cases.sla ON sla.id = service_hierarchy.sla_id
+//                               LEFT JOIN contacts.group AS grp ON grp.id = service_hierarchy.group_id
+//                               LEFT JOIN directory.wbt_user AS created_by_user
+
+//                                         ON created_by_user.id = service_hierarchy.created_by
+//                               LEFT JOIN directory.wbt_user AS updated_by_user
+//                                         ON updated_by_user.id = service_hierarchy.updated_by
+//                               LEFT JOIN contacts.contact AS assignee ON assignee.id = service_hierarchy.assignee_id
+//                      GROUP BY service_hierarchy.catalog_id),`, depth)
+// 			}
+// 		}
+
+// 		// Prefix query and continue with other operations.
+// 		queryBuilder = queryBuilder.Prefix(strings.TrimSuffix(prefixQuery, ","))
+// 	}
+
+// 	// Build the final SQL query and return
+// 	query, args, err := queryBuilder.ToSql()
+// 	if err != nil {
+// 		return "", nil, model.NewInternalError("postgres.catalog.query_build_error", err.Error())
+// 	}
+
+// 	fmt.Printf("Query: %s\n", store.CompactSQL(query))
+
+// 	return store.CompactSQL(query), args, nil
 // }
 
 // func (s *CatalogStore) buildSearchCatalogQuery(

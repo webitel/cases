@@ -114,8 +114,6 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
-	} else if req.Name != "" {
-		searchOptions.Filter["name"] = req.Name
 	}
 
 	lookups, e := s.app.Store.Status().List(&searchOptions)

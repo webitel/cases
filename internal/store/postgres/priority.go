@@ -247,7 +247,8 @@ func (s Priority) buildSearchPriorityQuery(rpc *model.SearchOptions) (string, []
 
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
 		substr := rpc.Match.Substring(name)
-		queryBuilder = queryBuilder.Where(sq.ILike{"p.name": substr})
+		combinedLike := strings.Join(substr, "%")
+		queryBuilder = queryBuilder.Where(sq.ILike{"p.name": combinedLike})
 	}
 
 	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)

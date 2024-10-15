@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -341,7 +342,8 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 	// Apply filtering by name (using case-insensitive matching)
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
 		substr := rpc.Match.Substring(name)
-		queryBuilder = queryBuilder.Where(sq.ILike{"service.name": substr})
+		combinedLike := strings.Join(substr, "%")
+		queryBuilder = queryBuilder.Where(sq.ILike{"service.name": combinedLike})
 	}
 
 	// Apply filtering by state

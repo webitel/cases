@@ -114,8 +114,6 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
-	} else if req.Name != "" {
-		searchOptions.Filter["name"] = req.Name
 	}
 
 	statuses, e := s.app.Store.StatusCondition().List(&searchOptions, req.StatusId)

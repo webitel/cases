@@ -49,9 +49,14 @@ message CreatePriorityRequest {
   string color = 4;
 }
 
+
+// InputPriority message for creating a new priority
 message InputPriority{
+  // Name of the priority
   string name = 1;
+  // Description of the priority
   string description = 2;
+  // Color of the priority
   string color = 3;
 }
 
@@ -94,31 +99,26 @@ message DeletePriorityRequest {
 message ListPriorityRequest {
   // Page number of result dataset records. offset = (page*size)
   int32 page = 1;
-
   // Size count of records on result page. limit = (size++)
   int32 size = 2;
-
   // Fields to be retrieved as a result.
   repeated string fields = 3;
-
   // Sort the result according to fields.
   repeated string sort = 4;
-
   // Filter by unique IDs.
   repeated int64 id = 5;
-
-  // Search term: priority name;
-  // `?` - matches any one character
-  // `*` - matches 0 or more characters
+  // Search query string for filtering by name. Supports:
+  // - Wildcards (*) for substring matching
+  // - Placeholder (?) for single character substitution
+  // - Exact match for full names
   string q = 6;
-
-  // Filter by priority name.
-  string name = 7;
 }
 
 // LocatePriorityRequest message for locating a specific priority by ID
 message LocatePriorityRequest {
+  // ID of the priority to be located
   int64 id = 1;
+  // Fields to be retrieved as a result.
   repeated string fields = 2;
 }
 

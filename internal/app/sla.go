@@ -174,8 +174,6 @@ func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
-	} else if req.Name != "" {
-		searchOptions.Filter["name"] = req.Name
 	}
 
 	slas, e := s.app.Store.SLA().List(&searchOptions)

@@ -10,19 +10,22 @@ import "protoc-gen-openapiv2/options/annotations.proto";
 import "google/api/annotations.proto";
 
 
-enum Fulfillment{
-  // The fulfillment field indicates whether the catalog should be
-  // fully filled with data ( FULLFILLED ) or partially filled
-  FULLFILLED = 0;
-   // with only the required fields ( PARTIAL ) - [ Id, Name, Description, Created / Updated at ].
-  PARTIAL = 1;
+enum FetchType {
+  // Only essential fields like [ Id, Name, Description, Created/Updated at ].
+  PARTIAL = 0; // Partial info includes only essential fields.
+   // The fetch type indicates whether to retrieve
+  // all available data for the catalog ( FULL ) or only essential fields ( PARTIAL ).
+  FULL = 1; // Full info includes all fields of the catalog.
 }
 
 message Search {
-  // Search query string for filtering by name
+  // Search query string for filtering by name. Supports:
+  // - Wildcards (*) for substring matching
+  // - Placeholder (?) for single character substitution
+  // - Exact match for full names
   string query = 1;
-  // The fulfillment of the catalog services
-  Fulfillment fulfillment = 2;
+  // The type of data fetching for catalog services
+  FetchType fetch_type = 2; // Renamed from fulfillment to fetch_type
 }
 
 // Catalog message represents the main catalog entity with metadata
@@ -146,31 +149,24 @@ message DeleteCatalogRequest {
 message ListCatalogRequest {
   // Page number for pagination
   int32 page = 1;
-
   // Number of records per page
   int32 size = 2;
-
   // Fields to be retrieved as a result.
   // If the user passes "-" as the value for fields,
   // it will retrieve all available fields for each catalog.
   repeated string fields = 3;
-
   // Sorting options by fields
   repeated string sort = 4;
-
   // List of IDs to filter the catalogs
   repeated int64 id = 5;
-
   // Search query string for filtering by name
   // q contains the search term for filtering by name and fulfillment
   // The fulfillment field indicates whether the catalog should be
   // fully filled with data (FULLFILLED) or partially filled
   // with only the required fields (PARTIAL) - [Id, Name, Description, Created / Updated at].
   Search q = 6;
-
   // Filter by state (true for active, false for inactive)
   bool state = 7;
-
   // Filter by the depth of the hierarchy to retrieve services.
   // The depth indicates how many ancestor levels of services
   // will be included for each catalog.

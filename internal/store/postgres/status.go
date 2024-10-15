@@ -264,7 +264,7 @@ func (s Status) buildSearchStatusQuery(rpc *model.SearchOptions) (string, []inte
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
 		substrs := rpc.Match.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
-		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": "%" + combinedLike + "%"})
+		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
 	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)

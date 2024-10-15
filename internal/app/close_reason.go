@@ -107,8 +107,6 @@ func (s CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.ListC
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
-	} else if req.Name != "" {
-		searchOptions.Filter["name"] = req.Name
 	}
 
 	lookups, e := s.app.Store.CloseReason().List(&searchOptions)

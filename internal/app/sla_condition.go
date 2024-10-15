@@ -175,8 +175,6 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
-	} else if req.Name != "" {
-		searchOptions.Filter["name"] = req.Name
 	}
 
 	slaConditions, e := s.app.Store.SLACondition().List(&searchOptions)

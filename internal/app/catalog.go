@@ -180,7 +180,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		searchOptions.Filter["name"] = req.Q.Query
 	}
 
-	catalogs, e := s.app.Store.Catalog().List(&searchOptions, req.Depth, req.Q.Fulfillment.String())
+	catalogs, e := s.app.Store.Catalog().List(&searchOptions, req.Depth, &req.Q.FetchType)
 	if e != nil {
 		return nil, model.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
 	}

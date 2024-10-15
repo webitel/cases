@@ -637,7 +637,10 @@ type ListServiceRequest struct {
 	Sort []string `protobuf:"bytes,3,rep,name=sort,proto3" json:"sort,omitempty"`
 	// List of IDs to filter the services
 	Id []int64 `protobuf:"varint,4,rep,packed,name=id,proto3" json:"id,omitempty"`
-	// Search query string for filtering by name
+	// Search query string for filtering by name. Supports:
+	// - Wildcards (*) for substring matching
+	// - Placeholder (?) for single character substitution
+	// - Exact match for full names
 	Q string `protobuf:"bytes,5,opt,name=q,proto3" json:"q,omitempty"`
 	// Filter services by catalog ID (required)
 	RootId int64 `protobuf:"varint,6,opt,name=root_id,json=rootId,proto3" json:"root_id,omitempty"`
