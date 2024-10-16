@@ -11,7 +11,7 @@ import (
 // Store is an interface that defines all the methods and properties that a store should implement in Cases service
 type Store interface {
 	// ------------ Dictionary Stores ------------ //
-	Source() SourceStore     // Manages appeals.
+	Source() SourceStore     // Manages sources.
 	Priority() PriorityStore // Handles priority levels.
 
 	// ------------ Closure reasons Stores ------------ //
@@ -91,13 +91,13 @@ type ReasonStore interface {
 }
 
 type SourceStore interface {
-	// Create a new appeal lookup
+	// Create a new source lookup
 	Create(rpc *model.CreateOptions, add *_go.Source) (*_go.Source, error)
-	// List appeal lookup
+	// List source lookup
 	List(rpc *model.SearchOptions) (*_go.SourceList, error)
-	// Delete appeal lookup
+	// Delete source lookup
 	Delete(rpc *model.DeleteOptions) error
-	// Update appeal lookup
+	// Update source lookup
 	Update(rpc *model.UpdateOptions, lookup *_go.Source) (*_go.Source, error)
 }
 
