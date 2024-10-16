@@ -309,7 +309,7 @@
         ]
       }
     },
-    "/cases/closeReasons": {
+    "/cases/close_reasons": {
       "get": {
         "summary": "Retrieve a list of close reasons or search close reasons",
         "operationId": "CloseReasons_ListCloseReasons",
@@ -410,7 +410,7 @@
         ]
       }
     },
-    "/cases/closeReasons/{id}": {
+    "/cases/close_reasons/{id}": {
       "get": {
         "summary": "Locate a close reason by ID",
         "operationId": "CloseReasons_LocateCloseReason",
