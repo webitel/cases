@@ -14,19 +14,19 @@ import (
 	"github.com/webitel/cases/util"
 )
 
-type Appeal struct {
+type Source struct {
 	storage db.Store
 }
 
-func (s Appeal) Create(rpc *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, error) {
+func (s Source) Create(rpc *model.CreateOptions, add *_go.Source) (*_go.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.create.database_connection_error", dbErr.Error())
+		return nil, model.NewInternalError("postgres.cases.source.create.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildCreateAppealQuery(rpc, add)
+	query, args, err := s.buildCreateSourceQuery(rpc, add)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.create.query_build_error", err.Error())
+		return nil, model.NewInternalError("postgres.cases.source.create.query_build_error", err.Error())
 	}
 
 	var (
@@ -41,16 +41,16 @@ func (s Appeal) Create(rpc *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.create.execution_error", err.Error())
+		return nil, model.NewInternalError("postgres.cases.source.create.execution_error", err.Error())
 	}
 
 	// Convert tempType (string) to the enum Type
 	add.Type, err = stringToType(tempType)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.create.type_conversion_error", err.Error())
+		return nil, model.NewInternalError("postgres.cases.source.create.type_conversion_error", err.Error())
 	}
 
-	return &_go.Appeal{
+	return &_go.Source{
 		Id:          add.Id,
 		Name:        add.Name,
 		Description: add.Description,
@@ -62,24 +62,24 @@ func (s Appeal) Create(rpc *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, 
 	}, nil
 }
 
-func (s Appeal) List(rpc *model.SearchOptions) (*_go.AppealList, error) {
+func (s Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.list.database_connection_error", dbErr.Error())
+		return nil, model.NewInternalError("postgres.cases.source.list.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildSearchAppealQuery(rpc)
+	query, args, err := s.buildSearchSourceQuery(rpc)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.list.query_build_error", err.Error())
+		return nil, model.NewInternalError("postgres.cases.source.list.query_build_error", err.Error())
 	}
 
 	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.list.execution_error", err.Error())
+		return nil, model.NewInternalError("postgres.cases.source.list.execution_error", err.Error())
 	}
 	defer rows.Close()
 
-	var lookupList []*_go.Appeal
+	var lookupList []*_go.Source
 	lCount := 0
 	next := false
 	// Check if we want to fetch all records
@@ -94,7 +94,7 @@ func (s Appeal) List(rpc *model.SearchOptions) (*_go.AppealList, error) {
 			break
 		}
 
-		l := &_go.Appeal{}
+		l := &_go.Source{}
 		var (
 			createdBy, updatedBy         _go.Lookup
 			tempUpdatedAt, tempCreatedAt time.Time
@@ -124,14 +124,14 @@ func (s Appeal) List(rpc *model.SearchOptions) (*_go.AppealList, error) {
 		}
 
 		if scanErr := rows.Scan(scanArgs...); scanErr != nil {
-			return nil, model.NewInternalError("postgres.cases.appeal.list.row_scan_error", err.Error())
+			return nil, model.NewInternalError("postgres.cases.source.list.row_scan_error", err.Error())
 		}
 
 		// Convert tempType (string) to the enum Type if "type" is in the requested fields
 		if rpc.FieldsUtil.ContainsField(rpc.Fields, "type") {
 			l.Type, err = stringToType(tempType)
 			if err != nil {
-				return nil, model.NewInternalError("postgres.cases.appeal.list.type_conversion_error", err.Error())
+				return nil, model.NewInternalError("postgres.cases.source.list.type_conversion_error", err.Error())
 			}
 		}
 
@@ -157,46 +157,46 @@ func (s Appeal) List(rpc *model.SearchOptions) (*_go.AppealList, error) {
 		next = false
 	}
 
-	return &_go.AppealList{
+	return &_go.SourceList{
 		Page:  int32(rpc.Page),
 		Next:  next,
 		Items: lookupList,
 	}, nil
 }
 
-func (s Appeal) Delete(rpc *model.DeleteOptions) error {
+func (s Source) Delete(rpc *model.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return model.NewInternalError("postgres.cases.appeal.delete.database_connection_error", dbErr.Error())
+		return model.NewInternalError("postgres.cases.source.delete.database_connection_error", dbErr.Error())
 	}
 
-	query, args, err := s.buildDeleteAppealQuery(rpc)
+	query, args, err := s.buildDeleteSourceQuery(rpc)
 	if err != nil {
-		return model.NewInternalError("postgres.cases.appeal.delete.query_build_error", err.Error())
+		return model.NewInternalError("postgres.cases.source.delete.query_build_error", err.Error())
 	}
 
 	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
-		return model.NewInternalError("postgres.cases.appeal.delete.execution_error", err.Error())
+		return model.NewInternalError("postgres.cases.source.delete.execution_error", err.Error())
 	}
 
 	affected := res.RowsAffected()
 	if affected == 0 {
-		return model.NewNotFoundError("postgres.cases.appeal.delete.no_rows_affected", "No rows affected for deletion")
+		return model.NewNotFoundError("postgres.cases.source.delete.no_rows_affected", "No rows affected for deletion")
 	}
 
 	return nil
 }
 
-func (s Appeal) Update(rpc *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, error) {
+func (s Source) Update(rpc *model.UpdateOptions, l *_go.Source) (*_go.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.update.database_connection_error", dbErr.Error())
+		return nil, model.NewInternalError("postgres.cases.source.update.database_connection_error", dbErr.Error())
 	}
 
-	query, args, queryErr := s.buildUpdateAppealQuery(rpc, l)
+	query, args, queryErr := s.buildUpdateSourceQuery(rpc, l)
 	if queryErr != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.update.query_build_error", queryErr.Error())
+		return nil, model.NewInternalError("postgres.cases.source.update.query_build_error", queryErr.Error())
 	}
 
 	var (
@@ -210,13 +210,13 @@ func (s Appeal) Update(rpc *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.update.execution_error", err.Error())
+		return nil, model.NewInternalError("postgres.cases.source.update.execution_error", err.Error())
 	}
 
 	// Convert tempType (string) to the enum Type
 	l.Type, err = stringToType(tempType)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.appeal.update.type_conversion_error", err.Error())
+		return nil, model.NewInternalError("postgres.cases.source.update.type_conversion_error", err.Error())
 	}
 
 	l.CreatedAt = util.Timestamp(createdAt)
@@ -227,8 +227,8 @@ func (s Appeal) Update(rpc *model.UpdateOptions, l *_go.Appeal) (*_go.Appeal, er
 	return l, nil
 }
 
-func (s Appeal) buildCreateAppealQuery(rpc *model.CreateOptions, lookup *_go.Appeal) (string, []interface{}, error) {
-	query := createAppealQuery
+func (s Source) buildCreateSourceQuery(rpc *model.CreateOptions, lookup *_go.Source) (string, []interface{}, error) {
+	query := createSourceQuery
 	args := []interface{}{
 		lookup.Name, rpc.Session.GetDomainId(), rpc.CurrentTime(), lookup.Description, lookup.Type,
 		rpc.Session.GetUserId(),
@@ -236,12 +236,12 @@ func (s Appeal) buildCreateAppealQuery(rpc *model.CreateOptions, lookup *_go.App
 	return query, args, nil
 }
 
-func (s Appeal) buildSearchAppealQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
+func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
 	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
 	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
 	queryBuilder := sq.Select().
-		From("cases.appeal AS g").
+		From("cases.source AS g").
 		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
@@ -323,25 +323,25 @@ func (s Appeal) buildSearchAppealQuery(rpc *model.SearchOptions) (string, []inte
 	// Generate SQL and arguments
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.cases.appeal.query_build.sql_generation_error", err.Error())
+		return "", nil, model.NewInternalError("postgres.cases.source.query_build.sql_generation_error", err.Error())
 	}
 
 	return db.CompactSQL(query), args, nil
 }
 
-func (s Appeal) buildDeleteAppealQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+func (s Source) buildDeleteSourceQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
 	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
 	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
 
-	query := deleteAppealQuery
+	query := deleteSourceQuery
 	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
 	return query, args, nil
 }
 
-func (s Appeal) buildUpdateAppealQuery(rpc *model.UpdateOptions, l *_go.Appeal) (string, []interface{}, error) {
+func (s Source) buildUpdateSourceQuery(rpc *model.UpdateOptions, l *_go.Source) (string, []interface{}, error) {
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
-	builder := psql.Update("cases.appeal").
+	builder := psql.Update("cases.source").
 		Set("updated_at", rpc.CurrentTime()).
 		Set("updated_by", rpc.Session.GetUserId()).
 		Where(sq.Eq{"id": l.Id}).
@@ -391,7 +391,7 @@ FROM upd
 
 // StringToType converts a string into the corresponding Type enum value.
 //
-// Types are specified ONLY for Appeal dictionary and are ENUMS in API.
+// Types are specified ONLY for Source dictionary and are ENUMS in API.
 func stringToType(typeStr string) (_go.Type, error) {
 	switch strings.ToUpper(typeStr) {
 	case "CALL":
@@ -412,8 +412,8 @@ func stringToType(typeStr string) (_go.Type, error) {
 }
 
 var (
-	createAppealQuery = db.CompactSQL(`WITH ins AS (
-    INSERT INTO cases.appeal (name, dc, created_at, description, type, created_by, updated_at, updated_by)
+	createSourceQuery = db.CompactSQL(`WITH ins AS (
+    INSERT INTO cases.source (name, dc, created_at, description, type, created_by, updated_at, updated_by)
         VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $3, $6) -- Use NULLIF to set NULL if description is ''
         RETURNING id, name, created_at, description, type, created_by, updated_at, updated_by)
 SELECT ins.id,
@@ -430,16 +430,16 @@ FROM ins
          LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
          LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;`)
 
-	deleteAppealQuery = db.CompactSQL(
-		`DELETE FROM cases.appeal
+	deleteSourceQuery = db.CompactSQL(
+		`DELETE FROM cases.source
     WHERE id = ANY($1) AND dc = $2 `,
 	)
 )
 
-func NewAppealStore(store db.Store) (db.AppealStore, model.AppError) {
+func NewSourceStore(store db.Store) (db.SourceStore, model.AppError) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_appeal.check.bad_arguments",
-			"error creating appeal interface to the appeal table, main store is nil")
+		return nil, model.NewInternalError("postgres.new_source.check.bad_arguments",
+			"error creating source interface to the source table, main store is nil")
 	}
-	return &Appeal{storage: store}, nil
+	return &Source{storage: store}, nil
 }

@@ -25,7 +25,7 @@ message Search {
   // - Exact match for full names
   string query = 1;
   // The type of data fetching for catalog services
-  FetchType fetch_type = 2; // Renamed from fulfillment to fetch_type
+  FetchType fetch_type = 2;
 }
 
 // Catalog message represents the main catalog entity with metadata

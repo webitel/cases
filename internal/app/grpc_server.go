@@ -81,8 +81,8 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 	)
 
 	// * Creating services
-	// Appeal Lookup service
-	l, appErr := NewAppealService(app)
+	// Source Lookup service
+	l, appErr := NewSourceService(app)
 	if appErr != nil {
 		return nil, appErr
 	}
@@ -141,7 +141,7 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 	}
 
 	// * Register the services
-	grpcservice.RegisterAppealsServer(grpcServer, l)
+	grpcservice.RegisterSourcesServer(grpcServer, l)
 	grpcservice.RegisterStatusesServer(grpcServer, c)
 	grpcservice.RegisterStatusConditionsServer(grpcServer, s)
 	grpcservice.RegisterCloseReasonsServer(grpcServer, n)

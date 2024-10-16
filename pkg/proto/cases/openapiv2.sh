@@ -6,7 +6,7 @@ dst=$src
 
 protos="\
 $src/openapiv2.proto \
-$src/appeal.proto \
+$src/source.proto \
 $src/close_reason.proto \
 $src/reason.proto \
 $src/lookup.proto \

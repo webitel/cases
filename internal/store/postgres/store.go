@@ -11,7 +11,7 @@ import (
 )
 
 type Store struct {
-	appealStore store.AppealStore
+	sourceStore store.SourceStore
 
 	//-----Status + StatusCondition
 	statusStore          store.StatusStore
@@ -61,15 +61,15 @@ func (s *Store) StatusCondition() store.StatusConditionStore {
 	return s.statusConditionStore
 }
 
-func (s *Store) Appeal() store.AppealStore {
-	if s.appealStore == nil {
-		st, err := NewAppealStore(s)
+func (s *Store) Source() store.SourceStore {
+	if s.sourceStore == nil {
+		st, err := NewSourceStore(s)
 		if err != nil {
 			return nil
 		}
-		s.appealStore = st
+		s.sourceStore = st
 	}
-	return s.appealStore
+	return s.sourceStore
 }
 
 func (s *Store) CloseReason() store.CloseReasonStore {

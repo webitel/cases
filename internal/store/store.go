@@ -11,7 +11,7 @@ import (
 // Store is an interface that defines all the methods and properties that a store should implement in Cases service
 type Store interface {
 	// ------------ Dictionary Stores ------------ //
-	Appeal() AppealStore     // Manages appeals.
+	Source() SourceStore     // Manages appeals.
 	Priority() PriorityStore // Handles priority levels.
 
 	// ------------ Closure reasons Stores ------------ //
@@ -90,15 +90,15 @@ type ReasonStore interface {
 	Update(ctx *model.UpdateOptions, lookup *_go.Reason) (*_go.Reason, error)
 }
 
-type AppealStore interface {
+type SourceStore interface {
 	// Create a new appeal lookup
-	Create(rpc *model.CreateOptions, add *_go.Appeal) (*_go.Appeal, error)
+	Create(rpc *model.CreateOptions, add *_go.Source) (*_go.Source, error)
 	// List appeal lookup
-	List(rpc *model.SearchOptions) (*_go.AppealList, error)
+	List(rpc *model.SearchOptions) (*_go.SourceList, error)
 	// Delete appeal lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update appeal lookup
-	Update(rpc *model.UpdateOptions, lookup *_go.Appeal) (*_go.Appeal, error)
+	Update(rpc *model.UpdateOptions, lookup *_go.Source) (*_go.Source, error)
 }
 
 type PriorityStore interface {

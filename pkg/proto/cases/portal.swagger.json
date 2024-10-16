@@ -14,7 +14,7 @@
   },
   "tags": [
     {
-      "name": "Appeals"
+      "name": "Sources"
     },
     {
       "name": "CloseReasons"
@@ -56,255 +56,6 @@
     "application/json"
   ],
   "paths": {
-    "/cases/appeals": {
-      "get": {
-        "summary": "Retrieve a list of appeals or search appeals",
-        "operationId": "Appeals_ListAppeals",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.AppealList"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "page",
-            "description": "Page number of result dataset records. offset = (page*size)",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
-          },
-          {
-            "name": "size",
-            "description": "Size count of records on result page. limit = (size++)",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
-          },
-          {
-            "name": "fields",
-            "description": "Fields to be retrieved as a result.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "sort",
-            "description": "Sort the result according to fields.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "id",
-            "description": "Filter by unique IDs.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "int64"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "q",
-            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "type",
-            "description": "Filter by appeal type.\n\n - TYPE_UNSPECIFIED: Unspecified source type.\n - CALL: Phone call source type.\n - CHAT: Chat source type.\n - SOCIAL_MEDIA: Social media source type.\n - EMAIL: Email source type.\n - API: API source type.\n - MANUAL: Manual source type.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "TYPE_UNSPECIFIED",
-                "CALL",
-                "CHAT",
-                "SOCIAL_MEDIA",
-                "EMAIL",
-                "API",
-                "MANUAL"
-              ]
-            },
-            "collectionFormat": "multi"
-          }
-        ],
-        "tags": [
-          "Appeals"
-        ]
-      },
-      "post": {
-        "summary": "Create a new appeal",
-        "operationId": "Appeals_CreateAppeal",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.Appeal"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "description": "Request message for creating a new appeal.",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.CreateAppealRequest"
-            }
-          }
-        ],
-        "tags": [
-          "Appeals"
-        ]
-      }
-    },
-    "/cases/appeals/{id}": {
-      "get": {
-        "summary": "Locate an appeal by ID",
-        "operationId": "Appeals_LocateAppeal",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.LocateAppealResponse"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "description": "The unique ID of the appeal to locate.",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "fields",
-            "description": "Fields to be retrieved into result.",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          }
-        ],
-        "tags": [
-          "Appeals"
-        ]
-      },
-      "delete": {
-        "summary": "Delete an appeal",
-        "operationId": "Appeals_DeleteAppeal",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.Appeal"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "description": "The unique ID of the appeal to delete.",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          }
-        ],
-        "tags": [
-          "Appeals"
-        ]
-      },
-      "put": {
-        "summary": "Update an existing appeal",
-        "operationId": "Appeals_UpdateAppeal",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.Appeal"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.InputAppeal"
-            }
-          }
-        ],
-        "tags": [
-          "Appeals"
-        ]
-      },
-      "patch": {
-        "summary": "Update an existing appeal",
-        "operationId": "Appeals_UpdateAppeal2",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.Appeal"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.InputAppeal"
-            }
-          }
-        ],
-        "tags": [
-          "Appeals"
-        ]
-      }
-    },
     "/cases/catalogs": {
       "get": {
         "summary": "Retrieve a list of catalogs or search catalogs",
@@ -377,7 +128,7 @@
           },
           {
             "name": "q.fetch_type",
-            "description": "The type of data fetching for catalog services\n\nRenamed from fulfillment to fetch_type\n\n - PARTIAL: Only essential fields like [ Id, Name, Description, Created/Updated at ].\n\nPartial info includes only essential fields.\n - FULL: The fetch type indicates whether to retrieve\nall available data for the catalog ( FULL ) or only essential fields ( PARTIAL ).\n\nFull info includes all fields of the catalog.",
+            "description": "The type of data fetching for catalog services\n\n - PARTIAL: Only essential fields like [ Id, Name, Description, Created/Updated at ].\n\nPartial info includes only essential fields.\n - FULL: The fetch type indicates whether to retrieve\nall available data for the catalog ( FULL ) or only essential fields ( PARTIAL ).\n\nFull info includes all fields of the catalog.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -1472,6 +1223,255 @@
         ]
       }
     },
+    "/cases/sources": {
+      "get": {
+        "summary": "Retrieve a list of sources or search sources",
+        "operationId": "Sources_ListSources",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.SourceList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "description": "Page number of result dataset records. offset = (page*size)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "description": "Size count of records on result page. limit = (size++)",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "description": "Sort the result according to fields.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "id",
+            "description": "Filter by unique IDs.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "q",
+            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "type",
+            "description": "Filter by source type.\n\n - TYPE_UNSPECIFIED: Unspecified source type.\n - CALL: Phone call source type.\n - CHAT: Chat source type.\n - SOCIAL_MEDIA: Social media source type.\n - EMAIL: Email source type.\n - API: API source type.\n - MANUAL: Manual source type.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "TYPE_UNSPECIFIED",
+                "CALL",
+                "CHAT",
+                "SOCIAL_MEDIA",
+                "EMAIL",
+                "API",
+                "MANUAL"
+              ]
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Sources"
+        ]
+      },
+      "post": {
+        "summary": "Create a new source",
+        "operationId": "Sources_CreateSource",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Source"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Request message for creating a new source.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CreateSourceRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
+    "/cases/sources/{id}": {
+      "get": {
+        "summary": "Locate a source by ID",
+        "operationId": "Sources_LocateSource",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.LocateSourceResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique ID of the source to locate.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved into result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Sources"
+        ]
+      },
+      "delete": {
+        "summary": "Delete a source",
+        "operationId": "Sources_DeleteSource",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Source"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "The unique ID of the source to delete.",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "Sources"
+        ]
+      },
+      "put": {
+        "summary": "Update an existing source",
+        "operationId": "Sources_UpdateSource",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Source"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.InputSource"
+            }
+          }
+        ],
+        "tags": [
+          "Sources"
+        ]
+      },
+      "patch": {
+        "summary": "Update an existing source",
+        "operationId": "Sources_UpdateSource2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Source"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.InputSource"
+            }
+          }
+        ],
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
     "/cases/statuses": {
       "get": {
         "summary": "Retrieve a list of statuses or search statuses",
@@ -2518,70 +2518,6 @@
     }
   },
   "definitions": {
-    "webitel.cases.Appeal": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "int64",
-          "title": "Unique identifier of the appeal"
-        },
-        "name": {
-          "type": "string",
-          "title": "Name of the appeal"
-        },
-        "description": {
-          "type": "string",
-          "title": "Description of the appeal"
-        },
-        "type": {
-          "$ref": "#/definitions/webitel.cases.Type",
-          "title": "Source type of the appeal"
-        },
-        "created_at": {
-          "type": "string",
-          "format": "int64",
-          "title": "CreatedAt timestamp of the appeal"
-        },
-        "updated_at": {
-          "type": "string",
-          "format": "int64",
-          "title": "UpdatedAt timestamp of the appeal"
-        },
-        "created_by": {
-          "$ref": "#/definitions/webitel.cases.Lookup",
-          "title": "CreatedBy user of the appeal"
-        },
-        "updated_by": {
-          "$ref": "#/definitions/webitel.cases.Lookup",
-          "title": "UpdatedBy user of the appeal"
-        }
-      },
-      "description": "Represents an appeal in the contact system."
-    },
-    "webitel.cases.AppealList": {
-      "type": "object",
-      "properties": {
-        "page": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Page number of the partial result."
-        },
-        "next": {
-          "type": "boolean",
-          "description": "Have more records."
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/webitel.cases.Appeal"
-          },
-          "description": "List of appeals."
-        }
-      },
-      "description": "A list of appeals."
-    },
     "webitel.cases.Catalog": {
       "type": "object",
       "properties": {
@@ -2746,28 +2682,6 @@
         }
       },
       "title": "CloseReasonList message contains a list of CloseReason items with pagination"
-    },
-    "webitel.cases.CreateAppealRequest": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the appeal."
-        },
-        "description": {
-          "type": "string",
-          "description": "The description of the appeal."
-        },
-        "type": {
-          "$ref": "#/definitions/webitel.cases.Type",
-          "description": "The source type of the appeal."
-        }
-      },
-      "description": "Request message for creating a new appeal.",
-      "required": [
-        "name",
-        "type"
-      ]
     },
     "webitel.cases.CreateCatalogRequest": {
       "type": "object",
@@ -2948,6 +2862,28 @@
       },
       "title": "CreateServiceRequest message for creating a new service"
     },
+    "webitel.cases.CreateSourceRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the source."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the source."
+        },
+        "type": {
+          "$ref": "#/definitions/webitel.cases.Type",
+          "description": "The source type of the source."
+        }
+      },
+      "description": "Request message for creating a new source.",
+      "required": [
+        "name",
+        "type"
+      ]
+    },
     "webitel.cases.CreateStatusRequest": {
       "type": "object",
       "properties": {
@@ -2971,23 +2907,6 @@
       ],
       "default": "PARTIAL",
       "description": " - PARTIAL: Only essential fields like [ Id, Name, Description, Created/Updated at ].\n\nPartial info includes only essential fields.\n - FULL: The fetch type indicates whether to retrieve\nall available data for the catalog ( FULL ) or only essential fields ( PARTIAL ).\n\nFull info includes all fields of the catalog."
-    },
-    "webitel.cases.InputAppeal": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the appeal."
-        },
-        "description": {
-          "type": "string",
-          "description": "The description of the appeal."
-        },
-        "type": {
-          "$ref": "#/definitions/webitel.cases.Type",
-          "description": "The source type of the appeal."
-        }
-      }
     },
     "webitel.cases.InputCatalog": {
       "type": "object",
@@ -3199,6 +3118,23 @@
       },
       "title": "InputService message contains the fields for creating or updating a service"
     },
+    "webitel.cases.InputSource": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the source."
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the source."
+        },
+        "type": {
+          "$ref": "#/definitions/webitel.cases.Type",
+          "description": "The source type of the source."
+        }
+      }
+    },
     "webitel.cases.InputStatus": {
       "type": "object",
       "properties": {
@@ -3231,16 +3167,6 @@
         }
       },
       "title": "InputStatusCondition message for inputting status condition data"
-    },
-    "webitel.cases.LocateAppealResponse": {
-      "type": "object",
-      "properties": {
-        "appeal": {
-          "$ref": "#/definitions/webitel.cases.Appeal",
-          "description": "The located appeal."
-        }
-      },
-      "description": "Response message for locating an appeal."
     },
     "webitel.cases.LocateCatalogResponse": {
       "type": "object",
@@ -3306,6 +3232,16 @@
         }
       },
       "title": "LocateServiceResponse message contains a single service entity"
+    },
+    "webitel.cases.LocateSourceResponse": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "#/definitions/webitel.cases.Source",
+          "description": "The located source."
+        }
+      },
+      "description": "Response message for locating a source."
     },
     "webitel.cases.LocateStatusConditionResponse": {
       "type": "object",
@@ -3696,7 +3632,6 @@
         },
         "fetch_type": {
           "$ref": "#/definitions/webitel.cases.FetchType",
-          "description": "Renamed from fulfillment to fetch_type",
           "title": "The type of data fetching for catalog services"
         }
       }
@@ -3798,6 +3733,70 @@
         }
       },
       "title": "ServiceList message contains a list of services with pagination"
+    },
+    "webitel.cases.Source": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64",
+          "title": "Unique identifier of the source"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name of the source"
+        },
+        "description": {
+          "type": "string",
+          "title": "Description of the source"
+        },
+        "type": {
+          "$ref": "#/definitions/webitel.cases.Type",
+          "title": "Source type of the source"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "CreatedAt timestamp of the source"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "UpdatedAt timestamp of the source"
+        },
+        "created_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "CreatedBy user of the source"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "UpdatedBy user of the source"
+        }
+      },
+      "description": "Represents a source entity in the contact system."
+    },
+    "webitel.cases.SourceList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Page number of the partial result."
+        },
+        "next": {
+          "type": "boolean",
+          "description": "Have more records."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.Source"
+          },
+          "description": "List of sources."
+        }
+      },
+      "description": "A list of sources."
     },
     "webitel.cases.Status": {
       "type": "object",
@@ -3954,7 +3953,7 @@
         "MANUAL"
       ],
       "default": "TYPE_UNSPECIFIED",
-      "description": "Represents a source type for the appeal.\n\n - TYPE_UNSPECIFIED: Unspecified source type.\n - CALL: Phone call source type.\n - CHAT: Chat source type.\n - SOCIAL_MEDIA: Social media source type.\n - EMAIL: Email source type.\n - API: API source type.\n - MANUAL: Manual source type."
+      "description": "Represents a source type for the source entity.\n\n - TYPE_UNSPECIFIED: Unspecified source type.\n - CALL: Phone call source type.\n - CHAT: Chat source type.\n - SOCIAL_MEDIA: Social media source type.\n - EMAIL: Email source type.\n - API: API source type.\n - MANUAL: Manual source type."
     }
   },
   "securityDefinitions": {

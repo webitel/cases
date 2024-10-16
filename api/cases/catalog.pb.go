@@ -83,7 +83,7 @@ type Search struct {
 	// - Exact match for full names
 	Query string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	// The type of data fetching for catalog services
-	FetchType FetchType `protobuf:"varint,2,opt,name=fetch_type,json=fetchType,proto3,enum=webitel.cases.FetchType" json:"fetch_type,omitempty"` // Renamed from fulfillment to fetch_type
+	FetchType FetchType `protobuf:"varint,2,opt,name=fetch_type,json=fetchType,proto3,enum=webitel.cases.FetchType" json:"fetch_type,omitempty"`
 }
 
 func (x *Search) Reset() {

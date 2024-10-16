@@ -9,24 +9,24 @@ import (
 	"github.com/webitel/cases/model"
 )
 
-type AppealService struct {
+type SourceService struct {
 	app *App
 }
 
-func (s AppealService) CreateAppeal(ctx context.Context, req *_go.CreateAppealRequest) (*_go.Appeal, error) {
+func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRequest) (*_go.Source, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("appeal_service.create_appeal.name.required", ErrLookupNameReq)
+		return nil, model.NewBadRequestError("source_service.create_source.name.required", ErrLookupNameReq)
 	}
 
 	// Validate the Type field
 	if req.Type == _go.Type_TYPE_UNSPECIFIED {
-		return nil, model.NewBadRequestError("appeal_service.create_appeal.type.required", "Appeal type is required")
+		return nil, model.NewBadRequestError("source_service.create_source.type.required", "Source type is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("appeal_service.create_appeal.authorization.failed", err.Error())
+		return nil, model.NewUnauthorizedError("source_service.create_source.authorization.failed", err.Error())
 	}
 
 	// OBAC check
@@ -42,8 +42,8 @@ func (s AppealService) CreateAppeal(ctx context.Context, req *_go.CreateAppealRe
 		Name: session.GetUserName(),
 	}
 
-	// Create a new appeal model
-	appeal := &_go.Appeal{
+	// Create a new source model
+	source := &_go.Source{
 		Name:        req.Name,
 		Description: req.Description,
 		Type:        req.Type,
@@ -60,19 +60,19 @@ func (s AppealService) CreateAppeal(ctx context.Context, req *_go.CreateAppealRe
 		Fields:  fields,
 	}
 
-	// Create the appeal in the store
-	l, e := s.app.Store.Appeal().Create(&createOpts, appeal)
+	// Create the source in the store
+	l, e := s.app.Store.Source().Create(&createOpts, source)
 	if e != nil {
-		return nil, model.NewInternalError("appeal_service.create_appeal.store.create.failed", e.Error())
+		return nil, model.NewInternalError("source_service.create_source.store.create.failed", e.Error())
 	}
 
 	return l, nil
 }
 
-func (s AppealService) ListAppeals(ctx context.Context, req *_go.ListAppealRequest) (*_go.AppealList, error) {
+func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceRequest) (*_go.SourceList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("appeal_service.list_appeals.authorization.failed", err.Error())
+		return nil, model.NewUnauthorizedError("source_service.list_sources.authorization.failed", err.Error())
 	}
 
 	// OBAC check
@@ -111,23 +111,23 @@ func (s AppealService) ListAppeals(ctx context.Context, req *_go.ListAppealReque
 		searchOptions.Filter["type"] = req.Type
 	}
 
-	lookups, e := s.app.Store.Appeal().List(&searchOptions)
+	lookups, e := s.app.Store.Source().List(&searchOptions)
 	if e != nil {
-		return nil, model.NewInternalError("appeal_service.list_appeals.store.list.failed", e.Error())
+		return nil, model.NewInternalError("source_service.list_sources.store.list.failed", e.Error())
 	}
 
 	return lookups, nil
 }
 
-func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRequest) (*_go.Appeal, error) {
+func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRequest) (*_go.Source, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("appeal_service.update_appeal.id.required", "Appeal ID is required")
+		return nil, model.NewBadRequestError("source_service.update_source.id.required", "Source ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("appeal_service.update_appeal.authorization.failed", err.Error())
+		return nil, model.NewUnauthorizedError("source_service.update_source.authorization.failed", err.Error())
 	}
 
 	// OBAC check
@@ -143,8 +143,8 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 		Name: session.GetUserName(),
 	}
 
-	// Update appeal model
-	appeal := &_go.Appeal{
+	// Update source model
+	source := &_go.Source{
 		Id:          req.Id,
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
@@ -161,7 +161,7 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 		case "name":
 			// Validate that name is not empty
 			if req.Input.Name == "" {
-				return nil, model.NewBadRequestError("appeal_service.update_appeal.name.required", "Name is required and cannot be empty")
+				return nil, model.NewBadRequestError("source_service.update_source.name.required", "Name is required and cannot be empty")
 			}
 			fields = append(fields, "name")
 
@@ -171,7 +171,7 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 		case "type":
 			// Validate that type is not zero
 			if req.Input.Type == 0 {
-				return nil, model.NewBadRequestError("appeal_service.update_appeal.type.required", "Type is required and cannot be empty")
+				return nil, model.NewBadRequestError("source_service.update_source.type.required", "Type is required and cannot be empty")
 			}
 			fields = append(fields, "type")
 		}
@@ -184,24 +184,24 @@ func (s AppealService) UpdateAppeal(ctx context.Context, req *_go.UpdateAppealRe
 		Fields:  fields,
 	}
 
-	// Update the appeal in the store
-	l, e := s.app.Store.Appeal().Update(&updateOpts, appeal)
+	// Update the source in the store
+	l, e := s.app.Store.Source().Update(&updateOpts, source)
 	if e != nil {
-		return nil, model.NewInternalError("appeal_service.update_appeal.store.update.failed", e.Error())
+		return nil, model.NewInternalError("source_service.update_source.store.update.failed", e.Error())
 	}
 
 	return l, nil
 }
 
-func (s AppealService) DeleteAppeal(ctx context.Context, req *_go.DeleteAppealRequest) (*_go.Appeal, error) {
+func (s SourceService) DeleteSource(ctx context.Context, req *_go.DeleteSourceRequest) (*_go.Source, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("appeal_service.delete_appeal.id.required", "Lookup ID is required")
+		return nil, model.NewBadRequestError("source_service.delete_source.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("appeal_service.delete_appeal.authorization.failed", err.Error())
+		return nil, model.NewUnauthorizedError("source_service.delete_source.authorization.failed", err.Error())
 	}
 
 	// OBAC check
@@ -218,47 +218,47 @@ func (s AppealService) DeleteAppeal(ctx context.Context, req *_go.DeleteAppealRe
 		IDs:     []int64{req.Id},
 	}
 
-	// Delete the appeal in the store
-	e := s.app.Store.Appeal().Delete(&deleteOpts)
+	// Delete the source in the store
+	e := s.app.Store.Source().Delete(&deleteOpts)
 	if e != nil {
-		return nil, model.NewInternalError("appeal_service.delete_appeal.store.delete.failed", e.Error())
+		return nil, model.NewInternalError("source_service.delete_source.store.delete.failed", e.Error())
 	}
 
-	return &(_go.Appeal{Id: req.Id}), nil
+	return &(_go.Source{Id: req.Id}), nil
 }
 
-func (s AppealService) LocateAppeal(ctx context.Context, req *_go.LocateAppealRequest) (*_go.LocateAppealResponse, error) {
+func (s SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceRequest) (*_go.LocateSourceResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("appeal_service.locate_appeal.id.required", "Lookup ID is required")
+		return nil, model.NewBadRequestError("source_service.locate_source.id.required", "Lookup ID is required")
 	}
 
 	// Prepare a list request with necessary parameters
-	listReq := &_go.ListAppealRequest{
+	listReq := &_go.ListSourceRequest{
 		Id:     []int64{req.Id},
 		Fields: req.Fields,
 		Page:   1,
 		Size:   1, // We only need one item
 	}
 
-	// Call the ListAppeals method
-	listResp, err := s.ListAppeals(ctx, listReq)
+	// Call the ListSources method
+	listResp, err := s.ListSources(ctx, listReq)
 	if err != nil {
-		return nil, model.NewInternalError("appeal_service.locate_appeal.list_appeals.error", err.Error())
+		return nil, model.NewInternalError("source_service.locate_source.list_sources.error", err.Error())
 	}
 
-	// Check if the appeal was found
+	// Check if the source was found
 	if len(listResp.Items) == 0 {
-		return nil, model.NewNotFoundError("appeal_service.locate_appeal.not_found", "Appeal not found")
+		return nil, model.NewNotFoundError("source_service.locate_source.not_found", "Source not found")
 	}
 
-	// Return the found appeal
-	return &_go.LocateAppealResponse{Appeal: listResp.Items[0]}, nil
+	// Return the found source
+	return &_go.LocateSourceResponse{Source: listResp.Items[0]}, nil
 }
 
-func NewAppealService(app *App) (*AppealService, model.AppError) {
+func NewSourceService(app *App) (*SourceService, model.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_appeal_service.args_check.app_nil", "internal is nil")
+		return nil, model.NewInternalError("api.config.new_source_service.args_check.app_nil", "internal is nil")
 	}
-	return &AppealService{app: app}, nil
+	return &SourceService{app: app}, nil
 }
