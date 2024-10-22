@@ -42,6 +42,18 @@
     },
     {
       "name": "Services"
+    },
+    {
+      "name": "Cases"
+    },
+    {
+      "name": "RelatedCases"
+    },
+    {
+      "name": "CaseComments"
+    },
+    {
+      "name": "CaseLinks"
     }
   ],
   "host": "nx.webitel.org",
@@ -56,6 +68,136 @@
     "application/json"
   ],
   "paths": {
+    "/cases": {
+      "get": {
+        "operationId": "Cases_SearchCases",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "q",
+            "description": "covered by filters?",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "qin",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "node.operator",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "And",
+              "Or"
+            ],
+            "default": "And"
+          },
+          {
+            "name": "filter.column",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "filter.operator",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "Equal",
+              "NotEqual",
+              "GreaterThan",
+              "LessThan",
+              "GreaterThanOrEqual",
+              "LessThanOrEqual",
+              "Like"
+            ],
+            "default": "Equal"
+          },
+          {
+            "name": "filter.operand",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "byte"
+          }
+        ],
+        "tags": [
+          "Cases"
+        ]
+      },
+      "post": {
+        "summary": "on create, we should accept service and all parameters that correspond to it,\npriority have the fields that were directly set from the front-end and if they are empty we should\nfill them from service (we can't change the SLA and SLA conditions)\netag doesn't play any role on this API",
+        "operationId": "Cases_CreateCase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Case"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.InputCase"
+            }
+          }
+        ],
+        "tags": [
+          "Cases"
+        ]
+      }
+    },
     "/cases/catalogs": {
       "get": {
         "summary": "Retrieve a list of catalogs or search catalogs",
@@ -534,6 +676,345 @@
         ]
       }
     },
+    "/cases/comments/{etag}": {
+      "get": {
+        "summary": "Itself",
+        "operationId": "CaseComments_LocateComment",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseComment"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseComments"
+        ]
+      },
+      "delete": {
+        "operationId": "CaseComments_DeleteComment",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseComment"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseComments"
+        ]
+      }
+    },
+    "/cases/comments/{input.etag}": {
+      "put": {
+        "operationId": "CaseComments_UpdateComment",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseComment"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "input.etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseComments"
+        ]
+      },
+      "patch": {
+        "operationId": "CaseComments_UpdateComment2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseComment"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "input.etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseComments"
+        ]
+      }
+    },
+    "/cases/links/{etag}": {
+      "get": {
+        "operationId": "CaseLinks_LocateLink",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseLink"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "etag",
+            "description": "(id allowed)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseLinks"
+        ]
+      },
+      "delete": {
+        "operationId": "CaseLinks_DeleteLink",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseLink"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "etag",
+            "description": "(etag only)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseLinks"
+        ]
+      }
+    },
+    "/cases/links/{input.etag}": {
+      "put": {
+        "operationId": "CaseLinks_UpdateLink",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseLink"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "input.etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "name": "etag",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "description": "on return",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseLinks"
+        ]
+      },
+      "patch": {
+        "operationId": "CaseLinks_UpdateLink2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseLink"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "input.etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "name": "etag",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "description": "on return",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseLinks"
+        ]
+      }
+    },
     "/cases/priorities": {
       "get": {
         "summary": "Retrieve a list of priorities or search priorities",
@@ -758,6 +1239,177 @@
         ],
         "tags": [
           "Priorities"
+        ]
+      }
+    },
+    "/cases/related/{etag}": {
+      "get": {
+        "operationId": "RelatedCases_LocateRelatedCase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.RelatedCase"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "etag",
+            "description": "(id allowed)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "RelatedCases"
+        ]
+      },
+      "delete": {
+        "operationId": "RelatedCases_DeleteRelatedCase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.RelatedCase"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "etag",
+            "description": "(etag only)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "description": "fields on return",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "RelatedCases"
+        ]
+      }
+    },
+    "/cases/related/{input.etag}": {
+      "put": {
+        "operationId": "RelatedCases_UpdateRelatedCase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.RelatedCase"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "input.etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "relation_type": {
+                  "$ref": "#/definitions/webitel.cases.RelationType"
+                },
+                "related_to": {
+                  "$ref": "#/definitions/webitel.cases.Case",
+                  "title": "child"
+                }
+              }
+            }
+          },
+          {
+            "name": "fields",
+            "description": "on return",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "RelatedCases"
+        ]
+      },
+      "patch": {
+        "operationId": "RelatedCases_UpdateRelatedCase2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.RelatedCase"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "input.etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "relation_type": {
+                  "$ref": "#/definitions/webitel.cases.RelationType"
+                },
+                "related_to": {
+                  "$ref": "#/definitions/webitel.cases.Case",
+                  "title": "child"
+                }
+              }
+            }
+          },
+          {
+            "name": "fields",
+            "description": "on return",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "RelatedCases"
         ]
       }
     },
@@ -1697,6 +2349,934 @@
         ]
       }
     },
+    "/cases/{case_etag}/comments": {
+      "get": {
+        "operationId": "CaseComments_ListComments",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseCommentList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "case_etag",
+            "description": "(id accepted)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "qin",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "node.operator",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "And",
+              "Or"
+            ],
+            "default": "And"
+          },
+          {
+            "name": "filter.column",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "filter.operator",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "Equal",
+              "NotEqual",
+              "GreaterThan",
+              "LessThan",
+              "GreaterThanOrEqual",
+              "LessThanOrEqual",
+              "Like"
+            ],
+            "default": "Equal"
+          },
+          {
+            "name": "filter.operand",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "byte"
+          }
+        ],
+        "tags": [
+          "CaseComments"
+        ]
+      },
+      "post": {
+        "operationId": "CaseComments_MergeComments",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseCommentList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "case_etag",
+            "description": "new/existing comments belong to (id accepted)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "$ref": "#/definitions/webitel.cases.InputCaseComment"
+              }
+            }
+          },
+          {
+            "name": "fields",
+            "description": "result fields needed on the front-end for each comment",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseComments"
+        ]
+      },
+      "put": {
+        "operationId": "CaseComments_ResetComments",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseCommentList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "case_etag",
+            "description": "new/existing comments belong to (id accepted)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "$ref": "#/definitions/webitel.cases.InputCaseComment"
+              }
+            }
+          },
+          {
+            "name": "fields",
+            "description": "result fields needed on the front-end for each comment",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseComments"
+        ]
+      }
+    },
+    "/cases/{case_etag}/links": {
+      "get": {
+        "operationId": "CaseLinks_ListLinks",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseLinkList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "case_etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "qin",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "node.operator",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "And",
+              "Or"
+            ],
+            "default": "And"
+          },
+          {
+            "name": "filter.column",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "filter.operator",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "Equal",
+              "NotEqual",
+              "GreaterThan",
+              "LessThan",
+              "GreaterThanOrEqual",
+              "LessThanOrEqual",
+              "Like"
+            ],
+            "default": "Equal"
+          },
+          {
+            "name": "filter.operand",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "byte"
+          }
+        ],
+        "tags": [
+          "CaseLinks"
+        ]
+      },
+      "post": {
+        "operationId": "CaseLinks_MergeLinks",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseLinkList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "case_etag",
+            "description": "new/existing comments belong to (id accepted)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "$ref": "#/definitions/webitel.cases.InputCaseLink"
+              }
+            }
+          },
+          {
+            "name": "fields",
+            "description": "result fields needed on the front-end for each comment",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseLinks"
+        ]
+      },
+      "put": {
+        "operationId": "CaseLinks_ResetLinks",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.CaseLinkList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "case_etag",
+            "description": "new/existing comments belong to (id accepted)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "$ref": "#/definitions/webitel.cases.InputCaseLink"
+              }
+            }
+          },
+          {
+            "name": "fields",
+            "description": "result fields needed on the front-end for each comment",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "CaseLinks"
+        ]
+      }
+    },
+    "/cases/{case_etag}/related": {
+      "get": {
+        "summary": "The related cases can be obtained bidirectionally as child or parent, but we should consider them from the perspective of the requested case, by inverting their connection type\nRequested case always a parent and related cases a children",
+        "operationId": "RelatedCases_ListRelatedCases",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.RelatedCaseList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "case_etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "qin",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "node.operator",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "And",
+              "Or"
+            ],
+            "default": "And"
+          },
+          {
+            "name": "filter.column",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "filter.operator",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "Equal",
+              "NotEqual",
+              "GreaterThan",
+              "LessThan",
+              "GreaterThanOrEqual",
+              "LessThanOrEqual",
+              "Like"
+            ],
+            "default": "Equal"
+          },
+          {
+            "name": "filter.operand",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "byte"
+          }
+        ],
+        "tags": [
+          "RelatedCases"
+        ]
+      },
+      "post": {
+        "operationId": "RelatedCases_MergeRelatedCases",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.RelatedCaseList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "case_etag",
+            "description": "new/existing comments belong to (id accepted)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "$ref": "#/definitions/webitel.cases.InputRelatedCase"
+              }
+            }
+          },
+          {
+            "name": "fields",
+            "description": "result fields needed on the front-end for each comment",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "RelatedCases"
+        ]
+      },
+      "put": {
+        "operationId": "RelatedCases_ResetRelatedCases",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.RelatedCaseList"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "case_etag",
+            "description": "new/existing comments belong to (id accepted)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "$ref": "#/definitions/webitel.cases.InputRelatedCase"
+              }
+            }
+          },
+          {
+            "name": "fields",
+            "description": "result fields needed on the front-end for each comment",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "RelatedCases"
+        ]
+      }
+    },
+    "/cases/{etag}": {
+      "get": {
+        "operationId": "Cases_LocateCase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Case"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "etag",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Cases"
+        ]
+      },
+      "delete": {
+        "summary": "on delete, we should require etag, to understand if user has right version of the case\nalso will be deleted all objects connected to the case, such as comments, related cases, links and files",
+        "operationId": "Cases_DeleteCase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Case"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "etag",
+            "description": "identifier of the object",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "description": "fields to return in deleted object",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Cases"
+        ]
+      }
+    },
+    "/cases/{input.etag}": {
+      "put": {
+        "summary": "on update, we should be able to accept service and all parameters that correspond to it,\nif service and corresponding to it fields were changed simultaneously then priority have\nservice and dependent fields set from the service automatically (we can't change the SLA, SLA conditions )\netag is required to update the true version of the case",
+        "operationId": "Cases_UpdateCase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Case"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "input.etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "description": "changes",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "title": "create: required;"
+                },
+                "subject": {
+                  "type": "string",
+                  "title": "create: required;"
+                },
+                "description": {
+                  "type": "string",
+                  "title": "create: not required;"
+                },
+                "contact_info": {
+                  "type": "string",
+                  "title": "create: not required;"
+                },
+                "assignee": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: not required, default from service or set by UI;"
+                },
+                "reporter": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: required (if empty recognize as anonymous contact);"
+                },
+                "impacted": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: required, default is reporter or ui (if empty recognize as anonymous);"
+                },
+                "group": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: not required, default from service or set by UI;"
+                },
+                "status": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: not required, default initial value from status lookup or ui;"
+                },
+                "close_reason": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: not required;"
+                },
+                "priority": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: not required, default first value from priority lookup"
+                },
+                "service": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "on this field base many other readonly fields on return"
+                },
+                "close": {
+                  "$ref": "#/definitions/webitel.cases.CloseInfo",
+                  "title": "create: not required; update: required only when case status goes to the final state"
+                },
+                "rate": {
+                  "$ref": "#/definitions/webitel.cases.RateInfo",
+                  "title": "only for API, not UI"
+                },
+                "comments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "$ref": "#/definitions/webitel.cases.InputCaseComment"
+                  }
+                },
+                "links": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "$ref": "#/definitions/webitel.cases.InputCaseLink"
+                  },
+                  "title": "repeated InputCaseFile files = 17;"
+                },
+                "related": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "$ref": "#/definitions/webitel.cases.InputRelatedCase"
+                  }
+                }
+              },
+              "title": "changes"
+            }
+          },
+          {
+            "name": "fields",
+            "description": "fields to return in resulting object",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Cases"
+        ]
+      },
+      "patch": {
+        "summary": "on update, we should be able to accept service and all parameters that correspond to it,\nif service and corresponding to it fields were changed simultaneously then priority have\nservice and dependent fields set from the service automatically (we can't change the SLA, SLA conditions )\netag is required to update the true version of the case",
+        "operationId": "Cases_UpdateCase2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/webitel.cases.Case"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "input.etag",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "description": "changes",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "title": "create: required;"
+                },
+                "subject": {
+                  "type": "string",
+                  "title": "create: required;"
+                },
+                "description": {
+                  "type": "string",
+                  "title": "create: not required;"
+                },
+                "contact_info": {
+                  "type": "string",
+                  "title": "create: not required;"
+                },
+                "assignee": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: not required, default from service or set by UI;"
+                },
+                "reporter": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: required (if empty recognize as anonymous contact);"
+                },
+                "impacted": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: required, default is reporter or ui (if empty recognize as anonymous);"
+                },
+                "group": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: not required, default from service or set by UI;"
+                },
+                "status": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: not required, default initial value from status lookup or ui;"
+                },
+                "close_reason": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: not required;"
+                },
+                "priority": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "create: not required, default first value from priority lookup"
+                },
+                "service": {
+                  "$ref": "#/definitions/webitel.cases.Lookup",
+                  "title": "on this field base many other readonly fields on return"
+                },
+                "close": {
+                  "$ref": "#/definitions/webitel.cases.CloseInfo",
+                  "title": "create: not required; update: required only when case status goes to the final state"
+                },
+                "rate": {
+                  "$ref": "#/definitions/webitel.cases.RateInfo",
+                  "title": "only for API, not UI"
+                },
+                "comments": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "$ref": "#/definitions/webitel.cases.InputCaseComment"
+                  }
+                },
+                "links": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "$ref": "#/definitions/webitel.cases.InputCaseLink"
+                  },
+                  "title": "repeated InputCaseFile files = 17;"
+                },
+                "related": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "$ref": "#/definitions/webitel.cases.InputRelatedCase"
+                  }
+                }
+              },
+              "title": "changes"
+            }
+          },
+          {
+            "name": "fields",
+            "description": "fields to return in resulting object",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "Cases"
+        ]
+      }
+    },
     "/close_reasons/{close_reason_id}/reasons": {
       "get": {
         "summary": "Retrieve a list of reasons or search reasons",
@@ -2518,6 +4098,286 @@
     }
   },
   "definitions": {
+    "webitel.cases.Case": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64",
+          "title": "default, readonly system fields"
+        },
+        "ver": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "etag": {
+          "type": "string",
+          "title": "main field required for read, update and delete"
+        },
+        "created_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "unixmilli"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "unixmilli"
+        },
+        "name": {
+          "type": "string",
+          "title": "name of the case, formed by the prefix defined in Catalog and int, in docs uses as id"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string",
+          "title": "free-form text to describe case"
+        },
+        "contact_info": {
+          "type": "string",
+          "title": "free-form text to describe contact information"
+        },
+        "planned_reaction_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "planned reaction time calculated by sla and conditions, taking into account the calendar (unixmilli)"
+        },
+        "planned_resolve_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "planned resolve time calculated on-flight by sla and conditions, taking into account the calendar (unixmilli)"
+        },
+        "status_lookup": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "initialized from service/subservice of the catalog, should not be changed when service changed"
+        },
+        "close_reason_lookup": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "defines what close reason lookup we should use for this case, should not be changed when service changed"
+        },
+        "author": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "contact that created the case"
+        },
+        "assignee": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "contact that assigned to resolve this case (optional)"
+        },
+        "reporter": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "contact that reported that issue, if null - anonymous contact"
+        },
+        "impacted": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "contact that can be impacted by this case, by default the reporter of the case, can be null if reporter is anonymous contact"
+        },
+        "group": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "contact group from the service (optional)"
+        },
+        "priority": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "priority"
+        },
+        "source": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "source of the case"
+        },
+        "status": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "case state value from the status_lookup"
+        },
+        "close": {
+          "$ref": "#/definitions/webitel.cases.CloseInfo",
+          "title": "close information, required when case is in final state"
+        },
+        "rate": {
+          "$ref": "#/definitions/webitel.cases.RateInfo",
+          "title": "rating information, not required (filled by internal services)"
+        },
+        "timing": {
+          "$ref": "#/definitions/webitel.cases.TimingInfo",
+          "title": "planned timings calculated on-flight by the SLA and it's conditions"
+        },
+        "sla_condition": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.SLACondition"
+          }
+        },
+        "service": {
+          "$ref": "#/definitions/webitel.cases.Service"
+        },
+        "comments": {
+          "$ref": "#/definitions/webitel.cases.CaseCommentList",
+          "title": "all case's comments"
+        },
+        "related": {
+          "$ref": "#/definitions/webitel.cases.RelatedCaseList",
+          "title": "related cases"
+        },
+        "links": {
+          "$ref": "#/definitions/webitel.cases.CaseLinkList",
+          "title": "attached links"
+        }
+      }
+    },
+    "webitel.cases.CaseComment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "ver": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "etag": {
+          "type": "string",
+          "title": "main field required for read, update and delete"
+        },
+        "created_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "unixmilli"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "unixmilli"
+        },
+        "author": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "contact-author"
+        },
+        "text": {
+          "type": "string",
+          "title": "message itself"
+        },
+        "edited": {
+          "type": "boolean",
+          "title": "indicates if comment was edited by user, calculated on-flight (created_at \u003c updated_at)"
+        }
+      }
+    },
+    "webitel.cases.CaseCommentList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "string",
+          "format": "int64"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.CaseComment"
+          }
+        }
+      }
+    },
+    "webitel.cases.CaseLink": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "ver": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "etag": {
+          "type": "string",
+          "title": "main field required for read, update and delete"
+        },
+        "created_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "unixmilli"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64"
+        },
+        "author": {
+          "type": "string",
+          "format": "int64",
+          "title": "contact-author calculated on-flight"
+        },
+        "name": {
+          "type": "string",
+          "title": "link name"
+        },
+        "url": {
+          "type": "string",
+          "title": "URL"
+        }
+      }
+    },
+    "webitel.cases.CaseLinkList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "string",
+          "format": "int64"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.CaseLink"
+          }
+        }
+      }
+    },
+    "webitel.cases.CaseList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "string",
+          "format": "int64"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.Case"
+          }
+        }
+      }
+    },
     "webitel.cases.Catalog": {
       "type": "object",
       "properties": {
@@ -2626,6 +4486,19 @@
       },
       "title": "CatalogList message contains a list of catalogs with pagination"
     },
+    "webitel.cases.CloseInfo": {
+      "type": "object",
+      "properties": {
+        "close_result": {
+          "type": "string",
+          "title": "rich text with comment on resulting case"
+        },
+        "close_reason": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "actual close reason value from the close_reason lookup"
+        }
+      }
+    },
     "webitel.cases.CloseReason": {
       "type": "object",
       "properties": {
@@ -2682,6 +4555,19 @@
         }
       },
       "title": "CloseReasonList message contains a list of CloseReason items with pagination"
+    },
+    "webitel.cases.ComparisonOperator": {
+      "type": "string",
+      "enum": [
+        "Equal",
+        "NotEqual",
+        "GreaterThan",
+        "LessThan",
+        "GreaterThanOrEqual",
+        "LessThanOrEqual",
+        "Like"
+      ],
+      "default": "Equal"
     },
     "webitel.cases.CreateCatalogRequest": {
       "type": "object",
@@ -2908,6 +4794,147 @@
       "default": "PARTIAL",
       "description": " - PARTIAL: Only essential fields like [ Id, Name, Description, Created/Updated at ].\n\nPartial info includes only essential fields.\n - FULL: The fetch type indicates whether to retrieve\nall available data for the catalog ( FULL ) or only essential fields ( PARTIAL ).\n\nFull info includes all fields of the catalog."
     },
+    "webitel.cases.Filter": {
+      "type": "object",
+      "properties": {
+        "column": {
+          "type": "string"
+        },
+        "operator": {
+          "$ref": "#/definitions/webitel.cases.ComparisonOperator"
+        },
+        "operand": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "webitel.cases.FilterNode": {
+      "type": "object",
+      "properties": {
+        "operator": {
+          "$ref": "#/definitions/webitel.cases.LogicalOperator"
+        },
+        "operand": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.Operand"
+          }
+        }
+      }
+    },
+    "webitel.cases.InputCase": {
+      "type": "object",
+      "properties": {
+        "etag": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "title": "create: required;"
+        },
+        "subject": {
+          "type": "string",
+          "title": "create: required;"
+        },
+        "description": {
+          "type": "string",
+          "title": "create: not required;"
+        },
+        "contact_info": {
+          "type": "string",
+          "title": "create: not required;"
+        },
+        "assignee": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "create: not required, default from service or set by UI;"
+        },
+        "reporter": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "create: required (if empty recognize as anonymous contact);"
+        },
+        "impacted": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "create: required, default is reporter or ui (if empty recognize as anonymous);"
+        },
+        "group": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "create: not required, default from service or set by UI;"
+        },
+        "status": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "create: not required, default initial value from status lookup or ui;"
+        },
+        "close_reason": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "create: not required;"
+        },
+        "priority": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "create: not required, default first value from priority lookup"
+        },
+        "service": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "on this field base many other readonly fields on return"
+        },
+        "close": {
+          "$ref": "#/definitions/webitel.cases.CloseInfo",
+          "title": "create: not required; update: required only when case status goes to the final state"
+        },
+        "rate": {
+          "$ref": "#/definitions/webitel.cases.RateInfo",
+          "title": "only for API, not UI"
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.InputCaseComment"
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.InputCaseLink"
+          },
+          "title": "repeated InputCaseFile files = 17;"
+        },
+        "related": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.InputRelatedCase"
+          }
+        }
+      }
+    },
+    "webitel.cases.InputCaseComment": {
+      "type": "object",
+      "properties": {
+        "etag": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "webitel.cases.InputCaseLink": {
+      "type": "object",
+      "properties": {
+        "etag": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
     "webitel.cases.InputCatalog": {
       "type": "object",
       "properties": {
@@ -3007,6 +5034,21 @@
         }
       },
       "title": "InputReason message for inputting reason data"
+    },
+    "webitel.cases.InputRelatedCase": {
+      "type": "object",
+      "properties": {
+        "etag": {
+          "type": "string"
+        },
+        "relation_type": {
+          "$ref": "#/definitions/webitel.cases.RelationType"
+        },
+        "related_to": {
+          "$ref": "#/definitions/webitel.cases.Case",
+          "title": "child"
+        }
+      }
     },
     "webitel.cases.InputSLA": {
       "type": "object",
@@ -3261,6 +5303,14 @@
       },
       "title": "LocateStatusResponse message contains a single status entity"
     },
+    "webitel.cases.LogicalOperator": {
+      "type": "string",
+      "enum": [
+        "And",
+        "Or"
+      ],
+      "default": "And"
+    },
     "webitel.cases.Lookup": {
       "type": "object",
       "properties": {
@@ -3273,6 +5323,17 @@
         }
       },
       "title": "Lookup message represents a lookup entity with metadata"
+    },
+    "webitel.cases.Operand": {
+      "type": "object",
+      "properties": {
+        "filter": {
+          "$ref": "#/definitions/webitel.cases.Filter"
+        },
+        "node": {
+          "$ref": "#/definitions/webitel.cases.FilterNode"
+        }
+      }
     },
     "webitel.cases.Priority": {
       "type": "object",
@@ -3334,6 +5395,20 @@
         }
       },
       "title": "PriorityList message contains a list of Priority items with pagination"
+    },
+    "webitel.cases.RateInfo": {
+      "type": "object",
+      "properties": {
+        "rating": {
+          "type": "string",
+          "format": "int64",
+          "title": "rating, formed from api calls"
+        },
+        "rating_comment": {
+          "type": "string",
+          "title": "(optional)"
+        }
+      }
     },
     "webitel.cases.ReactionTime": {
       "type": "object",
@@ -3426,6 +5501,81 @@
         "name",
         "lookup_id"
       ]
+    },
+    "webitel.cases.RelatedCase": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "ver": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "etag": {
+          "type": "string",
+          "title": "main field required for read, update and delete"
+        },
+        "created_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "unixmilli"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "unixmilli"
+        },
+        "child": {
+          "$ref": "#/definitions/webitel.cases.Case"
+        },
+        "relation_type": {
+          "$ref": "#/definitions/webitel.cases.RelationType",
+          "title": "Case parent = 9; // (optional, always a case that requested)"
+        }
+      }
+    },
+    "webitel.cases.RelatedCaseList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "string",
+          "format": "int64"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.RelatedCase"
+          }
+        }
+      }
+    },
+    "webitel.cases.RelationType": {
+      "type": "string",
+      "enum": [
+        "BlockedBy",
+        "Blocks",
+        "Duplicates",
+        "DuplicatedBy",
+        "Causes",
+        "CausedBy",
+        "IsChildOf",
+        "IsParentOf",
+        "RelatesTo"
+      ],
+      "default": "BlockedBy",
+      "title": "- Blocks: inversed\n - DuplicatedBy: inversed\n - CausedBy: inversed\n - IsParentOf: inversed\n - RelatesTo: bidirectional"
     },
     "webitel.cases.ResolutionTime": {
       "type": "object",
@@ -3940,6 +6090,31 @@
         }
       },
       "title": "StatusList message contains a list of Status items with pagination"
+    },
+    "webitel.cases.TimingInfo": {
+      "type": "object",
+      "properties": {
+        "resolved_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "actual time when this case was resolved"
+        },
+        "reacted_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "actual time when this case changed it's status from initial"
+        },
+        "difference_in_reaction": {
+          "type": "string",
+          "format": "int64",
+          "title": "difference between actual and planned reaction time, taking into account the calendar"
+        },
+        "difference_in_resolve": {
+          "type": "string",
+          "format": "int64",
+          "title": "difference between actual and planned resolve time, taking into account the calendar"
+        }
+      }
     },
     "webitel.cases.Type": {
       "type": "string",

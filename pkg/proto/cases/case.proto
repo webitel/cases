@@ -1,0 +1,363 @@
+syntax = "proto3";
+
+
+package webitel.cases;
+option go_package = "github.com/webitel/cases/api/cases;cases";
+
+import "cases/service.proto";
+import "cases/case_comment.proto";
+//import "cases/case_relation.proto";
+//import "cases/case_file.proto";
+import "cases/case_link.proto";
+import "cases/lookup.proto";
+import "cases/sla_condition.proto";
+import "cases/filters.proto";
+import "google/api/visibility.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+import "protoc-gen-openapiv2/options/openapiv2.proto";
+
+
+service Cases {
+  rpc SearchCases(SearchCasesRequest) returns (CaseList) {
+    option (google.api.http) = {
+      get: "/cases"
+    };
+
+  }
+  rpc LocateCase(LocateCaseRequest) returns (Case) {
+    option (google.api.http) = {
+      get: "/cases/{etag}"
+    };
+  }
+  // on create, we should accept service and all parameters that correspond to it,
+  // priority have the fields that were directly set from the front-end and if they are empty we should
+  // fill them from service (we can't change the SLA and SLA conditions)
+  // etag doesn't play any role on this API
+  rpc CreateCase(CreateCaseRequest) returns (Case) {
+    option (google.api.http) = {
+      post: "/cases"
+      body: "input"
+    };
+  }
+  // on update, we should be able to accept service and all parameters that correspond to it,
+  // if service and corresponding to it fields were changed simultaneously then priority have
+  // service and dependent fields set from the service automatically (we can't change the SLA, SLA conditions )
+  // etag is required to update the true version of the case
+  rpc UpdateCase(UpdateCaseRequest) returns (Case) {
+    option (google.api.http) = {
+      put: "/cases/{input.etag}"
+      body: "input"
+      additional_bindings {
+          patch: "/cases/{input.etag}"
+          body: "input"
+      }
+    };
+  }
+  // on delete, we should require etag, to understand if user has right version of the case
+  // also will be deleted all objects connected to the case, such as comments, related cases, links and files
+  rpc DeleteCase(DeleteCaseRequest) returns (Case) {
+    option (google.api.http) = {
+      delete: "/cases/{etag}"
+    };
+  }
+}
+
+message SearchCasesRequest {
+  int64 page = 1;
+  int64 size = 2;
+  string q = 3; // covered by filters?
+  repeated string qin = 4;
+  string sort = 5;
+  repeated string fields = 6;
+  oneof filters {
+    FilterNode node = 7;
+    Filter filter = 8;
+  }
+}
+
+message LocateCaseRequest {
+  int64 etag = 1;
+  repeated string fields = 2;
+}
+
+message CreateCaseRequest {
+  InputCase input = 1;
+}
+
+message UpdateCaseRequest {
+  repeated string x_json_mask = 1 // list of json fields specified in front-end request (patch)
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+  repeated string fields = 2;  // fields to return in resulting object
+  InputCase input = 3;   // changes
+}
+
+message DeleteCaseRequest {
+  repeated string fields = 1;// fields to return in deleted object
+  string etag = 2; // identifier of the object
+}
+
+
+
+message CaseList {
+  int64 page = 1;
+  bool next = 2;
+  repeated Case items = 3;
+}
+
+
+
+message Case {
+  // default, readonly system fields
+  int64 id = 1;
+  int32 ver = 2;
+  string etag = 3; // main field required for read, update and delete
+  Lookup created_by = 4;
+  int64 created_at = 5; // unixmilli
+  Lookup updated_by = 6;
+  int64 updated_at = 7; // unixmilli
+
+  string name = 8; // name of the case, formed by the prefix defined in Catalog and int, in docs uses as id
+  string subject = 9;
+  string description = 10; // free-form text to describe case
+  string contact_info = 11; // free-form text to describe contact information
+  int64 planned_reaction_at = 12; // planned reaction time calculated by sla and conditions, taking into account the calendar (unixmilli)
+  int64 planned_resolve_at = 13; // planned resolve time calculated on-flight by sla and conditions, taking into account the calendar (unixmilli)
+  Lookup status_lookup = 14; // initialized from service/subservice of the catalog, should not be changed when service changed
+  Lookup close_reason_lookup = 15;  // defines what close reason lookup we should use for this case, should not be changed when service changed
+
+  Lookup author = 16; // contact that created the case
+  Lookup assignee = 17; // contact that assigned to resolve this case (optional)
+  Lookup reporter = 18; // contact that reported that issue, if null - anonymous contact
+  Lookup impacted = 19; // contact that can be impacted by this case, by default the reporter of the case, can be null if reporter is anonymous contact
+  Lookup group = 20; // contact group from the service (optional)
+
+  Lookup priority = 21; // priority
+  Lookup source = 22; // source of the case
+  Lookup status = 23; // case state value from the status_lookup
+
+  CloseInfo close = 24; // close information, required when case is in final state
+  RateInfo rate = 25; // rating information, not required (filled by internal services)
+  TimingInfo timing = 26; // planned timings calculated on-flight by the SLA and it's conditions
+
+
+  // from catalog we got sla, status_lookup, close_reason_lookup, teams, skills
+  // general.Lookup catalog = 24; // main service where we got information
+  // from the service we got sla, group, assignee
+
+  repeated SLACondition sla_condition = 27;
+  Service service = 28;
+
+
+
+  CaseCommentList comments = 29; // all case's comments
+  RelatedCaseList related = 30; // related cases
+  CaseLinkList links = 31; // attached links
+//  CaseFileList files = 32; // attached files
+}
+
+message CloseInfo {
+  string close_result = 1; // rich text with comment on resulting case
+  Lookup close_reason = 2; // actual close reason value from the close_reason lookup
+}
+
+message RateInfo {
+  int64 rating = 1; // rating, formed from api calls
+  string rating_comment = 2; // (optional)
+}
+message TimingInfo {
+  int64 resolved_at = 1; // actual time when this case was resolved
+  int64 reacted_at = 2; // actual time when this case changed it's status from initial
+  int64 difference_in_reaction = 3;  // difference between actual and planned reaction time, taking into account the calendar
+  int64 difference_in_resolve = 4;  // difference between actual and planned resolve time, taking into account the calendar
+}
+
+
+message InputCase {
+  string etag = 1;
+  string name = 2; // create: required;
+  string subject = 3; // create: required;
+  string description = 4; // create: not required;
+  string contact_info = 5; // create: not required;
+  Lookup assignee = 6; // create: not required, default from service or set by UI;
+  Lookup reporter = 7; // create: required (if empty recognize as anonymous contact);
+  Lookup impacted = 8; // create: required, default is reporter or ui (if empty recognize as anonymous);
+  Lookup group = 9; // create: not required, default from service or set by UI;
+  Lookup status = 10; // create: not required, default initial value from status lookup or ui;
+  Lookup close_reason = 11; // create: not required;
+  Lookup priority = 12; // create: not required, default first value from priority lookup
+  Lookup service = 13; // on this field base many other readonly fields on return
+  CloseInfo close = 14; // create: not required; update: required only when case status goes to the final state
+  RateInfo rate = 15; // only for API, not UI
+
+
+  repeated InputCaseComment comments = 16;
+//  repeated InputCaseFile files = 17;
+  repeated InputCaseLink links = 18;
+  repeated InputRelatedCase related = 19;
+}
+
+
+message RelatedCase {
+  int64 id = 1;
+  int32 ver = 2;
+  string etag = 3; // main field required for read, update and delete
+  Lookup created_by = 4;
+  int64 created_at = 5; // unixmilli
+  Lookup updated_by = 6;
+  int64 updated_at = 7; // unixmilli
+
+
+  Case child = 8;
+//  Case parent = 9; // (optional, always a case that requested)
+  RelationType relation_type = 10;
+
+}
+
+message RelatedCaseList {
+  int64 page = 1;
+  bool next = 2;
+  repeated RelatedCase items = 3;
+}
+
+message InputRelatedCase {
+  string etag = 1;
+  RelationType relation_type = 3;
+  Case related_to = 4; // child
+}
+
+
+enum RelationType {
+  BlockedBy = 0;
+  Blocks = 1; // inversed
+  Duplicates = 2;
+  DuplicatedBy = 3; // inversed
+  Causes = 4;
+  CausedBy = 5; // inversed
+  IsChildOf = 6;
+  IsParentOf = 7; // inversed
+  RelatesTo = 8; // bidirectional
+}
+
+
+service RelatedCases {
+  /*  Itself  */
+
+  rpc LocateRelatedCase(LocateRelatedCaseRequest) returns (RelatedCase) {
+    option (google.api.http) = {
+      get: "/cases/related/{etag}"
+    };
+  }
+  rpc UpdateRelatedCase(UpdateRelatedCaseRequest) returns (RelatedCase) {
+    option (google.api.http) = {
+      put: "/cases/related/{input.etag}"
+      body: "input"
+      additional_bindings {
+        patch: "/cases/related/{input.etag}"
+        body: "input"
+      }
+    };
+  }
+  rpc DeleteRelatedCase(DeleteRelatedCaseRequest) returns (RelatedCase) {
+    option (google.api.http) = {
+      delete: "/cases/related/{etag}"
+    };
+  }
+
+
+  /*   With Case   */
+
+  // The related cases can be obtained bidirectionally as child or parent, but we should consider them from the perspective of the requested case, by inverting their connection type
+  // Requested case always a parent and related cases a children
+  rpc ListRelatedCases(ListRelatedCasesRequest) returns (RelatedCaseList) {
+    option (google.api.http) = {
+      get: "/cases/{case_etag}/related"
+    };
+  }
+  rpc MergeRelatedCases(MergeRelatedCasesRequest) returns (RelatedCaseList) {
+    option (google.api.http) = {
+      post: "/cases/{case_etag}/related"
+      body: "input"
+    };
+  }
+  rpc ResetRelatedCases(ResetRelatedCasesRequest) returns (RelatedCaseList) {
+    option (google.api.http) = {
+      put: "/cases/{case_etag}/related"
+      body: "input"
+    };
+  }
+}
+
+
+message LocateRelatedCaseRequest {
+  string etag = 1; // (id allowed)
+  repeated string fields = 2;
+}
+
+message UpdateRelatedCaseRequest {
+  repeated string fields = 2; // on return
+  repeated string x_json_mask = 3 // on input
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW"
+  },
+    (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+      read_only: true
+      pattern: "^$"
+    }];
+  InputRelatedCase input = 4;
+}
+
+message DeleteRelatedCaseRequest {
+  string etag = 1; // (etag only)
+  repeated string fields = 2; // fields on return
+}
+
+
+message ListRelatedCasesRequest {
+  int64 page = 1;
+  int64 size = 2;
+  string q = 3;
+  repeated string qin = 4;
+  string sort = 5;
+  repeated string fields = 6;
+  oneof filters {
+    FilterNode node = 7;
+    Filter filter = 8;
+  }
+  string case_etag = 9;
+}
+
+
+message MergeRelatedCasesRequest {
+ repeated string x_json_mask = 1 // list of json fields specified in front-end request (patch)
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+  repeated string fields = 2; // result fields needed on the front-end for each comment
+  string case_etag = 3; // new/existing comments belong to (id accepted)
+  repeated InputRelatedCase input = 4;
+}
+
+message ResetRelatedCasesRequest {
+  repeated string x_json_mask = 1 // list of json fields specified in front-end request (patch)
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+  repeated string fields = 2; // result fields needed on the front-end for each comment
+  string case_etag = 3; // new/existing comments belong to (id accepted)
+  repeated InputRelatedCase input = 4;
+}

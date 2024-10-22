@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+
+package webitel.cases;
+option go_package = "github.com/webitel/cases/api/cases;cases";
+
+
+
+
+message FilterNode {
+  LogicalOperator operator = 1;
+  repeated Operand operand = 2;
+}
+
+message Operand {
+  oneof value {
+        Filter filter = 1;
+        FilterNode node = 2;
+  }
+}
+
+message Filter {
+  string column = 1;
+  ComparisonOperator operator = 2;
+  bytes operand = 3;
+}
+
+
+enum LogicalOperator {
+  And = 0;
+  Or = 1;
+}
+
+
+enum ComparisonOperator {
+  Equal = 0;
+  NotEqual = 1;
+  GreaterThan = 2;
+  LessThan = 3;
+  GreaterThanOrEqual = 4;
+  LessThanOrEqual = 5;
+  Like = 6;
+}

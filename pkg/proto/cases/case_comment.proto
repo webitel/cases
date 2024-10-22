@@ -1,0 +1,153 @@
+syntax = "proto3";
+
+
+package webitel.cases;
+option go_package = "github.com/webitel/cases/api/cases;cases";
+
+
+import "cases/lookup.proto";
+import "cases/filters.proto";
+import "google/api/visibility.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+
+message CaseComment {
+  int64 id = 1;
+  int32 ver = 2;
+  string etag = 3; // main field required for read, update and delete
+  Lookup created_by = 4;
+  int64 created_at = 5; // unixmilli
+  Lookup updated_by = 6;
+  int64 updated_at = 7; // unixmilli
+  Lookup author = 8; // contact-author
+  string text = 9; // message itself
+  bool edited = 10; // indicates if comment was edited by user, calculated on-flight (created_at < updated_at)
+  // int64 case_id = 11; // relation on case (optional)
+}
+
+
+message CaseCommentList {
+  int64 page = 1;
+  bool next = 2;
+  repeated CaseComment items = 3;
+}
+
+
+service CaseComments {
+  /*  Itself  */
+  rpc LocateComment(LocateCommentRequest) returns (CaseComment) {
+     option (google.api.http) = {
+      get: "/cases/comments/{etag}"
+    };
+  }
+  rpc UpdateComment(UpdateCommentRequest) returns (CaseComment) {
+    option (google.api.http) = {
+      put: "/cases/comments/{input.etag}"
+      body: "input"
+      additional_bindings {
+        patch: "/cases/comments/{input.etag}"
+        body: "input"
+      }
+    };
+  }
+  rpc DeleteComment(DeleteCommentRequest) returns (CaseComment) {
+    option (google.api.http) = {
+      delete: "/cases/comments/{etag}"
+    };
+  }
+
+
+  /*   With Case   */
+
+  rpc ListComments(ListCommentsRequest) returns (CaseCommentList) {
+     option (google.api.http) = {
+      get: "/cases/{case_etag}/comments"
+    };
+  }
+  rpc MergeComments(MergeCommentsRequest) returns (CaseCommentList) {
+    option (google.api.http) = {
+      post: "/cases/{case_etag}/comments"
+      body: "input"
+    };
+  }
+  rpc ResetComments(ResetCommentsRequest) returns (CaseCommentList) {
+    option (google.api.http) = {
+      put: "/cases/{case_etag}/comments"
+      body: "input"
+    };
+  }
+}
+
+
+message InputCaseComment {
+  string etag = 1;
+  string text = 2;
+}
+
+
+message LocateCommentRequest {
+    string etag = 1;
+    repeated string fields = 2;
+}
+
+message UpdateCommentRequest {
+    repeated string x_json_mask = 1 // list of json fields specified in front-end request (patch)
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+    repeated string fields = 3;
+    InputCaseComment input = 4;
+}
+
+message DeleteCommentRequest {
+    string etag = 1;
+    repeated string fields = 2;
+}
+
+message ListCommentsRequest {
+  int64 page = 1;
+  int64 size = 2;
+  string q = 3;
+  repeated string qin = 4;
+  string sort = 5;
+  repeated string fields = 6;
+  oneof filters {
+    FilterNode node = 7;
+    Filter filter = 8;
+  }
+  string case_etag = 9; // (id accepted)
+}
+
+message MergeCommentsRequest {
+  repeated string x_json_mask = 1 // list of json fields specified in front-end request (patch)
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+  repeated string fields = 2; // result fields needed on the front-end for each comment
+  string case_etag = 3; // new/existing comments belong to (id accepted)
+  repeated InputCaseComment input = 4;
+}
+
+message ResetCommentsRequest {
+  repeated string x_json_mask = 1 // list of json fields specified in front-end request (patch)
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+  repeated string fields = 2; // result fields needed on the front-end for each comment
+  string case_etag = 3; // new/existing comments belong to (id accepted)
+  repeated InputCaseComment input = 4;
+}
+

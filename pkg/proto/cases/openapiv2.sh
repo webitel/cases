@@ -17,6 +17,9 @@ $src/sla.proto \
 $src/sla_condition.proto \
 $src/catalog.proto \
 $src/service.proto \
+$src/case.proto \
+$src/case_comment.proto \
+$src/case_link.proto \
 "
 
 #openapiv2_format=yaml
