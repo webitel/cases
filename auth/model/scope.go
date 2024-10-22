@@ -11,7 +11,7 @@ type Scope struct {
 }
 
 func (s *Scope) IsRbacUsed() bool {
-	return s.IsObacUsed() && s.Rbac
+	return s.Rbac
 }
 
 func (s *Scope) IsObacUsed() bool {

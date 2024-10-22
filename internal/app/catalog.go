@@ -42,7 +42,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	// OBAC check
 	accessMode := authmodel.Add
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -112,7 +112,7 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 	// OBAC check
 	accessMode := authmodel.Delete
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -149,7 +149,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 	// OBAC check
 	accessMode := authmodel.Read
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -226,7 +226,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 	// OBAC check
 	accessMode := authmodel.Edit
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 

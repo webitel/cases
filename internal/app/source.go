@@ -32,7 +32,7 @@ func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRe
 	// OBAC check
 	accessMode := authmodel.Add
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -78,7 +78,7 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 	// OBAC check
 	accessMode := authmodel.Read
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -133,7 +133,7 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 	// OBAC check
 	accessMode := authmodel.Edit
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -207,7 +207,7 @@ func (s SourceService) DeleteSource(ctx context.Context, req *_go.DeleteSourceRe
 	// OBAC check
 	accessMode := authmodel.Delete
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 

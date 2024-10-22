@@ -42,7 +42,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 	// OBAC check
 	accessMode := authmodel.Add
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -112,7 +112,7 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 	// OBAC check
 	accessMode := authmodel.Delete
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -144,7 +144,7 @@ func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*
 	// OBAC check
 	accessMode := authmodel.Read
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -229,7 +229,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 	// OBAC check
 	accessMode := authmodel.Edit
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 

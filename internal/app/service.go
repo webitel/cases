@@ -32,7 +32,7 @@ func (s *ServiceService) CreateService(ctx context.Context, req *cases.CreateSer
 	// OBAC check
 	accessMode := authmodel.Add
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -89,7 +89,7 @@ func (s *ServiceService) DeleteService(ctx context.Context, req *cases.DeleteSer
 	// OBAC check
 	accessMode := authmodel.Delete
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -126,7 +126,7 @@ func (s *ServiceService) ListServices(ctx context.Context, req *cases.ListServic
 	// OBAC check
 	accessMode := authmodel.Read
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 
@@ -205,7 +205,7 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *cases.UpdateSer
 	// OBAC check
 	accessMode := authmodel.Edit
 	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasAccess(scope, accessMode) {
+	if !session.HasObacAccess(scope.Class, accessMode) {
 		return nil, s.app.MakeScopeError(session, scope, accessMode)
 	}
 

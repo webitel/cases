@@ -1,9 +1,10 @@
 package model
 
 import (
-	authmodel "buf.build/gen/go/webitel/webitel-go/protocolbuffers/go"
 	"strings"
 	"time"
+
+	authmodel "buf.build/gen/go/webitel/webitel-go/protocolbuffers/go"
 )
 
 type Session struct {
@@ -59,12 +60,12 @@ func (s *Session) GetDomainId() int64 {
 	return s.domainId
 }
 
-func (s *Session) GetAclRoles() []int {
-	var roles []int
+func (s *Session) GetAclRoles() []int64 {
+	roles := []int64{s.GetUserId()}
 	for _, role := range s.roles {
 		roles = append(
 			roles,
-			int(role.Id),
+			role.Id,
 		)
 	}
 	return roles
@@ -76,21 +77,20 @@ func (s *Session) IsExpired() bool {
 
 func (s *Session) HasPermission(permissionName string) bool {
 	for _, permission := range s.permissions {
-		if permission.Name == permissionName {
+		if permission.Id == permissionName {
 			return true
 		}
 	}
 	return false
 }
 
-func (s *Session) HasAccess(scope *Scope, accessType AccessMode) bool {
+func (s *Session) HasObacAccess(scopeName string, accessType AccessMode) bool {
+	scope := s.GetScope(scopeName)
 	if scope == nil {
 		return false
 	}
 
-	var (
-		bypass, require string
-	)
+	var bypass, require string
 
 	switch accessType {
 	case Delete, Read | Delete:
