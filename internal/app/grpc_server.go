@@ -77,6 +77,7 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 		grpc.StatsHandler(otelgrpc.NewServerHandler(
 			otelgrpc.WithMessageEvents(otelgrpc.SentEvents, otelgrpc.ReceivedEvents),
 		)),
+		// TODO: add chain of interceptors, including auth interceptor
 		grpc.UnaryInterceptor(unaryInterceptor),
 	)
 
@@ -152,5 +153,42 @@ func buildGrpc(app *App) (*grpc.Server, model.AppError) {
 	grpcservice.RegisterCatalogsServer(grpcServer, catalog)
 	grpcservice.RegisterServicesServer(grpcServer, service)
 
+	appErr = registerCases(grpcServer, app)
+	if appErr != nil {
+		return nil, appErr
+	}
+
 	return grpcServer, nil
+}
+
+func registerCases(server *grpc.Server, app *App) model.AppError {
+	// Case
+	cases, appErr := NewCaseService(app)
+	if appErr != nil {
+		return appErr
+	}
+
+	// Comment
+	comments, appErr := NewCaseCommentService(app)
+	if appErr != nil {
+		return appErr
+	}
+
+	// Comment
+	links, appErr := NewCaseLinkService(app)
+	if appErr != nil {
+		return appErr
+	}
+
+	// Related
+	related, appErr := NewCaseRelatedService(app)
+	if appErr != nil {
+		return appErr
+	}
+
+	grpcservice.RegisterCasesServer(server, cases)
+	grpcservice.RegisterCaseCommentsServer(server, comments)
+	grpcservice.RegisterCaseLinksServer(server, links)
+	grpcservice.RegisterRelatedCasesServer(server, related)
+	return nil
 }
