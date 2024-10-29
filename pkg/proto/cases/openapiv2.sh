@@ -7,8 +7,8 @@ dst=$src
 protos="\
 $src/openapiv2.proto \
 $src/source.proto \
+$src/close_reason_group.proto \
 $src/close_reason.proto \
-$src/reason.proto \
 $src/lookup.proto \
 $src/status_condition.proto \
 $src/status.proto \

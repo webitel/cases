@@ -15,8 +15,8 @@ type Store interface {
 	Priority() PriorityStore // Handles priority levels.
 
 	// ------------ Closure reasons Stores ------------ //
-	CloseReason() CloseReasonStore // Manages closure reasons.
-	Reason() ReasonStore           // Supports reasons.
+	CloseReasonGroup() CloseReasonGroupStore // Manages closure reasons.
+	CloseReason() CloseReasonStore           // Supports reasons.
 
 	// ------------ Status ------------ //
 	Status() StatusStore                   // Manages statuses.
@@ -68,26 +68,26 @@ type StatusConditionStore interface {
 	Update(ctx *model.UpdateOptions, status *_go.StatusCondition) (*_go.StatusCondition, error)
 }
 
-type CloseReasonStore interface {
+type CloseReasonGroupStore interface {
 	// Create a new close reason lookup
-	Create(rpc *model.CreateOptions, add *_go.CloseReason) (*_go.CloseReason, error)
+	Create(rpc *model.CreateOptions, add *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
 	// List close reason lookup
-	List(rpc *model.SearchOptions) (*_go.CloseReasonList, error)
+	List(rpc *model.SearchOptions) (*_go.CloseReasonGroupList, error)
 	// Delete close reason lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update close reason lookup
-	Update(rpc *model.UpdateOptions, lookup *_go.CloseReason) (*_go.CloseReason, error)
+	Update(rpc *model.UpdateOptions, lookup *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
 }
 
-type ReasonStore interface {
+type CloseReasonStore interface {
 	// Create a new reason
-	Create(ctx *model.CreateOptions, add *_go.Reason) (*_go.Reason, error)
+	Create(ctx *model.CreateOptions, add *_go.CloseReason) (*_go.CloseReason, error)
 	// List reasons
-	List(ctx *model.SearchOptions, closeReasonId int64) (*_go.ReasonList, error)
+	List(ctx *model.SearchOptions, closeReasonId int64) (*_go.CloseReasonList, error)
 	// Delete reason
 	Delete(ctx *model.DeleteOptions, closeReasonId int64) error
 	// Update reason
-	Update(ctx *model.UpdateOptions, lookup *_go.Reason) (*_go.Reason, error)
+	Update(ctx *model.UpdateOptions, lookup *_go.CloseReason) (*_go.CloseReason, error)
 }
 
 type SourceStore interface {

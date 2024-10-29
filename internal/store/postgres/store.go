@@ -18,8 +18,8 @@ type Store struct {
 	statusConditionStore store.StatusConditionStore
 
 	//-----CloseReason + Reason
-	closeReasonStore store.CloseReasonStore
-	reasonStore      store.ReasonStore
+	closeReasonGroupStore store.CloseReasonGroupStore
+	closeReasonStore      store.CloseReasonStore
 
 	priorityStore store.PriorityStore
 
@@ -72,6 +72,17 @@ func (s *Store) Source() store.SourceStore {
 	return s.sourceStore
 }
 
+func (s *Store) CloseReasonGroup() store.CloseReasonGroupStore {
+	if s.closeReasonGroupStore == nil {
+		st, err := NewCloseReasonGroupStore(s)
+		if err != nil {
+			return nil
+		}
+		s.closeReasonGroupStore = st
+	}
+	return s.closeReasonGroupStore
+}
+
 func (s *Store) CloseReason() store.CloseReasonStore {
 	if s.closeReasonStore == nil {
 		st, err := NewCloseReasonStore(s)
@@ -81,17 +92,6 @@ func (s *Store) CloseReason() store.CloseReasonStore {
 		s.closeReasonStore = st
 	}
 	return s.closeReasonStore
-}
-
-func (s *Store) Reason() store.ReasonStore {
-	if s.reasonStore == nil {
-		st, err := NewReasonStore(s)
-		if err != nil {
-			return nil
-		}
-		s.reasonStore = st
-	}
-	return s.reasonStore
 }
 
 func (s *Store) Priority() store.PriorityStore {

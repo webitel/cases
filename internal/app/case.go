@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/model"
 )
@@ -20,27 +21,27 @@ type CaseService struct {
 }
 
 func (c *CaseService) SearchCases(ctx context.Context, request *cases.SearchCasesRequest) (*cases.CaseList, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (c *CaseService) LocateCase(ctx context.Context, request *cases.LocateCaseRequest) (*cases.Case, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (c *CaseService) CreateCase(ctx context.Context, request *cases.CreateCaseRequest) (*cases.Case, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (c *CaseService) UpdateCase(ctx context.Context, request *cases.UpdateCaseRequest) (*cases.Case, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (c *CaseService) DeleteCase(ctx context.Context, request *cases.DeleteCaseRequest) (*cases.Case, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 

@@ -1,0 +1,166 @@
+syntax = "proto3";
+package webitel.cases;
+
+option go_package = "github.com/webitel/cases/api/cases;cases";
+
+import "cases/lookup.proto";
+import "google/api/visibility.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+
+// CloseReasonGroup message represents a close reason group entity with metadata
+message CloseReasonGroup {
+  // Unique identifier of the close reason group
+  int64 id = 1;
+  // Name of the close reason group
+  string name = 2;
+  // Description of the close reason group
+  string description = 4;
+  // CreatedAt timestamp of the close reason group
+  int64 created_at = 20;
+  // UpdatedAt timestamp of the close reason group
+  int64 updated_at = 21;
+  // CreatedBy user of the close reason group
+  Lookup created_by = 22;
+  // UpdatedBy user of the close reason group
+  Lookup updated_by = 23;
+}
+
+// CloseReasonGroupList message contains a list of CloseReasonGroup items with pagination
+message CloseReasonGroupList {
+  int32 page = 1;
+  bool next = 2;
+  repeated CloseReasonGroup items = 3;
+}
+
+// CreateCloseReasonGroupRequest message for creating a new close reason group
+message CreateCloseReasonGroupRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["name"]
+    }
+  };
+
+  string name = 1;
+  string description = 3;
+}
+
+message InputCloseReasonGroup {
+  string name = 2;
+  string description = 4;
+}
+
+// UpdateCloseReasonGroupRequest message for updating an existing close reason group
+message UpdateCloseReasonGroupRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  int64 id = 1;
+  InputCloseReasonGroup input = 2;
+
+  // ---- JSON PATCH fields mask ----
+  // List of JPath fields specified in body(input).
+  repeated string x_json_mask = 3
+  [(google.api.field_visibility) = {
+    restriction: "PREVIEW" // "INTERNAL"
+  },
+  (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_field) = {
+    read_only: true
+    pattern: "^$"
+  }];
+}
+
+// DeleteCloseReasonGroupRequest message for deleting an existing close reason group
+message DeleteCloseReasonGroupRequest {
+  option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_schema) = {
+    json_schema: {
+      required: ["id"]
+    }
+  };
+
+  int64 id = 1;
+}
+
+// ListCloseReasonGroupsRequest message for listing or searching close reason groups
+message ListCloseReasonGroupsRequest {
+  int32 page = 1;
+  int32 size = 2;
+  repeated string fields = 3;
+  repeated string sort = 4;
+  repeated int64 id = 5;
+  string q = 6;
+}
+
+// LocateCloseReasonGroupRequest message for locating a specific close reason group by ID
+message LocateCloseReasonGroupRequest {
+  int64 id = 1;
+  repeated string fields = 2;
+}
+
+// LocateCloseReasonGroupResponse message contains a single close reason group entity
+message LocateCloseReasonGroupResponse {
+  CloseReasonGroup close_reason_group = 1;
+}
+
+// CloseReasonGroups service definition with RPC methods for managing close reason groups
+service CloseReasonGroups {
+  rpc ListCloseReasonGroups(ListCloseReasonGroupsRequest) returns (CloseReasonGroupList) {
+    option (google.api.http) = {
+      get: "/cases/close_reason_groups"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Retrieve a list of close reason groups or search close reason groups"
+    };
+  }
+
+  rpc CreateCloseReasonGroup(CreateCloseReasonGroupRequest) returns (CloseReasonGroup) {
+    option (google.api.http) = {
+      post: "/cases/close_reason_groups"
+      body: "*"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Create a new close reason group"
+    };
+  }
+
+  rpc UpdateCloseReasonGroup(UpdateCloseReasonGroupRequest) returns (CloseReasonGroup) {
+    option (google.api.http) = {
+      put: "/cases/close_reason_groups/{id}"
+      body: "input"
+      additional_bindings {
+        patch: "/cases/close_reason_groups/{id}"
+        body: "input"
+      }
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Update an existing close reason group"
+    };
+  }
+
+  rpc DeleteCloseReasonGroup(DeleteCloseReasonGroupRequest) returns (CloseReasonGroup) {
+    option (google.api.http) = {
+      delete: "/cases/close_reason_groups/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Delete a close reason group"
+    };
+  }
+
+  rpc LocateCloseReasonGroup(LocateCloseReasonGroupRequest) returns (LocateCloseReasonGroupResponse) {
+    option (google.api.http) = {
+      get: "/cases/close_reason_groups/{id}"
+    };
+
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      summary: "Locate a close reason group by ID"
+    };
+  }
+}

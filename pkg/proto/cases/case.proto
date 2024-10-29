@@ -152,7 +152,7 @@ message Case {
   // from the service we got sla, group, assignee
 
   repeated SLACondition sla_condition = 27;
-  Service service = 28;
+  Lookup service = 28;
 
 
 

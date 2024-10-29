@@ -17,10 +17,10 @@
       "name": "Sources"
     },
     {
-      "name": "CloseReasons"
+      "name": "CloseReasonGroups"
     },
     {
-      "name": "Reasons"
+      "name": "CloseReasons"
     },
     {
       "name": "StatusConditions"
@@ -451,22 +451,21 @@
         ]
       }
     },
-    "/cases/close_reasons": {
+    "/cases/close_reason_groups": {
       "get": {
-        "summary": "Retrieve a list of close reasons or search close reasons",
-        "operationId": "CloseReasons_ListCloseReasons",
+        "summary": "Retrieve a list of close reason groups or search close reason groups",
+        "operationId": "CloseReasonGroups_ListCloseReasonGroups",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.CloseReasonList"
+              "$ref": "#/definitions/webitel.cases.CloseReasonGroupList"
             }
           }
         },
         "parameters": [
           {
             "name": "page",
-            "description": "Page number of result dataset records. offset = (page*size)",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -474,7 +473,6 @@
           },
           {
             "name": "size",
-            "description": "Size count of records on result page. limit = (size++)",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -482,7 +480,6 @@
           },
           {
             "name": "fields",
-            "description": "Fields to be retrieved as a result.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -493,7 +490,6 @@
           },
           {
             "name": "sort",
-            "description": "Sort the result according to fields.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -504,7 +500,6 @@
           },
           {
             "name": "id",
-            "description": "Filter by unique IDs.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -516,24 +511,23 @@
           },
           {
             "name": "q",
-            "description": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names",
             "in": "query",
             "required": false,
             "type": "string"
           }
         ],
         "tags": [
-          "CloseReasons"
+          "CloseReasonGroups"
         ]
       },
       "post": {
-        "summary": "Create a new close reason",
-        "operationId": "CloseReasons_CreateCloseReason",
+        "summary": "Create a new close reason group",
+        "operationId": "CloseReasonGroups_CreateCloseReasonGroup",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.CloseReason"
+              "$ref": "#/definitions/webitel.cases.CloseReasonGroup"
             }
           }
         },
@@ -543,24 +537,24 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.CreateCloseReasonRequest"
+              "$ref": "#/definitions/webitel.cases.CreateCloseReasonGroupRequest"
             }
           }
         ],
         "tags": [
-          "CloseReasons"
+          "CloseReasonGroups"
         ]
       }
     },
-    "/cases/close_reasons/{id}": {
+    "/cases/close_reason_groups/{id}": {
       "get": {
-        "summary": "Locate a close reason by ID",
-        "operationId": "CloseReasons_LocateCloseReason",
+        "summary": "Locate a close reason group by ID",
+        "operationId": "CloseReasonGroups_LocateCloseReasonGroup",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.LocateCloseReasonResponse"
+              "$ref": "#/definitions/webitel.cases.LocateCloseReasonGroupResponse"
             }
           }
         },
@@ -584,17 +578,17 @@
           }
         ],
         "tags": [
-          "CloseReasons"
+          "CloseReasonGroups"
         ]
       },
       "delete": {
-        "summary": "Delete a close reason",
-        "operationId": "CloseReasons_DeleteCloseReason",
+        "summary": "Delete a close reason group",
+        "operationId": "CloseReasonGroups_DeleteCloseReasonGroup",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.CloseReason"
+              "$ref": "#/definitions/webitel.cases.CloseReasonGroup"
             }
           }
         },
@@ -608,17 +602,17 @@
           }
         ],
         "tags": [
-          "CloseReasons"
+          "CloseReasonGroups"
         ]
       },
       "put": {
-        "summary": "Update an existing close reason",
-        "operationId": "CloseReasons_UpdateCloseReason",
+        "summary": "Update an existing close reason group",
+        "operationId": "CloseReasonGroups_UpdateCloseReasonGroup",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.CloseReason"
+              "$ref": "#/definitions/webitel.cases.CloseReasonGroup"
             }
           }
         },
@@ -635,22 +629,22 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.InputCloseReason"
+              "$ref": "#/definitions/webitel.cases.InputCloseReasonGroup"
             }
           }
         ],
         "tags": [
-          "CloseReasons"
+          "CloseReasonGroups"
         ]
       },
       "patch": {
-        "summary": "Update an existing close reason",
-        "operationId": "CloseReasons_UpdateCloseReason2",
+        "summary": "Update an existing close reason group",
+        "operationId": "CloseReasonGroups_UpdateCloseReasonGroup2",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.CloseReason"
+              "$ref": "#/definitions/webitel.cases.CloseReasonGroup"
             }
           }
         },
@@ -667,12 +661,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.InputCloseReason"
+              "$ref": "#/definitions/webitel.cases.InputCloseReasonGroup"
             }
           }
         ],
         "tags": [
-          "CloseReasons"
+          "CloseReasonGroups"
         ]
       }
     },
@@ -3277,22 +3271,22 @@
         ]
       }
     },
-    "/close_reasons/{close_reason_id}/reasons": {
+    "/close_reason_groups/{close_reason_group_id}/close_reasons": {
       "get": {
-        "summary": "Retrieve a list of reasons or search reasons",
-        "operationId": "Reasons_ListReasons",
+        "summary": "Retrieve a list of close reasons or search close reasons",
+        "operationId": "CloseReasons_ListCloseReasons",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.ReasonList"
+              "$ref": "#/definitions/webitel.cases.CloseReasonList"
             }
           }
         },
         "parameters": [
           {
-            "name": "close_reason_id",
-            "description": "Upd close reason",
+            "name": "close_reason_group_id",
+            "description": "Close reason group ID filter",
             "in": "path",
             "required": true,
             "type": "string",
@@ -3356,23 +3350,23 @@
           }
         ],
         "tags": [
-          "Reasons"
+          "CloseReasons"
         ]
       },
       "post": {
-        "summary": "Create a new reason",
-        "operationId": "Reasons_CreateReason",
+        "summary": "Create a new close reason",
+        "operationId": "CloseReasons_CreateCloseReason",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Reason"
+              "$ref": "#/definitions/webitel.cases.CloseReason"
             }
           }
         },
         "parameters": [
           {
-            "name": "close_reason_id",
+            "name": "close_reason_group_id",
             "in": "path",
             "required": true,
             "type": "string",
@@ -3383,30 +3377,30 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Reasons.CreateReasonBody"
+              "$ref": "#/definitions/webitel.cases.CloseReasons.CreateCloseReasonBody"
             }
           }
         ],
         "tags": [
-          "Reasons"
+          "CloseReasons"
         ]
       }
     },
-    "/close_reasons/{close_reason_id}/reasons/{id}": {
+    "/close_reason_groups/{close_reason_group_id}/close_reasons/{id}": {
       "get": {
-        "summary": "Locate a reason by ID",
-        "operationId": "Reasons_LocateReason",
+        "summary": "Locate a close reason by ID",
+        "operationId": "CloseReasons_LocateCloseReason",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.LocateReasonResponse"
+              "$ref": "#/definitions/webitel.cases.LocateCloseReasonResponse"
             }
           }
         },
         "parameters": [
           {
-            "name": "close_reason_id",
+            "name": "close_reason_group_id",
             "in": "path",
             "required": true,
             "type": "string",
@@ -3431,23 +3425,23 @@
           }
         ],
         "tags": [
-          "Reasons"
+          "CloseReasons"
         ]
       },
       "delete": {
-        "summary": "Delete a reason",
-        "operationId": "Reasons_DeleteReason",
+        "summary": "Delete a close reason",
+        "operationId": "CloseReasons_DeleteCloseReason",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Reason"
+              "$ref": "#/definitions/webitel.cases.CloseReason"
             }
           }
         },
         "parameters": [
           {
-            "name": "close_reason_id",
+            "name": "close_reason_group_id",
             "in": "path",
             "required": true,
             "type": "string",
@@ -3462,23 +3456,23 @@
           }
         ],
         "tags": [
-          "Reasons"
+          "CloseReasons"
         ]
       },
       "put": {
-        "summary": "Update an existing reason",
-        "operationId": "Reasons_UpdateReason",
+        "summary": "Update an existing close reason",
+        "operationId": "CloseReasons_UpdateCloseReason",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Reason"
+              "$ref": "#/definitions/webitel.cases.CloseReason"
             }
           }
         },
         "parameters": [
           {
-            "name": "close_reason_id",
+            "name": "close_reason_group_id",
             "in": "path",
             "required": true,
             "type": "string",
@@ -3496,28 +3490,28 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.InputReason"
+              "$ref": "#/definitions/webitel.cases.InputCloseReason"
             }
           }
         ],
         "tags": [
-          "Reasons"
+          "CloseReasons"
         ]
       },
       "patch": {
-        "summary": "Update an existing reason",
-        "operationId": "Reasons_UpdateReason2",
+        "summary": "Update an existing close reason",
+        "operationId": "CloseReasons_UpdateCloseReason2",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/webitel.cases.Reason"
+              "$ref": "#/definitions/webitel.cases.CloseReason"
             }
           }
         },
         "parameters": [
           {
-            "name": "close_reason_id",
+            "name": "close_reason_group_id",
             "in": "path",
             "required": true,
             "type": "string",
@@ -3535,12 +3529,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/webitel.cases.InputReason"
+              "$ref": "#/definitions/webitel.cases.InputCloseReason"
             }
           }
         ],
         "tags": [
-          "Reasons"
+          "CloseReasons"
         ]
       }
     },
@@ -4215,7 +4209,7 @@
           }
         },
         "service": {
-          "$ref": "#/definitions/webitel.cases.Service"
+          "$ref": "#/definitions/webitel.cases.Lookup"
         },
         "comments": {
           "$ref": "#/definitions/webitel.cases.CaseCommentList",
@@ -4515,6 +4509,11 @@
           "type": "string",
           "title": "Description of the close reason"
         },
+        "close_reason_group_id": {
+          "type": "string",
+          "format": "int64",
+          "title": "Close Reason Group ID of the close reason"
+        },
         "created_at": {
           "type": "string",
           "format": "int64",
@@ -4536,6 +4535,63 @@
       },
       "title": "CloseReason message represents a close reason entity with metadata"
     },
+    "webitel.cases.CloseReasonGroup": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64",
+          "title": "Unique identifier of the close reason group"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name of the close reason group"
+        },
+        "description": {
+          "type": "string",
+          "title": "Description of the close reason group"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "CreatedAt timestamp of the close reason group"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "int64",
+          "title": "UpdatedAt timestamp of the close reason group"
+        },
+        "created_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "CreatedBy user of the close reason group"
+        },
+        "updated_by": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
+          "title": "UpdatedBy user of the close reason group"
+        }
+      },
+      "title": "CloseReasonGroup message represents a close reason group entity with metadata"
+    },
+    "webitel.cases.CloseReasonGroupList": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "next": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/webitel.cases.CloseReasonGroup"
+          }
+        }
+      },
+      "title": "CloseReasonGroupList message contains a list of CloseReasonGroup items with pagination"
+    },
     "webitel.cases.CloseReasonList": {
       "type": "object",
       "properties": {
@@ -4555,6 +4611,22 @@
         }
       },
       "title": "CloseReasonList message contains a list of CloseReason items with pagination"
+    },
+    "webitel.cases.CloseReasons.CreateCloseReasonBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "title": "CreateCloseReasonRequest message for creating a new close reason",
+      "required": [
+        "name",
+        "lookup_id"
+      ]
     },
     "webitel.cases.ComparisonOperator": {
       "type": "string",
@@ -4626,7 +4698,7 @@
       },
       "title": "CreateCatalogRequest message for creating a new catalog"
     },
-    "webitel.cases.CreateCloseReasonRequest": {
+    "webitel.cases.CreateCloseReasonGroupRequest": {
       "type": "object",
       "properties": {
         "name": {
@@ -4636,7 +4708,7 @@
           "type": "string"
         }
       },
-      "title": "CreateCloseReasonRequest message for creating a new close reason",
+      "title": "CreateCloseReasonGroupRequest message for creating a new close reason group",
       "required": [
         "name"
       ]
@@ -4996,6 +5068,20 @@
       "type": "object",
       "properties": {
         "name": {
+          "type": "string",
+          "title": "Name of the close reason"
+        },
+        "description": {
+          "type": "string",
+          "title": "Description of the close reason"
+        }
+      },
+      "title": "InputCloseReason message for inputting close reason data"
+    },
+    "webitel.cases.InputCloseReasonGroup": {
+      "type": "object",
+      "properties": {
+        "name": {
           "type": "string"
         },
         "description": {
@@ -5020,20 +5106,6 @@
         }
       },
       "title": "InputPriority message for creating a new priority"
-    },
-    "webitel.cases.InputReason": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "title": "Name of the reason"
-        },
-        "description": {
-          "type": "string",
-          "title": "Description of the reason"
-        }
-      },
-      "title": "InputReason message for inputting reason data"
     },
     "webitel.cases.InputRelatedCase": {
       "type": "object",
@@ -5220,6 +5292,15 @@
       },
       "title": "LocateCatalogResponse message contains a single catalog entity"
     },
+    "webitel.cases.LocateCloseReasonGroupResponse": {
+      "type": "object",
+      "properties": {
+        "close_reason_group": {
+          "$ref": "#/definitions/webitel.cases.CloseReasonGroup"
+        }
+      },
+      "title": "LocateCloseReasonGroupResponse message contains a single close reason group entity"
+    },
     "webitel.cases.LocateCloseReasonResponse": {
       "type": "object",
       "properties": {
@@ -5237,15 +5318,6 @@
         }
       },
       "title": "LocatePriorityResponse message contains a single priority entity"
-    },
-    "webitel.cases.LocateReasonResponse": {
-      "type": "object",
-      "properties": {
-        "reason": {
-          "$ref": "#/definitions/webitel.cases.Reason"
-        }
-      },
-      "title": "LocateReasonResponse message contains a single reason entity"
     },
     "webitel.cases.LocateSLAConditionResponse": {
       "type": "object",
@@ -5423,84 +5495,6 @@
         }
       },
       "title": "ReactionTime message represents the reaction time in hours and minutes"
-    },
-    "webitel.cases.Reason": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "format": "int64",
-          "title": "Unique identifier of the reason"
-        },
-        "name": {
-          "type": "string",
-          "title": "Name of the reason"
-        },
-        "description": {
-          "type": "string",
-          "title": "Description of the reason"
-        },
-        "close_reason_id": {
-          "type": "string",
-          "format": "int64",
-          "title": "Close Reason ID of the reason"
-        },
-        "created_at": {
-          "type": "string",
-          "format": "int64",
-          "title": "CreatedAt timestamp of the reason"
-        },
-        "updated_at": {
-          "type": "string",
-          "format": "int64",
-          "title": "UpdatedAt timestamp of the reason"
-        },
-        "created_by": {
-          "$ref": "#/definitions/webitel.cases.Lookup",
-          "title": "CreatedBy user of the reason"
-        },
-        "updated_by": {
-          "$ref": "#/definitions/webitel.cases.Lookup",
-          "title": "UpdatedBy user of the reason"
-        }
-      },
-      "title": "Reason message represents a reason entity with metadata"
-    },
-    "webitel.cases.ReasonList": {
-      "type": "object",
-      "properties": {
-        "page": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "next": {
-          "type": "boolean"
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/webitel.cases.Reason"
-          }
-        }
-      },
-      "title": "ReasonList message contains a list of Reason items with pagination"
-    },
-    "webitel.cases.Reasons.CreateReasonBody": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        }
-      },
-      "title": "CreateReasonRequest message for creating a new reason",
-      "required": [
-        "name",
-        "lookup_id"
-      ]
     },
     "webitel.cases.RelatedCase": {
       "type": "object",
