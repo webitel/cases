@@ -9,8 +9,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/internal/store"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/util"
 )
 
@@ -21,7 +22,7 @@ type SLAConditionStore struct {
 func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondition, priorities []int64) (*cases.SLACondition, error) {
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.create.db_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.db_connection_error", dbErr)
 	}
 
 	// Build the combined SLACondition and Priority insert query
@@ -36,7 +37,7 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 
 	rows, err := db.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.create.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.execution_error", err)
 	}
 	defer rows.Close()
 
@@ -50,14 +51,14 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 			&createdByLookup.Name, &updatedAt, &updatedByLookup.Id,
 			&updatedByLookup.Name, &lookup.Id, &lookup.Name,
 		); err != nil {
-			return nil, model.NewInternalError("postgres.sla_condition.create.scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.sla_condition.create.scan_error", err)
 		}
 		prio = append(prio, &lookup)
 	}
 
 	// Check for errors after the iteration is complete
 	if err := rows.Err(); err != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.create.iteration_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.iteration_error", err)
 	}
 
 	// Prepare the SLACondition object to return
@@ -87,25 +88,25 @@ func (s *SLAConditionStore) Delete(rpc *model.DeleteOptions) error {
 	// Establish a connection to the database
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return model.NewInternalError("postgres.sla_condition.delete.database_connection_error", dbErr.Error())
+		return dberr.NewDBInternalError("postgres.sla_condition.delete.database_connection_error", dbErr)
 	}
 
 	// Build the delete query for SLACondition
 	query, args, err := s.buildDeleteSLAConditionQuery(rpc)
 	if err != nil {
-		return model.NewInternalError("postgres.sla_condition.delete.query_build_error", err.Error())
+		return dberr.NewDBInternalError("postgres.sla_condition.delete.query_build_error", err)
 	}
 
 	// Execute the delete query
 	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
-		return model.NewInternalError("postgres.sla_condition.delete.execution_error", err.Error())
+		return dberr.NewDBInternalError("postgres.sla_condition.delete.execution_error", err)
 	}
 
 	// Check how many rows were affected by the delete operation
 	affected := res.RowsAffected()
 	if affected == 0 {
-		return model.NewNotFoundError("postgres.sla_condition.delete.no_rows_affected", "No rows affected for deletion")
+		return dberr.NewDBNoRowsError("postgres.sla_condition.delete.no_rows_affected")
 	}
 
 	return nil
@@ -116,19 +117,19 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 	// Establish a connection to the database
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.list.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.list.database_connection_error", dbErr)
 	}
 
 	// Build the search query for SLACondition
 	query, args, err := s.buildSearchSLAConditionQuery(rpc)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.list.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.list.query_build_error", err)
 	}
 
 	// Execute the search query
 	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.list.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.list.execution_error", err)
 	}
 	defer rows.Close()
 
@@ -162,13 +163,13 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 		)
 
 		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, model.NewInternalError("postgres.sla_condition.list.row_scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.sla_condition.list.row_scan_error", err)
 		}
 
 		// Check if prioritiesJSON is not empty or NULL before unmarshalling
 		if len(prioritiesJSON) > 0 {
 			if err := json.Unmarshal(prioritiesJSON, &slaCondition.Priorities); err != nil {
-				return nil, model.NewInternalError("postgres.sla_condition.list.json_unmarshal_error", err.Error())
+				return nil, dberr.NewDBInternalError("postgres.sla_condition.list.json_unmarshal_error", err)
 			}
 		} else {
 			// Handle NULL or empty JSON by initializing to an empty slice
@@ -195,13 +196,13 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLACondition) (*cases.SLACondition, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.update.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.database_connection_error", dbErr)
 	}
 
 	// Begin a transaction
 	tx, err := d.Begin(rpc.Context)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.update.transaction_begin_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.transaction_begin_error", err)
 	}
 	defer tx.Rollback(rpc.Context) // Ensure rollback on error
 
@@ -217,12 +218,12 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 			var totalRowsAffected int
 			err = txManager.QueryRow(rpc.Context, priorityQuery, priorityArgs...).Scan(&totalRowsAffected)
 			if err != nil {
-				return nil, model.NewInternalError("postgres.sla_condition.update.priorities_execution_error", err.Error())
+				return nil, dberr.NewDBInternalError("postgres.sla_condition.update.priorities_execution_error", err)
 			}
 
 			// Check if any rows were affected
 			if totalRowsAffected == 0 {
-				return nil, model.NewInternalError("postgres.sla_condition.update.no_priorities_affected", "No priorities were updated or deleted.")
+				return nil, dberr.NewDBNoRowsError("postgres.sla_condition.update.no_priorities_affected")
 			}
 		}
 	}
@@ -246,7 +247,7 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 	// Build and execute the update query for sla_condition and return priorities JSON in one query
 	query, args, err := s.buildUpdateSLAConditionQuery(rpc, l)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.update.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.query_build_error", err)
 	}
 
 	var (
@@ -264,18 +265,18 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 		&prioritiesJSON, // Fetch JSON aggregated priorities
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.update.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.execution_error", err)
 	}
 
 	// Commit the transaction
 	if err := tx.Commit(rpc.Context); err != nil {
-		return nil, model.NewInternalError("postgres.sla_condition.update.transaction_commit_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.transaction_commit_error", err)
 	}
 
 	// Process JSON aggregated priorities if not empty
 	if len(prioritiesJSON) > 0 {
 		if err := json.Unmarshal(prioritiesJSON, &l.Priorities); err != nil {
-			return nil, model.NewInternalError("postgres.sla_condition.update.json_unmarshal_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.sla_condition.update.json_unmarshal_error", err)
 		}
 	} else {
 		// Initialize to an empty slice if no priorities
@@ -488,7 +489,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.sla_condition.query_build.sql_generation_error", err.Error())
+		return "", nil, dberr.NewDBInternalError("postgres.sla_condition.query_build.sql_generation_error", err)
 	}
 
 	return store.CompactSQL(query), args, nil
@@ -663,9 +664,9 @@ var deleteSLAConditionQuery = store.CompactSQL(
 	 WHERE id = $1 AND dc = $2
 	`)
 
-func NewSLAConditionStore(store store.Store) (store.SLAConditionStore, model.AppError) {
+func NewSLAConditionStore(store store.Store) (store.SLAConditionStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_sla_condition.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.new_sla_condition.check.bad_arguments",
 			"error creating SLACondition interface to the status_condition table, main store is nil")
 	}
 	return &SLAConditionStore{storage: store}, nil

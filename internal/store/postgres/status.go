@@ -9,6 +9,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -23,12 +24,12 @@ func (s Status) Create(rpc *model.CreateOptions, add *_go.Status) (*_go.Status, 
 	d, dbErr := s.storage.Database()
 
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.status.create.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.status.create.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildCreateStatusQuery(rpc, add)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.status.create.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.status.create.query_build_error", err)
 	}
 
 	var (
@@ -42,7 +43,7 @@ func (s Status) Create(rpc *model.CreateOptions, add *_go.Status) (*_go.Status, 
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.status.create.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.status.create.execution_error", err)
 	}
 
 	t := rpc.Time
@@ -62,17 +63,17 @@ func (s Status) Create(rpc *model.CreateOptions, add *_go.Status) (*_go.Status, 
 func (s Status) List(rpc *model.SearchOptions) (*_go.StatusList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.status.list.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.status.list.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildSearchStatusQuery(rpc)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.status.list.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.status.list.query_build_error", err)
 	}
 
 	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.status.list.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.status.list.execution_error", err)
 	}
 	defer rows.Close()
 
@@ -122,7 +123,7 @@ func (s Status) List(rpc *model.SearchOptions) (*_go.StatusList, error) {
 
 		if err := rows.Scan(scanArgs...); err != nil {
 			log.Printf("postgres.cases.status.list Failed to scan row: %v", err)
-			return nil, model.NewInternalError("postgres.cases.status.list.row_scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.cases.status.list.row_scan_error", err)
 		}
 
 		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_by") {
@@ -154,23 +155,23 @@ func (s Status) List(rpc *model.SearchOptions) (*_go.StatusList, error) {
 func (s Status) Delete(rpc *model.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return model.NewInternalError("postgres.cases.status.delete.database_connection_error", dbErr.Error())
+		return dberr.NewDBInternalError("postgres.cases.status.delete.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildDeleteStatusQuery(rpc)
 	if err != nil {
-		return model.NewInternalError("postgres.cases.status.delete.query_build_error", err.Error())
+		return dberr.NewDBInternalError("postgres.cases.status.delete.query_build_error", err)
 	}
 
 	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
 		log.Printf("postgres.cases.status.delete Failed to execute SQL query: %v", err)
-		return model.NewInternalError("postgres.cases.status.delete.execution_error", err.Error())
+		return dberr.NewDBInternalError("postgres.cases.status.delete.execution_error", err)
 	}
 
 	affected := res.RowsAffected()
 	if affected == 0 {
-		return model.NewNotFoundError("postgres.cases.status.delete.no_rows_affected", "No rows affected for deletion")
+		return dberr.NewDBNoRowsError("postgres.cases.status.delete.no_rows_affected")
 	}
 
 	return nil
@@ -180,13 +181,13 @@ func (s Status) Delete(rpc *model.DeleteOptions) error {
 func (s Status) Update(rpc *model.UpdateOptions, l *_go.Status) (*_go.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.status.update.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.status.update.database_connection_error", dbErr)
 	}
 
 	query, args, queryErr := s.buildUpdateStatusQuery(rpc, l)
 
 	if queryErr != nil {
-		return nil, model.NewInternalError("postgres.cases.status.update.query_build_error", queryErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.status.update.query_build_error", queryErr)
 	}
 
 	var (
@@ -200,7 +201,7 @@ func (s Status) Update(rpc *model.UpdateOptions, l *_go.Status) (*_go.Status, er
 	)
 	if err != nil {
 		log.Printf("postgres.cases.status.update Failed to execute SQL query: %v", err)
-		return nil, model.NewInternalError("postgres.cases.status.update.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.status.update.execution_error", err)
 	}
 
 	l.CreatedAt = util.Timestamp(createdAt)
@@ -313,7 +314,7 @@ func (s Status) buildSearchStatusQuery(rpc *model.SearchOptions) (string, []inte
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.cases.status.query_build.sql_generation_error", err.Error())
+		return "", nil, dberr.NewDBInternalError("postgres.cases.status.query_build.sql_generation_error", err)
 	}
 
 	return store.CompactSQL(query), args, nil
@@ -413,9 +414,9 @@ WHERE id = ANY($1) AND dc = $2
 `)
 )
 
-func NewStatusStore(store store.Store) (store.StatusStore, model.AppError) {
+func NewStatusStore(store store.Store) (store.StatusStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_status.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.new_status.check.bad_arguments",
 			"error creating stuas interface to the status table, main store is nil")
 	}
 	return &Status{storage: store}, nil

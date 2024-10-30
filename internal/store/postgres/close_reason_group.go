@@ -8,7 +8,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
-
+	dberr "github.com/webitel/cases/internal/error"
 	db "github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -21,12 +21,12 @@ type CloseReasonGroup struct {
 func (s CloseReasonGroup) Create(rpc *model.CreateOptions, add *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.close_reason_group.create.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.create.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildCreateCloseReasonGroupQuery(rpc, add)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.close_reason_group.create.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.create.query_build_error", err)
 	}
 
 	var (
@@ -40,7 +40,7 @@ func (s CloseReasonGroup) Create(rpc *model.CreateOptions, add *_go.CloseReasonG
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.close_reason_group.create.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.create.execution_error", err)
 	}
 
 	return &_go.CloseReasonGroup{
@@ -57,17 +57,17 @@ func (s CloseReasonGroup) Create(rpc *model.CreateOptions, add *_go.CloseReasonG
 func (s CloseReasonGroup) List(rpc *model.SearchOptions) (*_go.CloseReasonGroupList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.close_reason_group.list.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.list.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildSearchCloseReasonGroupQuery(rpc)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.close_reason_group.list.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.list.query_build_error", err)
 	}
 
 	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.close_reason_group.list.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.list.execution_error", err)
 	}
 	defer rows.Close()
 
@@ -110,7 +110,7 @@ func (s CloseReasonGroup) List(rpc *model.SearchOptions) (*_go.CloseReasonGroupL
 		}
 
 		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, model.NewInternalError("postgres.cases.close_reason_group.list.row_scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.list.row_scan_error", err)
 		}
 
 		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_by") {
@@ -140,22 +140,22 @@ func (s CloseReasonGroup) List(rpc *model.SearchOptions) (*_go.CloseReasonGroupL
 func (s CloseReasonGroup) Delete(rpc *model.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return model.NewInternalError("postgres.cases.close_reason_group.delete.database_connection_error", dbErr.Error())
+		return dberr.NewDBInternalError("postgres.cases.close_reason_group.delete.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildDeleteCloseReasonGroupQuery(rpc)
 	if err != nil {
-		return model.NewInternalError("postgres.cases.close_reason_group.delete.query_build_error", err.Error())
+		return dberr.NewDBInternalError("postgres.cases.close_reason_group.delete.query_build_error", err)
 	}
 
 	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
-		return model.NewInternalError("postgres.cases.close_reason_group.delete.execution_error", err.Error())
+		return dberr.NewDBInternalError("postgres.cases.close_reason_group.delete.execution_error", err)
 	}
 
 	affected := res.RowsAffected()
 	if affected == 0 {
-		return model.NewNotFoundError("postgres.cases.close_reason_group.delete.no_rows_affected", "No rows affected for deletion")
+		return dberr.NewDBNoRowsError("postgres.cases.close_reason_group.delete.no_rows_affected")
 	}
 
 	return nil
@@ -164,12 +164,12 @@ func (s CloseReasonGroup) Delete(rpc *model.DeleteOptions) error {
 func (s CloseReasonGroup) Update(rpc *model.UpdateOptions, l *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.close_reason_group.update.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.update.database_connection_error", dbErr)
 	}
 
 	query, args, queryErr := s.buildUpdateCloseReasonGroupQuery(rpc, l)
 	if queryErr != nil {
-		return nil, model.NewInternalError("postgres.cases.close_reason_group.update.query_build_error", queryErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.update.query_build_error", queryErr)
 	}
 
 	var (
@@ -182,7 +182,7 @@ func (s CloseReasonGroup) Update(rpc *model.UpdateOptions, l *_go.CloseReasonGro
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.close_reason_group.update.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.update.execution_error", err)
 	}
 
 	l.CreatedAt = util.Timestamp(createdAt)
@@ -277,7 +277,7 @@ func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOpti
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.cases.close_reason_group.query_build.sql_generation_error", err.Error())
+		return "", nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.query_build.sql_generation_error", err)
 	}
 
 	return db.CompactSQL(query), args, nil
@@ -366,9 +366,9 @@ var (
 `)
 )
 
-func NewCloseReasonGroupStore(store db.Store) (db.CloseReasonGroupStore, model.AppError) {
+func NewCloseReasonGroupStore(store db.Store) (db.CloseReasonGroupStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.config.new_close_reason_group.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.config.new_close_reason_group.check.bad_arguments",
 			"error creating config interface to the close_reason_group table, main store is nil")
 	}
 	return &CloseReasonGroup{storage: store}, nil

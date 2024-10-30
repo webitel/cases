@@ -7,6 +7,8 @@ import (
 
 	_go "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
+
+	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
 
@@ -23,19 +25,19 @@ const (
 func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRequest) (*_go.Status, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("status.create_status.lookup.name.required", "Lookup name is required")
+		return nil, cerror.NewBadRequestError("status.create_status.lookup.name.required", ErrLookupNameReq)
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("status.create_status.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("status.create_status.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Add
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	// Define the current user as the creator and updater
@@ -67,7 +69,7 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 	// Create the status in the store
 	l, e := s.app.Store.Status().Create(&createOpts, lookup)
 	if e != nil {
-		return nil, model.NewInternalError("status.create_status.store.create.failed", e.Error())
+		return nil, cerror.NewInternalError("status.create_status.store.create.failed", e.Error())
 	}
 
 	return l, nil
@@ -77,14 +79,14 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("status.list_status.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("status.list_status.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Read
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	fields := req.Fields
@@ -108,7 +110,6 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		Page:    int(page),
 		Sort:    req.Sort,
 		Size:    int(req.Size),
-		Filter:  make(map[string]interface{}),
 		Time:    t,
 	}
 
@@ -118,7 +119,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 
 	lookups, e := s.app.Store.Status().List(&searchOptions)
 	if e != nil {
-		return nil, model.NewInternalError("status.list_status.store.list.failed", e.Error())
+		return nil, cerror.NewInternalError("status.list_status.store.list.failed", e.Error())
 	}
 
 	return lookups, nil
@@ -128,19 +129,19 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRequest) (*_go.Status, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("status.update_status.lookup.id.required", "Lookup ID is required")
+		return nil, cerror.NewBadRequestError("status.update_status.lookup.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("status.update_status.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("status.update_status.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Edit
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	// Define the current user as the updater
@@ -164,7 +165,7 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 		case "name":
 			fields = append(fields, "name")
 			if req.Input.Name == "" {
-				return nil, model.NewBadRequestError("status.update_status.name.required", "Lookup name is required and cannot be empty")
+				return nil, cerror.NewBadRequestError("status.update_status.name.required", "Lookup name is required and cannot be empty")
 			}
 		case "description":
 			fields = append(fields, "description")
@@ -184,7 +185,7 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 	// Update the lookup in the store
 	l, e := s.app.Store.Status().Update(&updateOpts, lookup)
 	if e != nil {
-		return nil, model.NewInternalError("status.update_status.store.update.failed", e.Error())
+		return nil, cerror.NewInternalError("status.update_status.store.update.failed", e.Error())
 	}
 
 	return l, nil
@@ -194,19 +195,19 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRequest) (*_go.Status, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("status.delete_status.lookup.id.required", "Lookup ID is required")
+		return nil, cerror.NewBadRequestError("status.delete_status.lookup.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("status.delete_status.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("status.delete_status.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Delete
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	t := time.Now()
@@ -221,7 +222,7 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 	// Delete the lookup in the store
 	e := s.app.Store.Status().Delete(&deleteOpts)
 	if e != nil {
-		return nil, model.NewInternalError("status.delete_status.store.delete.failed", e.Error())
+		return nil, cerror.NewInternalError("status.delete_status.store.delete.failed", e.Error())
 	}
 
 	return &(_go.Status{Id: req.Id}), nil
@@ -231,7 +232,7 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRequest) (*_go.LocateStatusResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("status.locate_status.lookup.id.required", "Lookup ID is required")
+		return nil, cerror.NewBadRequestError("status.locate_status.lookup.id.required", "Lookup ID is required")
 	}
 
 	// Prepare a list request with necessary parameters
@@ -245,21 +246,21 @@ func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRe
 	// Call the ListStatuses method
 	listResp, err := s.ListStatuses(ctx, listReq)
 	if err != nil {
-		return nil, model.NewInternalError("status.locate_status.list_status.error", err.Error())
+		return nil, cerror.NewInternalError("status.locate_status.list_status.error", err.Error())
 	}
 
 	// Check if the lookup was found
 	if len(listResp.Items) == 0 {
-		return nil, model.NewNotFoundError("status.locate_status.not_found", "Status lookup not found")
+		return nil, cerror.NewNotFoundError("status.locate_status.not_found", "Status lookup not found")
 	}
 
 	// Return the found status lookup
 	return &_go.LocateStatusResponse{Status: listResp.Items[0]}, nil
 }
 
-func NewStatusService(app *App) (*StatusService, model.AppError) {
+func NewStatusService(app *App) (*StatusService, cerror.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_status.args_check.app_nil", "internal is nil")
+		return nil, cerror.NewInternalError("api.config.new_status.args_check.app_nil", "internal is nil")
 	}
 	return &StatusService{app: app}, nil
 }

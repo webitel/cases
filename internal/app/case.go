@@ -4,7 +4,8 @@ import (
 	"context"
 
 	"github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/model"
+
+	cerror "github.com/webitel/cases/internal/error"
 )
 
 // parallel processes
@@ -45,9 +46,9 @@ func (c *CaseService) DeleteCase(ctx context.Context, request *cases.DeleteCaseR
 	panic("implement me")
 }
 
-func NewCaseService(app *App) (*CaseService, model.AppError) {
+func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 	if app == nil {
-		return nil, model.NewBadRequestError("app.case.new_case_service.check_args.app", "unable to init case service, app is nil")
+		return nil, cerror.NewBadRequestError("app.case.new_case_service.check_args.app", "unable to init case service, app is nil")
 	}
 	return &CaseService{app: app}, nil
 }

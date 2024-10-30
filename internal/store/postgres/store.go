@@ -5,37 +5,31 @@ import (
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	conf "github.com/webitel/cases/config"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/model"
 	otelpgx "github.com/webitel/webitel-go-kit/tracing/pgx"
 )
 
+// Store is the struct implementing the Store interface.
 type Store struct {
-	sourceStore store.SourceStore
-
-	//-----Status + StatusCondition
-	statusStore          store.StatusStore
-	statusConditionStore store.StatusConditionStore
-
-	//-----CloseReason + Reason
+	sourceStore           store.SourceStore
+	statusStore           store.StatusStore
+	statusConditionStore  store.StatusConditionStore
 	closeReasonGroupStore store.CloseReasonGroupStore
 	closeReasonStore      store.CloseReasonStore
-
-	priorityStore store.PriorityStore
-
-	//-----SLA + SLACondition
-	slaStore          store.SLAStore
-	slaConditionStore store.SLAConditionStore
-
-	//-----Catalog + Service
-	catalogStore        store.CatalogStore
-	serviceStore        store.ServiceStore
-	accessControllStore store.AccessControlStore
-	config              *model.DatabaseConfig
-	conn                *pgxpool.Pool
+	priorityStore         store.PriorityStore
+	slaStore              store.SLAStore
+	slaConditionStore     store.SLAConditionStore
+	catalogStore          store.CatalogStore
+	serviceStore          store.ServiceStore
+	accessControllStore   store.AccessControlStore
+	config                *conf.DatabaseConfig
+	conn                  *pgxpool.Pool
 }
 
-func New(config *model.DatabaseConfig) *Store {
+// New creates a new Store instance.
+func New(config *conf.DatabaseConfig) *Store {
 	return &Store{config: config}
 }
 
@@ -160,17 +154,19 @@ func (s *Store) AccessControl() store.AccessControlStore {
 	return s.accessControllStore
 }
 
-func (s *Store) Database() (*pgxpool.Pool, model.AppError) {
+// Database returns the database connection or a custom error if it is not opened.
+func (s *Store) Database() (*pgxpool.Pool, *dberr.DBError) { // Return custom DB error
 	if s.conn == nil {
-		return nil, model.NewInternalError("cases.store.database.check.bad_arguments", "database connection is not opened")
+		return nil, dberr.NewDBError("store.database.check.bad_arguments", "database connection is not opened")
 	}
 	return s.conn, nil
 }
 
-func (s *Store) Open() model.AppError {
+// Open establishes a connection to the database and returns a custom error if it fails.
+func (s *Store) Open() *dberr.DBError {
 	config, err := pgxpool.ParseConfig(s.config.Url)
 	if err != nil {
-		return model.NewInternalError("cases.store.open.parse_config.fail", err.Error())
+		return dberr.NewDBError("store.open.parse_config.fail", err.Error())
 	}
 
 	// Attach the OpenTelemetry tracer for pgx
@@ -178,14 +174,15 @@ func (s *Store) Open() model.AppError {
 
 	conn, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
-		return model.NewInternalError("cases.store.open.connect.fail", err.Error())
+		return dberr.NewDBError("store.open.connect.fail", err.Error())
 	}
 	s.conn = conn
 	slog.Debug("cases.store.connection_opened", slog.String("message", "postgres: connection opened"))
 	return nil
 }
 
-func (s *Store) Close() model.AppError {
+// Close closes the database connection and returns a custom error if it fails.
+func (s *Store) Close() *dberr.DBError {
 	if s.conn != nil {
 		s.conn.Close()
 		slog.Debug("cases.store.connection_closed", slog.String("message", "postgres: connection closed"))

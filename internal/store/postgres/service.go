@@ -8,8 +8,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/internal/store"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/util"
 )
 
@@ -21,7 +22,7 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.service.create.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.service.create.database_connection_error", dbErr)
 	}
 
 	// Build the combined query for inserting Service and related entities
@@ -44,7 +45,7 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 		&add.RootId, &add.CatalogId,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.service.create.scan_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.service.create.scan_error", err)
 	}
 
 	// Prepare the Service to return
@@ -64,12 +65,12 @@ func (s *ServiceStore) Delete(rpc *model.DeleteOptions) error {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return model.NewInternalError("postgres.service.delete.db_connection_error", dbErr.Error())
+		return dberr.NewDBInternalError("postgres.service.delete.db_connection_error", dbErr)
 	}
 
 	// Ensure that there are IDs to delete
 	if len(rpc.IDs) == 0 {
-		return model.NewBadRequestError("postgres.service.delete.no_ids_provided", "No IDs provided for deletion")
+		return dberr.NewDBError("postgres.service.delete.no_ids_provided", "No IDs provided for deletion")
 	}
 
 	// Build the delete query
@@ -78,12 +79,12 @@ func (s *ServiceStore) Delete(rpc *model.DeleteOptions) error {
 	// Execute the delete query
 	res, err := db.Exec(rpc.Context, query, args...)
 	if err != nil {
-		return model.NewInternalError("postgres.service.delete.execution_error", err.Error())
+		return dberr.NewDBInternalError("postgres.service.delete.execution_error", err)
 	}
 
 	// Check how many rows were affected
 	if res.RowsAffected() == 0 {
-		return model.NewNotFoundError("postgres.service.delete.no_rows_deleted", "No Service entries were deleted")
+		return dberr.NewDBNoRowsError("postgres.service.delete.no_rows_deleted")
 	}
 
 	return nil
@@ -94,19 +95,19 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.service.list.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.service.list.database_connection_error", dbErr)
 	}
 
 	// Build SQL query with filtering by root_id
 	query, args, err := s.buildSearchServiceQuery(rpc)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.service.list.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.service.list.query_build_error", err)
 	}
 
 	// Execute the query
 	rows, err := db.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.service.list.query_execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.service.list.query_execution_error", err)
 	}
 	defer rows.Close()
 
@@ -141,7 +142,7 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 		// Scan the row into the service object
 		err = rows.Scan(scanArgs...)
 		if err != nil {
-			return nil, model.NewInternalError("postgres.service.list.scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.service.list.scan_error", err)
 		}
 
 		// Assign the created and updated timestamp values
@@ -165,13 +166,13 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.service.update.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.service.update.database_connection_error", dbErr)
 	}
 
 	// Start a transaction using the TxManager
 	tx, err := db.Begin(rpc.Context)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.service.update.transaction_start_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.service.update.transaction_start_error", err)
 	}
 	txManager := store.NewTxManager(tx)   // Create a new TxManager instance
 	defer txManager.Rollback(rpc.Context) // Ensure rollback on error
@@ -179,7 +180,7 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 	// Build the update query for the Service
 	query, args, err := s.buildUpdateServiceQuery(rpc, lookup)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.service.update.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.service.update.query_build_error", err)
 	}
 
 	var (
@@ -197,12 +198,12 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 		&createdAt, &updatedAt, &lookup.RootId,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.service.update.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.service.update.execution_error", err)
 	}
 
 	// Commit the transaction
 	if err := txManager.Commit(rpc.Context); err != nil {
-		return nil, model.NewInternalError("postgres.service.update.transaction_commit_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.service.update.transaction_commit_error", err)
 	}
 
 	// Prepare the updated Service to return
@@ -378,7 +379,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 	// Build SQL query
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.service.query_build_error", err.Error())
+		return "", nil, dberr.NewDBInternalError("postgres.service.query_build_error", err)
 	}
 
 	return store.CompactSQL(query), args, nil
@@ -502,9 +503,9 @@ func (s *ServiceStore) buildServiceScanArgs(
 	}
 }
 
-func NewServiceStore(store store.Store) (store.ServiceStore, model.AppError) {
+func NewServiceStore(store store.Store) (store.ServiceStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_service.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.new_service.check.bad_arguments",
 			"error creating Service interface to the service table, main store is nil")
 	}
 	return &ServiceStore{storage: store}, nil

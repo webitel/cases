@@ -7,6 +7,8 @@ import (
 
 	"github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
+
+	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
 
@@ -22,28 +24,28 @@ const (
 func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest) (*cases.SLA, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("SLA_service.create_sla.name.required", "SLA name is required")
+		return nil, cerror.NewBadRequestError("sla_service.create_sla.name.required", "SLA name is required")
 	}
 	if req.CalendarId == 0 {
-		return nil, model.NewBadRequestError("SLA_service.create_sla.calendar_id.required", "Calendar ID is required")
+		return nil, cerror.NewBadRequestError("sla_service.create_sla.calendar_id.required", "Calendar ID is required")
 	}
 	if req.ReactionTime.Hours == 0 && req.ReactionTime.Minutes == 0 {
-		return nil, model.NewBadRequestError("SLA_service.create_sla.reaction_time.required", "Reaction time is required")
+		return nil, cerror.NewBadRequestError("sla_service.create_sla.reaction_time.required", "Reaction time is required")
 	}
 	if req.ResolutionTime.Hours == 0 && req.ResolutionTime.Minutes == 0 {
-		return nil, model.NewBadRequestError("SLA_service.create_sla.resolution_time.required", "Resolution time is required")
+		return nil, cerror.NewBadRequestError("sla_service.create_sla.resolution_time.required", "Resolution time is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("sla_service.create_sla.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("sla_service.create_sla.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Add
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	// Define the current user as the creator and updater
@@ -91,7 +93,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 	// Create the SLA in the store
 	r, e := s.app.Store.SLA().Create(&createOpts, sla)
 	if e != nil {
-		return nil, model.NewInternalError("sla_service.create_sla.store.create.failed", e.Error())
+		return nil, cerror.NewInternalError("sla_service.create_sla.store.create.failed", e.Error())
 	}
 
 	return r, nil
@@ -101,19 +103,19 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest) (*cases.SLA, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("sla_service.delete_sla.id.required", "SLA ID is required")
+		return nil, cerror.NewBadRequestError("sla_service.delete_sla.id.required", "SLA ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("sla_service.delete_sla.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("sla_service.delete_sla.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Delete
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	t := time.Now()
@@ -128,24 +130,24 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 	// Delete the SLA in the store
 	e := s.app.Store.SLA().Delete(&deleteOpts)
 	if e != nil {
-		return nil, model.NewInternalError("sla_service.delete_sla.store.delete.failed", e.Error())
+		return nil, cerror.NewInternalError("sla_service.delete_sla.store.delete.failed", e.Error())
 	}
 
-	return &(cases.SLA{Id: req.Id}), nil
+	return &cases.SLA{Id: req.Id}, nil
 }
 
 // ListSLAs implements cases.SLAsServer.
 func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*cases.SLAList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("sla_service.list_slas.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("sla_service.list_slas.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Read
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	fields := req.Fields
@@ -178,7 +180,7 @@ func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*
 
 	slas, e := s.app.Store.SLA().List(&searchOptions)
 	if e != nil {
-		return nil, model.NewInternalError("sla_service.list_slas.store.list.failed", e.Error())
+		return nil, cerror.NewInternalError("sla_service.list_slas.store.list.failed", e.Error())
 	}
 
 	return slas, nil
@@ -188,7 +190,7 @@ func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*
 func (s *SLAService) LocateSLA(ctx context.Context, req *cases.LocateSLARequest) (*cases.LocateSLAResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("sla_service.locate_sla.id.required", "SLA ID is required")
+		return nil, cerror.NewBadRequestError("sla_service.locate_sla.id.required", "SLA ID is required")
 	}
 
 	// Prepare a list request with necessary parameters
@@ -202,12 +204,12 @@ func (s *SLAService) LocateSLA(ctx context.Context, req *cases.LocateSLARequest)
 	// Call the ListSLAs method
 	listResp, err := s.ListSLAs(ctx, listReq)
 	if err != nil {
-		return nil, model.NewInternalError("sla_service.locate_sla.list_slas.error", err.Error())
+		return nil, cerror.NewInternalError("sla_service.locate_sla.list_slas.error", err.Error())
 	}
 
 	// Check if the SLA was found
 	if len(listResp.Items) == 0 {
-		return nil, model.NewNotFoundError("sla_service.locate_sla.not_found", "SLA not found")
+		return nil, cerror.NewNotFoundError("sla_service.locate_sla.not_found", "SLA not found")
 	}
 
 	// Return the found SLA
@@ -218,19 +220,19 @@ func (s *SLAService) LocateSLA(ctx context.Context, req *cases.LocateSLARequest)
 func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest) (*cases.SLA, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("sla_service.update_sla.id.required", "SLA ID is required")
+		return nil, cerror.NewBadRequestError("sla_service.update_sla.id.required", "SLA ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("sla_service.update_sla.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("sla_service.update_sla.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Edit
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	// Define the current user as the updater
@@ -266,7 +268,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		case "name":
 			fields = append(fields, "name")
 			if req.Input.Name == "" {
-				return nil, model.NewBadRequestError("sla_service.update_sla.name.required", "SLA name is required and cannot be empty")
+				return nil, cerror.NewBadRequestError("sla_service.update_sla.name.required", "SLA name is required and cannot be empty")
 			}
 		case "description":
 			fields = append(fields, "description")
@@ -277,7 +279,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		case "calendar_id":
 			fields = append(fields, "calendar_id")
 			if req.Input.CalendarId == 0 {
-				return nil, model.NewBadRequestError("sla_service.update_sla.calendar_id.required", "Calendar ID is required")
+				return nil, cerror.NewBadRequestError("sla_service.update_sla.calendar_id.required", "Calendar ID is required")
 			}
 		case "reaction_time_hours":
 			fields = append(fields, "reaction_time_hours")
@@ -303,15 +305,15 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 	// Update the SLA in the store
 	r, e := s.app.Store.SLA().Update(&updateOpts, sla)
 	if e != nil {
-		return nil, model.NewInternalError("sla_service.update_sla.store.update.failed", e.Error())
+		return nil, cerror.NewInternalError("sla_service.update_sla.store.update.failed", e.Error())
 	}
 
 	return r, nil
 }
 
-func NewSLAService(app *App) (*SLAService, model.AppError) {
+func NewSLAService(app *App) (*SLAService, cerror.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_sla_service.args_check.app_nil", "internal is nil")
+		return nil, cerror.NewInternalError("api.config.new_sla_service.args_check.app_nil", "internal is nil")
 	}
 	return &SLAService{app: app}, nil
 }

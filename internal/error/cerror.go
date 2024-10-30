@@ -1,4 +1,4 @@
-package model
+package app
 
 import (
 	"encoding/json"
@@ -15,10 +15,8 @@ func AppErrorInit(t goi18n.TranslateFunc) {
 }
 
 type AppError interface {
-	// SetTranslationParams represents the parameters that will be passed to the translation function
 	SetTranslationParams(map[string]any) AppError
 	GetTranslationParams() map[string]any
-	// SetStatusCode represents the status code of error
 	SetStatusCode(int) AppError
 	GetStatusCode() int
 	SetDetailedError(string)
@@ -28,7 +26,7 @@ type AppError interface {
 	GetId() string
 
 	Error() string
-	Translate(T goi18n.TranslateFunc)
+	Translate(goi18n.TranslateFunc)
 	SystemMessage(goi18n.TranslateFunc) string
 	ToJson() string
 	String() string
@@ -127,37 +125,26 @@ func (err *ApplicationError) String() string {
 	if err.Id == err.Status && err.DetailedError != "" {
 		return err.DetailedError
 	}
-
 	return err.Status
 }
 
-// ! Id should be built like this written in the snake case --  *package*.*file*.*function*.*in what stage of function error occured*.*what happened*
+// Error constructors
 func NewInternalError(id string, details string) AppError {
 	return newAppError(id, details).SetStatusCode(http.StatusInternalServerError)
 }
 
-// ! Id should be built like this written in the snake case --  *package*.*file*.*function*.*in what stage of function error occured*.*what happened*
 func NewNotFoundError(id string, details string) AppError {
 	return newAppError(id, details).SetStatusCode(http.StatusNotFound)
 }
 
-// ! Id should be built like this written in the snake case --  *package*.*file*.*function*.*in what stage of function error occured*.*what happened*
 func NewBadRequestError(id string, details string) AppError {
 	return newAppError(id, details).SetStatusCode(http.StatusBadRequest)
 }
 
-// ! Id should be built like this written in the snake case --  *package*.*file*.*function*.*in what stage of function error occured*.*what happened*
 func NewForbiddenError(id string, details string) AppError {
 	return newAppError(id, details).SetStatusCode(http.StatusForbidden)
 }
 
-// ! Id should be built like this written in the snake case --  *package*.*file*.*function*.*in what stage of function error occured*.*what happened*
-func NewUnauthorizedError(id string, details string) AppError {
-	return newAppError(id, details).SetStatusCode(http.StatusUnauthorized)
-}
-
-// ! Id should be built like this written in the snake case --  *package*.*file*.*function*.*in what stage of function error occured*.*what happened*
-// * NewAutomaticError accepts an code determines in the runtime the status code
 func NewCustomCodeError(id string, details string, code int) AppError {
 	if code > 511 || code < 100 {
 		code = http.StatusInternalServerError
@@ -175,6 +162,20 @@ func AppErrorFromJson(js string) *ApplicationError {
 	if err.Id == "" {
 		return nil
 	}
-
 	return &err
+}
+
+func MakePermissionError(userID int64) AppError {
+	return NewForbiddenError(
+		"internal.permissions.check_access.denied",
+		fmt.Sprintf("userId=%d, access denied", userID),
+	)
+}
+
+// MakeScopeError returns an AppError when a user lacks the required scope access.
+func MakeScopeError(userID int64, scopeName string, access int) AppError {
+	return NewForbiddenError(
+		"internal.scope.check_access.denied",
+		fmt.Sprintf("access denied for user %d on scope '%s' with access level %d", userID, scopeName, access),
+	)
 }

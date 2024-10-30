@@ -3,76 +3,86 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/webitel/cases/auth"
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/auth/webitel_manager"
+	conf "github.com/webitel/cases/config"
+	cerror "github.com/webitel/cases/internal/error"
+	"github.com/webitel/cases/internal/server"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
-	"github.com/webitel/cases/model"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 type App struct {
-	config         *model.AppConfig
+	config         *conf.AppConfig
 	Store          store.Store
-	server         *Server
-	exitChan       chan model.AppError
+	server         *server.Server
+	exitChan       chan error // Change to standard error type
 	storageConn    *grpc.ClientConn
 	sessionManager auth.AuthManager
 	webitelAppConn *grpc.ClientConn
 	shutdown       func(ctx context.Context) error
+	log            *slog.Logger
 }
 
-func New(config *model.AppConfig, shutdown func(ctx context.Context) error) (*App, model.AppError) {
+func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
+	// --------- App Initialization ---------
 	app := &App{config: config, shutdown: shutdown}
 	var err error
 
-	// init of a database
+	// --------- DB Initialization ---------
 	if config.Database == nil {
-		model.NewInternalError("internal.internal.new.database_config.bad_arguments", "error creating store, config is nil")
+		return nil, cerror.NewBadRequestError("internal.internal.new.database_config.bad_arguments", "error creating store, config is nil")
 	}
 	app.Store = BuildDatabase(config.Database)
 
-	// init of grpc server
-	s, appErr := BuildServer(app, app.config.Consul, app.exitChan)
-	if appErr != nil {
-		return nil, appErr
-	}
-	app.server = s
-
-	// init service connections
-	app.storageConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/store?wait=14s", config.Consul.Address),
-		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		return nil, model.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
-	}
-
+	// --------- Webitel App gRPC Connection ( Consul )---------
 	app.webitelAppConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/go.webitel.app?wait=14s", config.Consul.Address),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		return nil, model.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
+		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
 	}
 
-	app.sessionManager, appErr = webitel_manager.NewWebitelAppAuthManager(app.webitelAppConn)
-	if appErr != nil {
-		return nil, appErr
+	// --------- Session Manager Initialization ---------
+	app.sessionManager, err = webitel_manager.NewWebitelAppAuthManager(app.webitelAppConn)
+	if err != nil {
+		return nil, err
+	}
+
+	// --------- gRPC Server Initialization ---------
+	s, err := server.BuildServer(app.config.Consul, app.sessionManager, app.exitChan)
+	if err != nil {
+		return nil, err
+	}
+	app.server = s
+
+	// --------- Service Registration ---------
+	RegisterServices(app.server.Server, app)
+
+	// --------- Storage gRPC Connection ---------
+	app.storageConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/store?wait=14s", config.Consul.Address),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
 	}
 
 	return app, nil
 }
 
-func BuildDatabase(config *model.DatabaseConfig) store.Store {
+func BuildDatabase(config *conf.DatabaseConfig) store.Store {
 	return postgres.New(config)
 }
 
-func (a *App) Start() model.AppError {
+func (a *App) Start() error { // Change return type to standard error
 	err := a.Store.Open()
 	if err != nil {
 		return err
@@ -83,7 +93,7 @@ func (a *App) Start() model.AppError {
 	return <-a.exitChan
 }
 
-func (a *App) Stop() model.AppError {
+func (a *App) Stop() error { // Change return type to standard error
 	// close massive modules
 	a.server.Stop()
 	// close store connection
@@ -100,27 +110,13 @@ func (a *App) Stop() model.AppError {
 	return nil
 }
 
-func (a *App) AuthorizeFromContext(ctx context.Context) (*authmodel.Session, model.AppError) {
+func (a *App) AuthorizeFromContext(ctx context.Context) (*authmodel.Session, error) { // Change return type to standard error
 	session, err := a.sessionManager.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if session.IsExpired() {
-		return nil, model.NewUnauthorizedError("internal.internal.authorize_from_context.validate_session.expired", "session expired")
+		return nil, cerror.NewUnauthorizedError("internal.internal.authorize_from_context.validate_session.expired", "session expired")
 	}
 	return session, nil
-}
-
-func (a *App) MakePermissionError(session *authmodel.Session) model.AppError {
-	if session == nil {
-		return model.NewForbiddenError("internal.permissions.check_access.denied", "access denied")
-	}
-	return model.NewForbiddenError("internal.permissions.check_access.denied", fmt.Sprintf("userId=%d, access denied", session.GetUserId()))
-}
-
-func (a *App) MakeScopeError(session *authmodel.Session, scope *authmodel.Scope, access authmodel.AccessMode) model.AppError {
-	if session == nil || session.GetUser() == nil || scope == nil {
-		return model.NewForbiddenError("internal.scope.check_access.denied", "access denied")
-	}
-	return model.NewForbiddenError("internal.scope.check_access.denied", fmt.Sprintf("access denied scope=%s access=%d for user %d", scope.Name, access, session.GetUserId()))
 }

@@ -6,8 +6,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	conf "github.com/webitel/cases/config"
 	"github.com/webitel/cases/internal/app"
-	"github.com/webitel/cases/internal/logging"
+	logging "github.com/webitel/cases/internal/otel"
 	"github.com/webitel/cases/model"
 
 	// ------------ logging ------------ //
@@ -25,7 +26,7 @@ import (
 
 func Run() {
 	// Load configuration
-	config, appErr := model.LoadConfig()
+	config, appErr := conf.LoadConfig()
 	if appErr != nil {
 		slog.Error("cases.main.configuration_error", slog.String("error", appErr.Error()))
 		return

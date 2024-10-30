@@ -5,45 +5,45 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_go "github.com/webitel/cases/api/cases"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
 
 // Store is an interface that defines all the methods and properties that a store should implement in Cases service
+
 type Store interface {
 	// ------------ Dictionary Stores ------------ //
-	Source() SourceStore     // Manages sources.
-	Priority() PriorityStore // Handles priority levels.
+	Source() SourceStore
+	Priority() PriorityStore
 
 	// ------------ Closure reasons Stores ------------ //
-	CloseReasonGroup() CloseReasonGroupStore // Manages closure reasons.
-	CloseReason() CloseReasonStore           // Supports reasons.
+	CloseReasonGroup() CloseReasonGroupStore
+	CloseReason() CloseReasonStore
 
 	// ------------ Status ------------ //
-	Status() StatusStore                   // Manages statuses.
-	StatusCondition() StatusConditionStore // Handles status conditions.
+	Status() StatusStore
+	StatusCondition() StatusConditionStore
 
 	// ------------ SLA Stores ------------ //
-	SLA() SLAStore                   // Manages SLAs.
-	SLACondition() SLAConditionStore // Manages SLA conditions.
+	SLA() SLAStore
+	SLACondition() SLAConditionStore
 
 	// ------------ Catalog and Service Stores ------------ //
-	Catalog() CatalogStore // The parent store managing service catalogs.
-	Service() ServiceStore // The child store managing services within catalogs.
-
-	//
+	Catalog() CatalogStore
+	Service() ServiceStore
 
 	// ------------ Access Control ------------ //
-	AccessControl() AccessControlStore // Manages access permissions.
+	AccessControl() AccessControlStore
 
 	// ------------ Database Management ------------ //
-	Database() (*pgxpool.Pool, model.AppError) // Returns database connection.
-	Open() model.AppError                      // Opens database connection.
-	Close() model.AppError                     // Closes database connection.
+	Database() (*pgxpool.Pool, *dberr.DBError) // Return custom DB error
+	Open() *dberr.DBError                      // Return custom DB error
+	Close() *dberr.DBError                     // Return custom DB error
 }
 
 type AccessControlStore interface {
 	// Check if user has Rbac access
-	RbacAccess(ctx context.Context, domainId, id int64, groups []int, access uint8, table string) (bool, model.AppError)
+	RbacAccess(ctx context.Context, domainId, id int64, groups []int, access uint8, table string) (bool, error)
 }
 
 type StatusStore interface {

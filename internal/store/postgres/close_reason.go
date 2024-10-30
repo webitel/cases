@@ -7,10 +7,10 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-
 	_go "github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/internal/store"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/util"
 )
 
@@ -22,12 +22,12 @@ type CloseReason struct {
 func (s *CloseReason) Create(rpc *model.CreateOptions, add *_go.CloseReason) (*_go.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.close_reason.create.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.close_reason.create.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildCreateCloseReasonQuery(rpc, add)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.close_reason.create.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.close_reason.create.query_build_error", err)
 	}
 
 	var (
@@ -41,7 +41,7 @@ func (s *CloseReason) Create(rpc *model.CreateOptions, add *_go.CloseReason) (*_
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name, &add.CloseReasonGroupId,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.close_reason.create.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.close_reason.create.execution_error", err)
 	}
 
 	t := rpc.Time
@@ -61,17 +61,17 @@ func (s *CloseReason) Create(rpc *model.CreateOptions, add *_go.CloseReason) (*_
 func (s *CloseReason) List(rpc *model.SearchOptions, closeReasonId int64) (*_go.CloseReasonList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.close_reason.list.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.close_reason.list.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildSearchCloseReasonQuery(rpc, closeReasonId)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.close_reason.list.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.close_reason.list.query_build_error", err)
 	}
 
 	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.close_reason.list.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.close_reason.list.execution_error", err)
 	}
 	defer rows.Close()
 
@@ -95,7 +95,7 @@ func (s *CloseReason) List(rpc *model.SearchOptions, closeReasonId int64) (*_go.
 
 		scanArgs := s.buildScanArgs(rpc.Fields, l, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt)
 		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, model.NewInternalError("postgres.close_reason.list.row_scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.close_reason.list.row_scan_error", err)
 		}
 
 		s.populateCloseReasonFields(rpc.Fields, l, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt)
@@ -114,22 +114,22 @@ func (s *CloseReason) List(rpc *model.SearchOptions, closeReasonId int64) (*_go.
 func (s *CloseReason) Delete(rpc *model.DeleteOptions, closeReasonId int64) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return model.NewInternalError("postgres.close_reason.delete.database_connection_error", dbErr.Error())
+		return dberr.NewDBInternalError("postgres.close_reason.delete.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildDeleteCloseReasonQuery(rpc)
 	if err != nil {
-		return model.NewInternalError("postgres.close_reason.delete.query_build_error", err.Error())
+		return dberr.NewDBInternalError("postgres.close_reason.delete.query_build_error", err)
 	}
 
 	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
-		return model.NewInternalError("postgres.close_reason.delete.execution_error", err.Error())
+		return dberr.NewDBInternalError("postgres.close_reason.delete.execution_error", err)
 	}
 
 	affected := res.RowsAffected()
 	if affected == 0 {
-		return model.NewNotFoundError("postgres.close_reason.delete.no_rows_affected", "No rows affected for deletion")
+		return dberr.NewDBNoRowsError("postgres.close_reason.delete.no_rows_affected")
 	}
 
 	return nil
@@ -139,12 +139,12 @@ func (s *CloseReason) Delete(rpc *model.DeleteOptions, closeReasonId int64) erro
 func (s *CloseReason) Update(rpc *model.UpdateOptions, l *_go.CloseReason) (*_go.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.close_reason.update.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.close_reason.update.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildUpdateCloseReasonQuery(rpc, l)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.close_reason.update.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.close_reason.update.query_build_error", err)
 	}
 
 	var (
@@ -157,7 +157,7 @@ func (s *CloseReason) Update(rpc *model.UpdateOptions, l *_go.CloseReason) (*_go
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.close_reason.update.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.close_reason.update.execution_error", err)
 	}
 
 	l.CreatedAt = util.Timestamp(createdAt)
@@ -266,7 +266,7 @@ func (s CloseReason) buildSearchCloseReasonQuery(rpc *model.SearchOptions, close
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.close_reason.query_build_error", err.Error())
+		return "", nil, dberr.NewDBInternalError("postgres.close_reason.query_build_error", err)
 	}
 
 	return store.CompactSQL(query), args, nil
@@ -406,9 +406,9 @@ func (s CloseReason) containsField(fields []string, field string) bool {
 	return false
 }
 
-func NewCloseReasonStore(store store.Store) (store.CloseReasonStore, model.AppError) {
+func NewCloseReasonStore(store store.Store) (store.CloseReasonStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_close_reason.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.new_close_reason.check.bad_arguments",
 			"error creating close_reason interface, main store is nil")
 	}
 	return &CloseReason{storage: store}, nil

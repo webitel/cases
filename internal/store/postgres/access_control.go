@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/lib/pq"
+	dberr "github.com/webitel/cases/internal/error"
 	db "github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/model"
 )
 
 type AccessContol struct {
@@ -14,7 +14,7 @@ type AccessContol struct {
 }
 
 // Check RBAC rights for the user to access the resource
-func (s AccessContol) RbacAccess(ctx context.Context, domainId int64, id int64, groups []int, access uint8, table string) (bool, model.AppError) {
+func (s AccessContol) RbacAccess(ctx context.Context, domainId int64, id int64, groups []int, access uint8, table string) (bool, error) {
 	// Get the database connection from the storage layer
 	db, appErr := s.storage.Database()
 	if appErr != nil {
@@ -38,15 +38,15 @@ func (s AccessContol) RbacAccess(ctx context.Context, domainId int64, id int64, 
 	var ac bool
 	err := db.QueryRow(ctx, sql, domainId, id, pq.Array(groups), access).Scan(&ac)
 	if err != nil {
-		return false, model.NewInternalError("postgres.access_control.check_access.scan.error", err.Error())
+		return false, dberr.NewDBInternalError("postgres.access_control.check_access.scan.error", err)
 	}
 
 	return ac, nil
 }
 
-func NewAccessControlStore(store db.Store) (db.AccessControlStore, model.AppError) {
+func NewAccessControlStore(store db.Store) (db.AccessControlStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_access_control.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.new_access_control.check.bad_arguments",
 			"error creating access control interface, main store is nil")
 	}
 	return &AccessContol{storage: store}, nil

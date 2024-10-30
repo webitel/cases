@@ -3,12 +3,13 @@ package model
 import (
 	"flag"
 	"os"
+
+	conferr "github.com/webitel/cases/internal/error"
 )
 
 type AppConfig struct {
 	Database *DatabaseConfig `json:"database,omitempty"`
-	Consul   *ConsulConfig   `json:"consul,omitempty" `
-	// Log      *LogSettings    `json:"log,omitempty"`
+	Consul   *ConsulConfig   `json:"consul,omitempty"`
 }
 
 type DatabaseConfig struct {
@@ -21,7 +22,7 @@ type ConsulConfig struct {
 	PublicAddress string `json:"publicAddress" flag:"grpc_addr|| Public grpc address with port"`
 }
 
-func LoadConfig() (*AppConfig, AppError) {
+func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	var appConfig AppConfig
 
 	// Load from command-line flags
@@ -45,18 +46,6 @@ func LoadConfig() (*AppConfig, AppError) {
 	if *consulID == "" {
 		*consulID = os.Getenv("CONSUL_ID")
 	}
-	// if *logLevel == "" {
-	// 	*logLevel = os.Getenv("LOG_LVL")
-	// }
-	// if !*logJson {
-	// 	*logJson = os.Getenv("LOG_JSON") == "true"
-	// }
-	// if !*logOtel {
-	// 	*logOtel = os.Getenv("LOG_OTEL") == "true"
-	// }
-	// if *logFile == "" {
-	// 	*logFile = os.Getenv("LOG_FILE")
-	// }
 
 	// Set the configuration struct fields
 	appConfig.Database = &DatabaseConfig{
@@ -70,16 +59,16 @@ func LoadConfig() (*AppConfig, AppError) {
 
 	// Check if any required field is missing
 	if appConfig.Database.Url == "" {
-		return nil, NewInternalError("cases.main.missing_data_source", "Data source is required")
+		return nil, conferr.NewConfigError("cases.main.missing_data_source", "Data source is required")
 	}
 	if appConfig.Consul.Id == "" {
-		return nil, NewInternalError("cases.main.missing_id", "Service id is required")
+		return nil, conferr.NewConfigError("cases.main.missing_id", "Service id is required")
 	}
 	if appConfig.Consul.Address == "" {
-		return nil, NewInternalError("cases.main.missing_consul", "Consul address is required")
+		return nil, conferr.NewConfigError("cases.main.missing_consul", "Consul address is required")
 	}
 	if appConfig.Consul.PublicAddress == "" {
-		return nil, NewInternalError("cases.main.missing_grpc_addr", "gRPC address is required")
+		return nil, conferr.NewConfigError("cases.main.missing_grpc_addr", "gRPC address is required")
 	}
 
 	return &appConfig, nil

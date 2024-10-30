@@ -6,6 +6,8 @@ import (
 
 	_go "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
+
+	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
 
@@ -16,24 +18,24 @@ type SourceService struct {
 func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRequest) (*_go.Source, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("source_service.create_source.name.required", ErrLookupNameReq)
+		return nil, cerror.NewBadRequestError("source_service.create_source.name.required", ErrLookupNameReq)
 	}
 
 	// Validate the Type field
 	if req.Type == _go.Type_TYPE_UNSPECIFIED {
-		return nil, model.NewBadRequestError("source_service.create_source.type.required", "Source type is required")
+		return nil, cerror.NewBadRequestError("source_service.create_source.type.required", "Source type is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("source_service.create_source.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("source_service.create_source.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Add
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	// Define the current user as the creator and updater
@@ -63,7 +65,7 @@ func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRe
 	// Create the source in the store
 	l, e := s.app.Store.Source().Create(&createOpts, source)
 	if e != nil {
-		return nil, model.NewInternalError("source_service.create_source.store.create.failed", e.Error())
+		return nil, cerror.NewInternalError("source_service.create_source.store.create.failed", e.Error())
 	}
 
 	return l, nil
@@ -72,14 +74,14 @@ func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRe
 func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceRequest) (*_go.SourceList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("source_service.list_sources.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("source_service.list_sources.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Read
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	fields := req.Fields
@@ -113,7 +115,7 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 
 	lookups, e := s.app.Store.Source().List(&searchOptions)
 	if e != nil {
-		return nil, model.NewInternalError("source_service.list_sources.store.list.failed", e.Error())
+		return nil, cerror.NewInternalError("source_service.list_sources.store.list.failed", e.Error())
 	}
 
 	return lookups, nil
@@ -122,19 +124,19 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRequest) (*_go.Source, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("source_service.update_source.id.required", "Source ID is required")
+		return nil, cerror.NewBadRequestError("source_service.update_source.id.required", "Source ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("source_service.update_source.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("source_service.update_source.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Edit
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	// Define the current user as the updater
@@ -161,7 +163,7 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 		case "name":
 			// Validate that name is not empty
 			if req.Input.Name == "" {
-				return nil, model.NewBadRequestError("source_service.update_source.name.required", "Name is required and cannot be empty")
+				return nil, cerror.NewBadRequestError("source_service.update_source.name.required", "Name is required and cannot be empty")
 			}
 			fields = append(fields, "name")
 
@@ -169,9 +171,9 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 			fields = append(fields, "description")
 
 		case "type":
-			// Validate that type is not zero
-			if req.Input.Type == 0 {
-				return nil, model.NewBadRequestError("source_service.update_source.type.required", "Type is required and cannot be empty")
+			// Validate that type is not unspecified
+			if req.Input.Type == _go.Type_TYPE_UNSPECIFIED {
+				return nil, cerror.NewBadRequestError("source_service.update_source.type.required", "Type is required and cannot be unspecified")
 			}
 			fields = append(fields, "type")
 		}
@@ -187,7 +189,7 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 	// Update the source in the store
 	l, e := s.app.Store.Source().Update(&updateOpts, source)
 	if e != nil {
-		return nil, model.NewInternalError("source_service.update_source.store.update.failed", e.Error())
+		return nil, cerror.NewInternalError("source_service.update_source.store.update.failed", e.Error())
 	}
 
 	return l, nil
@@ -196,19 +198,19 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 func (s SourceService) DeleteSource(ctx context.Context, req *_go.DeleteSourceRequest) (*_go.Source, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("source_service.delete_source.id.required", "Lookup ID is required")
+		return nil, cerror.NewBadRequestError("source_service.delete_source.id.required", "Lookup ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("source_service.delete_source.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("source_service.delete_source.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Delete
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	// Define delete options
@@ -221,7 +223,7 @@ func (s SourceService) DeleteSource(ctx context.Context, req *_go.DeleteSourceRe
 	// Delete the source in the store
 	e := s.app.Store.Source().Delete(&deleteOpts)
 	if e != nil {
-		return nil, model.NewInternalError("source_service.delete_source.store.delete.failed", e.Error())
+		return nil, cerror.NewInternalError("source_service.delete_source.store.delete.failed", e.Error())
 	}
 
 	return &(_go.Source{Id: req.Id}), nil
@@ -230,7 +232,7 @@ func (s SourceService) DeleteSource(ctx context.Context, req *_go.DeleteSourceRe
 func (s SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceRequest) (*_go.LocateSourceResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("source_service.locate_source.id.required", "Lookup ID is required")
+		return nil, cerror.NewBadRequestError("source_service.locate_source.id.required", "Lookup ID is required")
 	}
 
 	// Prepare a list request with necessary parameters
@@ -244,21 +246,21 @@ func (s SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceRe
 	// Call the ListSources method
 	listResp, err := s.ListSources(ctx, listReq)
 	if err != nil {
-		return nil, model.NewInternalError("source_service.locate_source.list_sources.error", err.Error())
+		return nil, cerror.NewInternalError("source_service.locate_source.list_sources.error", err.Error())
 	}
 
 	// Check if the source was found
 	if len(listResp.Items) == 0 {
-		return nil, model.NewNotFoundError("source_service.locate_source.not_found", "Source not found")
+		return nil, cerror.NewNotFoundError("source_service.locate_source.not_found", "Source not found")
 	}
 
 	// Return the found source
 	return &_go.LocateSourceResponse{Source: listResp.Items[0]}, nil
 }
 
-func NewSourceService(app *App) (*SourceService, model.AppError) {
+func NewSourceService(app *App) (*SourceService, cerror.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_source_service.args_check.app_nil", "internal is nil")
+		return nil, cerror.NewInternalError("api.config.new_source_service.args_check.app_nil", "internal is nil")
 	}
 	return &SourceService{app: app}, nil
 }

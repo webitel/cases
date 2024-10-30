@@ -12,11 +12,14 @@ require (
 )
 
 require (
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/google/cel-go v0.21.0 // indirect
 	github.com/grafana/otel-profiling-go v0.5.1 // indirect
+	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218 // indirect
 	go.opentelemetry.io/contrib/propagators/jaeger v1.28.0 // indirect
 	go.opentelemetry.io/contrib/samplers/jaegerremote v0.22.0 // indirect
@@ -34,7 +37,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1 // indirect
 )
 
 require (
@@ -70,7 +72,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.28.0 // indirect
 	go.opentelemetry.io/otel/trace v1.28.0 // indirect
 	golang.org/x/crypto v0.25.0 // indirect
-	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63 // indirect
+	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.23.0 // indirect
@@ -82,6 +84,7 @@ require (
 require (
 	buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20240725111140-8ade8003e454.1
 	github.com/Masterminds/squirrel v1.5.4
+	github.com/bufbuild/protovalidate-go v0.7.2
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/hashicorp/consul/api v1.29.2
 	github.com/jackc/pgx/v5 v5.6.0

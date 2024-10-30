@@ -2,8 +2,6 @@ package registry
 
 import (
 	"time"
-
-	"github.com/webitel/cases/model"
 )
 
 const (
@@ -12,7 +10,8 @@ const (
 	CheckInterval                  = 1 * time.Minute
 )
 
+// ServiceRegistrator interface for managing service registration.
 type ServiceRegistrator interface {
-	Register() model.AppError
-	Deregister() model.AppError
+	Register() error
+	Deregister() error
 }

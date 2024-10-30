@@ -12,13 +12,13 @@ import (
 	// ! failed to exit idle mode: invalid target address consul://10.9.8.111:8500/go.webitel.internal, error info: address consul://10.9.8.111:8500/go.webitel.internal:443: too many colons in address
 	_ "github.com/mbobakov/grpc-consul-resolver"
 	model "github.com/webitel/cases/auth/model"
-	errors "github.com/webitel/cases/model"
+	autherror "github.com/webitel/cases/internal/error"
 	"google.golang.org/grpc"
 )
 
 type AuthManager interface {
-	Authorize(ctx context.Context, token string) (*model.Session, errors.AppError)
-	AuthorizeFromContext(ctx context.Context) (*model.Session, errors.AppError)
+	Authorize(ctx context.Context, token string) (*model.Session, error)
+	AuthorizeFromContext(ctx context.Context) (*model.Session, error)
 }
 
 type AuthorizationClient struct {
@@ -27,9 +27,9 @@ type AuthorizationClient struct {
 	Connection *grpc.ClientConn
 }
 
-func NewAuthorizationClient(conn *grpc.ClientConn) (*AuthorizationClient, errors.AppError) {
+func NewAuthorizationClient(conn *grpc.ClientConn) (*AuthorizationClient, error) {
 	if conn == nil {
-		return nil, errors.NewInternalError("auth.manager.new_auth_client.validate_params.connection", "invalid GRPC connection")
+		return nil, autherror.NewInternalError("auth.manager.new_auth_client.validate_params.connection", "invalid GRPC connection")
 	}
 	return &AuthorizationClient{
 		Client:     authclient.NewAuthClient(conn),
@@ -38,7 +38,7 @@ func NewAuthorizationClient(conn *grpc.ClientConn) (*AuthorizationClient, errors
 	}, nil
 }
 
-func (c *AuthorizationClient) UserInfo(ctx context.Context, token string) (*model.Session, errors.AppError) {
+func (c *AuthorizationClient) UserInfo(ctx context.Context, token string) (*model.Session, error) {
 	interfacedSession, err := c.Group.Do(token, func() (interface{}, error) {
 		info, err := c.Client.UserInfo(ctx, &authmodel.UserinfoRequest{AccessToken: token})
 		if err != nil {
@@ -47,7 +47,7 @@ func (c *AuthorizationClient) UserInfo(ctx context.Context, token string) (*mode
 		return model.ConstructSessionFromUserInfo(info), nil
 	})
 	if err != nil {
-		return nil, errors.NewUnauthorizedError("auth.manager.user_info.do_request.error", err.Error())
+		return nil, autherror.NewUnauthorizedError("auth.manager.user_info.do_request.error", err.Error())
 	}
 	return interfacedSession.(*model.Session), nil
 }

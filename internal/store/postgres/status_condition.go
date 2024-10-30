@@ -12,8 +12,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/internal/store"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/util"
 )
 
@@ -24,18 +25,18 @@ type StatusConditionStore struct {
 func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
-		return nil, model.NewInternalError("postgres.status_condition.create.database_connection_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.status_condition.create.database_connection_error", err)
 	}
 
 	tx, err := db.BeginTx(rpc.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return nil, model.NewInternalError("postgres.status_condition.create.transaction_begin_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.status_condition.create.transaction_begin_error", err)
 	}
 	defer s.handleTx(rpc.Context, tx, &err)
 
 	query, args, err := s.buildCreateStatusConditionQuery(rpc, add)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.status_condition.create.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.status_condition.create.query_build_error", err)
 	}
 
 	var (
@@ -48,7 +49,7 @@ func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCo
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &add.StatusId,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.status_condition.create.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.status_condition.create.execution_error", err)
 	}
 
 	add.CreatedAt = util.Timestamp(createdAt)
@@ -62,17 +63,17 @@ func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCo
 func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_go.StatusConditionList, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
-		return nil, model.NewInternalError("postgres.status_condition.list.database_connection_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.status_condition.list.database_connection_error", err)
 	}
 
 	query, args, err := s.buildListStatusConditionQuery(rpc, statusId)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.status_condition.list.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.status_condition.list.query_build_error", err)
 	}
 
 	rows, err := db.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.status_condition.list.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.status_condition.list.execution_error", err)
 	}
 	defer rows.Close()
 
@@ -100,7 +101,7 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 
 		scanArgs := s.buildScanArgs(rpc.Fields, st, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt)
 		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, model.NewInternalError("postgres.status_condition.list.row_scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.status_condition.list.row_scan_error", err)
 		}
 
 		s.populateStatusConditionFields(rpc.Fields, st, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt)
@@ -121,17 +122,17 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 
 	query, args, err := s.buildDeleteStatusConditionQuery(ids, domainId, statusId)
 	if err != nil {
-		return model.NewInternalError("postgres.status_condition.delete.query_build_error", err.Error())
+		return dberr.NewDBInternalError("postgres.status_condition.delete.query_build_error", err)
 	}
 
 	db, err := s.getDBConnection()
 	if err != nil {
-		return model.NewInternalError("postgres.status_condition.delete.database_connection_error", err.Error())
+		return dberr.NewDBInternalError("postgres.status_condition.delete.database_connection_error", err)
 	}
 
 	rows, err := db.Query(rpc.Context, query, args...)
 	if err != nil {
-		return model.NewInternalError("postgres.status_condition.delete.execution_error", err.Error())
+		return dberr.NewDBInternalError("postgres.status_condition.delete.execution_error", err)
 	}
 	defer rows.Close()
 
@@ -139,13 +140,13 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 	for rows.Next() {
 		var deletedId int64
 		if err := rows.Scan(&deletedId); err != nil {
-			return model.NewInternalError("postgres.status_condition.delete.scan_error", err.Error())
+			return dberr.NewDBInternalError("postgres.status_condition.delete.scan_error", err)
 		}
 		deletedIds = append(deletedIds, deletedId)
 	}
 
 	if len(deletedIds) == 0 {
-		return model.NewInternalError("postgres.status_condition.delete.constraint_violation", "operation would violate constraints: at least one initial and one final record must remain")
+		return dberr.NewDBError("postgres.status_condition.delete.constraint_violation", "operation would violate constraints: at least one initial and one final record must remain")
 	}
 
 	return nil
@@ -154,12 +155,12 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
-		return nil, model.NewInternalError("postgres.status_condition.update.database_connection_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.status_condition.update.database_connection_error", err)
 	}
 
 	tx, err := db.BeginTx(rpc.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return nil, model.NewInternalError("postgres.status_condition.update.transaction_begin_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.status_condition.update.transaction_begin_error", err)
 	}
 	defer s.handleTx(rpc.Context, tx, &err)
 
@@ -196,7 +197,7 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		switch field {
 		case "initial":
 			if !st.Initial {
-				return nil, model.NewInternalError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
+				return nil, dberr.NewDBError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
 			}
 		}
 	}
@@ -213,7 +214,7 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &st.StatusId,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.status_condition.update.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.status_condition.update.execution_error", err)
 	}
 
 	st.CreatedAt = util.Timestamp(createdAt)
@@ -327,7 +328,7 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 	// Convert the query to SQL and arguments
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.status_condition.list.query_build_error", err.Error())
+		return "", nil, dberr.NewDBInternalError("postgres.status_condition.list.query_build_error", err)
 	}
 
 	return store.CompactSQL(query), args, nil
@@ -758,9 +759,9 @@ WHERE id IN (SELECT id FROM to_check)
 RETURNING id;`)
 )
 
-func NewStatusConditionStore(store store.Store) (store.StatusConditionStore, model.AppError) {
+func NewStatusConditionStore(store store.Store) (store.StatusConditionStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_status_condition.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.new_status_condition.check.bad_arguments",
 			"error creating status condition interface to the status_condition table, main store is nil")
 	}
 	return &StatusConditionStore{storage: store}, nil

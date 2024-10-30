@@ -8,9 +8,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
-
-	"github.com/webitel/cases/internal/store"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/util"
 )
 
@@ -22,12 +22,12 @@ type SLAStore struct {
 func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.sla.create.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla.create.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildCreateSLAQuery(rpc, add)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla.create.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla.create.query_build_error", err)
 	}
 
 	var (
@@ -45,7 +45,7 @@ func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA,
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla.create.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla.create.execution_error", err)
 	}
 
 	t := rpc.Time
@@ -75,22 +75,22 @@ func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA,
 func (s *SLAStore) Delete(rpc *model.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return model.NewInternalError("postgres.sla.delete.database_connection_error", dbErr.Error())
+		return dberr.NewDBInternalError("postgres.sla.delete.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildDeleteSLAQuery(rpc)
 	if err != nil {
-		return model.NewInternalError("postgres.sla.delete.query_build_error", err.Error())
+		return dberr.NewDBInternalError("postgres.sla.delete.query_build_error", err)
 	}
 
 	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
-		return model.NewInternalError("postgres.sla.delete.execution_error", err.Error())
+		return dberr.NewDBInternalError("postgres.sla.delete.execution_error", err)
 	}
 
 	affected := res.RowsAffected()
 	if affected == 0 {
-		return model.NewNotFoundError("postgres.sla.delete.no_rows_affected", "No rows affected for deletion")
+		return dberr.NewDBNoRowsError("postgres.sla.delete.no_rows_affected")
 	}
 
 	return nil
@@ -100,17 +100,17 @@ func (s *SLAStore) Delete(rpc *model.DeleteOptions) error {
 func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.sla.list.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla.list.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildSearchSLAQuery(rpc)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla.list.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla.list.query_build_error", err)
 	}
 
 	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla.list.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla.list.execution_error", err)
 	}
 	defer rows.Close()
 
@@ -143,7 +143,7 @@ func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 			&tempValidFrom, &tempValidTo,
 		)
 		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, model.NewInternalError("postgres.sla.list.row_scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.sla.list.row_scan_error", err)
 		}
 
 		s.populateSLAFields(rpc.Fields, sla, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt, tempValidFrom, tempValidTo)
@@ -162,12 +162,12 @@ func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 func (s *SLAStore) Update(rpc *model.UpdateOptions, l *cases.SLA) (*cases.SLA, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.sla.update.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla.update.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildUpdateSLAQuery(rpc, l)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla.update.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla.update.query_build_error", err)
 	}
 
 	var (
@@ -184,7 +184,7 @@ func (s *SLAStore) Update(rpc *model.UpdateOptions, l *cases.SLA) (*cases.SLA, e
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.sla.update.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.sla.update.execution_error", err)
 	}
 
 	// Convert the valid from and valid to timestamps to local time
@@ -332,7 +332,7 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.sla.query_build.sql_generation_error", err.Error())
+		return "", nil, dberr.NewDBInternalError("postgres.sla.query_build.sql_generation_error", err)
 	}
 
 	return store.CompactSQL(query), args, nil
@@ -538,9 +538,9 @@ func (s *SLAStore) populateSLAFields(
 	}
 }
 
-func NewSLAStore(store store.Store) (store.SLAStore, model.AppError) {
+func NewSLAStore(store store.Store) (store.SLAStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_sla.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.new_sla.check.bad_arguments",
 			"error creating SLA interface to the status_condition table, main store is nil")
 	}
 	return &SLAStore{storage: store}, nil

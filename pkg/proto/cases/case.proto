@@ -129,8 +129,8 @@ message Case {
   string contact_info = 11; // free-form text to describe contact information
   int64 planned_reaction_at = 12; // planned reaction time calculated by sla and conditions, taking into account the calendar (unixmilli)
   int64 planned_resolve_at = 13; // planned resolve time calculated on-flight by sla and conditions, taking into account the calendar (unixmilli)
-  Lookup status_lookup = 14; // initialized from service/subservice of the catalog, should not be changed when service changed
-  Lookup close_reason_lookup = 15;  // defines what close reason lookup we should use for this case, should not be changed when service changed
+  Lookup status = 14; // initialized from service/subservice of the catalog, should not be changed when service changed
+  Lookup close_reason_group = 15;  // defines what close reason lookup we should use for this case, should not be changed when service changed
 
   Lookup author = 16; // contact that created the case
   Lookup assignee = 17; // contact that assigned to resolve this case (optional)
@@ -140,7 +140,7 @@ message Case {
 
   Lookup priority = 21; // priority
   Lookup source = 22; // source of the case
-  Lookup status = 23; // case state value from the status_lookup
+  Lookup status_condition = 23; // case state value from the status_lookup
 
   CloseInfo close = 24; // close information, required when case is in final state
   RateInfo rate = 25; // rating information, not required (filled by internal services)
@@ -160,6 +160,8 @@ message Case {
   RelatedCaseList related = 30; // related cases
   CaseLinkList links = 31; // attached links
 //  CaseFileList files = 32; // attached files
+
+ Lookup sla = 33; // sla from the service
 }
 
 message CloseInfo {

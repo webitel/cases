@@ -8,9 +8,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
-
-	db "github.com/webitel/cases/internal/store"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	db "github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/util"
 )
 
@@ -21,12 +21,12 @@ type Source struct {
 func (s Source) Create(rpc *model.CreateOptions, add *_go.Source) (*_go.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.source.create.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.create.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildCreateSourceQuery(rpc, add)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.source.create.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.create.query_build_error", err)
 	}
 
 	var (
@@ -41,13 +41,13 @@ func (s Source) Create(rpc *model.CreateOptions, add *_go.Source) (*_go.Source, 
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.source.create.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.create.execution_error", err)
 	}
 
 	// Convert tempType (string) to the enum Type
 	add.Type, err = stringToType(tempType)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.source.create.type_conversion_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.create.type_conversion_error", err)
 	}
 
 	return &_go.Source{
@@ -65,17 +65,17 @@ func (s Source) Create(rpc *model.CreateOptions, add *_go.Source) (*_go.Source, 
 func (s Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.source.list.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.list.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildSearchSourceQuery(rpc)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.source.list.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.list.query_build_error", err)
 	}
 
 	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.source.list.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.list.execution_error", err)
 	}
 	defer rows.Close()
 
@@ -124,14 +124,14 @@ func (s Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 		}
 
 		if scanErr := rows.Scan(scanArgs...); scanErr != nil {
-			return nil, model.NewInternalError("postgres.cases.source.list.row_scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.cases.source.list.row_scan_error", err)
 		}
 
 		// Convert tempType (string) to the enum Type if "type" is in the requested fields
 		if rpc.FieldsUtil.ContainsField(rpc.Fields, "type") {
 			l.Type, err = stringToType(tempType)
 			if err != nil {
-				return nil, model.NewInternalError("postgres.cases.source.list.type_conversion_error", err.Error())
+				return nil, dberr.NewDBInternalError("postgres.cases.source.list.type_conversion_error", err)
 			}
 		}
 
@@ -167,22 +167,22 @@ func (s Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 func (s Source) Delete(rpc *model.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return model.NewInternalError("postgres.cases.source.delete.database_connection_error", dbErr.Error())
+		return dberr.NewDBInternalError("postgres.cases.source.delete.database_connection_error", dbErr)
 	}
 
 	query, args, err := s.buildDeleteSourceQuery(rpc)
 	if err != nil {
-		return model.NewInternalError("postgres.cases.source.delete.query_build_error", err.Error())
+		return dberr.NewDBInternalError("postgres.cases.source.delete.query_build_error", err)
 	}
 
 	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
-		return model.NewInternalError("postgres.cases.source.delete.execution_error", err.Error())
+		return dberr.NewDBInternalError("postgres.cases.source.delete.execution_error", err)
 	}
 
 	affected := res.RowsAffected()
 	if affected == 0 {
-		return model.NewNotFoundError("postgres.cases.source.delete.no_rows_affected", "No rows affected for deletion")
+		return dberr.NewDBError("postgres.cases.source.delete.no_rows_affected", "No rows affected for deletion")
 	}
 
 	return nil
@@ -191,12 +191,12 @@ func (s Source) Delete(rpc *model.DeleteOptions) error {
 func (s Source) Update(rpc *model.UpdateOptions, l *_go.Source) (*_go.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.source.update.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.update.database_connection_error", dbErr)
 	}
 
 	query, args, queryErr := s.buildUpdateSourceQuery(rpc, l)
 	if queryErr != nil {
-		return nil, model.NewInternalError("postgres.cases.source.update.query_build_error", queryErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.update.query_build_error", queryErr)
 	}
 
 	var (
@@ -210,13 +210,13 @@ func (s Source) Update(rpc *model.UpdateOptions, l *_go.Source) (*_go.Source, er
 		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.source.update.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.update.execution_error", err)
 	}
 
 	// Convert tempType (string) to the enum Type
 	l.Type, err = stringToType(tempType)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.source.update.type_conversion_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.source.update.type_conversion_error", err)
 	}
 
 	l.CreatedAt = util.Timestamp(createdAt)
@@ -323,7 +323,7 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 	// Generate SQL and arguments
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.cases.source.query_build.sql_generation_error", err.Error())
+		return "", nil, dberr.NewDBInternalError("postgres.cases.source.query_build.sql_generation_error", err)
 	}
 
 	return db.CompactSQL(query), args, nil
@@ -436,9 +436,9 @@ FROM ins
 	)
 )
 
-func NewSourceStore(store db.Store) (db.SourceStore, model.AppError) {
+func NewSourceStore(store db.Store) (db.SourceStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_source.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.new_source.check.bad_arguments",
 			"error creating source interface to the source table, main store is nil")
 	}
 	return &Source{storage: store}, nil

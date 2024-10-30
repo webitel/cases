@@ -7,6 +7,8 @@ import (
 
 	"github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
+
+	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
 
@@ -22,31 +24,31 @@ const (
 func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases.CreateSLAConditionRequest) (*cases.SLACondition, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("sla_condition_service.create_sla_condition.name.required", "SLA Condition name is required")
+		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.name.required", "SLA Condition name is required")
 	}
 	if len(req.Priorities) == 0 {
-		return nil, model.NewBadRequestError("sla_condition_service.create_sla_condition.priorities.required", "At least one priority is required")
+		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.priorities.required", "At least one priority is required")
 	}
 	if req.ReactionTime.Hours == 0 && req.ReactionTime.Minutes == 0 {
-		return nil, model.NewBadRequestError("sla_condition_service.create_sla_condition.reaction_time.required", "Reaction time is required")
+		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.reaction_time.required", "Reaction time is required")
 	}
 	if req.ResolutionTime.Hours == 0 && req.ResolutionTime.Minutes == 0 {
-		return nil, model.NewBadRequestError("sla_condition_service.create_sla_condition.resolution_time.required", "Resolution time is required")
+		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.resolution_time.required", "Resolution time is required")
 	}
 	if req.SlaId == 0 {
-		return nil, model.NewBadRequestError("sla_condition_service.create_sla_condition.sla_id.required", "SLA ID is required")
+		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.sla_id.required", "SLA ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("sla_condition_service.create_sla_condition.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("sla_condition_service.create_sla_condition.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Add
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	// Define the current user as the creator and updater
@@ -91,7 +93,7 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 	// Create the SLACondition in the store
 	r, e := s.app.Store.SLACondition().Create(&createOpts, slaCondition, req.Priorities)
 	if e != nil {
-		return nil, model.NewInternalError("sla_condition_service.create_sla_condition.store.create.failed", e.Error())
+		return nil, cerror.NewInternalError("sla_condition_service.create_sla_condition.store.create.failed", e.Error())
 	}
 
 	return r, nil
@@ -101,19 +103,19 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases.DeleteSLAConditionRequest) (*cases.SLACondition, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("sla_condition_service.delete_sla_condition.id.required", "SLA Condition ID is required")
+		return nil, cerror.NewBadRequestError("sla_condition_service.delete_sla_condition.id.required", "SLA Condition ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("sla_condition_service.delete_sla_condition.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("sla_condition_service.delete_sla_condition.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Delete
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	t := time.Now()
@@ -128,24 +130,24 @@ func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases
 	// Delete the SLACondition in the store
 	e := s.app.Store.SLACondition().Delete(&deleteOpts)
 	if e != nil {
-		return nil, model.NewInternalError("sla_condition_service.delete_sla_condition.store.delete.failed", e.Error())
+		return nil, cerror.NewInternalError("sla_condition_service.delete_sla_condition.store.delete.failed", e.Error())
 	}
 
-	return &(cases.SLACondition{Id: req.Id}), nil
+	return &cases.SLACondition{Id: req.Id}, nil
 }
 
 // ListSLAConditions implements cases.SLAConditionsServer.
 func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.ListSLAConditionRequest) (*cases.SLAConditionList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("sla_condition_service.list_sla_conditions.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("sla_condition_service.list_sla_conditions.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Read
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	fields := req.Fields
@@ -179,7 +181,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 
 	slaConditions, e := s.app.Store.SLACondition().List(&searchOptions)
 	if e != nil {
-		return nil, model.NewInternalError("sla_condition_service.list_sla_conditions.store.list.failed", e.Error())
+		return nil, cerror.NewInternalError("sla_condition_service.list_sla_conditions.store.list.failed", e.Error())
 	}
 
 	return slaConditions, nil
@@ -189,7 +191,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 func (s *SLAConditionService) LocateSLACondition(ctx context.Context, req *cases.LocateSLAConditionRequest) (*cases.LocateSLAConditionResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("sla_condition_service.locate_sla_condition.id.required", "SLA Condition ID is required")
+		return nil, cerror.NewBadRequestError("sla_condition_service.locate_sla_condition.id.required", "SLA Condition ID is required")
 	}
 
 	// Prepare a list request with necessary parameters
@@ -204,12 +206,12 @@ func (s *SLAConditionService) LocateSLACondition(ctx context.Context, req *cases
 	// Call the ListSLAConditions method
 	listResp, err := s.ListSLAConditions(ctx, listReq)
 	if err != nil {
-		return nil, model.NewInternalError("sla_condition_service.locate_sla_condition.list_sla_conditions.error", err.Error())
+		return nil, cerror.NewInternalError("sla_condition_service.locate_sla_condition.list_sla_conditions.error", err.Error())
 	}
 
 	// Check if the SLA Condition was found
 	if len(listResp.Items) == 0 {
-		return nil, model.NewNotFoundError("sla_condition_service.locate_sla_condition.not_found", "SLA Condition not found")
+		return nil, cerror.NewNotFoundError("sla_condition_service.locate_sla_condition.not_found", "SLA Condition not found")
 	}
 
 	// Return the found SLA Condition
@@ -220,19 +222,19 @@ func (s *SLAConditionService) LocateSLACondition(ctx context.Context, req *cases
 func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases.UpdateSLAConditionRequest) (*cases.SLACondition, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("sla_condition_service.update_sla_condition.id.required", "SLACondition ID is required")
+		return nil, cerror.NewBadRequestError("sla_condition_service.update_sla_condition.id.required", "SLA Condition ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("sla_condition_service.update_sla_condition.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("sla_condition_service.update_sla_condition.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Edit
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	// Define the current user as the updater
@@ -265,7 +267,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		case "name":
 			fields = append(fields, "name")
 			if req.Input.Name == "" {
-				return nil, model.NewBadRequestError("sla_condition_service.update_sla_condition.name.required", "SLA Condition name is required and cannot be empty")
+				return nil, cerror.NewBadRequestError("sla_condition_service.update_sla_condition.name.required", "SLA Condition name is required and cannot be empty")
 			}
 		case "reaction_time_hours":
 			fields = append(fields, "reaction_time_hours")
@@ -294,15 +296,15 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 	// Update the SLACondition in the store
 	r, e := s.app.Store.SLACondition().Update(&updateOpts, slaCondition)
 	if e != nil {
-		return nil, model.NewInternalError("sla_condition_service.update_sla_condition.store.update.failed", e.Error())
+		return nil, cerror.NewInternalError("sla_condition_service.update_sla_condition.store.update.failed", e.Error())
 	}
 
 	return r, nil
 }
 
-func NewSLAConditionService(app *App) (*SLAConditionService, model.AppError) {
+func NewSLAConditionService(app *App) (*SLAConditionService, cerror.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_sla_condition_service.args_check.app_nil", "internal is nil")
+		return nil, cerror.NewInternalError("api.config.new_sla_condition_service.args_check.app_nil", "internal is nil")
 	}
 	return &SLAConditionService{app: app}, nil
 }

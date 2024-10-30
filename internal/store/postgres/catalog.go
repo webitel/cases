@@ -9,6 +9,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -23,7 +24,7 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.catalog.create.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.create.database_connection_error", dbErr)
 	}
 
 	// Build the combined query for inserting Catalog, teams, and skills
@@ -48,15 +49,15 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 		&skillLookups, // JSON array for skills
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.catalog.create.scan_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.create.scan_error", err)
 	}
 
 	// Unmarshal the JSON arrays into the Lookup slices
 	if err := json.Unmarshal(teamLookups, &add.Teams); err != nil {
-		return nil, model.NewInternalError("postgres.catalog.create.unmarshal_teams_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.create.unmarshal_teams_error", err)
 	}
 	if err := json.Unmarshal(skillLookups, &add.Skills); err != nil {
-		return nil, model.NewInternalError("postgres.catalog.create.unmarshal_skills_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.create.unmarshal_skills_error", err)
 	}
 
 	// Prepare the Catalog to return
@@ -183,12 +184,12 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return model.NewInternalError("postgres.catalog.delete.db_connection_error", dbErr.Error())
+		return dberr.NewDBInternalError("postgres.catalog.delete.db_connection_error", dbErr)
 	}
 
 	// Ensure that there are IDs to delete
 	if len(rpc.IDs) == 0 {
-		return model.NewBadRequestError("postgres.catalog.delete.no_ids_provided", "No IDs provided for deletion")
+		return dberr.NewDBNoRowsError("postgres.catalog.delete.no_ids_provided")
 	}
 
 	// Build the delete query
@@ -197,12 +198,12 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 	// Execute the delete query
 	res, err := db.Exec(rpc.Context, query, args...)
 	if err != nil {
-		return model.NewInternalError("postgres.catalog.delete.execution_error", err.Error())
+		return dberr.NewDBInternalError("postgres.catalog.delete.execution_error", err)
 	}
 
 	// Check how many rows were affected
 	if res.RowsAffected() == 0 {
-		return model.NewNotFoundError("postgres.catalog.delete.no_rows_deleted", "No Catalog entries were deleted")
+		return dberr.NewDBNoRowsError("postgres.catalog.delete.no_rows_deleted")
 	}
 
 	return nil
@@ -234,19 +235,19 @@ func (s *CatalogStore) List(
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.catalog.list.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.list.database_connection_error", dbErr)
 	}
 
 	// Build SQL query
 	query, args, err := s.buildSearchCatalogQuery(rpc, depth, fetchType)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.catalog.list.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.list.query_build_error", err)
 	}
 
 	// Execute the query
 	rows, err := db.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.catalog.list.query_execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.list.query_execution_error", err)
 	}
 	defer rows.Close()
 
@@ -291,13 +292,13 @@ func (s *CatalogStore) List(
 			rpc.Fields,
 		)
 		if err != nil {
-			return nil, model.NewInternalError("postgres.catalog.list.scan_args_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.catalog.list.scan_args_error", err)
 		}
 
 		// Scan the result into the appropriate fields
 		err = rows.Scan(scanArgs...)
 		if err != nil {
-			return nil, model.NewInternalError("postgres.catalog.list.scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.catalog.list.scan_error", err)
 		}
 
 		// If rootID is not 0, it's a subservice, so we skip it
@@ -309,13 +310,13 @@ func (s *CatalogStore) List(
 			// Handle services unmarshal
 			if len(serviceLookups) > 0 {
 				if err := json.Unmarshal(serviceLookups, &services); err != nil {
-					return nil, model.NewInternalError("postgres.catalog.list.unmarshal_services_error", err.Error())
+					return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_services_error", err)
 				}
 
 				// Nest services by root_id
 				nestedServices, err := s.nestServicesByRootID(catalog.Id, services)
 				if err != nil {
-					return nil, model.NewInternalError("postgres.catalog.list.nesting_services_error", err.Error())
+					return nil, dberr.NewDBInternalError("postgres.catalog.list.nesting_services_error", err)
 				}
 
 				// Add the nested services to the catalog
@@ -324,10 +325,10 @@ func (s *CatalogStore) List(
 
 			// Unmarshal the JSON arrays into the Lookup slices -- teams and skills
 			if err := json.Unmarshal(teamLookups, &catalog.Teams); err != nil {
-				return nil, model.NewInternalError("postgres.catalog.list.unmarshal_teams_error", err.Error())
+				return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_teams_error", err)
 			}
 			if err := json.Unmarshal(skillLookups, &catalog.Skills); err != nil {
-				return nil, model.NewInternalError("postgres.catalog.list.unmarshal_skills_error", err.Error())
+				return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_skills_error", err)
 			}
 		} else {
 			for _, field := range rpc.Fields {
@@ -337,13 +338,13 @@ func (s *CatalogStore) List(
 					// Handle services unmarshal
 					if len(serviceLookups) > 0 {
 						if err := json.Unmarshal(serviceLookups, &services); err != nil {
-							return nil, model.NewInternalError("postgres.catalog.list.unmarshal_services_error", err.Error())
+							return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_services_error", err)
 						}
 
 						// Nest services by root_id
 						nestedServices, err := s.nestServicesByRootID(catalog.Id, services)
 						if err != nil {
-							return nil, model.NewInternalError("postgres.catalog.list.nesting_services_error", err.Error())
+							return nil, dberr.NewDBInternalError("postgres.catalog.list.nesting_services_error", err)
 						}
 
 						// Add the nested services to the catalog
@@ -352,11 +353,11 @@ func (s *CatalogStore) List(
 					// Unmarshal the JSON arrays into the Lookup slices -- teams and skills
 				case "teams":
 					if err := json.Unmarshal(teamLookups, &catalog.Teams); err != nil {
-						return nil, model.NewInternalError("postgres.catalog.list.unmarshal_teams_error", err.Error())
+						return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_teams_error", err)
 					}
 				case "skills":
 					if err := json.Unmarshal(skillLookups, &catalog.Skills); err != nil {
-						return nil, model.NewInternalError("postgres.catalog.list.unmarshal_skills_error", err.Error())
+						return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_skills_error", err)
 					}
 				}
 			}
@@ -1001,10 +1002,8 @@ GROUP BY service_hierarchy.service_catalog_id)`, depth, fullFetch, func() string
 	// Build the final SQL query and return
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.catalog.query_build_error", err.Error())
+		return "", nil, dberr.NewDBInternalError("postgres.catalog.query_build_error", err)
 	}
-
-	fmt.Printf("Query: %s\n", store.CompactSQL(query))
 
 	return store.CompactSQL(query), args, nil
 }
@@ -1836,13 +1835,13 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.catalog.update.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.update.database_connection_error", dbErr)
 	}
 
 	// Start a transaction using the TxManager
 	tx, err := db.Begin(rpc.Context)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.catalog.update.transaction_start_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.update.transaction_start_error", err)
 	}
 	txManager := store.NewTxManager(tx)   // Create a new TxManager instance
 	defer txManager.Rollback(rpc.Context) // Ensure rollback on error
@@ -1902,19 +1901,19 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 		var affectedRows int
 		err = txManager.QueryRow(rpc.Context, query, args...).Scan(&affectedRows)
 		if err != nil {
-			return nil, model.NewInternalError("postgres.catalog.update.teams_skills_update_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.catalog.update.teams_skills_update_error", err)
 		}
 
 		// Optional check if no rows were affected
 		if affectedRows == 0 {
-			return nil, model.NewInternalError("postgres.catalog.update.no_teams_skills_affected", "No teams or skills were updated")
+			return nil, dberr.NewDBNoRowsError("postgres.catalog.update.no_teams_skills_affected")
 		}
 	}
 
 	// Build the update query for the Catalog
 	query, args, err := s.buildUpdateCatalogQuery(rpc, lookup)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.catalog.update.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.update.query_build_error", err)
 	}
 
 	var (
@@ -1933,20 +1932,20 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 		&teamLookups, &skillLookups,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.catalog.update.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.update.execution_error", err)
 	}
 
 	// Commit the transaction
 	if err := txManager.Commit(rpc.Context); err != nil {
-		return nil, model.NewInternalError("postgres.catalog.update.transaction_commit_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.update.transaction_commit_error", err)
 	}
 
 	// Unmarshal the JSON arrays for teams and skills
 	if err := json.Unmarshal(teamLookups, &lookup.Teams); err != nil {
-		return nil, model.NewInternalError("postgres.catalog.update.unmarshal_teams_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.update.unmarshal_teams_error", err)
 	}
 	if err := json.Unmarshal(skillLookups, &lookup.Skills); err != nil {
-		return nil, model.NewInternalError("postgres.catalog.update.unmarshal_skills_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.catalog.update.unmarshal_skills_error", err)
 	}
 
 	// Prepare the updated Catalog to return
@@ -2139,9 +2138,9 @@ GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name,
 	return store.CompactSQL(query), args, nil
 }
 
-func NewCatalogStore(store store.Store) (store.CatalogStore, model.AppError) {
+func NewCatalogStore(store store.Store) (store.CatalogStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_catalog.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.new_catalog.check.bad_arguments",
 			"error creating Catalog interface to the service table, main store is nil")
 	}
 	return &CatalogStore{storage: store}, nil

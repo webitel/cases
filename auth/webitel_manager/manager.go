@@ -5,7 +5,7 @@ import (
 
 	iface "github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/model"
-	errors "github.com/webitel/cases/model"
+	autherror "github.com/webitel/cases/internal/error"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -16,7 +16,7 @@ type WebitelAppAuthManager struct {
 	client *iface.AuthorizationClient
 }
 
-func NewWebitelAppAuthManager(conn *grpc.ClientConn) (iface.AuthManager, errors.AppError) {
+func NewWebitelAppAuthManager(conn *grpc.ClientConn) (iface.AuthManager, error) {
 	cli, err := iface.NewAuthorizationClient(conn)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func NewWebitelAppAuthManager(conn *grpc.ClientConn) (iface.AuthManager, errors.
 	return manager, nil
 }
 
-func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*model.Session, errors.AppError) {
+func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*model.Session, error) {
 	var token []string
 	var info metadata.MD
 	var ok bool
@@ -39,17 +39,17 @@ func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*mode
 	}
 
 	if !ok {
-		return nil, errors.NewForbiddenError("internal.grpc.get_context", "Not found")
+		return nil, autherror.NewForbiddenError("internal.grpc.get_context", "Not found")
 	} else {
 		token = info.Get(model.AuthTokenName)
 	}
 	newContext := metadata.NewOutgoingContext(ctx, info)
 	if len(token) < 1 {
-		return nil, errors.NewInternalError("webitel_manager.authorize_from_from_context.search_token.not_found", "token not found")
+		return nil, autherror.NewInternalError("webitel_manager.authorize_from_from_context.search_token.not_found", "token not found")
 	}
 	return i.Authorize(newContext, token[0])
 }
 
-func (i *WebitelAppAuthManager) Authorize(ctx context.Context, token string) (*model.Session, errors.AppError) {
+func (i *WebitelAppAuthManager) Authorize(ctx context.Context, token string) (*model.Session, error) {
 	return i.client.UserInfo(ctx, token)
 }

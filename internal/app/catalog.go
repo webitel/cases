@@ -7,6 +7,7 @@ import (
 
 	"github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
+	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
 
@@ -22,28 +23,28 @@ const (
 func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCatalogRequest) (*cases.Catalog, error) {
 	// Validate required fields
 	if req.Name == "" {
-		return nil, model.NewBadRequestError("catalog.create_catalog.name.required", "Catalog name is required")
+		return nil, cerror.NewBadRequestError("catalog.create_catalog.name.required", "Catalog name is required")
 	}
 	if req.Prefix == "" {
-		return nil, model.NewBadRequestError("catalog.create_catalog.prefix.required", "Catalog prefix is required")
+		return nil, cerror.NewBadRequestError("catalog.create_catalog.prefix.required", "Catalog prefix is required")
 	}
 	if req.SlaId == 0 {
-		return nil, model.NewBadRequestError("catalog.create_catalog.sla.required", "SLA is required")
+		return nil, cerror.NewBadRequestError("catalog.create_catalog.sla.required", "SLA is required")
 	}
 	if req.StatusId == 0 {
-		return nil, model.NewBadRequestError("catalog.create_catalog.status.required", "Status is required")
+		return nil, cerror.NewBadRequestError("catalog.create_catalog.status.required", "Status is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("catalog.create_catalog.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("catalog.create_catalog.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Add
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	// Define the current user as the creator and updater
@@ -92,7 +93,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	// Create the Catalog in the store
 	r, e := s.app.Store.Catalog().Create(&createOpts, catalog)
 	if e != nil {
-		return nil, model.NewInternalError("catalog.create_catalog.store.create.failed", e.Error())
+		return nil, cerror.NewInternalError("catalog.create_catalog.store.create.failed", e.Error())
 	}
 
 	return r, nil
@@ -101,19 +102,19 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 // DeleteCatalog implements cases.CatalogsServer.
 func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCatalogRequest) (*cases.CatalogList, error) {
 	if len(req.Id) == 0 {
-		return nil, model.NewBadRequestError("catalog.delete_catalog.id.required", "Catalog ID is required")
+		return nil, cerror.NewBadRequestError("catalog.delete_catalog.id.required", "Catalog ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("catalog.delete_catalog.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("catalog.delete_catalog.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Delete
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	t := time.Now()
@@ -126,7 +127,7 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 
 	e := s.app.Store.Catalog().Delete(&deleteOpts)
 	if e != nil {
-		return nil, model.NewInternalError("catalog.delete_catalog.store.delete.failed", e.Error())
+		return nil, cerror.NewInternalError("catalog.delete_catalog.store.delete.failed", e.Error())
 	}
 
 	deletedCatalogs := make([]*cases.Catalog, len(req.Id))
@@ -143,14 +144,14 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalogRequest) (*cases.CatalogList, error) {
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("catalog.list_catalogs.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("catalog.list_catalogs.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Read
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	page := req.Page
@@ -182,7 +183,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 
 	catalogs, e := s.app.Store.Catalog().List(&searchOptions, req.Depth, &req.Q.FetchType)
 	if e != nil {
-		return nil, model.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
+		return nil, cerror.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
 	}
 
 	return catalogs, nil
@@ -191,7 +192,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 // LocateCatalog implements cases.CatalogsServer.
 func (s *CatalogService) LocateCatalog(ctx context.Context, req *cases.LocateCatalogRequest) (*cases.LocateCatalogResponse, error) {
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("catalog.locate_catalog.id.required", "Catalog ID is required")
+		return nil, cerror.NewBadRequestError("catalog.locate_catalog.id.required", "Catalog ID is required")
 	}
 
 	listReq := &cases.ListCatalogRequest{
@@ -202,11 +203,11 @@ func (s *CatalogService) LocateCatalog(ctx context.Context, req *cases.LocateCat
 
 	listResp, err := s.ListCatalogs(ctx, listReq)
 	if err != nil {
-		return nil, model.NewInternalError("catalog.locate_catalog.list_catalogs.error", err.Error())
+		return nil, cerror.NewInternalError("catalog.locate_catalog.list_catalogs.error", err.Error())
 	}
 
 	if len(listResp.Items) == 0 {
-		return nil, model.NewNotFoundError("catalog.locate_catalog.not_found", "Catalog not found")
+		return nil, cerror.NewNotFoundError("catalog.locate_catalog.not_found", "Catalog not found")
 	}
 
 	return &cases.LocateCatalogResponse{Catalog: listResp.Items[0]}, nil
@@ -215,19 +216,19 @@ func (s *CatalogService) LocateCatalog(ctx context.Context, req *cases.LocateCat
 // UpdateCatalog implements cases.CatalogsServer.
 func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCatalogRequest) (*cases.Catalog, error) {
 	if req.Id == 0 {
-		return nil, model.NewBadRequestError("catalog.update_catalog.id.required", "Catalog ID is required")
+		return nil, cerror.NewBadRequestError("catalog.update_catalog.id.required", "Catalog ID is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
-		return nil, model.NewUnauthorizedError("catalog.update_catalog.authorization.failed", err.Error())
+		return nil, cerror.NewUnauthorizedError("catalog.update_catalog.authorization.failed", err.Error())
 	}
 
 	// OBAC check
 	accessMode := authmodel.Edit
 	scope := session.GetScope(model.ScopeDictionary)
 	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, s.app.MakeScopeError(session, scope, accessMode)
+		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
 	u := &cases.Lookup{
@@ -272,22 +273,22 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		switch f {
 		case "name":
 			if req.Input.Name == "" {
-				return nil, model.NewBadRequestError("catalog.update_catalog.name.required", "Catalog name is required and cannot be empty")
+				return nil, cerror.NewBadRequestError("catalog.update_catalog.name.required", "Catalog name is required and cannot be empty")
 			}
 			fields = append(fields, "name")
 		case "prefix":
 			if req.Input.Prefix == "" {
-				return nil, model.NewBadRequestError("catalog.update_catalog.prefix.required", "Catalog prefix is required and cannot be empty")
+				return nil, cerror.NewBadRequestError("catalog.update_catalog.prefix.required", "Catalog prefix is required and cannot be empty")
 			}
 			fields = append(fields, "prefix")
 		case "sla_id":
 			if req.Input.SlaId == 0 {
-				return nil, model.NewBadRequestError("catalog.update_catalog.sla.required", "Catalog SLA is required and cannot be empty")
+				return nil, cerror.NewBadRequestError("catalog.update_catalog.sla.required", "Catalog SLA is required and cannot be empty")
 			}
 			fields = append(fields, "sla_id")
 		case "status_id":
 			if req.Input.StatusId == 0 {
-				return nil, model.NewBadRequestError("catalog.update_catalog.status.required", "Catalog status is required and cannot be empty")
+				return nil, cerror.NewBadRequestError("catalog.update_catalog.status.required", "Catalog status is required and cannot be empty")
 			}
 			fields = append(fields, "status_id")
 		case "description":
@@ -317,16 +318,16 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 	// Update the catalog
 	r, e := s.app.Store.Catalog().Update(&updateOpts, catalog)
 	if e != nil {
-		return nil, model.NewInternalError("catalog.update_catalog.store.update.failed", e.Error())
+		return nil, cerror.NewInternalError("catalog.update_catalog.store.update.failed", e.Error())
 	}
 
 	return r, nil
 }
 
 // NewCatalogService creates a new CatalogService.
-func NewCatalogService(app *App) (*CatalogService, model.AppError) {
+func NewCatalogService(app *App) (*CatalogService, cerror.AppError) {
 	if app == nil {
-		return nil, model.NewInternalError("api.config.new_catalog.args_check.app_nil", "internal is nil")
+		return nil, cerror.NewInternalError("api.config.new_catalog.args_check.app_nil", "internal is nil")
 	}
 	return &CatalogService{app: app}, nil
 }

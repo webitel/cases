@@ -8,8 +8,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	api "github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/internal/store"
+	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/util"
 )
 
@@ -21,12 +22,12 @@ type Priority struct {
 func (p *Priority) Create(rpc *model.CreateOptions, add *api.Priority) (*api.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.priority.create.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.priority.create.database_connection_error", dbErr)
 	}
 
 	query, args, err := p.buildCreatePriorityQuery(rpc, add)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.priority.create.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.priority.create.query_build_error", err)
 	}
 
 	var (
@@ -40,7 +41,7 @@ func (p *Priority) Create(rpc *model.CreateOptions, add *api.Priority) (*api.Pri
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.close_reason.create.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.close_reason.create.execution_error", err)
 	}
 
 	return &api.Priority{
@@ -58,22 +59,22 @@ func (p *Priority) Create(rpc *model.CreateOptions, add *api.Priority) (*api.Pri
 func (p *Priority) Delete(rpc *model.DeleteOptions) error {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
-		return model.NewInternalError("postgres.cases.priority.delete.database_connection_error", dbErr.Error())
+		return dberr.NewDBInternalError("postgres.cases.priority.delete.database_connection_error", dbErr)
 	}
 
 	query, args, err := p.buildDeletePriorityQuery(rpc)
 	if err != nil {
-		return model.NewInternalError("postgres.cases.priority.delete.query_build_error", err.Error())
+		return dberr.NewDBInternalError("postgres.cases.priority.delete.query_build_error", err)
 	}
 
 	res, err := d.Exec(rpc.Context, query, args...)
 	if err != nil {
-		return model.NewInternalError("postgres.cases.priority.delete.execution_error", err.Error())
+		return dberr.NewDBInternalError("postgres.cases.priority.delete.execution_error", err)
 	}
 
 	affected := res.RowsAffected()
 	if affected == 0 {
-		return model.NewNotFoundError("postgres.cases.priority.delete.no_rows_affected", "No rows affected for deletion")
+		return dberr.NewDBNoRowsError("postgres.cases.priority.delete.no_rows_affected")
 	}
 
 	return nil
@@ -83,17 +84,17 @@ func (p *Priority) Delete(rpc *model.DeleteOptions) error {
 func (p *Priority) List(rpc *model.SearchOptions) (*api.PriorityList, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.priority.list.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.priority.list.database_connection_error", dbErr)
 	}
 
 	query, args, err := p.buildSearchPriorityQuery(rpc)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.priority.list.query_build_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.priority.list.query_build_error", err)
 	}
 
 	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.priority.list.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.priority.list.execution_error", err)
 	}
 	defer rows.Close()
 
@@ -142,7 +143,7 @@ func (p *Priority) List(rpc *model.SearchOptions) (*api.PriorityList, error) {
 		}
 
 		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, model.NewInternalError("postgres.cases.close_reason.list.row_scan_error", err.Error())
+			return nil, dberr.NewDBInternalError("postgres.cases.close_reason.list.row_scan_error", err)
 		}
 
 		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_by") {
@@ -173,12 +174,12 @@ func (p *Priority) List(rpc *model.SearchOptions) (*api.PriorityList, error) {
 func (p *Priority) Update(rpc *model.UpdateOptions, l *api.Priority) (*api.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
-		return nil, model.NewInternalError("postgres.cases.priority.update.database_connection_error", dbErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.priority.update.database_connection_error", dbErr)
 	}
 
 	query, args, queryErr := p.buildUpdatePriorityQuery(rpc, l)
 	if queryErr != nil {
-		return nil, model.NewInternalError("postgres.cases.priority.update.query_build_error", queryErr.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.priority.update.query_build_error", queryErr)
 	}
 
 	var (
@@ -192,7 +193,7 @@ func (p *Priority) Update(rpc *model.UpdateOptions, l *api.Priority) (*api.Prior
 		&updatedByLookup.Name, &l.Color,
 	)
 	if err != nil {
-		return nil, model.NewInternalError("postgres.cases.priority.update.execution_error", err.Error())
+		return nil, dberr.NewDBInternalError("postgres.cases.priority.update.execution_error", err)
 	}
 
 	l.CreatedAt = util.Timestamp(createdAt)
@@ -285,7 +286,7 @@ func (s Priority) buildSearchPriorityQuery(rpc *model.SearchOptions) (string, []
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, model.NewInternalError("postgres.cases.priority.query_build.sql_generation_error", err.Error())
+		return "", nil, dberr.NewDBInternalError("postgres.cases.priority.query_build.sql_generation_error", err)
 	}
 
 	return store.CompactSQL(query), args, nil
@@ -399,9 +400,9 @@ var (
 `)
 )
 
-func NewPriorityStore(store store.Store) (store.PriorityStore, model.AppError) {
+func NewPriorityStore(store store.Store) (store.PriorityStore, error) {
 	if store == nil {
-		return nil, model.NewInternalError("postgres.new_priority.check.bad_arguments",
+		return nil, dberr.NewDBError("postgres.new_priority.check.bad_arguments",
 			"error creating priority interface to the status_condition table, main store is nil")
 	}
 	return &Priority{storage: store}, nil
