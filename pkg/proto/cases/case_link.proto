@@ -18,7 +18,7 @@ message CaseLink {
   int64 created_at = 5; // unixmilli
   Lookup updated_by = 6;
   int64 updated_at = 7;
-  int64 author = 8; // contact-author calculated on-flight
+  Lookup author = 8; // contact-author calculated on-flight
   string name = 9; // link name
   string url = 11; // URL
 }
@@ -59,6 +59,7 @@ service CaseLinks {
     option (google.api.http) = {
       delete: "/cases/links/{etag}"
     };
+
   }
 
 
@@ -74,12 +75,6 @@ service CaseLinks {
   rpc MergeLinks(MergeLinksRequest) returns (CaseLinkList) {
     option (google.api.http) = {
       post: "/cases/{case_etag}/links"
-      body: "input"
-    };
-  }
-  rpc ResetLinks(ResetLinksRequest) returns (CaseLinkList) {
-    option (google.api.http) = {
-      put: "/cases/{case_etag}/links"
       body: "input"
     };
   }
@@ -119,10 +114,10 @@ message ListLinksRequest {
   repeated string qin = 4;
   string sort = 5;
   repeated string fields = 6;
-  oneof filters {
-    FilterNode node = 7;
-    Filter filter = 8;
-  }
+//  oneof filters {
+//    FilterNode node = 7;
+//    Filter filter = 8;
+//  }
   string case_etag = 9;
 }
 

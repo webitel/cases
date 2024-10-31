@@ -24,7 +24,6 @@ const (
 	CaseLinks_DeleteLink_FullMethodName = "/webitel.cases.CaseLinks/DeleteLink"
 	CaseLinks_ListLinks_FullMethodName  = "/webitel.cases.CaseLinks/ListLinks"
 	CaseLinks_MergeLinks_FullMethodName = "/webitel.cases.CaseLinks/MergeLinks"
-	CaseLinks_ResetLinks_FullMethodName = "/webitel.cases.CaseLinks/ResetLinks"
 )
 
 // CaseLinksClient is the client API for CaseLinks service.
@@ -36,7 +35,6 @@ type CaseLinksClient interface {
 	DeleteLink(ctx context.Context, in *DeleteLinkRequest, opts ...grpc.CallOption) (*CaseLink, error)
 	ListLinks(ctx context.Context, in *ListLinksRequest, opts ...grpc.CallOption) (*CaseLinkList, error)
 	MergeLinks(ctx context.Context, in *MergeLinksRequest, opts ...grpc.CallOption) (*CaseLinkList, error)
-	ResetLinks(ctx context.Context, in *ResetLinksRequest, opts ...grpc.CallOption) (*CaseLinkList, error)
 }
 
 type caseLinksClient struct {
@@ -97,16 +95,6 @@ func (c *caseLinksClient) MergeLinks(ctx context.Context, in *MergeLinksRequest,
 	return out, nil
 }
 
-func (c *caseLinksClient) ResetLinks(ctx context.Context, in *ResetLinksRequest, opts ...grpc.CallOption) (*CaseLinkList, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CaseLinkList)
-	err := c.cc.Invoke(ctx, CaseLinks_ResetLinks_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // CaseLinksServer is the server API for CaseLinks service.
 // All implementations should embed UnimplementedCaseLinksServer
 // for forward compatibility.
@@ -116,7 +104,6 @@ type CaseLinksServer interface {
 	DeleteLink(context.Context, *DeleteLinkRequest) (*CaseLink, error)
 	ListLinks(context.Context, *ListLinksRequest) (*CaseLinkList, error)
 	MergeLinks(context.Context, *MergeLinksRequest) (*CaseLinkList, error)
-	ResetLinks(context.Context, *ResetLinksRequest) (*CaseLinkList, error)
 }
 
 // UnimplementedCaseLinksServer should be embedded to have
@@ -140,9 +127,6 @@ func (UnimplementedCaseLinksServer) ListLinks(context.Context, *ListLinksRequest
 }
 func (UnimplementedCaseLinksServer) MergeLinks(context.Context, *MergeLinksRequest) (*CaseLinkList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MergeLinks not implemented")
-}
-func (UnimplementedCaseLinksServer) ResetLinks(context.Context, *ResetLinksRequest) (*CaseLinkList, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResetLinks not implemented")
 }
 func (UnimplementedCaseLinksServer) testEmbeddedByValue() {}
 
@@ -254,24 +238,6 @@ func _CaseLinks_MergeLinks_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CaseLinks_ResetLinks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResetLinksRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CaseLinksServer).ResetLinks(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: CaseLinks_ResetLinks_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CaseLinksServer).ResetLinks(ctx, req.(*ResetLinksRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // CaseLinks_ServiceDesc is the grpc.ServiceDesc for CaseLinks service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -298,10 +264,6 @@ var CaseLinks_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MergeLinks",
 			Handler:    _CaseLinks_MergeLinks_Handler,
-		},
-		{
-			MethodName: "ResetLinks",
-			Handler:    _CaseLinks_ResetLinks_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

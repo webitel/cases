@@ -116,10 +116,6 @@ message ListCommentsRequest {
   repeated string qin = 4;
   string sort = 5;
   repeated string fields = 6;
-  oneof filters {
-    FilterNode node = 7;
-    Filter filter = 8;
-  }
   string case_etag = 9; // (id accepted)
 }
 

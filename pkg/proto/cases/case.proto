@@ -7,7 +7,7 @@ option go_package = "github.com/webitel/cases/api/cases;cases";
 import "cases/service.proto";
 import "cases/case_comment.proto";
 //import "cases/case_relation.proto";
-//import "cases/case_file.proto";
+import "cases/case_file.proto";
 import "cases/case_link.proto";
 import "cases/lookup.proto";
 import "cases/sla_condition.proto";

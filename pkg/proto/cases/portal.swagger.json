@@ -2407,46 +2407,6 @@
               "type": "string"
             },
             "collectionFormat": "multi"
-          },
-          {
-            "name": "node.operator",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "enum": [
-              "And",
-              "Or"
-            ],
-            "default": "And"
-          },
-          {
-            "name": "filter.column",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "filter.operator",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "enum": [
-              "Equal",
-              "NotEqual",
-              "GreaterThan",
-              "LessThan",
-              "GreaterThanOrEqual",
-              "LessThanOrEqual",
-              "Like"
-            ],
-            "default": "Equal"
-          },
-          {
-            "name": "filter.operand",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "byte"
           }
         ],
         "tags": [
@@ -2560,6 +2520,7 @@
         "parameters": [
           {
             "name": "case_etag",
+            "description": "oneof filters {\n   FilterNode node = 7;\n   Filter filter = 8;\n }",
             "in": "path",
             "required": true,
             "type": "string"
@@ -2609,46 +2570,6 @@
               "type": "string"
             },
             "collectionFormat": "multi"
-          },
-          {
-            "name": "node.operator",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "enum": [
-              "And",
-              "Or"
-            ],
-            "default": "And"
-          },
-          {
-            "name": "filter.column",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "filter.operator",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "enum": [
-              "Equal",
-              "NotEqual",
-              "GreaterThan",
-              "LessThan",
-              "GreaterThanOrEqual",
-              "LessThanOrEqual",
-              "Like"
-            ],
-            "default": "Equal"
-          },
-          {
-            "name": "filter.operand",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "byte"
           }
         ],
         "tags": [
@@ -2657,52 +2578,6 @@
       },
       "post": {
         "operationId": "CaseLinks_MergeLinks",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/webitel.cases.CaseLinkList"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "case_etag",
-            "description": "new/existing comments belong to (id accepted)",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "input",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "$ref": "#/definitions/webitel.cases.InputCaseLink"
-              }
-            }
-          },
-          {
-            "name": "fields",
-            "description": "result fields needed on the front-end for each comment",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          }
-        ],
-        "tags": [
-          "CaseLinks"
-        ]
-      },
-      "put": {
-        "operationId": "CaseLinks_ResetLinks",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4324,8 +4199,7 @@
           "format": "int64"
         },
         "author": {
-          "type": "string",
-          "format": "int64",
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "contact-author calculated on-flight"
         },
         "name": {
