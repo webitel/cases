@@ -13,6 +13,7 @@ import (
 	"github.com/webitel/cases/internal/server"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
+	broker "github.com/webitel/cases/rabbit"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -22,12 +23,14 @@ type App struct {
 	config         *conf.AppConfig
 	Store          store.Store
 	server         *server.Server
-	exitChan       chan error // Change to standard error type
+	exitChan       chan error
 	storageConn    *grpc.ClientConn
 	sessionManager auth.AuthManager
 	webitelAppConn *grpc.ClientConn
 	shutdown       func(ctx context.Context) error
 	log            *slog.Logger
+	rabbit         *broker.RabbitBroker
+	rabbitExitChan chan cerror.AppError
 }
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
@@ -40,6 +43,14 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 		return nil, cerror.NewBadRequestError("internal.internal.new.database_config.bad_arguments", "error creating store, config is nil")
 	}
 	app.Store = BuildDatabase(config.Database)
+
+	// --------- Message Broker ( Rabbit ) Initialization ---------
+
+	r, appErr := broker.BuildRabbit(app.config.Rabbit, app.rabbitExitChan)
+	if appErr != nil {
+		return nil, appErr
+	}
+	app.rabbit = r
 
 	// --------- Webitel App gRPC Connection ( Consul )---------
 	app.webitelAppConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/go.webitel.app?wait=14s", config.Consul.Address),

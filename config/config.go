@@ -8,8 +8,13 @@ import (
 )
 
 type AppConfig struct {
+	Rabbit   *RabbitConfig   `json:"rabbit,omitempty"`
 	Database *DatabaseConfig `json:"database,omitempty"`
 	Consul   *ConsulConfig   `json:"consul,omitempty"`
+}
+
+type RabbitConfig struct {
+	Url string `json:"url" flag:"amqp|| AMQP connection"`
 }
 
 type DatabaseConfig struct {
@@ -30,6 +35,7 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	consul := flag.String("consul", "", "Host to consul")
 	grpcAddr := flag.String("grpc_addr", "", "Public grpc address with port")
 	consulID := flag.String("id", "", "Service id")
+	rabbitURL := flag.String("amqp", "", "AMQP connection URL")
 
 	flag.Parse()
 
@@ -46,6 +52,9 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	if *consulID == "" {
 		*consulID = os.Getenv("CONSUL_ID")
 	}
+	if *rabbitURL == "" {
+		*rabbitURL = os.Getenv("MICRO_BROKER_ADDRESS")
+	}
 
 	// Set the configuration struct fields
 	appConfig.Database = &DatabaseConfig{
@@ -55,6 +64,9 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 		Id:            *consulID,
 		Address:       *consul,
 		PublicAddress: *grpcAddr,
+	}
+	appConfig.Rabbit = &RabbitConfig{
+		Url: *rabbitURL,
 	}
 
 	// Check if any required field is missing
@@ -69,6 +81,9 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	}
 	if appConfig.Consul.PublicAddress == "" {
 		return nil, conferr.NewConfigError("cases.main.missing_grpc_addr", "gRPC address is required")
+	}
+	if appConfig.Rabbit.Url == "" {
+		return nil, conferr.NewConfigError("cases.main.missing_rabbit_url", "Rabbit URL is required")
 	}
 
 	return &appConfig, nil
