@@ -9,7 +9,7 @@ import (
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/auth/webitel_manager"
 	conf "github.com/webitel/cases/config"
-	"github.com/webitel/cases/infra/server"
+	"github.com/webitel/cases/server"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
