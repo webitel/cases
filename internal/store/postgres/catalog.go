@@ -2058,7 +2058,23 @@ FROM (
 	return store.CompactSQL(query), args
 }
 
-func (s *CatalogStore) buildUpdateCatalogQuery(rpc *model.UpdateOptions, lookup *cases.Catalog) (string, []interface{}, error) {
+func (s *CatalogStore) buildUpdateCatalogQuery(
+	rpc *model.UpdateOptions,
+	lookup *cases.Catalog,
+) (string, []interface{}, error) {
+	// Start the WITH clause to check if root_id is NULL
+	// Checking whether root is NULL or not
+	//
+	// If ROOT is NOT NULL ---- user try to update service
+	// Status / Prefix / Close reason could not be set for service
+	checkRoot := fmt.Sprintf(`
+WITH root_check AS (
+    SELECT root_id
+    FROM cases.service_catalog
+    WHERE id = %d
+)
+`, lookup.Id)
+
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
@@ -2066,28 +2082,37 @@ func (s *CatalogStore) buildUpdateCatalogQuery(rpc *model.UpdateOptions, lookup 
 		Set("updated_by", rpc.Session.GetUserId()).
 		Where(sq.Eq{"id": lookup.Id, "dc": rpc.Session.GetDomainId()})
 
-	// Dynamically set fields based on what the user wants to update
+	// Dynamically set fields based on user update preferences
 	for _, field := range rpc.Fields {
 		switch field {
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)
 		case "description":
-			// Use NULLIF to store NULL if description is an empty string
-			updateQueryBuilder = updateQueryBuilder.Set("description", sq.Expr("NULLIF(?, '')", lookup.Description))
+			updateQueryBuilder = updateQueryBuilder.Set("description",
+				sq.Expr("NULLIF(?, '')",
+					lookup.Description,
+				))
 		case "prefix":
-			updateQueryBuilder = updateQueryBuilder.Set("prefix", lookup.Prefix)
+			updateQueryBuilder = updateQueryBuilder.Set("prefix",
+				sq.Expr("(CASE WHEN (SELECT root_id FROM root_check) IS NULL THEN ? ELSE prefix END)",
+					lookup.Prefix,
+				))
 		case "code":
-			// Use NULLIF to store NULL if code is an empty string
 			updateQueryBuilder = updateQueryBuilder.Set("code", sq.Expr("NULLIF(?, '')", lookup.Code))
 		case "state":
 			updateQueryBuilder = updateQueryBuilder.Set("state", lookup.State)
 		case "sla_id":
 			updateQueryBuilder = updateQueryBuilder.Set("sla_id", lookup.Sla.Id)
 		case "status_id":
-			updateQueryBuilder = updateQueryBuilder.Set("status_id", lookup.Status.Id)
+			updateQueryBuilder = updateQueryBuilder.Set("status_id",
+				sq.Expr("(CASE WHEN (SELECT root_id FROM root_check) IS NULL THEN ? ELSE status_id END)",
+					lookup.Status.Id,
+				))
 		case "close_reason_id":
-			// Use NULLIF to store NULL if close_reason_id is an empty string
-			updateQueryBuilder = updateQueryBuilder.Set("close_reason_id", sq.Expr("NULLIF(?, 0)", lookup.CloseReason.Id))
+			updateQueryBuilder = updateQueryBuilder.Set("close_reason_id",
+				sq.Expr("(CASE WHEN (SELECT root_id FROM root_check) IS NULL THEN NULLIF(?, 0) ELSE close_reason_id END)",
+					lookup.CloseReason.Id,
+				))
 		}
 	}
 
@@ -2097,21 +2122,23 @@ func (s *CatalogStore) buildUpdateCatalogQuery(rpc *model.UpdateOptions, lookup 
 		return "", nil, err
 	}
 
-	// Combine the update query with the select query using the WITH clause
+	// Combine the WITH clause and update query
 	query := fmt.Sprintf(`
-WITH updated_catalog AS (%s
-			RETURNING id, name, created_at, updated_at, sla_id, created_by, updated_by, status_id, close_reason_id)
+%s, updated_catalog AS (
+    %s
+    RETURNING id, name, created_at, updated_at, sla_id, created_by, updated_by, status_id, close_reason_id
+)
 SELECT catalog.id,
        catalog.name,
        catalog.created_at,
        catalog.sla_id,
        sla.name,
-       catalog.status_id,
-       status.name,
-       catalog.close_reason_id,
-       COALESCE(close_reason.name, '')                    AS close_reason_name, -- Handle NULL close_reason as empty string
+       COALESCE(catalog.status_id, 0) AS status_id,
+       COALESCE(status.name, '') AS status_name,
+       COALESCE(catalog.close_reason_id, 0) AS close_reason_id,
+       COALESCE(close_reason.name, '')                    AS close_reason_name,
        catalog.created_by,
-       COALESCE(created_by_user.name, '')                 AS created_by_name,   -- Handle NULL created_by as empty string
+       COALESCE(created_by_user.name, '')                 AS created_by_name,
        catalog.updated_by,
        updated_by_user.name                               AS updated_by_name,
        catalog.updated_at,
@@ -2132,11 +2159,91 @@ FROM updated_catalog AS catalog
 GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name, catalog.status_id,
          status.name, catalog.close_reason_id, close_reason.name, catalog.created_by, created_by_user.name,
          catalog.updated_by, updated_by_user.name, catalog.updated_at;
-	`, updateSQL)
+	`, checkRoot, updateSQL)
 
 	// Return the final combined query and arguments
 	return store.CompactSQL(query), args, nil
 }
+
+// func (s *CatalogStore) buildUpdateCatalogQuery(rpc *model.UpdateOptions, lookup *cases.Catalog) (string, []interface{}, error) {
+// 	// Start the update query with Squirrel Update Builder
+// 	updateQueryBuilder := sq.Update("cases.service_catalog").
+// 		PlaceholderFormat(sq.Dollar).
+// 		Set("updated_at", rpc.Time).
+// 		Set("updated_by", rpc.Session.GetUserId()).
+// 		Where(sq.Eq{"id": lookup.Id, "dc": rpc.Session.GetDomainId()})
+
+// 	// Dynamically set fields based on what the user wants to update
+// 	for _, field := range rpc.Fields {
+// 		switch field {
+// 		case "name":
+// 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)
+// 		case "description":
+// 			// Use NULLIF to store NULL if description is an empty string
+// 			updateQueryBuilder = updateQueryBuilder.Set("description", sq.Expr("NULLIF(?, '')", lookup.Description))
+// 		case "prefix":
+// 			updateQueryBuilder = updateQueryBuilder.Set("prefix", lookup.Prefix)
+// 		case "code":
+// 			// Use NULLIF to store NULL if code is an empty string
+// 			updateQueryBuilder = updateQueryBuilder.Set("code", sq.Expr("NULLIF(?, '')", lookup.Code))
+// 		case "state":
+// 			updateQueryBuilder = updateQueryBuilder.Set("state", lookup.State)
+// 		case "sla_id":
+// 			updateQueryBuilder = updateQueryBuilder.Set("sla_id", lookup.Sla.Id)
+// 		case "status_id":
+// 			updateQueryBuilder = updateQueryBuilder.Set("status_id", lookup.Status.Id)
+// 		case "close_reason_id":
+// 			// Use NULLIF to store NULL if close_reason_id is an empty string
+// 			updateQueryBuilder = updateQueryBuilder.Set("close_reason_id", sq.Expr("NULLIF(?, 0)", lookup.CloseReason.Id))
+// 		}
+// 	}
+
+// 	// Convert the update query to SQL
+// 	updateSQL, args, err := updateQueryBuilder.ToSql()
+// 	if err != nil {
+// 		return "", nil, err
+// 	}
+
+// 	// Combine the update query with the select query using the WITH clause
+// 	query := fmt.Sprintf(`
+// WITH updated_catalog AS (%s
+// 			RETURNING id, name, created_at, updated_at, sla_id, created_by, updated_by, status_id, close_reason_id)
+// SELECT catalog.id,
+//        catalog.name,
+//        catalog.created_at,
+//        catalog.sla_id,
+//        sla.name,
+//        COALESCE(catalog.status_id, 0) AS status_id,
+//        COALESCE(status.name, '') AS status_name,
+//        COALESCE(catalog.close_reason_id, 0) AS close_reason_id,
+//        COALESCE(close_reason.name, '')                    AS close_reason_name, -- Handle NULL close_reason as empty string
+//        catalog.created_by,
+//        COALESCE(created_by_user.name, '')                 AS created_by_name,   -- Handle NULL created_by as empty string
+//        catalog.updated_by,
+//        updated_by_user.name                               AS updated_by_name,
+//        catalog.updated_at,
+//        COALESCE((SELECT json_agg(json_build_object('id', team.id, 'name', team.name))
+//                  FROM cases.team_catalog ts
+//                           LEFT JOIN call_center.cc_team team ON team.id = ts.team_id
+//                  WHERE ts.catalog_id = catalog.id), '[]') AS teams,
+//        COALESCE((SELECT json_agg(json_build_object('id', skill.id, 'name', skill.name))
+//                  FROM cases.skill_catalog ss
+//                           LEFT JOIN call_center.cc_skill skill ON skill.id = ss.skill_id
+//                  WHERE ss.catalog_id = catalog.id), '[]') AS skills
+// FROM updated_catalog AS catalog
+//          LEFT JOIN cases.sla ON sla.id = catalog.sla_id
+//          LEFT JOIN cases.status ON status.id = catalog.status_id
+//          LEFT JOIN cases.close_reason ON close_reason.id = catalog.close_reason_id
+//          LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by
+//          LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by
+// GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name, catalog.status_id,
+//          status.name, catalog.close_reason_id, close_reason.name, catalog.created_by, created_by_user.name,
+//          catalog.updated_by, updated_by_user.name, catalog.updated_at;
+// 	`, updateSQL)
+
+// 	// Return the final combined query and arguments
+// 	return store.CompactSQL(query), args, nil
+// }
 
 func NewCatalogStore(store store.Store) (store.CatalogStore, error) {
 	if store == nil {
