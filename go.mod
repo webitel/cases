@@ -19,6 +19,9 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/cel-go v0.21.0 // indirect
 	github.com/grafana/otel-profiling-go v0.5.1 // indirect
+	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
+	github.com/jackc/pgio v1.0.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218 // indirect
 	go.opentelemetry.io/contrib/propagators/jaeger v1.28.0 // indirect
@@ -87,6 +90,7 @@ require (
 	github.com/bufbuild/protovalidate-go v0.7.2
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/hashicorp/consul/api v1.29.2
+	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/lib/pq v1.10.9
 	github.com/mbobakov/grpc-consul-resolver v1.5.3

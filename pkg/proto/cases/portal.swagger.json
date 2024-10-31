@@ -5614,9 +5614,8 @@
           "type": "string",
           "format": "int64"
         },
-        "calendar_id": {
-          "type": "string",
-          "format": "int64",
+        "calendar": {
+          "$ref": "#/definitions/webitel.cases.Lookup",
           "title": "Calendar ID from the \"Calendars\" dictionary - required"
         },
         "reaction_time": {

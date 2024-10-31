@@ -254,3 +254,21 @@ func (l *RabbitBroker) QueueStopConsume(queueName string) cerror.AppError {
 func fmtBrokerLog(description string) string {
 	return fmt.Sprintf("broker: %s", description)
 }
+
+func (l *RabbitBroker) Publish(exchange, routingKey string, body []byte) cerror.AppError {
+	err := l.channel.Publish(
+		exchange,
+		routingKey,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+		},
+	)
+	if err != nil {
+		return cerror.NewInternalError("rabbit.listener.publish.request.fail", fmtBrokerLog(err.Error()))
+	}
+	slog.Info(fmtBrokerLog("message published"), slog.String("exchange", exchange), slog.String("routingKey", routingKey))
+	return nil
+}

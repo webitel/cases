@@ -60,7 +60,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 		Description: req.Description,
 		ValidFrom:   req.ValidFrom.AsTime().Unix(),
 		ValidTo:     req.ValidTo.AsTime().Unix(),
-		CalendarId:  req.CalendarId,
+		Calendar:    &cases.Lookup{Id: req.CalendarId},
 		ReactionTime: &cases.ReactionTime{
 			Hours:   req.ReactionTime.Hours,
 			Minutes: req.ReactionTime.Minutes,
@@ -241,6 +241,14 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		Name: session.GetUserName(),
 	}
 
+	// Initialize ReactionTime and ResolutionTime if nil
+	if req.Input.ReactionTime == nil {
+		req.Input.ReactionTime = &cases.ReactionTime{}
+	}
+	if req.Input.ResolutionTime == nil {
+		req.Input.ResolutionTime = &cases.ResolutionTime{}
+	}
+
 	// Update SLA model
 	sla := &cases.SLA{
 		Id:          req.Id,
@@ -248,7 +256,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		Description: req.Input.Description,
 		ValidFrom:   req.Input.ValidFrom.AsTime().Unix(),
 		ValidTo:     req.Input.ValidTo.AsTime().Unix(),
-		CalendarId:  req.Input.CalendarId,
+		Calendar:    &cases.Lookup{Id: req.Input.CalendarId},
 		ReactionTime: &cases.ReactionTime{
 			Hours:   req.Input.ReactionTime.Hours,
 			Minutes: req.Input.ReactionTime.Minutes,

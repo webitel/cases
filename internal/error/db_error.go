@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"sync"
+
+	"github.com/jackc/pgconn"
 )
 
 // DBError represents a generic database error.
@@ -109,8 +111,19 @@ type DBInternalError struct {
 }
 
 func NewDBInternalError(id string, reason error) *DBInternalError {
+	var detailedMessage string
+
+	// Check if the error is a pgconn.PgError to get additional details
+	if pgErr, ok := reason.(*pgconn.PgError); ok {
+		// Format a detailed error message from the PgError fields
+		detailedMessage = fmt.Sprintf("DB Error: %s - %s. %s", pgErr.Message, pgErr.Detail, pgErr.Hint)
+	} else {
+		// If it's not a PgError, use the generic reason's Error() string
+		detailedMessage = reason.Error()
+	}
+
 	return &DBInternalError{
-		DBError: *NewDBError(id, "internal server error"),
+		DBError: *NewDBError(id, detailedMessage), // Use the detailed message as the error message
 		Reason:  reason,
 	}
 }

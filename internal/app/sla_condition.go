@@ -243,6 +243,16 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		Name: session.GetUserName(),
 	}
 
+	// Initialize ReactionTime if nil
+	if req.Input.ReactionTime == nil {
+		req.Input.ReactionTime = &cases.ReactionTime{}
+	}
+
+	// Initialize ResolutionTime if nil
+	if req.Input.ResolutionTime == nil {
+		req.Input.ResolutionTime = &cases.ResolutionTime{}
+	}
+
 	// Update SLACondition model
 	slaCondition := &cases.SLACondition{
 		Id:   req.Id,

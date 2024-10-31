@@ -9,8 +9,8 @@ import (
 	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -31,14 +31,14 @@ func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA,
 	}
 
 	var (
-		createdByLookup, updatedByLookup cases.Lookup
-		createdAt, updatedAt             time.Time
-		validFrom, validTo               time.Time
+		createdByLookup, updatedByLookup, calendar cases.Lookup
+		createdAt, updatedAt                       time.Time
+		validFrom, validTo                         time.Time
 	)
 
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
-		&validFrom, &validTo, &add.CalendarId,
+		&validFrom, &validTo, &calendar.Id, &calendar.Name,
 		&add.ReactionTime.Hours, &add.ReactionTime.Minutes,
 		&add.ResolutionTime.Hours, &add.ResolutionTime.Minutes,
 		&createdByLookup.Id, &createdByLookup.Name,
@@ -55,7 +55,7 @@ func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA,
 		Description: add.Description,
 		ValidFrom:   util.Timestamp(validFrom),
 		ValidTo:     util.Timestamp(validTo),
-		CalendarId:  add.CalendarId,
+		Calendar:    &calendar,
 		ReactionTime: &cases.ReactionTime{
 			Hours:   add.ReactionTime.Hours,
 			Minutes: add.ReactionTime.Minutes,
@@ -132,21 +132,22 @@ func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 		sla := &cases.SLA{}
 
 		var (
-			createdBy, updatedBy         cases.Lookup
-			tempCreatedAt, tempUpdatedAt time.Time
-			tempValidFrom, tempValidTo   time.Time
+			createdBy, updatedBy, calendar cases.Lookup
+			tempCreatedAt, tempUpdatedAt   time.Time
+			tempValidFrom, tempValidTo     time.Time
 		)
 
 		scanArgs := s.buildScanArgs(
-			rpc.Fields, sla, &createdBy,
-			&updatedBy, &tempCreatedAt, &tempUpdatedAt,
+			rpc.Fields, sla,
+			&createdBy, &updatedBy, &calendar,
+			&tempCreatedAt, &tempUpdatedAt,
 			&tempValidFrom, &tempValidTo,
 		)
 		if err := rows.Scan(scanArgs...); err != nil {
 			return nil, dberr.NewDBInternalError("postgres.sla.list.row_scan_error", err)
 		}
 
-		s.populateSLAFields(rpc.Fields, sla, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt, tempValidFrom, tempValidTo)
+		s.populateSLAFields(rpc.Fields, sla, &createdBy, &updatedBy, &calendar, tempCreatedAt, tempUpdatedAt, tempValidFrom, tempValidTo)
 		slaList = append(slaList, sla)
 		lCount++
 	}
@@ -171,14 +172,14 @@ func (s *SLAStore) Update(rpc *model.UpdateOptions, l *cases.SLA) (*cases.SLA, e
 	}
 
 	var (
-		createdBy, updatedBy cases.Lookup
-		createdAt, updatedAt time.Time
-		validFrom, validTo   time.Time
+		createdBy, updatedBy, calendar cases.Lookup
+		createdAt, updatedAt           time.Time
+		validFrom, validTo             time.Time
 	)
 
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
-		&validFrom, &validTo, &l.CalendarId,
+		&validFrom, &validTo, &calendar.Id, &calendar.Name,
 		&l.ReactionTime.Hours, &l.ReactionTime.Minutes,
 		&l.ResolutionTime.Hours, &l.ResolutionTime.Minutes,
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name,
@@ -195,13 +196,14 @@ func (s *SLAStore) Update(rpc *model.UpdateOptions, l *cases.SLA) (*cases.SLA, e
 
 	l.CreatedBy = &createdBy
 	l.UpdatedBy = &updatedBy
+	l.Calendar = &calendar
 
 	return l, nil
 }
 
 // buildCreateSLAQuery constructs the SQL insert query and returns the query string and arguments.
 func (s SLAStore) buildCreateSLAQuery(rpc *model.CreateOptions, sla *cases.SLA) (string, []interface{}, error) {
-	// Convert the valid from and valid to timestamps to local time
+	// Convert valid_from and valid_to from int64 timestamp to time.Time
 	validFrom := util.LocalTime(sla.ValidFrom)
 	validTo := util.LocalTime(sla.ValidTo)
 
@@ -214,7 +216,7 @@ func (s SLAStore) buildCreateSLAQuery(rpc *model.CreateOptions, sla *cases.SLA) 
 		rpc.Session.GetUserId(),    // $5 created_by
 		validFrom,                  // $6 valid_from
 		validTo,                    // $7 valid_to
-		sla.CalendarId,             // $8 calendar_id
+		sla.Calendar.Id,            // $8 calendar_id
 		sla.ReactionTime.Hours,     // $9 reaction_time_hours
 		sla.ReactionTime.Minutes,   // $10 reaction_time_minutes
 		sla.ResolutionTime.Hours,   // $11 resolution_time_hours
@@ -248,7 +250,7 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "calendar_id", "reaction_time_hours",
+		case "id", "name", "reaction_time_hours",
 			"reaction_time_minutes", "resolution_time_hours",
 			"resolution_time_minutes", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
@@ -261,6 +263,12 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 		case "valid_to":
 			// Use COALESCE to handle null values for valid_to
 			queryBuilder = queryBuilder.Column("COALESCE(g.valid_to, '') AS valid_to")
+		case "calendar":
+			// Include calendar_id and calendar_name
+			queryBuilder = queryBuilder.
+				Column("g.calendar_id").
+				Column("COALESCE(cal.name, '') AS calendar_name").
+				LeftJoin("flow.calendar AS cal ON cal.id = g.calendar_id")
 		case "created_by":
 			// Handle nulls using COALESCE for created_by
 			queryBuilder = queryBuilder.
@@ -368,8 +376,8 @@ func (s SLAStore) buildUpdateSLAQuery(rpc *model.UpdateOptions, l *cases.SLA) (s
 			// Use NULLIF to set NULL if valid_to is 0
 			updateBuilder = updateBuilder.Set("valid_to", sq.Expr("NULLIF(?, 0)", validTo))
 		case "calendar_id":
-			if l.CalendarId != 0 {
-				updateBuilder = updateBuilder.Set("calendar_id", l.CalendarId)
+			if l.Calendar.Id != 0 {
+				updateBuilder = updateBuilder.Set("calendar_id", l.Calendar.Id)
 			}
 		case "reaction_time_hours":
 			if l.ReactionTime.Hours != 0 {
@@ -401,31 +409,35 @@ func (s SLAStore) buildUpdateSLAQuery(rpc *model.UpdateOptions, l *cases.SLA) (s
 
 	// Construct the final SQL query with joins for created_by and updated_by
 	query := fmt.Sprintf(`
-WITH upd as (%s
+WITH upd AS (%s
     RETURNING id, name, created_at, updated_at,
-	description, valid_from, valid_to, calendar_id,
-	reaction_time_hours, reaction_time_minutes,
-	resolution_time_hours, resolution_time_minutes,
-	created_by, updated_by)
-SELECT upd.id,
-       upd.name,
-       upd.created_at,
-       upd.updated_at,
-       COALESCE(upd.description, '')              AS description,
-       COALESCE(upd.valid_from, '')               AS valid_from,
-       COALESCE(upd.valid_to, '')                 AS valid_to,
-       upd.calendar_id,
-       upd.reaction_time_hours,
-       upd.reaction_time_minutes,
-       upd.resolution_time_hours,
-       upd.resolution_time_minutes,
-       upd.created_by                             AS created_by_id,
-       COALESCE(c.name::text, c.username, '')     AS created_by_name,
-       upd.updated_by                             AS updated_by_id,
-       COALESCE(u.name::text, u.username, '')     AS updated_by_name
+              description, valid_from, valid_to, calendar_id,
+              reaction_time_hours, reaction_time_minutes,
+              resolution_time_hours, resolution_time_minutes,
+              created_by, updated_by)
+SELECT
+    upd.id,
+    upd.name,
+    upd.created_at,
+    upd.updated_at,
+    COALESCE(upd.description, '')              AS description,
+    COALESCE(upd.valid_from, NULL)               AS valid_from,
+    COALESCE(upd.valid_to, NULL)                 AS valid_to,
+    upd.calendar_id,
+    COALESCE(cal.name, '')                     AS calendar_name,
+    upd.reaction_time_hours,
+    upd.reaction_time_minutes,
+    upd.resolution_time_hours,
+    upd.resolution_time_minutes,
+    upd.created_by                             AS created_by_id,
+    COALESCE(c.name::text, c.username, '')     AS created_by_name,
+    upd.updated_by                             AS updated_by_id,
+    COALESCE(u.name::text, u.username, '')     AS updated_by_name
 FROM upd
          LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
-         LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
+         LEFT JOIN directory.wbt_user c ON c.id = upd.created_by
+         LEFT JOIN flow.calendar cal ON cal.id = upd.calendar_id;
+
     `, sql)
 
 	return store.CompactSQL(query), args, nil
@@ -433,36 +445,38 @@ FROM upd
 
 var (
 	createSLAQuery = store.CompactSQL(`
-	WITH ins as (
-		INSERT INTO cases.sla (
-							   name, dc, created_at, description,
-							   created_by, updated_at, updated_by,
-							   valid_from, valid_to, calendar_id,
-							   reaction_time_hours, reaction_time_minutes,
-							   resolution_time_hours, resolution_time_minutes
-			)
-			VALUES ($1, $2, $3, NULLIF($4, ''), $5, $3, $5, NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11, $12)
-			RETURNING *)
-	SELECT ins.id,
-		   ins.name,
-		   ins.created_at,
-		   COALESCE(ins.description, '') AS description,
-		   COALESCE(ins.valid_from, '')  AS valid_from,
-		   COALESCE(ins.valid_to, '')    AS valid_to,
-		   ins.calendar_id,
-		   ins.reaction_time_hours,
-		   ins.reaction_time_minutes,
-		   ins.resolution_time_hours,
-		   ins.resolution_time_minutes,
-		   ins.created_by                     created_by_id,
-		   COALESCE(c.name::text, c.username) AS created_by_name,
-		   ins.updated_at,
-		   ins.updated_by                     updated_by_id,
-		   COALESCE(u.name::text, u.username) AS updated_by_name
-	FROM ins
-			 LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
-			 LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
-		`)
+WITH ins AS (
+    INSERT INTO cases.sla (
+                           name, dc, created_at, description,
+                           created_by, updated_at, updated_by,
+                           valid_from, valid_to, calendar_id,
+                           reaction_time_hours, reaction_time_minutes,
+                           resolution_time_hours, resolution_time_minutes
+        )
+        VALUES ($1, $2, $3, NULLIF($4, ''), $5, $3, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING *)
+SELECT ins.id,
+       ins.name,
+       ins.created_at,
+       COALESCE(ins.description, '')      AS description,
+       COALESCE(ins.valid_from, NULL)       AS valid_from,
+       COALESCE(ins.valid_to, NULL)         AS valid_to,
+       ins.calendar_id,
+       COALESCE(cal.name, '')             AS calendar_name,
+       ins.reaction_time_hours,
+       ins.reaction_time_minutes,
+       ins.resolution_time_hours,
+       ins.resolution_time_minutes,
+       ins.created_by                     AS created_by_id,
+       COALESCE(c.name::text, c.username) AS created_by_name,
+       ins.updated_at,
+       ins.updated_by                     AS updated_by_id,
+       COALESCE(u.name::text, u.username) AS updated_by_name
+FROM ins
+         LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
+         LEFT JOIN directory.wbt_user c ON c.id = ins.created_by
+         LEFT JOIN flow.calendar cal ON cal.id = ins.calendar_id;
+	`)
 
 	deleteSLAQuery = store.CompactSQL(`
                    DELETE FROM cases.sla
@@ -471,7 +485,7 @@ var (
 
 func (s *SLAStore) buildScanArgs(fields []string,
 	sla *cases.SLA,
-	createdBy, updatedBy *cases.Lookup,
+	createdBy, updatedBy, calendar *cases.Lookup,
 	tempCreatedAt, tempUpdatedAt *time.Time,
 	tempValidFrom, tempValidTo *time.Time,
 ) []interface{} {
@@ -489,8 +503,8 @@ func (s *SLAStore) buildScanArgs(fields []string,
 			scanArgs = append(scanArgs, tempValidFrom)
 		case "valid_to":
 			scanArgs = append(scanArgs, tempValidTo)
-		case "calendar_id":
-			scanArgs = append(scanArgs, &sla.CalendarId)
+		case "calendar":
+			scanArgs = append(scanArgs, &calendar.Id, &calendar.Name)
 		case "reaction_time_hours":
 			scanArgs = append(scanArgs, &sla.ReactionTime.Hours)
 		case "reaction_time_minutes":
@@ -516,7 +530,7 @@ func (s *SLAStore) buildScanArgs(fields []string,
 func (s *SLAStore) populateSLAFields(
 	fields []string,
 	sla *cases.SLA,
-	createdBy, updatedBy *cases.Lookup,
+	createdBy, updatedBy, calendar *cases.Lookup,
 	tempCreatedAt, tempUpdatedAt time.Time,
 	tempValidFrom, tempValidTo time.Time,
 ) {
@@ -534,6 +548,8 @@ func (s *SLAStore) populateSLAFields(
 			sla.CreatedBy = createdBy
 		case "updated_by":
 			sla.UpdatedBy = updatedBy
+		case "calendar":
+			sla.Calendar = calendar
 		}
 	}
 }

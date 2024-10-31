@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -9,11 +10,11 @@ import (
 	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/auth/webitel_manager"
 	conf "github.com/webitel/cases/config"
-	"github.com/webitel/cases/server"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
 	broker "github.com/webitel/cases/rabbit"
+	"github.com/webitel/cases/server"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -52,7 +53,7 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	}
 	app.rabbit = r
 
-	// --------- Webitel App gRPC Connection ( Consul )---------
+	// --------- Webitel App gRPC Connection ---------
 	app.webitelAppConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/go.webitel.app?wait=14s", config.Consul.Address),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -130,4 +131,19 @@ func (a *App) AuthorizeFromContext(ctx context.Context) (*authmodel.Session, err
 		return nil, cerror.NewUnauthorizedError("internal.internal.authorize_from_context.validate_session.expired", "session expired")
 	}
 	return session, nil
+}
+
+func (a *App) sendEventToBroker(eventType string, data any) cerror.AppError {
+	event, err := json.Marshal(data)
+	if err != nil {
+		return cerror.NewInternalError("app.send_event.marshall.error", "failed to marshal event data")
+	}
+
+	// Відправлення повідомлення в RabbitMQ
+	err = a.rabbit.Publish("case_events_exchange", eventType, event)
+	if err != nil {
+		return cerror.NewInternalError("app.send_event.rabbit.publish.error", err.Error())
+	}
+
+	return nil
 }

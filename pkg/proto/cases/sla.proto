@@ -33,7 +33,7 @@ message SLA {
   int64 valid_from = 4;
   int64 valid_to = 5;
   // Calendar ID from the "Calendars" dictionary - required
-  int64 calendar_id = 6;
+  Lookup calendar = 6;
   // Reaction time - required
   ReactionTime reaction_time = 7;
   // Resolution time - required
