@@ -1,8 +1,7 @@
-package app
+package error
 
 import (
 	"fmt"
-	
 )
 
 // ConfigError represents an error that occurs during configuration loading.

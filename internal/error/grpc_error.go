@@ -1,5 +1,5 @@
 // File: grpc_error/grpc_error.go
-package app
+package error
 
 import (
 	"fmt"
