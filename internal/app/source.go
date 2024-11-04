@@ -118,6 +118,33 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 		return nil, cerror.NewInternalError("source_service.list_sources.store.list.failed", e.Error())
 	}
 
+	// // Publish an event to RabbitMQ
+	// event := map[string]interface{}{
+	// 	"action": "ListSources",
+	// 	"user":   session.GetUserId(),
+	// 	"query":  req.Q,
+	// 	"type":   req.Type,
+	// 	"fields": fields,
+	// 	"page":   page,
+	// 	"size":   req.Size,
+	// }
+
+	// eventData, err := json.Marshal(event)
+	// if err != nil {
+	// 	return nil, cerror.NewInternalError("source_service.list_sources.event_marshal.failed", err.Error())
+	// }
+
+	// err = s.app.rabbit.Publish(
+	// 	model.APP_SERVICE_NAME,
+	// 	"list_sources_key",
+	// 	eventData,
+	// 	strconv.Itoa(int(session.GetUserId())),
+	// 	time.Now(),
+	// )
+	// if err != nil {
+	// 	return nil, cerror.NewInternalError("source_service.list_sources.event_publish.failed", err.Error())
+	// }
+
 	return lookups, nil
 }
 

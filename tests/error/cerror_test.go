@@ -1,14 +1,16 @@
-package error
+package tests
 
 import (
 	"testing"
+
+	err "github.com/webitel/cases/internal/error"
 )
 
 func TestNewInternalError(t *testing.T) {
 	id := "internal.error"
 	details := "An internal server error occurred"
 
-	err := NewInternalError(id, details)
+	err := err.NewInternalError(id, details)
 
 	if err.GetId() != id {
 		t.Errorf("expected ID %s, got %s", id, err.GetId())
@@ -25,7 +27,7 @@ func TestNewNotFoundError(t *testing.T) {
 	id := "not.found.error"
 	details := "The requested resource was not found"
 
-	err := NewNotFoundError(id, details)
+	err := err.NewNotFoundError(id, details)
 
 	if err.GetId() != id {
 		t.Errorf("expected ID %s, got %s", id, err.GetId())
@@ -42,7 +44,7 @@ func TestNewBadRequestError(t *testing.T) {
 	id := "bad.request.error"
 	details := "The request was invalid"
 
-	err := NewBadRequestError(id, details)
+	err := err.NewBadRequestError(id, details)
 
 	if err.GetId() != id {
 		t.Errorf("expected ID %s, got %s", id, err.GetId())
@@ -58,7 +60,7 @@ func TestNewBadRequestError(t *testing.T) {
 func TestApplicationError_Error(t *testing.T) {
 	id := "application.error"
 	details := "An application error occurred"
-	err := NewInternalError(id, details)
+	err := err.NewInternalError(id, details)
 
 	expectedError := "application.error: An application error occurred"
 	if err.Error() != expectedError {
@@ -73,11 +75,11 @@ func TestApplicationError_Translate(t *testing.T) {
 		}
 		return id
 	}
-	AppErrorInit(translateFunc)
+	err.AppErrorInit(translateFunc)
 
 	id := "translate.error"
 	details := "This error needs translation"
-	err := NewInternalError(id, details)
+	err := err.NewInternalError(id, details)
 
 	err.Translate(translateFunc)
 
@@ -90,7 +92,7 @@ func TestApplicationError_Translate(t *testing.T) {
 func TestApplicationError_ToJson(t *testing.T) {
 	id := "json.error"
 	details := "Error for JSON serialization"
-	err := NewInternalError(id, details)
+	err := err.NewInternalError(id, details)
 
 	expectedJson := `{"id":"json.error","status":"json.error","detail":"Error for JSON serialization","request_id":"","code":500}`
 	if err.ToJson() != expectedJson {

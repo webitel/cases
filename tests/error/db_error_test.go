@@ -1,15 +1,17 @@
-package error
+package tests
 
 import (
 	"fmt"
 	"testing"
+
+	err "github.com/webitel/cases/internal/error"
 )
 
 func TestNewDBError(t *testing.T) {
 	id := "db.error"
 	message := "Database operation failed"
 
-	err := NewDBError(id, message)
+	err := err.NewDBError(id, message)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -22,7 +24,7 @@ func TestNewDBError(t *testing.T) {
 func TestDBError_Error(t *testing.T) {
 	id := "db.invalid"
 	message := "Invalid database query"
-	err := NewDBError(id, message)
+	err := err.NewDBError(id, message)
 
 	expectedError := "DBError [db.invalid]: Invalid database query"
 	if err.Error() != expectedError {
@@ -32,7 +34,7 @@ func TestDBError_Error(t *testing.T) {
 
 func TestNewDBNoRowsError(t *testing.T) {
 	id := "db.no_rows"
-	err := NewDBNoRowsError(id)
+	err := err.NewDBNoRowsError(id)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -47,7 +49,7 @@ func TestNewDBUniqueViolationError(t *testing.T) {
 	id := "db.unique_violation"
 	column := "username"
 	value := "john_doe"
-	err := NewDBUniqueViolationError(id, column, value)
+	err := err.NewDBUniqueViolationError(id, column, value)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -63,7 +65,7 @@ func TestNewDBForeignKeyViolationError(t *testing.T) {
 	column := "order_id"
 	value := "123"
 	foreignKey := "users"
-	err := NewDBForeignKeyViolationError(id, column, value, foreignKey)
+	err := err.NewDBForeignKeyViolationError(id, column, value, foreignKey)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -77,7 +79,7 @@ func TestNewDBForeignKeyViolationError(t *testing.T) {
 func TestNewDBCheckViolationError(t *testing.T) {
 	id := "db.check_violation"
 	check := "amount > 0"
-	err := NewDBCheckViolationError(id, check)
+	err := err.NewDBCheckViolationError(id, check)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -92,7 +94,7 @@ func TestNewDBNotNullViolationError(t *testing.T) {
 	id := "db.not_null_violation"
 	table := "users"
 	column := "email"
-	err := NewDBNotNullViolationError(id, table, column)
+	err := err.NewDBNotNullViolationError(id, table, column)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -105,7 +107,7 @@ func TestNewDBNotNullViolationError(t *testing.T) {
 
 func TestNewDBEntityConflictError(t *testing.T) {
 	id := "db.entity_conflict"
-	err := NewDBEntityConflictError(id)
+	err := err.NewDBEntityConflictError(id)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -119,7 +121,7 @@ func TestNewDBEntityConflictError(t *testing.T) {
 func TestNewDBInternalError(t *testing.T) {
 	id := "db.internal_error"
 	reason := fmt.Errorf("database connection lost")
-	err := NewDBInternalError(id, reason)
+	err := err.NewDBInternalError(id, reason)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)

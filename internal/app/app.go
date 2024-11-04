@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -11,10 +10,10 @@ import (
 	"github.com/webitel/cases/auth/webitel_manager"
 	conf "github.com/webitel/cases/config"
 	cerror "github.com/webitel/cases/internal/error"
+	"github.com/webitel/cases/internal/server"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
 	broker "github.com/webitel/cases/rabbit"
-	"github.com/webitel/cases/server"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -41,7 +40,7 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 
 	// --------- DB Initialization ---------
 	if config.Database == nil {
-		return nil, cerror.NewBadRequestError("internal.internal.new.database_config.bad_arguments", "error creating store, config is nil")
+		return nil, cerror.NewInternalError("internal.internal.new.database_config.bad_arguments", "error creating store, config is nil")
 	}
 	app.Store = BuildDatabase(config.Database)
 
@@ -52,6 +51,12 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 		return nil, appErr
 	}
 	app.rabbit = r
+
+	// Start the Rabbit connection and consumers
+	appErr = app.rabbit.Start()
+	if appErr != nil {
+		return nil, cerror.NewInternalError("internal.internal.new_app.rabbit.start.error", appErr.Error())
+	}
 
 	// --------- Webitel App gRPC Connection ---------
 	app.webitelAppConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/go.webitel.app?wait=14s", config.Consul.Address),
@@ -131,19 +136,4 @@ func (a *App) AuthorizeFromContext(ctx context.Context) (*authmodel.Session, err
 		return nil, cerror.NewUnauthorizedError("internal.internal.authorize_from_context.validate_session.expired", "session expired")
 	}
 	return session, nil
-}
-
-func (a *App) sendEventToBroker(eventType string, data any) cerror.AppError {
-	event, err := json.Marshal(data)
-	if err != nil {
-		return cerror.NewInternalError("app.send_event.marshall.error", "failed to marshal event data")
-	}
-
-	// Відправлення повідомлення в RabbitMQ
-	err = a.rabbit.Publish("case_events_exchange", eventType, event)
-	if err != nil {
-		return cerror.NewInternalError("app.send_event.rabbit.publish.error", err.Error())
-	}
-
-	return nil
 }

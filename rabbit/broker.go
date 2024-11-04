@@ -255,7 +255,13 @@ func fmtBrokerLog(description string) string {
 	return fmt.Sprintf("broker: %s", description)
 }
 
-func (l *RabbitBroker) Publish(exchange, routingKey string, body []byte) cerror.AppError {
+func (l *RabbitBroker) Publish(
+	exchange string, // Exchange name -- [Cases]
+	routingKey string, // Routing key -- [api path]
+	body []byte, // Message body
+	userId string, // User ID
+	t time.Time, // Message timestamp
+) cerror.AppError {
 	err := l.channel.Publish(
 		exchange,
 		routingKey,
@@ -264,11 +270,13 @@ func (l *RabbitBroker) Publish(exchange, routingKey string, body []byte) cerror.
 		amqp.Publishing{
 			ContentType: "application/json",
 			Body:        body,
+			UserId:      userId,
+			Timestamp:   t,
 		},
 	)
 	if err != nil {
 		return cerror.NewInternalError("rabbit.listener.publish.request.fail", fmtBrokerLog(err.Error()))
 	}
-	slog.Info(fmtBrokerLog("message published"), slog.String("exchange", exchange), slog.String("routingKey", routingKey))
+	slog.Info(fmtBrokerLog("cases message published"), slog.String("exchange", exchange), slog.String("routingKey", routingKey))
 	return nil
 }

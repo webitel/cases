@@ -1,14 +1,16 @@
-package error
+package tests
 
 import (
 	"testing"
+
+	err "github.com/webitel/cases/internal/error"
 )
 
 func TestNewAuthError(t *testing.T) {
 	id := "auth001"
 	message := "Unauthorized access"
 
-	err := NewAuthError(id, message)
+	err := err.NewAuthError(id, message)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -21,7 +23,7 @@ func TestNewAuthError(t *testing.T) {
 func TestAuthError_Error(t *testing.T) {
 	id := "auth002"
 	message := "Invalid credentials"
-	err := NewAuthError(id, message)
+	err := err.NewAuthError(id, message)
 
 	expected := "AuthError [auth002]: Invalid credentials"
 	if err.Error() != expected {
@@ -33,7 +35,7 @@ func TestNewUnauthorizedError(t *testing.T) {
 	id := "auth003"
 	message := "User not authorized"
 
-	err := NewUnauthorizedError(id, message)
+	err := err.NewUnauthorizedError(id, message)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -46,7 +48,7 @@ func TestNewUnauthorizedError(t *testing.T) {
 func TestUnauthorizedError_Error(t *testing.T) {
 	id := "auth004"
 	message := "Access denied"
-	err := NewUnauthorizedError(id, message)
+	err := err.NewUnauthorizedError(id, message)
 
 	expected := "AuthError [auth004]: Access denied"
 	if err.Error() != expected {
