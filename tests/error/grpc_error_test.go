@@ -1,8 +1,9 @@
-package error
+package tests
 
 import (
 	"testing"
 
+	grpcerr "github.com/webitel/cases/internal/error"
 	"google.golang.org/grpc/codes"
 )
 
@@ -10,7 +11,7 @@ func TestNewGRPCError(t *testing.T) {
 	code := codes.NotFound
 	message := "Resource not found"
 
-	err := NewGRPCError(code, message)
+	err := grpcerr.NewGRPCError(code, message)
 
 	if err.Code != code {
 		t.Errorf("expected Code %s, got %s", code.String(), err.Code.String())
@@ -23,7 +24,7 @@ func TestNewGRPCError(t *testing.T) {
 func TestGRPCError_Error(t *testing.T) {
 	code := codes.PermissionDenied
 	message := "Permission denied"
-	err := NewGRPCError(code, message)
+	err := grpcerr.NewGRPCError(code, message)
 
 	expectedError := "GRPCError [Code: PermissionDenied]: Permission denied"
 	if err.Error() != expectedError {
@@ -33,9 +34,9 @@ func TestGRPCError_Error(t *testing.T) {
 
 func TestNewInvalidArgumentError(t *testing.T) {
 	message := "Invalid argument provided"
-	err := NewInvalidArgumentError(message)
+	err := grpcerr.NewInvalidArgumentError(message)
 
-	if grpcErr, ok := err.(*GRPCError); ok {
+	if grpcErr, ok := err.(*grpcerr.GRPCError); ok {
 		if grpcErr.Code != codes.InvalidArgument {
 			t.Errorf("expected Code %s, got %s", codes.InvalidArgument.String(), grpcErr.Code.String())
 		}

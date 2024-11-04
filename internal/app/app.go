@@ -11,10 +11,10 @@ import (
 	"github.com/webitel/cases/auth/webitel_manager"
 	conf "github.com/webitel/cases/config"
 	cerror "github.com/webitel/cases/internal/error"
+	"github.com/webitel/cases/internal/server"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
 	broker "github.com/webitel/cases/rabbit"
-	"github.com/webitel/cases/server"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

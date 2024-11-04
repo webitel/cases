@@ -1,14 +1,15 @@
-package error
+package tests
 
 import (
 	"testing"
+	err "github.com/webitel/cases/internal/error"
 )
 
 func TestNewConfigError(t *testing.T) {
 	id := "config.load.error"
 	message := "Failed to load configuration"
 
-	err := NewConfigError(id, message)
+	err := err.NewConfigError(id, message)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -21,7 +22,7 @@ func TestNewConfigError(t *testing.T) {
 func TestConfigError_Error(t *testing.T) {
 	id := "config.invalid"
 	message := "Invalid configuration value"
-	err := NewConfigError(id, message)
+	err := err.NewConfigError(id, message)
 
 	expectedError := "ConfigError [config.invalid]: Invalid configuration value"
 	if err.Error() != expectedError {

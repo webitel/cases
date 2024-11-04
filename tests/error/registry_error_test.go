@@ -1,14 +1,16 @@
-package error
+package tests
 
 import (
 	"testing"
+
+	err "github.com/webitel/cases/internal/error"
 )
 
 func TestNewRegistryError(t *testing.T) {
 	id := "reg001"
 	message := "Failed to register service"
 
-	err := NewRegistryError(id, message)
+	err := err.NewRegistryError(id, message)
 
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
@@ -21,7 +23,7 @@ func TestNewRegistryError(t *testing.T) {
 func TestRegistryError_Error(t *testing.T) {
 	id := "reg002"
 	message := "Service already registered"
-	err := NewRegistryError(id, message)
+	err := err.NewRegistryError(id, message)
 
 	expectedError := "RegistryError [reg002]: Service already registered"
 	if err.Error() != expectedError {
