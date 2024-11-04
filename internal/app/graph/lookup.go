@@ -52,16 +52,6 @@ func (typo Lookup) Field(name, typeOf string) *Lookup {
 		Fields:  typo.Output.Fields,
 		Default: typo.Output.Default,
 	}
-	// // ($type: string = "typeOf")
-	// if typeOf != "" && typo.Type != nil {
-	// 	typo.Output.Args = graph.InputArgs{
-	// 		typo.Type.Name: graph.Argument{
-	// 			Name:  typo.Type.Name,
-	// 			Type:  graph.String(typeOf),
-	// 			Value: typeOf,
-	// 		},
-	// 	}
-	// }
 	if typeOf == "" {
 		typeOf = "lookup"
 	} else {

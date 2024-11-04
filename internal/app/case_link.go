@@ -2,10 +2,15 @@ package app
 
 import (
 	"context"
-
 	"github.com/webitel/cases/api/cases"
+	casegraph "github.com/webitel/cases/internal/app/graph"
 	cerror "github.com/webitel/cases/internal/error"
+	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/model/graph"
 )
+
+// In search options extract from context user
+// Remove from search options fields functions
 
 type CaseLinkService struct {
 	app *App
@@ -27,8 +32,23 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, request *cases.DeleteL
 }
 
 func (c *CaseLinkService) ListLinks(ctx context.Context, request *cases.ListLinksRequest) (*cases.CaseLinkList, error) {
-	// TODO implement me
-	panic("implement me")
+	searchOpts := model.NewSearchOptions(ctx, request)
+	// output: validate & normalize & defaults
+	graphQ := struct {
+		graph.Query
+		FieldsParse func(vs []string, decode ...graph.FieldEncoding) (fields graph.FieldsQ, err error)
+		Output      func(*cases.CaseLinkList, *graph.Query)
+	}{
+		Query: graph.Query{
+			Name: "listLinks",
+		},
+		FieldsParse: casegraph.Schema.Case.Link.Output.ParseFields,
+	}
+	graphParsedFields, err := graphQ.FieldsParse(searchOpts.Fields)
+	if err != nil {
+		return nil, err
+	}
+	graphQ.Fields = graphParsedFields
 }
 
 func (c *CaseLinkService) MergeLinks(ctx context.Context, request *cases.MergeLinksRequest) (*cases.CaseLinkList, error) {

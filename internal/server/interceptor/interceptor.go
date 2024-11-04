@@ -14,7 +14,10 @@ import (
 )
 
 // Define a header constant for the token
-const hdrTokenAccess = "X-Webitel-Access"
+const (
+	hdrTokenAccess = "X-Webitel-Access"
+	SessionHeader  = "session"
+)
 
 // Regular expression to parse gRPC method information
 var reg = regexp.MustCompile(`^(.*\.)`)
@@ -40,6 +43,8 @@ func AuthUnaryServerInterceptor(authManager auth.AuthManager) grpc.UnaryServerIn
 		if ok, _ := validateSessionPermission(session, "dictionaries", action); !ok {
 			return nil, autherror.NewUnauthorizedError("auth.permission.denied", "Permission denied for the requested action")
 		}
+
+		ctx = context.WithValue(ctx, SessionHeader, session)
 
 		// Proceed with handler after successful validation
 		return handler(ctx, req)

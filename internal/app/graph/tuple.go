@@ -3,7 +3,7 @@ package graph
 // Tuple Interface
 type Tuple struct {
 	// Output Type Metadata
-	Output Metadata
+	Output *Metadata
 	// fields
 	Id        *Metadata
 	Ver       *Metadata // revision: version
@@ -43,7 +43,7 @@ func IfaceTuple() Tuple {
 			"updated_by", "user",
 		),
 	}
-	output.Output = Metadata{
+	output.Output = &Metadata{
 		Name: "tuple",
 		Type: "interface",
 		Fields: []*Metadata{

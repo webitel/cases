@@ -1,11 +1,9 @@
 package graph
 
-var CaseLink Link
-
 // Link graph model
 type Link struct {
 	// Object that describes link's object, with it's default and all fields
-	Output Metadata
+	Output *Metadata
 	// implements
 	*Tuple
 	// fields
@@ -14,17 +12,26 @@ type Link struct {
 	Author *Lookup
 }
 
-func init() {
-	CaseLink = Link{
-		Output: Metadata{
+func TypeLink() Link {
+	link := Link{
+		Tuple: &Schema.Scalar.Tuple,
+		Output: &Metadata{
 			Name: "link",
 			Type: "object",
-			Fields: []*Metadata{
-				// name
-				{Name: "name", Type: "string"},
-				{Name: "url", Type: "string"},
-				{Name: "author", Type: "lookup"},
-			},
 		},
+		Name: &Metadata{
+			Name: "name",
+			Type: "string",
+		},
+		Url: &Metadata{
+			Name: "name",
+			Type: "string!",
+		},
+		Author: Schema.Scalar.Lookup.Field("author", "author"),
 	}
+
+	link.Output.Fields = append(link.Tuple.Output.Fields, link.Name, link.Url, &link.Author.Output)
+	link.Output.Default = []string{link.Name.Name, link.Url.Name, link.Author.Output.Name}
+
+	return link
 }

@@ -6,11 +6,8 @@ import (
 	"unicode"
 )
 
-// FieldsUtils provides utility functions for manipulating field selectors.
-type FieldsUtils struct{}
-
 // InlineFields explodes an inline 'attr,attr2 attr3' selector into ['attr','attr2','attr3'].
-func (f FieldsUtils) InlineFields(selector string) []string {
+func InlineFields(selector string) []string {
 	// split func to explode inline userattrs selector
 	split := func(r rune) bool {
 		return r == ',' || unicode.IsSpace(r)
@@ -26,7 +23,7 @@ func (f FieldsUtils) InlineFields(selector string) []string {
 //     requests the return of all user attributes in addition to other listed (operational) attributes.
 //
 // e.g.: ['id,name','display'] returns ['id','name','display']
-func (f FieldsUtils) FieldsFunc(src []string, fn func(string) []string) []string {
+func FieldsFunc(src []string, fn func(string) []string) []string {
 	if len(src) == 0 {
 		return fn("")
 	}
@@ -45,7 +42,7 @@ func (f FieldsUtils) FieldsFunc(src []string, fn func(string) []string) []string
 			} else if dst == nil {
 				src[i] = set[0]
 			} else {
-				dst = f.MergeFields(dst, set)
+				dst = MergeFields(dst, set)
 			}
 		default: // many
 			// NOTE: should rebuild output
@@ -54,7 +51,7 @@ func (f FieldsUtils) FieldsFunc(src []string, fn func(string) []string) []string
 				dst = make([]string, i, len(src)-1+len(set))
 				copy(dst, src[:i])
 			}
-			dst = f.MergeFields(dst, set)
+			dst = MergeFields(dst, set)
 		}
 	}
 	if dst == nil {
@@ -64,7 +61,7 @@ func (f FieldsUtils) FieldsFunc(src []string, fn func(string) []string) []string
 }
 
 // MergeFields appends a unique set from src to dst.
-func (f FieldsUtils) MergeFields(dst, src []string) []string {
+func MergeFields(dst, src []string) []string {
 	if len(src) == 0 {
 		return dst
 	}
@@ -92,7 +89,7 @@ next: // append unique set of src to dst
 	return dst
 }
 
-func (f FieldsUtils) ContainsField(fields []string, field string) bool {
+func ContainsField(fields []string, field string) bool {
 	for _, f := range fields {
 		if f == field {
 			return true
@@ -101,7 +98,7 @@ func (f FieldsUtils) ContainsField(fields []string, field string) bool {
 	return false
 }
 
-func (f FieldsUtils) Int64SliceToStringSlice(ids []int64) []string {
+func Int64SliceToStringSlice(ids []int64) []string {
 	strIds := make([]string, len(ids))
 	for i, id := range ids {
 		strIds[i] = strconv.FormatInt(id, 10)

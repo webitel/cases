@@ -2,16 +2,16 @@ package model
 
 import (
 	"context"
+	"github.com/webitel/cases/internal/server/interceptor"
+	"github.com/webitel/cases/model/graph"
+	"github.com/webitel/cases/util"
 	"time"
 
 	session "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/util"
 )
 
 type SearchOptions struct {
-	FieldsUtil util.FieldsUtils
-	Match      util.Match
-	Time       time.Time
+	Time time.Time
 	context.Context
 	Session *session.Session
 	Filter  map[string]interface{}
@@ -20,8 +20,29 @@ type SearchOptions struct {
 	Sort    []string
 	Fields  []string
 	Id      int64
-	Page    int
-	Size    int
+	Page    int64
+	Size    int64
+}
+
+type Searcher interface {
+	GetPage() int64
+	GetSize() int64
+	GetFields() []string
+}
+
+func NewSearchOptions(ctx context.Context, searcher Searcher) *SearchOptions {
+	sess := ctx.Value(interceptor.SessionHeader).(*session.Session)
+
+	return &SearchOptions{
+		Context: ctx,
+		Session: sess,
+		Fields: util.FieldsFunc(
+			searcher.GetFields(), graph.SplitFieldsQ, // explode: by COMMA(',')
+		),
+		Time: time.Now(),
+		Page: searcher.GetPage(),
+		Size: searcher.GetSize(),
+	}
 }
 
 // DeafaultSearchSize is a constant integer == 16.
@@ -29,7 +50,7 @@ const (
 	DefaultSearchSize = 16
 )
 
-func (rpc *SearchOptions) GetSize() int {
+func (rpc *SearchOptions) GetSize() int64 {
 	if rpc == nil {
 		return DefaultSearchSize
 	}
@@ -45,7 +66,7 @@ func (rpc *SearchOptions) GetSize() int {
 	panic("unreachable code")
 }
 
-func (rpc *SearchOptions) GetPage() int {
+func (rpc *SearchOptions) GetPage() int64 {
 	if rpc != nil {
 		// Limited ? either: manual -or- default !
 		if rpc.GetSize() > 0 {
