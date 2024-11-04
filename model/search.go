@@ -21,13 +21,13 @@ type SearchOptions struct {
 	Sort    []string
 	Fields  []string
 	Id      int64
-	Page    int64
-	Size    int64
+	Page    int32
+	Size    int32
 }
 
 type Searcher interface {
-	GetPage() int64
-	GetSize() int64
+	GetPage() int32
+	GetSize() int32
 	GetFields() []string
 }
 
@@ -51,7 +51,7 @@ const (
 	DefaultSearchSize = 16
 )
 
-func (rpc *SearchOptions) GetSize() int64 {
+func (rpc *SearchOptions) GetSize() int32 {
 	if rpc == nil {
 		return DefaultSearchSize
 	}
@@ -60,20 +60,20 @@ func (rpc *SearchOptions) GetSize() int64 {
 		return -1
 	case rpc.Size > 0:
 		// CHECK for too big values !
-		return int64(rpc.Size)
+		return rpc.Size
 	case rpc.Size == 0:
 		return DefaultSearchSize
 	}
 	panic("unreachable code")
 }
 
-func (rpc *SearchOptions) GetPage() int64 {
+func (rpc *SearchOptions) GetPage() int32 {
 	if rpc != nil {
 		// Limited ? either: manual -or- default !
 		if rpc.GetSize() > 0 {
 			// Valid ?page= specified ?
 			if rpc.Page > 0 {
-				return int64(rpc.Page)
+				return rpc.Page
 			}
 			// default: always the first one !
 			return 1

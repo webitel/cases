@@ -110,8 +110,8 @@ message DeleteCommentRequest {
 }
 
 message ListCommentsRequest {
-  int64 page = 1;
-  int64 size = 2;
+  int32 page = 1;
+  int32 size = 2;
   string q = 3;
   repeated string qin = 4;
   string sort = 5;
@@ -146,4 +146,3 @@ message ResetCommentsRequest {
   string case_etag = 3; // new/existing comments belong to (id accepted)
   repeated InputCaseComment input = 4;
 }
-
