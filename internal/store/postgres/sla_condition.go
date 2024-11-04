@@ -10,8 +10,8 @@ import (
 	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -143,7 +143,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 
 	for rows.Next() {
 		// If not fetching all records, check the size limit
-		if !fetchAll && lCount >= rpc.GetSize() {
+		if !fetchAll && lCount >= int(rpc.GetSize()) {
 			next = true
 			break
 		}
@@ -380,15 +380,15 @@ func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc *model.DeleteOption
 
 // buildSearchSLAConditionQuery constructs the SQL search query for SLAConditions.
 func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
-	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	queryBuilder := sq.Select().
 		From("cases.sla_condition AS g").
 		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId(), "g.sla_id": rpc.Id}).
 		PlaceholderFormat(sq.Dollar)
 
-	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
+	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
 
 	//-----ALWAYS INCLUDE ID FIELD-----
 	rpc.Fields = append(fields, "id") // FIXME ------ NEED to pass only if absent
@@ -434,12 +434,12 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 	}
 
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		substrs := rpc.Match.Substring(name)
+		substrs := util.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)
+	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 
 	var sortFields []string
 

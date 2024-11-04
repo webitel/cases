@@ -32,14 +32,14 @@ func IfaceTuple() Tuple {
 			Name: "created_at",
 			Type: "int64!",
 		},
-		CreatedBy: Schema.Types.Lookup.Field(
+		CreatedBy: Schema.Scalar.Lookup.Field(
 			"created_by", "user",
 		),
 		UpdatedAt: &Metadata{
 			Name: "updated_at",
 			Type: "int64",
 		},
-		UpdatedBy: Schema.Types.Lookup.Field(
+		UpdatedBy: Schema.Scalar.Lookup.Field(
 			"updated_by", "user",
 		),
 	}

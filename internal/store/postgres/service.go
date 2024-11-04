@@ -9,8 +9,8 @@ import (
 	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -122,7 +122,7 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 
 	for rows.Next() {
 		// If not fetching all records, check the size limit
-		if !fetchAll && lCount >= rpc.GetSize() {
+		if !fetchAll && lCount >= int(rpc.GetSize()) {
 			next = true
 			break
 		}
@@ -298,8 +298,8 @@ func (s *ServiceStore) buildDeleteServiceQuery(rpc *model.DeleteOptions) (string
 
 // Helper method to build the search query for Service
 func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
-	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	// Initialize query builder with COALESCE for optional fields
 	queryBuilder := sq.Select(
@@ -342,7 +342,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 
 	// Apply filtering by name (using case-insensitive matching)
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		substr := rpc.Match.Substring(name)
+		substr := util.Substring(name)
 		combinedLike := strings.Join(substr, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"service.name": combinedLike})
 	}

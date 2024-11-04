@@ -9,8 +9,8 @@ import (
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
-	"github.com/webitel/cases/model"
 	db "github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -89,7 +89,7 @@ func (s Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 
 	for rows.Next() {
 		// If not fetching all records, check the size limit
-		if !fetchAll && lCount >= rpc.GetSize() {
+		if !fetchAll && lCount >= int(rpc.GetSize()) {
 			next = true
 			break
 		}
@@ -128,23 +128,23 @@ func (s Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 		}
 
 		// Convert tempType (string) to the enum Type if "type" is in the requested fields
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "type") {
+		if util.ContainsField(rpc.Fields, "type") {
 			l.Type, err = stringToType(tempType)
 			if err != nil {
 				return nil, dberr.NewDBInternalError("postgres.cases.source.list.type_conversion_error", err)
 			}
 		}
 
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_by") {
+		if util.ContainsField(rpc.Fields, "created_by") {
 			l.CreatedBy = &createdBy
 		}
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_by") {
+		if util.ContainsField(rpc.Fields, "updated_by") {
 			l.UpdatedBy = &updatedBy
 		}
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_at") {
+		if util.ContainsField(rpc.Fields, "created_at") {
 			l.CreatedAt = util.Timestamp(tempCreatedAt)
 		}
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_at") {
+		if util.ContainsField(rpc.Fields, "updated_at") {
 			l.UpdatedAt = util.Timestamp(tempUpdatedAt)
 		}
 
@@ -237,15 +237,15 @@ func (s Source) buildCreateSourceQuery(rpc *model.CreateOptions, lookup *_go.Sou
 }
 
 func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
-	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	queryBuilder := sq.Select().
 		From("cases.source AS g").
 		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
+	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
 	rpc.Fields = append(fields, "id")
 
 	// Adding columns based on fields
@@ -276,7 +276,7 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 	}
 
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		substr := rpc.Match.Substring(name)
+		substr := util.Substring(name)
 		combinedLike := strings.Join(substr, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
@@ -286,7 +286,7 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 	}
 
 	// Sorting logic
-	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)
+	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 	var sortFields []string
 
 	for _, sortField := range parsedFields {
@@ -330,8 +330,8 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 }
 
 func (s Source) buildDeleteSourceQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
-	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
-	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	query := deleteSourceQuery
 	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}

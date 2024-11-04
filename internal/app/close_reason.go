@@ -103,8 +103,8 @@ func (s *CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.List
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
-		Page:    int(page),
-		Size:    int(req.Size),
+		Page:    int64(page),
+		Size:    int64(req.Size),
 		Time:    t,
 	}
 

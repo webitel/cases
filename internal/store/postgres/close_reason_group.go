@@ -11,7 +11,8 @@ import (
 	dberr "github.com/webitel/cases/internal/error"
 	db "github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/util"
+
+	util "github.com/webitel/cases/util"
 )
 
 type CloseReasonGroup struct {
@@ -77,7 +78,7 @@ func (s CloseReasonGroup) List(rpc *model.SearchOptions) (*_go.CloseReasonGroupL
 	fetchAll := rpc.GetSize() == -1
 
 	for rows.Next() {
-		if !fetchAll && lCount >= rpc.GetSize() {
+		if !fetchAll && lCount >= int(rpc.GetSize()) {
 			next = true
 			break
 		}
@@ -113,16 +114,16 @@ func (s CloseReasonGroup) List(rpc *model.SearchOptions) (*_go.CloseReasonGroupL
 			return nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.list.row_scan_error", err)
 		}
 
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_by") {
+		if util.ContainsField(rpc.Fields, "created_by") {
 			l.CreatedBy = &createdBy
 		}
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_by") {
+		if util.ContainsField(rpc.Fields, "updated_by") {
 			l.UpdatedBy = &updatedBy
 		}
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "created_at") {
+		if util.ContainsField(rpc.Fields, "created_at") {
 			l.CreatedAt = util.Timestamp(tempCreatedAt)
 		}
-		if rpc.FieldsUtil.ContainsField(rpc.Fields, "updated_at") {
+		if util.ContainsField(rpc.Fields, "updated_at") {
 			l.UpdatedAt = util.Timestamp(tempUpdatedAt)
 		}
 
@@ -203,15 +204,15 @@ func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(rpc *model.CreateOpti
 }
 
 func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
-	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	queryBuilder := sq.Select().
 		From("cases.close_reason_group AS g").
 		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
+	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
 	rpc.Fields = append(fields, "id")
 
 	for _, field := range rpc.Fields {
@@ -238,12 +239,12 @@ func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOpti
 	}
 
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		substr := rpc.Match.Substring(name)
+		substr := util.Substring(name)
 		combinedLike := strings.Join(substr, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)
+	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 	var sortFields []string
 
 	for _, sortField := range parsedFields {
@@ -284,8 +285,8 @@ func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOpti
 }
 
 func (s CloseReasonGroup) buildDeleteCloseReasonGroupQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
-	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
-	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	query := deleteCloseReasonGroupQuery
 	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}

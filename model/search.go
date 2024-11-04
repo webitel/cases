@@ -2,10 +2,11 @@ package model
 
 import (
 	"context"
+	"time"
+
 	"github.com/webitel/cases/internal/server/interceptor"
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
-	"time"
 
 	session "github.com/webitel/cases/auth/model"
 )
@@ -59,7 +60,7 @@ func (rpc *SearchOptions) GetSize() int64 {
 		return -1
 	case rpc.Size > 0:
 		// CHECK for too big values !
-		return rpc.Size
+		return int64(rpc.Size)
 	case rpc.Size == 0:
 		return DefaultSearchSize
 	}
@@ -72,7 +73,7 @@ func (rpc *SearchOptions) GetPage() int64 {
 		if rpc.GetSize() > 0 {
 			// Valid ?page= specified ?
 			if rpc.Page > 0 {
-				return rpc.Page
+				return int64(rpc.Page)
 			}
 			// default: always the first one !
 			return 1

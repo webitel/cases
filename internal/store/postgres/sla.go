@@ -124,7 +124,7 @@ func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 
 	for rows.Next() {
 		// If not fetching all records, check the size limit
-		if !fetchAll && lCount >= rpc.GetSize() {
+		if !fetchAll && lCount >= int(rpc.GetSize()) {
 			next = true
 			break
 		}
@@ -227,8 +227,8 @@ func (s SLAStore) buildCreateSLAQuery(rpc *model.CreateOptions, sla *cases.SLA) 
 
 // buildDeleteSLAQuery constructs the SQL delete query and returns the query string and arguments.
 func (s SLAStore) buildDeleteSLAQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
-	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
-	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	query := deleteSLAQuery
 	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
@@ -237,15 +237,15 @@ func (s SLAStore) buildDeleteSLAQuery(rpc *model.DeleteOptions) (string, []inter
 
 // buildSearchSLAQuery constructs the SQL search query and returns the query builder.
 func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
-	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	queryBuilder := sq.Select().
 		From("cases.sla AS g").
 		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
+	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
 	rpc.Fields = append(fields, "id")
 
 	for _, field := range rpc.Fields {
@@ -289,12 +289,12 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 	}
 
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		substrs := rpc.Match.Substring(name)
+		substrs := util.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)
+	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 
 	var sortFields []string
 

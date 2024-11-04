@@ -107,9 +107,9 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		Session: session,
 		Fields:  fields,
 		Context: ctx,
-		Page:    int(page),
+		Page:    int64(page),
 		Sort:    req.Sort,
-		Size:    int(req.Size),
+		Size:    int64(req.Size),
 		Time:    t,
 	}
 

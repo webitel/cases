@@ -100,8 +100,8 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 		Session: session,
 		Fields:  fields,
 		Context: ctx,
-		Page:    int(page),
-		Size:    int(req.Size),
+		Page:    int64(page),
+		Size:    int64(req.Size),
 		Filter:  make(map[string]interface{}),
 	}
 

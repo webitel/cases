@@ -108,8 +108,8 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
-		Page:    int(page),
-		Size:    int(req.Size),
+		Page:    int64(page),
+		Size:    int64(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
 	}

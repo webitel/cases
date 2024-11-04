@@ -13,8 +13,8 @@ import (
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -87,7 +87,7 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 
 	for rows.Next() {
 		// If not fetching all records, check the size limit
-		if !fetchAll && lCount >= rpc.GetSize() {
+		if !fetchAll && lCount >= int(rpc.GetSize()) {
 			next = true
 			break
 		}
@@ -244,7 +244,7 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 		Where(sq.Eq{"s.dc": rpc.Session.GetDomainId(), "s.status_id": statusId}).
 		PlaceholderFormat(sq.Dollar)
 
-	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
+	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
 	rpc.Fields = append(fields, "id")
 
 	for _, field := range rpc.Fields {
@@ -269,20 +269,20 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 		}
 	}
 
-	convertedIds := rpc.FieldsUtil.Int64SliceToStringSlice(rpc.IDs)
-	ids := rpc.FieldsUtil.FieldsFunc(convertedIds, rpc.FieldsUtil.InlineFields)
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	if len(ids) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": ids})
 	}
 
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		substrs := rpc.Match.Substring(name)
+		substrs := util.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
 	}
 
-	parsedFields := rpc.FieldsUtil.FieldsFunc(rpc.Sort, rpc.FieldsUtil.InlineFields)
+	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 	var sortFields []string
 
 	for _, sortField := range parsedFields {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+
 	"github.com/webitel/cases/api/cases"
 	casegraph "github.com/webitel/cases/internal/app/graph"
 	cerror "github.com/webitel/cases/internal/error"
@@ -49,6 +50,9 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, request *cases.ListLink
 		return nil, err
 	}
 	graphQ.Fields = graphParsedFields
+	// output: validate & normalize & defaults
+
+	panic("implement me")
 }
 
 func (c *CaseLinkService) MergeLinks(ctx context.Context, request *cases.MergeLinksRequest) (*cases.CaseLinkList, error) {

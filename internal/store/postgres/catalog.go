@@ -12,7 +12,7 @@ import (
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/util"
+	util "github.com/webitel/cases/util"
 )
 
 type CatalogStore struct {
@@ -259,7 +259,7 @@ func (s *CatalogStore) List(
 
 	for rows.Next() {
 		// If not fetching all records, check the size limit
-		if !fetchAll && lCount >= rpc.GetSize() {
+		if !fetchAll && lCount >= int(rpc.GetSize()) {
 			next = true
 			break
 		}
@@ -642,7 +642,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	fetchType *cases.FetchType,
 ) (string, []interface{}, error) {
 	// FieldsFunc normalizes a selection list src of the attributes to be returned.
-	fields := rpc.FieldsUtil.FieldsFunc(rpc.Fields, rpc.FieldsUtil.InlineFields)
+	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
 
 	// -------- Apply [Essential Fields Inclusion] --------
 	// Always required fields that should be part of the query
@@ -755,7 +755,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 
 	// -------- Apply [Filtering] --------
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		substrs := rpc.Match.Substring(name)
+		substrs := util.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
 		searchStr = combinedLike
 		selectFlags["search"] = true

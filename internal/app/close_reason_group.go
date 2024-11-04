@@ -100,9 +100,9 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(ctx context.Context, req 
 		Session: session,
 		Fields:  fields,
 		Context: ctx,
-		Page:    int(page),
+		Page:    int64(page),
 		Sort:    req.Sort,
-		Size:    int(req.Size),
+		Size:    int64(req.Size),
 		Time:    t,
 	}
 

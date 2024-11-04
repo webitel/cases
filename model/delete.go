@@ -5,12 +5,10 @@ import (
 	"time"
 
 	session "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/util"
 )
 
 type DeleteOptions struct {
-	FieldsUtil util.FieldsUtils
-	Time       time.Time
+	Time time.Time
 	context.Context
 	Session *session.Session
 	IDs     []int64

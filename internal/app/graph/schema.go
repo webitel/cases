@@ -2,14 +2,12 @@ package graph
 
 type CaseTypes struct {
 	Link Link
-
 	Inited bool
 }
 
 type ScalarTypes struct {
 	Lookup Lookup
 	Tuple  Tuple
-
 	Inited bool
 }
 
