@@ -12,6 +12,8 @@ import (
 // Store is an interface that defines all the methods and properties that a store should implement in Cases service
 
 type Store interface {
+	// ------------ Cases Stores ------------ //
+	CommentCase() CommentCaseStore
 	// ------------ Dictionary Stores ------------ //
 	Source() SourceStore
 	Priority() PriorityStore
@@ -156,4 +158,18 @@ type ServiceStore interface {
 	Delete(rpc *model.DeleteOptions) error
 	// Update service
 	Update(rpc *model.UpdateOptions, lookup *_go.Service) (*_go.Service, error)
+}
+
+// Comments attribute attached to the case (n:1)
+type CommentCaseStore interface {
+	// Create comment
+	Create(ctx context.Context, rpc *model.CreateOptions, add *_go.CaseComment) (*_go.CaseComment, error)
+	// List comments
+	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseCommentList, error)
+	// Merge comments
+	Merge(ctx context.Context, req *model.UpdateOptions) (*_go.CaseCommentList, error)
+	// Update comment
+	Update(ctx context.Context, req *model.UpdateOptions) (*_go.CaseComment, error)
+	// Delete comment
+	Delete(ctx context.Context, req *model.DeleteOptions) (*_go.CaseComment, error)
 }

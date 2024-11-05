@@ -38,7 +38,7 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, request *cases.ListLink
 	graphLinkModel := struct {
 		graph.Query
 		FieldsParse func(rawFields []string, decode ...graph.FieldEncoding) (fields graph.FieldsQ, err error)
-		//Output      func(*cases.CaseLinkList, *graph.Query)
+		// Output      func(*cases.CaseLinkList, *graph.Query)
 	}{
 		Query: graph.Query{
 			Name: "listLinks",

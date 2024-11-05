@@ -1,8 +1,9 @@
 package graph
 
 type CaseTypes struct {
-	Link Link
-	Inited bool
+	Link    Link
+	Comment Comment
+	Inited  bool
 }
 
 type ScalarTypes struct {
@@ -17,14 +18,11 @@ type schema struct {
 	Case   CaseTypes   // case related types
 }
 
-var (
-	// The standard types for the cases
-	Schema schema
-)
+// The standard types for the cases
+var Schema schema
 
 func init() {
 	InitCaseTypes()
-
 }
 
 func InitScalarTypes() {

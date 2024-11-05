@@ -13,6 +13,9 @@ import (
 
 // Store is the struct implementing the Store interface.
 type Store struct {
+	//------------cases stores ------------ ----//
+	commentCaseStore store.CommentCaseStore
+	//----------dictionary stores ------------ //
 	sourceStore           store.SourceStore
 	statusStore           store.StatusStore
 	statusConditionStore  store.StatusConditionStore
@@ -23,9 +26,10 @@ type Store struct {
 	slaConditionStore     store.SLAConditionStore
 	catalogStore          store.CatalogStore
 	serviceStore          store.ServiceStore
-	accessControllStore   store.AccessControlStore
-	config                *conf.DatabaseConfig
-	conn                  *pgxpool.Pool
+	//----------access control ------------ //
+	accessControllStore store.AccessControlStore
+	config              *conf.DatabaseConfig
+	conn                *pgxpool.Pool
 }
 
 // New creates a new Store instance.
@@ -33,6 +37,20 @@ func New(config *conf.DatabaseConfig) *Store {
 	return &Store{config: config}
 }
 
+// -------------Cases Stores ------------ //
+
+func (s *Store) CommentCase() store.CommentCaseStore {
+	if s.commentCaseStore == nil {
+		commentCase, err := NewCommentCaseStore(s)
+		if err != nil {
+			return nil
+		}
+		s.commentCaseStore = commentCase
+	}
+	return s.commentCaseStore
+}
+
+// -------------Dictionary Stores ------------ //
 func (s *Store) Status() store.StatusStore {
 	if s.statusStore == nil {
 		st, err := NewStatusStore(s)

@@ -15,7 +15,7 @@ import (
 func Setup(service *resource.Resource) func(context.Context) error {
 	// Initialize the context and OTel setup
 	ctx := context.Background()
-	shutdown, err := otelsdk.Setup(
+	shutdown, err := otelsdk.Configure(
 		ctx,
 		otelsdk.WithResource(service),
 		otelsdk.WithLogLevel(log.SeverityDebug),

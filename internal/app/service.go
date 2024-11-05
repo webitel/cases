@@ -7,7 +7,6 @@ import (
 	api "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	authmodel "github.com/webitel/cases/auth/model"
-
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
