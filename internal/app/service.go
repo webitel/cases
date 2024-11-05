@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	api "github.com/webitel/cases/api/cases"
+	api "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	authmodel "github.com/webitel/cases/auth/model"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -39,7 +40,7 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &api.Lookup{
+	currentU := &general.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -49,9 +50,9 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		Name:        req.Name,
 		Description: req.Description,
 		Code:        req.Code,
-		Sla:         &api.Lookup{Id: req.SlaId},
-		Group:       &api.Lookup{Id: req.GroupId},
-		Assignee:    &api.Lookup{Id: req.AssigneeId},
+		Sla:         &general.Lookup{Id: req.SlaId},
+		Group:       &general.Lookup{Id: req.GroupId},
+		Assignee:    &general.Lookup{Id: req.AssigneeId},
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
 		State:       req.State,
@@ -211,7 +212,7 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
-	u := &api.Lookup{
+	u := &general.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -221,9 +222,9 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
 		Code:        req.Input.Code,
-		Sla:         &api.Lookup{Id: req.Input.SlaId},
-		Group:       &api.Lookup{Id: req.Input.GroupId},
-		Assignee:    &api.Lookup{Id: req.Input.AssigneeId},
+		Sla:         &general.Lookup{Id: req.Input.SlaId},
+		Group:       &general.Lookup{Id: req.Input.GroupId},
+		Assignee:    &general.Lookup{Id: req.Input.AssigneeId},
 		UpdatedBy:   u,
 		State:       req.Input.State,
 		RootId:      req.Input.RootId,

@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webitel/cases/api/cases"
+	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	authmodel "github.com/webitel/cases/auth/model"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -52,7 +53,7 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &cases.Lookup{
+	currentU := &general.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -238,7 +239,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 	}
 
 	// Define the current user as the updater
-	u := &cases.Lookup{
+	u := &general.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}

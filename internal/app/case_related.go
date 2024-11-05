@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	"github.com/webitel/cases/api/cases"
+	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	cerror "github.com/webitel/cases/internal/error"
 )
 

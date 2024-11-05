@@ -3,8 +3,8 @@ package store
 import (
 	"context"
 
+	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	"github.com/jackc/pgx/v5/pgxpool"
-	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )

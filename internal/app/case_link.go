@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	"github.com/webitel/cases/api/cases"
+	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	casegraph "github.com/webitel/cases/internal/app/graph"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -35,21 +35,21 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, request *cases.DeleteL
 func (c *CaseLinkService) ListLinks(ctx context.Context, request *cases.ListLinksRequest) (*cases.CaseLinkList, error) {
 	searchOpts := model.NewSearchOptions(ctx, request)
 	// output: validate & normalize & defaults
-	graphQ := struct {
+	graphLinkModel := struct {
 		graph.Query
-		FieldsParse func(vs []string, decode ...graph.FieldEncoding) (fields graph.FieldsQ, err error)
-		Output      func(*cases.CaseLinkList, *graph.Query)
+		FieldsParse func(rawFields []string, decode ...graph.FieldEncoding) (fields graph.FieldsQ, err error)
+		//Output      func(*cases.CaseLinkList, *graph.Query)
 	}{
 		Query: graph.Query{
 			Name: "listLinks",
 		},
 		FieldsParse: casegraph.Schema.Case.Link.Output.ParseFields,
 	}
-	graphParsedFields, err := graphQ.FieldsParse(searchOpts.Fields)
+	graphParsedFields, err := graphLinkModel.FieldsParse(searchOpts.Fields)
 	if err != nil {
 		return nil, err
 	}
-	graphQ.Fields = graphParsedFields
+	graphLinkModel.Fields = graphParsedFields
 	// output: validate & normalize & defaults
 
 	panic("implement me")

@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
@@ -29,11 +30,11 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 	query, args := s.buildCreateSLAConditionQuery(rpc, add)
 
 	var (
-		createdByLookup, updatedByLookup cases.Lookup
+		createdByLookup, updatedByLookup general.Lookup
 		createdAt, updatedAt             time.Time
 	)
 
-	prio := []*cases.Lookup{}
+	prio := []*general.Lookup{}
 
 	rows, err := db.Query(rpc.Context, query, args...)
 	if err != nil {
@@ -43,7 +44,7 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 
 	// Iterate over the result set and collect all priorities
 	for rows.Next() {
-		var lookup cases.Lookup
+		var lookup general.Lookup
 		if err := rows.Scan(
 			&add.Id, &add.Name, &createdAt,
 			&add.ReactionTime.Hours, &add.ReactionTime.Minutes, &add.ResolutionTime.Hours,
@@ -151,7 +152,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 		slaCondition := &cases.SLACondition{}
 
 		var (
-			createdBy, updatedBy         cases.Lookup
+			createdBy, updatedBy         general.Lookup
 			tempCreatedAt, tempUpdatedAt time.Time
 			prioritiesJSON               []byte
 		)
@@ -173,7 +174,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 			}
 		} else {
 			// Handle NULL or empty JSON by initializing to an empty slice
-			slaCondition.Priorities = []*cases.Lookup{}
+			slaCondition.Priorities = []*general.Lookup{}
 		}
 
 		// Populate SLACondition fields
@@ -251,7 +252,7 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 	}
 
 	var (
-		createdBy, updatedBy cases.Lookup
+		createdBy, updatedBy general.Lookup
 		createdAt, updatedAt time.Time
 		prioritiesJSON       []byte
 	)
@@ -280,7 +281,7 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 		}
 	} else {
 		// Initialize to an empty slice if no priorities
-		l.Priorities = []*cases.Lookup{}
+		l.Priorities = []*general.Lookup{}
 	}
 
 	// Set timestamps and user information
@@ -598,7 +599,7 @@ GROUP BY usc.id, usc.name, usc.created_at, usc.updated_at,
 func (s *SLAConditionStore) buildScanArgs(
 	fields []string,
 	slaCondition *cases.SLACondition,
-	createdBy, updatedBy *cases.Lookup,
+	createdBy, updatedBy *general.Lookup,
 	createdAt, updatedAt *time.Time,
 	prioritiesJSON *[]byte,
 ) []interface{} {
@@ -641,7 +642,7 @@ func (s *SLAConditionStore) populateSLAConditionFields(
 	fields []string,
 	slaCondition *cases.SLACondition,
 	createdBy,
-	updatedBy *cases.Lookup,
+	updatedBy *general.Lookup,
 	createdAt,
 	updatedAt time.Time,
 ) {

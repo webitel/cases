@@ -5,9 +5,10 @@ import (
 	"strings"
 	"time"
 
+	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	db "github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
@@ -30,7 +31,7 @@ func (s Source) Create(rpc *model.CreateOptions, add *_go.Source) (*_go.Source, 
 	}
 
 	var (
-		createdByLookup, updatedByLookup _go.Lookup
+		createdByLookup, updatedByLookup general.Lookup
 		createdAt, updatedAt             time.Time
 		tempType                         string
 	)
@@ -96,7 +97,7 @@ func (s Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 
 		l := &_go.Source{}
 		var (
-			createdBy, updatedBy         _go.Lookup
+			createdBy, updatedBy         general.Lookup
 			tempUpdatedAt, tempCreatedAt time.Time
 			tempType                     string
 			scanArgs                     []interface{}
@@ -200,7 +201,7 @@ func (s Source) Update(rpc *model.UpdateOptions, l *_go.Source) (*_go.Source, er
 	}
 
 	var (
-		createdBy, updatedByLookup _go.Lookup
+		createdBy, updatedByLookup general.Lookup
 		createdAt, updatedAt       time.Time
 		tempType                   string
 	)

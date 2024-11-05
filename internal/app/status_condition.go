@@ -5,11 +5,12 @@ import (
 	"strings"
 	"time"
 
-	_go "github.com/webitel/cases/api/cases"
+	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	authmodel "github.com/webitel/cases/auth/model"
 
 	cerror "github.com/webitel/cases/internal/error"
-"github.com/webitel/cases/model"
+	"github.com/webitel/cases/model"
 )
 
 type StatusConditionService struct {
@@ -41,7 +42,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &_go.Lookup{
+	currentU := &general.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -146,7 +147,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	}
 
 	// Define the current user as the updater
-	u := &_go.Lookup{
+	u := &general.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}

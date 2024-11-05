@@ -5,9 +5,10 @@ import (
 	"strings"
 	"time"
 
+	api "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	api "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
@@ -31,7 +32,7 @@ func (p *Priority) Create(rpc *model.CreateOptions, add *api.Priority) (*api.Pri
 	}
 
 	var (
-		createdByLookup, updatedByLookup api.Lookup
+		createdByLookup, updatedByLookup general.Lookup
 		createdAt, updatedAt             time.Time
 	)
 
@@ -116,7 +117,7 @@ func (p *Priority) List(rpc *model.SearchOptions) (*api.PriorityList, error) {
 		l := &api.Priority{}
 
 		var (
-			createdBy, updatedBy         api.Lookup
+			createdBy, updatedBy         general.Lookup
 			tempUpdatedAt, tempCreatedAt time.Time
 			scanArgs                     []interface{}
 		)
@@ -183,7 +184,7 @@ func (p *Priority) Update(rpc *model.UpdateOptions, l *api.Priority) (*api.Prior
 	}
 
 	var (
-		createdBy, updatedByLookup api.Lookup
+		createdBy, updatedByLookup general.Lookup
 		createdAt, updatedAt       time.Time
 	)
 

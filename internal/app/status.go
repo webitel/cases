@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	_go "github.com/webitel/cases/api/cases"
+	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	authmodel "github.com/webitel/cases/auth/model"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -41,7 +42,7 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &_go.Lookup{
+	currentU := &general.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -145,7 +146,7 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 	}
 
 	// Define the current user as the updater
-	currentU := &_go.Lookup{
+	currentU := &general.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}

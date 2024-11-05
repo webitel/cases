@@ -7,11 +7,12 @@ import (
 	"strings"
 	"time"
 
+	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lib/pq"
-	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
@@ -40,7 +41,7 @@ func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCo
 	}
 
 	var (
-		createdBy, updatedBy _go.Lookup
+		createdBy, updatedBy general.Lookup
 		createdAt, updatedAt time.Time
 	)
 
@@ -95,7 +96,7 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 		st := &_go.StatusCondition{}
 
 		var (
-			createdBy, updatedBy         _go.Lookup
+			createdBy, updatedBy         general.Lookup
 			tempCreatedAt, tempUpdatedAt time.Time
 		)
 
@@ -205,7 +206,7 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 	query, args := s.buildUpdateStatusConditionQuery(rpc, st)
 
 	var (
-		createdBy, updatedBy _go.Lookup
+		createdBy, updatedBy general.Lookup
 		createdAt, updatedAt time.Time
 	)
 
@@ -635,7 +636,7 @@ func (s StatusConditionStore) handleTx(rpc context.Context, tx pgx.Tx, err *erro
 	}
 }
 
-func (s StatusConditionStore) buildScanArgs(fields []string, st *_go.StatusCondition, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt *time.Time) []interface{} {
+func (s StatusConditionStore) buildScanArgs(fields []string, st *_go.StatusCondition, createdBy, updatedBy *general.Lookup, tempCreatedAt, tempUpdatedAt *time.Time) []interface{} {
 	var scanArgs []interface{}
 	for _, field := range fields {
 		switch field {
@@ -664,7 +665,7 @@ func (s StatusConditionStore) buildScanArgs(fields []string, st *_go.StatusCondi
 	return scanArgs
 }
 
-func (s StatusConditionStore) populateStatusConditionFields(fields []string, st *_go.StatusCondition, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt time.Time) {
+func (s StatusConditionStore) populateStatusConditionFields(fields []string, st *_go.StatusCondition, createdBy, updatedBy *general.Lookup, tempCreatedAt, tempUpdatedAt time.Time) {
 	if s.containsField(fields, "created_by") {
 		st.CreatedBy = createdBy
 	}
