@@ -2,9 +2,9 @@ module github.com/webitel/cases
 
 go 1.23.0
 
-replace (
-	buf.build/gen/go/webitel/cases/grpc/go/_gogrpc v1.5.1-20241105122241-a1d959115d35.1 => ./api/cases
-)
+//replace (
+//	buf.build/gen/go/webitel/cases/grpc/go/_gogrpc v1.5.1-20241105122241-a1d959115d35.1 => ./api/cases
+//)
 
 require (
 	buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20241105122241-a1d959115d35.1
