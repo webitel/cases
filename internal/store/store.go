@@ -13,7 +13,9 @@ import (
 
 type Store interface {
 	// ------------ Cases Stores ------------ //
+	Case() CaseStore
 	CommentCase() CommentCaseStore
+	LinkCase() LinkCaseStore
 	// ------------ Dictionary Stores ------------ //
 	Source() SourceStore
 	Priority() PriorityStore
@@ -43,11 +45,55 @@ type Store interface {
 	Close() *dberr.DBError                     // Return custom DB error
 }
 
+// ------------ Cases Stores ------------ //
+type CaseStore interface {
+	// Create a new case
+	Create(ctx context.Context, rpc *model.CreateOptions, add *_go.Case) (*_go.Case, error)
+	// List cases
+	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseList, error)
+	// Merge cases
+	Merge(ctx context.Context, req *model.UpdateOptions) (*_go.CaseList, error)
+	// Update case
+	Update(ctx context.Context, req *model.UpdateOptions) (*_go.Case, error)
+	// Delete case
+	Delete(ctx context.Context, req *model.DeleteOptions) (*_go.Case, error)
+}
+
+// RelatedCases attribute attached to the case (n:1)
+type LinkCaseStore interface {
+	// Create link
+	Create(ctx context.Context, rpc *model.CreateOptions, add *_go.CaseLink) (*_go.CaseLink, error)
+	// List links
+	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseLinkList, error)
+	// Merge links
+	Merge(ctx context.Context, req *model.UpdateOptions) (*_go.CaseLinkList, error)
+	// Update link
+	Update(ctx context.Context, req *model.UpdateOptions) (*_go.CaseLink, error)
+	// Delete link
+	Delete(ctx context.Context, req *model.DeleteOptions) (*_go.CaseLink, error)
+}
+
+// Comments attribute attached to the case (n:1)
+type CommentCaseStore interface {
+	// Create comment
+	Create(ctx context.Context, rpc *model.CreateOptions, add *_go.CaseComment) (*_go.CaseComment, error)
+	// List comments
+	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseCommentList, error)
+	// Merge comments
+	Merge(ctx context.Context, req *model.UpdateOptions) (*_go.CaseCommentList, error)
+	// Update comment
+	Update(ctx context.Context, req *model.UpdateOptions) (*_go.CaseComment, error)
+	// Delete comment
+	Delete(ctx context.Context, req *model.DeleteOptions) (*_go.CaseComment, error)
+}
+
+// ------------Access Control------------//
 type AccessControlStore interface {
 	// Check if user has Rbac access
 	RbacAccess(ctx context.Context, domainId, id int64, groups []int, access uint8, table string) (bool, error)
 }
 
+// ------------ Dictionary Stores ------------ //
 type StatusStore interface {
 	// Create a new status lookup
 	Create(rpc *model.CreateOptions, add *_go.Status) (*_go.Status, error)
@@ -158,18 +204,4 @@ type ServiceStore interface {
 	Delete(rpc *model.DeleteOptions) error
 	// Update service
 	Update(rpc *model.UpdateOptions, lookup *_go.Service) (*_go.Service, error)
-}
-
-// Comments attribute attached to the case (n:1)
-type CommentCaseStore interface {
-	// Create comment
-	Create(ctx context.Context, rpc *model.CreateOptions, add *_go.CaseComment) (*_go.CaseComment, error)
-	// List comments
-	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseCommentList, error)
-	// Merge comments
-	Merge(ctx context.Context, req *model.UpdateOptions) (*_go.CaseCommentList, error)
-	// Update comment
-	Update(ctx context.Context, req *model.UpdateOptions) (*_go.CaseComment, error)
-	// Delete comment
-	Delete(ctx context.Context, req *model.DeleteOptions) (*_go.CaseComment, error)
 }

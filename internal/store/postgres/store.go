@@ -14,6 +14,8 @@ import (
 // Store is the struct implementing the Store interface.
 type Store struct {
 	//------------cases stores ------------ ----//
+	caseStore        store.CaseStore
+	linkCaseStore    store.LinkCaseStore
 	commentCaseStore store.CommentCaseStore
 	//----------dictionary stores ------------ //
 	sourceStore           store.SourceStore
@@ -38,6 +40,28 @@ func New(config *conf.DatabaseConfig) *Store {
 }
 
 // -------------Cases Stores ------------ //
+
+func (s *Store) Case() store.CaseStore {
+	if s.caseStore == nil {
+		caseStore, err := NewCaseStore(s)
+		if err != nil {
+			return nil
+		}
+		s.caseStore = caseStore
+	}
+	return s.caseStore
+}
+
+func (s *Store) LinkCase() store.LinkCaseStore {
+	if s.linkCaseStore == nil {
+		linkCase, err := NewLinkCaseStore(s)
+		if err != nil {
+			return nil
+		}
+		s.linkCaseStore = linkCase
+	}
+	return s.linkCaseStore
+}
 
 func (s *Store) CommentCase() store.CommentCaseStore {
 	if s.commentCaseStore == nil {
