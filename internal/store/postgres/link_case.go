@@ -29,7 +29,7 @@ func (l *LinkCase) List(ctx context.Context, rpc *model.SearchOptions) (*_go.Cas
 }
 
 // Merge implements store.LinkCaseStore.
-func (l *LinkCase) Merge(ctx context.Context, req *model.UpdateOptions) (*_go.CaseLinkList, error) {
+func (l *LinkCase) Merge(ctx context.Context, req *model.CreateOptions) (*_go.CaseLinkList, error) {
 	panic("unimplemented")
 }
 

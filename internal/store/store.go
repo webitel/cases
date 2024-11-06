@@ -16,6 +16,7 @@ type Store interface {
 	Case() CaseStore
 	CommentCase() CommentCaseStore
 	LinkCase() LinkCaseStore
+
 	// ------------ Dictionary Stores ------------ //
 	Source() SourceStore
 	Priority() PriorityStore
@@ -52,7 +53,7 @@ type CaseStore interface {
 	// List cases
 	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseList, error)
 	// Merge cases
-	Merge(ctx context.Context, req *model.UpdateOptions) (*_go.CaseList, error)
+	Merge(ctx context.Context, req *model.CreateOptions) (*_go.CaseList, error)
 	// Update case
 	Update(ctx context.Context, req *model.UpdateOptions) (*_go.Case, error)
 	// Delete case
@@ -66,7 +67,7 @@ type LinkCaseStore interface {
 	// List links
 	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseLinkList, error)
 	// Merge links
-	Merge(ctx context.Context, req *model.UpdateOptions) (*_go.CaseLinkList, error)
+	Merge(ctx context.Context, req *model.CreateOptions) (*_go.CaseLinkList, error)
 	// Update link
 	Update(ctx context.Context, req *model.UpdateOptions) (*_go.CaseLink, error)
 	// Delete link
@@ -80,7 +81,7 @@ type CommentCaseStore interface {
 	// List comments
 	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseCommentList, error)
 	// Merge comments
-	Merge(ctx context.Context, req *model.UpdateOptions) (*_go.CaseCommentList, error)
+	Merge(ctx context.Context, req *model.CreateOptions) (*_go.CaseCommentList, error)
 	// Update comment
 	Update(ctx context.Context, req *model.UpdateOptions) (*_go.CaseComment, error)
 	// Delete comment

@@ -29,7 +29,7 @@ func (c *CommentCase) List(ctx context.Context, rpc *model.SearchOptions) (*_go.
 }
 
 // Merge implements store.CommentCaseStore.
-func (c *CommentCase) Merge(ctx context.Context, req *model.UpdateOptions) (*_go.CaseCommentList, error) {
+func (c *CommentCase) Merge(ctx context.Context, req *model.CreateOptions) (*_go.CaseCommentList, error) {
 	panic("unimplemented")
 }
 
