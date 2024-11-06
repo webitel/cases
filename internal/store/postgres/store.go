@@ -16,7 +16,7 @@ type Store struct {
 	//------------cases stores ------------ ----//
 	caseStore        store.CaseStore
 	linkCaseStore    store.LinkCaseStore
-	commentCaseStore store.CommentCaseStore
+	caseCommentStore store.CaseCommentStore
 	//----------dictionary stores ------------ //
 	sourceStore           store.SourceStore
 	statusStore           store.StatusStore
@@ -63,15 +63,15 @@ func (s *Store) LinkCase() store.LinkCaseStore {
 	return s.linkCaseStore
 }
 
-func (s *Store) CommentCase() store.CommentCaseStore {
-	if s.commentCaseStore == nil {
-		commentCase, err := NewCommentCaseStore(s)
+func (s *Store) CaseComment() store.CaseCommentStore {
+	if s.caseCommentStore == nil {
+		caseComment, err := NewCaseCommentStore(s)
 		if err != nil {
 			return nil
 		}
-		s.commentCaseStore = commentCase
+		s.caseCommentStore = caseComment
 	}
-	return s.commentCaseStore
+	return s.caseCommentStore
 }
 
 // -------------Dictionary Stores ------------ //

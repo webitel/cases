@@ -41,7 +41,7 @@ func (c *Case) Update(ctx context.Context, req *model.UpdateOptions) (*_go.Case,
 func NewCaseStore(store store.Store) (store.CaseStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_case.check.bad_arguments",
-			"error creating case interface to the comment_case table, main store is nil")
+			"error creating case interface to the case table, main store is nil")
 	}
 	return &Case{storage: store}, nil
 }

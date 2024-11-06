@@ -5,6 +5,7 @@ import (
 	"time"
 
 	session "github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/internal/server/interceptor"
 )
 
 type CreateOptions struct {
@@ -22,4 +23,15 @@ func (rpc *CreateOptions) CurrentTime() time.Time {
 		rpc.Time = ts
 	}
 	return ts
+}
+
+func NewCreateOptions(ctx context.Context) *CreateOptions {
+	sess := ctx.Value(interceptor.SessionHeader).(*session.Session)
+
+	createOpts := &CreateOptions{
+		Context: ctx,
+		Session: sess,
+	}
+	createOpts.Time = createOpts.CurrentTime()
+	return createOpts
 }

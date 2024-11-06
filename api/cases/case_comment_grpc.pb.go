@@ -24,7 +24,6 @@ const (
 	CaseComments_DeleteComment_FullMethodName = "/webitel.cases.CaseComments/DeleteComment"
 	CaseComments_ListComments_FullMethodName  = "/webitel.cases.CaseComments/ListComments"
 	CaseComments_MergeComments_FullMethodName = "/webitel.cases.CaseComments/MergeComments"
-	CaseComments_ResetComments_FullMethodName = "/webitel.cases.CaseComments/ResetComments"
 )
 
 // CaseCommentsClient is the client API for CaseComments service.
@@ -37,7 +36,6 @@ type CaseCommentsClient interface {
 	DeleteComment(ctx context.Context, in *DeleteCommentRequest, opts ...grpc.CallOption) (*CaseComment, error)
 	ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*CaseCommentList, error)
 	MergeComments(ctx context.Context, in *MergeCommentsRequest, opts ...grpc.CallOption) (*CaseCommentList, error)
-	ResetComments(ctx context.Context, in *ResetCommentsRequest, opts ...grpc.CallOption) (*CaseCommentList, error)
 }
 
 type caseCommentsClient struct {
@@ -98,16 +96,6 @@ func (c *caseCommentsClient) MergeComments(ctx context.Context, in *MergeComment
 	return out, nil
 }
 
-func (c *caseCommentsClient) ResetComments(ctx context.Context, in *ResetCommentsRequest, opts ...grpc.CallOption) (*CaseCommentList, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CaseCommentList)
-	err := c.cc.Invoke(ctx, CaseComments_ResetComments_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // CaseCommentsServer is the server API for CaseComments service.
 // All implementations must embed UnimplementedCaseCommentsServer
 // for forward compatibility.
@@ -118,7 +106,6 @@ type CaseCommentsServer interface {
 	DeleteComment(context.Context, *DeleteCommentRequest) (*CaseComment, error)
 	ListComments(context.Context, *ListCommentsRequest) (*CaseCommentList, error)
 	MergeComments(context.Context, *MergeCommentsRequest) (*CaseCommentList, error)
-	ResetComments(context.Context, *ResetCommentsRequest) (*CaseCommentList, error)
 	mustEmbedUnimplementedCaseCommentsServer()
 }
 
@@ -143,9 +130,6 @@ func (UnimplementedCaseCommentsServer) ListComments(context.Context, *ListCommen
 }
 func (UnimplementedCaseCommentsServer) MergeComments(context.Context, *MergeCommentsRequest) (*CaseCommentList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MergeComments not implemented")
-}
-func (UnimplementedCaseCommentsServer) ResetComments(context.Context, *ResetCommentsRequest) (*CaseCommentList, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResetComments not implemented")
 }
 func (UnimplementedCaseCommentsServer) mustEmbedUnimplementedCaseCommentsServer() {}
 func (UnimplementedCaseCommentsServer) testEmbeddedByValue()                      {}
@@ -258,24 +242,6 @@ func _CaseComments_MergeComments_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CaseComments_ResetComments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResetCommentsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CaseCommentsServer).ResetComments(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: CaseComments_ResetComments_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CaseCommentsServer).ResetComments(ctx, req.(*ResetCommentsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // CaseComments_ServiceDesc is the grpc.ServiceDesc for CaseComments service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -302,10 +268,6 @@ var CaseComments_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MergeComments",
 			Handler:    _CaseComments_MergeComments_Handler,
-		},
-		{
-			MethodName: "ResetComments",
-			Handler:    _CaseComments_ResetComments_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

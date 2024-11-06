@@ -18,6 +18,13 @@ type serviceRegistration struct {
 func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 	services := []serviceRegistration{
 		{
+			init: func(a *App) (interface{}, error) { return NewCaseService(a) },
+			register: func(s *grpc.Server, svc interface{}) {
+				cases.RegisterCasesServer(s, svc.(cases.CasesServer))
+			},
+			name: "Cases",
+		},
+		{
 			init: func(a *App) (interface{}, error) { return NewCaseCommentService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCaseCommentsServer(s, svc.(cases.CaseCommentsServer))
