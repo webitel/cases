@@ -5,40 +5,52 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/webitel/cases/model"
+	slogutil "github.com/webitel/webitel-go-kit/otel/log/bridge/slog"
 	otelsdk "github.com/webitel/webitel-go-kit/otel/sdk"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
-	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/sdk/resource"
 )
 
+// Setup initializes OpenTelemetry with slog logging and returns a shutdown function
 func Setup(service *resource.Resource) func(context.Context) error {
-	// Initialize the context and OTel setup
+	// Retrieve log level from the environment, default to info
+	var verbose slog.LevelVar
+	verbose.Set(slog.LevelInfo)
+	if input := os.Getenv("OTEL_LOG_LEVEL"); input != "" {
+		_ = verbose.UnmarshalText([]byte(input))
+	}
+
+	// Initialize the context and OpenTelemetry setup
 	ctx := context.Background()
 	shutdown, err := otelsdk.Configure(
 		ctx,
 		otelsdk.WithResource(service),
-		otelsdk.WithLogLevel(log.SeverityDebug),
+		otelsdk.WithLogBridge(func() {
+			// Redirect slog.Default() to OpenTelemetry
+			stdlog := slog.New(
+				slogutil.WithLevel(
+					&verbose,                    // Filter level for otelslog.Handler
+					otelslog.NewHandler("slog"), // otelslog Handler for OpenTelemetry
+				),
+			)
+			slog.SetDefault(stdlog)
+		}),
 	)
 
-	// Initialize the OTel logger
-	stdlog := otelslog.NewLogger(model.APP_SERVICE_NAME)
+	// Initialize the logger
+	log := slog.Default()
 
-	// Check if OTel setup failed
+	// Error handling if OpenTelemetry setup fails
 	if err != nil {
-		stdlog.ErrorContext(
-			ctx, "OTel setup",
-			slog.String("error", err.Error()),
+		log.ErrorContext(
+			ctx, "OpenTelemetry setup failed",
+			"error", err,
 		)
 		os.Exit(1)
 	}
 
-	// Set slog default to stdlog [OTel] logger
-	slog.SetDefault(stdlog)
+	// Log setup success message
+	log.InfoContext(ctx, "OpenTelemetry setup successful")
 
-	// OTEL setup successful
-	slog.InfoContext(ctx, "OTel setup successful")
-
-	// Return the shutdown function
 	return shutdown
 }
