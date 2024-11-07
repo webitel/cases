@@ -85,15 +85,9 @@ func (c *CaseCommentService) UpdateComment(
 	// Set session, xJsonMask, time, fields, ctx
 	updateOpts := model.NewUpdateOptions(ctx, req)
 
-	//  Convert CaseEtag to an internal identifier (Tid) for processing
-	id, err := etag.EtagOrId(etag.EtagCaseComment, req.Input.Etag)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("case_comment_service.update_comment.invalid_etag", "Invalid etag")
-	}
-
 	// Prepare the update model
 	comment := &cases.CaseComment{
-		Id:   id.GetOid(),
+		Id:   req.Input.Etag,
 		Text: req.Input.Text,
 	}
 
@@ -116,15 +110,14 @@ func (c *CaseCommentService) DeleteComment(
 		return nil, cerror.NewBadRequestError("case_comment_service.delete_comment.etag.required", "Etag is required")
 	}
 
+	// Initialize delete options based on the request
+	deleteOpts := model.NewDeleteOptions(ctx)
+
 	//  Convert CaseEtag to an internal identifier (Tid) for processing
 	id, err := etag.EtagOrId(etag.EtagCaseComment, req.Etag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("case_comment_service.delete_comment.invalid_etag", "Invalid etag")
 	}
-
-	// Initialize delete options based on the request
-	deleteOpts := model.NewDeleteOptions(ctx)
-
 	deleteOpts.IDs = []int64{id.GetOid()}
 
 	// Call the delete method in the store
@@ -210,12 +203,6 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("case_comment_service.merge_comments.text.required", "Text is required for each comment")
 	}
 
-	// Get oid of the Case associated with the comments
-	caseID, err := etag.EtagOrId(etag.EtagCaseComment, req.CaseEtag)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("case_comment_service.locate_comment.invalid_etag", "Invalid etag")
-	}
-
 	fields := util.FieldsFunc(req.Fields, util.InlineFields)
 
 	if len(fields) == 0 {
@@ -227,6 +214,11 @@ func (c *CaseCommentService) PublishComment(
 	// Set the fields to return in the response
 	createOpts.Fields = fields
 
+	// Get oid of the Case associated with the comments
+	caseID, err := etag.EtagOrId(etag.EtagCaseComment, req.CaseEtag)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("case_comment_service.locate_comment.invalid_etag", "Invalid etag")
+	}
 	// Set the Case ID to the comment
 	createOpts.ID = caseID.GetOid()
 

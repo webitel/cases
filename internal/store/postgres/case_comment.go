@@ -2,16 +2,19 @@ package postgres
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/lib/pq"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
+	"github.com/webitel/webitel-go-kit/etag"
 )
 
 type CaseComment struct {
@@ -39,6 +42,7 @@ func (c *CaseComment) Publish(
 	var (
 		createdBy, updatedBy general.Lookup
 		createdAt, updatedAt time.Time
+		id                   int64 // Not present in model | need for eta encoding
 	)
 
 	// Dynamically build scan arguments based on the requested fields
@@ -46,7 +50,7 @@ func (c *CaseComment) Publish(
 	for _, field := range rpc.Fields {
 		switch field {
 		case "id":
-			scanArgs = append(scanArgs, &add.Id)
+			scanArgs = append(scanArgs, &id)
 		case "case_id":
 			scanArgs = append(scanArgs, &add.CaseId)
 		case "created_at":
@@ -61,6 +65,8 @@ func (c *CaseComment) Publish(
 			add.UpdatedBy = &updatedBy
 		case "updated_at":
 			scanArgs = append(scanArgs, &updatedAt)
+		case "ver":
+			scanArgs = append(scanArgs, &add.Ver)
 		}
 	}
 
@@ -68,6 +74,9 @@ func (c *CaseComment) Publish(
 	if err := d.QueryRow(ctx, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.cases.comment.create.scan_error", err)
 	}
+	//  Encode etag from the comment ID and version
+	e := etag.EncodeEtag(etag.EtagCaseComment, id, add.Ver)
+	add.Id = e
 
 	// Set createdAt and updatedAt fields on add after scanning
 	add.CreatedAt = util.Timestamp(createdAt)
@@ -83,7 +92,7 @@ func (c *CaseComment) buildCreateCommentsQuery(
 	comment *_go.CaseComment, // Single comment
 ) (string, []interface{}, error) {
 	// Ensure "id" is in the fields list
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
 	// Start building the insert part of the query using Squirrel
 	insertBuilder := sq.
 		Insert("cases.case_comment").
@@ -123,6 +132,8 @@ func (c *CaseComment) buildCreateCommentsQuery(
 			selectBuilder = selectBuilder.Column("ins.created_at")
 		case "comment":
 			selectBuilder = selectBuilder.Column("ins.comment")
+		case "ver":
+			selectBuilder = selectBuilder.Column("ins.ver")
 		case "created_by":
 			selectBuilder = selectBuilder.
 				Column("ins.created_by AS created_by_id").
@@ -154,10 +165,47 @@ func (c *CaseComment) buildCreateCommentsQuery(
 // Delete implements store.CommentCaseStore.
 func (c *CaseComment) Delete(
 	ctx context.Context,
-	req *model.DeleteOptions,
+	rpc *model.DeleteOptions,
 ) (*_go.CaseComment, error) {
-	panic("unimplemented")
+	d, err := c.storage.Database()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.cases.comment.delete.database_connection_error", err)
+	}
+
+	query, args, dbErr := c.buildDeleteCaseCommentQuery(rpc)
+	if dbErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.cases.comment.delete.query_build_error", dbErr)
+	}
+
+	res, execErr := d.Exec(rpc.Context, query, args...)
+	if execErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.cases.comment.delete.exec_error", execErr)
+	}
+
+	affected := res.RowsAffected()
+	if affected == 0 {
+		return nil, dberr.NewDBNoRowsError("postgres.cases.comment.delete.not_found")
+	}
+
+	return &_go.CaseComment{
+		Id:   strconv.Itoa(int(rpc.IDs[0])),
+		Text: "Deleted",
+	}, nil
 }
+
+func (c CaseComment) buildDeleteCaseCommentQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
+
+	query := deleteCaseCommentQuery
+	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
+	return query, args, nil
+}
+
+var deleteCaseCommentQuery = store.CompactSQL(`
+	DELETE FROM cases.case_comment
+	WHERE id = ANY($1) AND dc = $2
+`)
 
 // List implements store.CommentCaseStore.
 func (c *CaseComment) List(

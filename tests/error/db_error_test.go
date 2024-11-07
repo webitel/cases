@@ -39,7 +39,7 @@ func TestNewDBNoRowsError(t *testing.T) {
 	if err.ID != id {
 		t.Errorf("expected ID %s, got %s", id, err.ID)
 	}
-	expectedError := "DBError [db.no_rows]: entity does not exist or you do not have enough permissions to perform the operation"
+	expectedError := "DBError [db.no_rows]: entity does not exist"
 	if err.Error() != expectedError {
 		t.Errorf("expected error string '%s', got '%s'", expectedError, err.Error())
 	}

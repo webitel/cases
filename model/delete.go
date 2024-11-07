@@ -9,10 +9,11 @@ import (
 )
 
 type DeleteOptions struct {
-	Time    time.Time
+	Time time.Time
 	context.Context
 	Session *session.Session
 	IDs     []int64
+	ID      int64
 }
 
 // CurrentTime sets and returns the current time if Time is zero.

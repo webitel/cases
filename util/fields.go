@@ -119,13 +119,31 @@ func FieldExists(field string, fields []string) bool {
 	return false
 }
 
-// ensureIdField ensures that "id" is present in the rpc.Fields.
-func EnsureIdField(fields []string) []string {
+// EnsureIdAndVerFields ensures that "id" and "ver" are present in the rpc.Fields.
+// Need it for etag encoding as ver + id is required.
+func EnsureIdAndVerField(fields []string) []string {
+	hasId := false
+	hasVer := false
+
+	// Check for "id" and "ver" in the fields
 	for _, field := range fields {
 		if field == "id" {
-			return fields // "id" is already present
+			hasId = true
+		}
+		if field == "ver" {
+			hasVer = true
 		}
 	}
-	// "id" not found, so add it
-	return append(fields, "id")
+
+	// Add "id" if not found
+	if !hasId {
+		fields = append(fields, "id")
+	}
+	// Add "ver" if not found
+	// Necessary for etag encoding as ver is required
+	if !hasVer {
+		fields = append(fields, "ver")
+	}
+
+	return fields
 }

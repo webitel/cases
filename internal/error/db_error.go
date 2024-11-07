@@ -32,7 +32,7 @@ type DBNoRowsError struct {
 }
 
 func NewDBNoRowsError(id string) *DBNoRowsError {
-	return &DBNoRowsError{DBError: *NewDBError(id, "entity does not exist or you do not have enough permissions to perform the operation")}
+	return &DBNoRowsError{DBError: *NewDBError(id, "entity does not exist")}
 }
 
 // DBUniqueViolationError indicates a unique constraint violation.
