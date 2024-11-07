@@ -13,6 +13,10 @@ import (
 	"github.com/webitel/cases/model"
 )
 
+const (
+	defaultFieldsPriority = "id, name, description"
+)
+
 type PriorityService struct {
 	app *App
 }
@@ -92,7 +96,7 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 
 	fields := req.Fields
 	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsStatus, ", ")
+		fields = strings.Split(defaultFieldsPriority, ", ")
 	}
 
 	// Use default page size and page number if not provided

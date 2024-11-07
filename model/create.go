@@ -14,6 +14,7 @@ type CreateOptions struct {
 	Time            time.Time
 	Fields          []string
 	Ids             []int64
+	ID              int64
 }
 
 func (rpc *CreateOptions) CurrentTime() time.Time {

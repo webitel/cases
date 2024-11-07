@@ -7,11 +7,10 @@ go 1.23.0
 //)
 
 require (
-	buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20241106124357-9fdd668c1b5c.1
-	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.35.1-20241105122241-a1d959115d35.1
+	buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20241107170620-565bfa0c07c7.1
+	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.35.1-20241107170620-565bfa0c07c7.1
 	buf.build/gen/go/webitel/general/protocolbuffers/go v1.35.1-20240527133232-b30251c3af1c.1
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240725111140-8ade8003e454.2
-	github.com/webitel/cases/api/cases v0.0.0-20241105162143-aa9f2dbc1af7
 	google.golang.org/protobuf v1.35.1
 )
 

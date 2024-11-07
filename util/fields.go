@@ -118,3 +118,14 @@ func FieldExists(field string, fields []string) bool {
 	}
 	return false
 }
+
+// ensureIdField ensures that "id" is present in the rpc.Fields.
+func EnsureIdField(fields []string) []string {
+	for _, field := range fields {
+		if field == "id" {
+			return fields // "id" is already present
+		}
+	}
+	// "id" not found, so add it
+	return append(fields, "id")
+}

@@ -10,7 +10,12 @@ import (
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+)
+
+const (
+	defaultFieldsCaseComments = "id, name, description"
 )
 
 type CaseCommentService struct {
@@ -195,15 +200,14 @@ func (c *CaseCommentService) ListComments(
 	return resp, nil
 }
 
-func (c *CaseCommentService) MergeComments(
+func (c *CaseCommentService) PublishComment(
 	ctx context.Context,
-	req *cases.MergeCommentsRequest,
-) (*cases.CaseCommentList, error) {
+	req *cases.PublishCommentRequest,
+) (*cases.CaseComment, error) {
 	if req.CaseEtag == "" {
 		return nil, cerror.NewBadRequestError("case_comment_service.merge_comments.case_etag.required", "Case etag is required")
-	}
-	if len(req.Input) == 0 {
-		return nil, cerror.NewBadRequestError("case_comment_service.merge_comments.input.required", "At least 1 comment is required for merging")
+	} else if req.Input.Text == "" {
+		return nil, cerror.NewBadRequestError("case_comment_service.merge_comments.text.required", "Text is required for each comment")
 	}
 
 	// Get oid of the Case associated with the comments
@@ -212,34 +216,26 @@ func (c *CaseCommentService) MergeComments(
 		return nil, cerror.NewBadRequestError("case_comment_service.locate_comment.invalid_etag", "Invalid etag")
 	}
 
-	// Initialize search options based on the request
-	createOpts := model.NewCreateOptions(ctx)
+	fields := util.FieldsFunc(req.Fields, util.InlineFields)
 
-	// Set the Case ID to the comment
-	createOpts.Ids = []int64{caseID.GetOid()}
-
-	var comm []*cases.CaseComment
-	for _, comment := range req.Input {
-		comm = append(comm, &cases.CaseComment{
-			Text: comment.Text,
-		})
+	if len(fields) == 0 {
+		fields = strings.Split(defaultFieldsCaseComments, ", ")
 	}
 
-	comments, err := c.app.Store.CaseComment().Merge(ctx, createOpts, comm)
+	// Initialize search options based on the request
+	createOpts := model.NewCreateOptions(ctx)
+	// Set the fields to return in the response
+	createOpts.Fields = fields
+
+	// Set the Case ID to the comment
+	createOpts.ID = caseID.GetOid()
+
+	comment, err := c.app.Store.CaseComment().Publish(ctx, createOpts, &cases.CaseComment{Text: req.Input.Text})
 	if err != nil {
 		return nil, cerror.NewInternalError("case_comment_service.merge_comments.merge_error", err.Error())
 	}
 
-	// Prepare response
-	resp := &cases.CaseCommentList{}
-	for _, comment := range comments.Items {
-		// Create a new protobuf CaseComment to merge each comment into
-		protoComment := &cases.CaseComment{}
-		proto.Merge(protoComment, comment)
-		resp.Items = append(resp.Items, protoComment)
-	}
-
-	return resp, nil
+	return comment, nil
 }
 
 func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {

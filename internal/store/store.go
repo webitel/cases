@@ -77,11 +77,9 @@ type LinkCaseStore interface {
 // Comments attribute attached to the case (n:1)
 type CaseCommentStore interface {
 	// Create comment
-	Create(ctx context.Context, rpc *model.CreateOptions, add *_go.CaseComment) (*_go.CaseComment, error)
+	Publish(ctx context.Context, rpc *model.CreateOptions, add *_go.CaseComment) (*_go.CaseComment, error)
 	// List comments
 	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseCommentList, error)
-	// Merge comments
-	Merge(ctx context.Context, req *model.CreateOptions, comments[] *_go.CaseComment) (*_go.CaseCommentList, error)
 	// Update comment
 	Update(ctx context.Context, req *model.UpdateOptions, upd *_go.CaseComment) (*_go.CaseComment, error)
 	// Delete comment
