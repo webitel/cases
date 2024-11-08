@@ -5,8 +5,7 @@ import (
 	"strings"
 	"time"
 
-	api "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
+	api "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -19,6 +18,7 @@ const (
 
 type PriorityService struct {
 	app *App
+	api.UnimplementedPrioritiesServer
 }
 
 // CreatePriority implements api.PrioritiesServer.
@@ -45,7 +45,7 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &general.Lookup{
+	currentU := &api.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -150,7 +150,7 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 	}
 
 	// Define the current user as the updater
-	currentU := &general.Lookup{
+	currentU := &api.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}

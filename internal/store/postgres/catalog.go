@@ -6,10 +6,9 @@ import (
 	"strings"
 	"time"
 
-	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
+	cases "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
@@ -32,7 +31,7 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 	query, args := s.buildCreateCatalogQuery(rpc, add)
 
 	var (
-		createdByLookup, updatedByLookup general.Lookup
+		createdByLookup, updatedByLookup cases.Lookup
 		createdAt, updatedAt             time.Time
 		teamLookups, skillLookups        []byte
 	)
@@ -267,13 +266,13 @@ func (s *CatalogStore) List(
 
 		// Initialize catalog and related fields
 		catalog := &cases.Catalog{
-			Sla:         &general.Lookup{},
-			Status:      &general.Lookup{},
-			CloseReason: &general.Lookup{},
+			Sla:         &cases.Lookup{},
+			Status:      &cases.Lookup{},
+			CloseReason: &cases.Lookup{},
 		}
 
 		var (
-			createdBy, updatedBy                      general.Lookup
+			createdBy, updatedBy                      cases.Lookup
 			createdAt, updatedAt                      time.Time
 			teamLookups, skillLookups, serviceLookups []byte
 			rootID                                    int64
@@ -385,7 +384,7 @@ func (s *CatalogStore) List(
 // If rpc.Fields contains only "-", all fields will be scanned. Otherwise, fields are selectively scanned.
 func (s *CatalogStore) buildCatalogScanArgs(
 	catalog *cases.Catalog, // The catalog object to populate
-	createdBy, updatedBy *general.Lookup, // Lookup objects for created_by and updated_by
+	createdBy, updatedBy *cases.Lookup, // Lookup objects for created_by and updated_by
 	createdAt, updatedAt *time.Time, // Temporary variables for created_at and updated_at
 	teamLookups, skillLookups, serviceLookups *[]byte, // Byte arrays for teams, skills, and services (as JSON or binary)
 	rootId *int64, // Root ID for hierarchy placement
@@ -553,26 +552,26 @@ func (s *CatalogStore) mapServiceData(
 		State:       serviceData["state"].(bool),
 		RootId:      int64(serviceData["root_id"].(float64)),
 		CatalogId:   int64(serviceData["service_catalog_id"].(float64)),
-		Sla: &general.Lookup{
+		Sla: &cases.Lookup{
 			Id:   serviceSlaID,
 			Name: serviceSlaName,
 		},
-		Group: &general.Lookup{
+		Group: &cases.Lookup{
 			Id:   serviceGroupID,
 			Name: serviceGroupName,
 		},
-		Assignee: &general.Lookup{
+		Assignee: &cases.Lookup{
 			Id:   serviceAssigneeID,
 			Name: serviceAssigneeName,
 		},
 		CreatedAt: createdAt,
 		UpdatedAt: updatedAt,
-		CreatedBy: &general.Lookup{
+		CreatedBy: &cases.Lookup{
 			Id:   createdByID,
 			Name: createdByName,
 		},
 
-		UpdatedBy: &general.Lookup{
+		UpdatedBy: &cases.Lookup{
 			Id:   updatedByID,
 			Name: updatedByName,
 		},
@@ -1918,7 +1917,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 	}
 
 	var (
-		createdByLookup, updatedByLookup general.Lookup
+		createdByLookup, updatedByLookup cases.Lookup
 		createdAt, updatedAt             time.Time
 		teamLookups, skillLookups        []byte
 	)

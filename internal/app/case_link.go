@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	cases "github.com/webitel/cases/api/cases"
 	casegraph "github.com/webitel/cases/internal/app/graph"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -15,6 +15,7 @@ import (
 
 type CaseLinkService struct {
 	app *App
+	cases.UnimplementedCaseLinksServer
 }
 
 func (c *CaseLinkService) LocateLink(ctx context.Context, request *cases.LocateLinkRequest) (*cases.CaseLink, error) {

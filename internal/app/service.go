@@ -4,8 +4,7 @@ import (
 	"context"
 	"time"
 
-	api "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
+	api "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -13,6 +12,7 @@ import (
 
 type ServiceService struct {
 	app *App
+	api.UnimplementedServicesServer
 }
 
 // CreateService implements cases.ServicesServer.
@@ -39,7 +39,7 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &general.Lookup{
+	currentU := &api.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -49,9 +49,9 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		Name:        req.Name,
 		Description: req.Description,
 		Code:        req.Code,
-		Sla:         &general.Lookup{Id: req.SlaId},
-		Group:       &general.Lookup{Id: req.GroupId},
-		Assignee:    &general.Lookup{Id: req.AssigneeId},
+		Sla:         &api.Lookup{Id: req.SlaId},
+		Group:       &api.Lookup{Id: req.GroupId},
+		Assignee:    &api.Lookup{Id: req.AssigneeId},
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
 		State:       req.State,
@@ -211,7 +211,7 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
-	u := &general.Lookup{
+	u := &api.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -221,9 +221,9 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
 		Code:        req.Input.Code,
-		Sla:         &general.Lookup{Id: req.Input.SlaId},
-		Group:       &general.Lookup{Id: req.Input.GroupId},
-		Assignee:    &general.Lookup{Id: req.Input.AssigneeId},
+		Sla:         &api.Lookup{Id: req.Input.SlaId},
+		Group:       &api.Lookup{Id: req.Input.GroupId},
+		Assignee:    &api.Lookup{Id: req.Input.AssigneeId},
 		UpdatedBy:   u,
 		State:       req.Input.State,
 		RootId:      req.Input.RootId,

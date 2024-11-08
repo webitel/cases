@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	cases "github.com/webitel/cases/api/cases"
 
 	cerror "github.com/webitel/cases/internal/error"
 )
@@ -33,6 +33,7 @@ sql scripts structure
 
 type CaseService struct {
 	app *App
+	cases.UnimplementedCasesServer
 }
 
 /*

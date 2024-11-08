@@ -3,12 +3,13 @@ package app
 import (
 	"context"
 
-	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
 )
 
 type RelatedCaseService struct {
 	app *App
+	cases.UnimplementedRelatedCasesServer
 }
 
 func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, request *cases.LocateRelatedCaseRequest) (*cases.RelatedCase, error) {

@@ -5,8 +5,7 @@ import (
 	"strings"
 	"time"
 
-	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
+	cases "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -14,6 +13,7 @@ import (
 
 type CatalogService struct {
 	app *App
+	cases.UnimplementedCatalogsServer
 }
 
 const (
@@ -49,7 +49,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &general.Lookup{
+	currentU := &cases.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -60,25 +60,25 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		Description: req.Description,
 		Prefix:      req.Prefix,
 		Code:        req.Code,
-		Sla:         &general.Lookup{Id: req.SlaId},
-		Status:      &general.Lookup{Id: req.StatusId},
-		CloseReason: &general.Lookup{Id: req.CloseReasonId},
+		Sla:         &cases.Lookup{Id: req.SlaId},
+		Status:      &cases.Lookup{Id: req.StatusId},
+		CloseReason: &cases.Lookup{Id: req.CloseReasonId},
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
 	}
 
 	// Handle multiselect fields: teams and skills
 	if len(req.TeamIds) > 0 {
-		catalog.Teams = make([]*general.Lookup, len(req.TeamIds))
+		catalog.Teams = make([]*cases.Lookup, len(req.TeamIds))
 		for i, teamId := range req.TeamIds {
-			catalog.Teams[i] = &general.Lookup{Id: teamId}
+			catalog.Teams[i] = &cases.Lookup{Id: teamId}
 		}
 	}
 
 	if len(req.SkillIds) > 0 {
-		catalog.Skills = make([]*general.Lookup, len(req.SkillIds))
+		catalog.Skills = make([]*cases.Lookup, len(req.SkillIds))
 		for i, skillId := range req.SkillIds {
-			catalog.Skills[i] = &general.Lookup{Id: skillId}
+			catalog.Skills[i] = &cases.Lookup{Id: skillId}
 		}
 	}
 
@@ -232,7 +232,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
-	u := &general.Lookup{
+	u := &cases.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -244,25 +244,25 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		Description: req.Input.Description,
 		Prefix:      req.Input.Prefix,
 		Code:        req.Input.Code,
-		Sla:         &general.Lookup{Id: req.Input.SlaId},
-		Status:      &general.Lookup{Id: req.Input.StatusId},
-		CloseReason: &general.Lookup{Id: req.Input.CloseReasonId},
+		Sla:         &cases.Lookup{Id: req.Input.SlaId},
+		Status:      &cases.Lookup{Id: req.Input.StatusId},
+		CloseReason: &cases.Lookup{Id: req.Input.CloseReasonId},
 		UpdatedBy:   u,
 	}
 
 	// Add teams if provided
 	if len(req.Input.TeamIds) > 0 {
-		catalog.Teams = make([]*general.Lookup, len(req.Input.TeamIds))
+		catalog.Teams = make([]*cases.Lookup, len(req.Input.TeamIds))
 		for i, teamId := range req.Input.TeamIds {
-			catalog.Teams[i] = &general.Lookup{Id: teamId}
+			catalog.Teams[i] = &cases.Lookup{Id: teamId}
 		}
 	}
 
 	// Add skills if provided
 	if len(req.Input.SkillIds) > 0 {
-		catalog.Skills = make([]*general.Lookup, len(req.Input.SkillIds))
+		catalog.Skills = make([]*cases.Lookup, len(req.Input.SkillIds))
 		for i, skillId := range req.Input.SkillIds {
-			catalog.Skills[i] = &general.Lookup{Id: skillId}
+			catalog.Skills[i] = &cases.Lookup{Id: skillId}
 		}
 	}
 

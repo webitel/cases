@@ -3,7 +3,7 @@ package app
 import (
 	"log"
 
-	cases "buf.build/gen/go/webitel/cases/grpc/go/_gogrpc"
+	cases "github.com/webitel/cases/api/cases"
 	"google.golang.org/grpc"
 )
 

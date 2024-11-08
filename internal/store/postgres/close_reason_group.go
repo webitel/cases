@@ -5,10 +5,9 @@ import (
 	"strings"
 	"time"
 
-	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
+	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	db "github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
@@ -32,7 +31,7 @@ func (s CloseReasonGroup) Create(rpc *model.CreateOptions, add *_go.CloseReasonG
 	}
 
 	var (
-		createdByLookup, updatedByLookup general.Lookup
+		createdByLookup, updatedByLookup _go.Lookup
 		createdAt, updatedAt             time.Time
 	)
 
@@ -87,7 +86,7 @@ func (s CloseReasonGroup) List(rpc *model.SearchOptions) (*_go.CloseReasonGroupL
 		l := &_go.CloseReasonGroup{}
 
 		var (
-			createdBy, updatedBy         general.Lookup
+			createdBy, updatedBy         _go.Lookup
 			tempUpdatedAt, tempCreatedAt time.Time
 			scanArgs                     []interface{}
 		)
@@ -175,7 +174,7 @@ func (s CloseReasonGroup) Update(rpc *model.UpdateOptions, l *_go.CloseReasonGro
 	}
 
 	var (
-		createdBy, updatedByLookup general.Lookup
+		createdBy, updatedByLookup _go.Lookup
 		createdAt, updatedAt       time.Time
 	)
 

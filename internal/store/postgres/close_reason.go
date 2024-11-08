@@ -5,10 +5,9 @@ import (
 	"strings"
 	"time"
 
-	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
+	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
@@ -32,7 +31,7 @@ func (s *CloseReason) Create(rpc *model.CreateOptions, add *_go.CloseReason) (*_
 	}
 
 	var (
-		createdByLookup, updatedByLookup general.Lookup
+		createdByLookup, updatedByLookup _go.Lookup
 		createdAt, updatedAt             time.Time
 	)
 
@@ -90,7 +89,7 @@ func (s *CloseReason) List(rpc *model.SearchOptions, closeReasonId int64) (*_go.
 		l := &_go.CloseReason{}
 
 		var (
-			createdBy, updatedBy         general.Lookup
+			createdBy, updatedBy         _go.Lookup
 			tempCreatedAt, tempUpdatedAt time.Time
 		)
 
@@ -149,7 +148,7 @@ func (s *CloseReason) Update(rpc *model.UpdateOptions, l *_go.CloseReason) (*_go
 	}
 
 	var (
-		createdBy, updatedBy general.Lookup
+		createdBy, updatedBy _go.Lookup
 		createdAt, updatedAt time.Time
 	)
 
@@ -357,7 +356,7 @@ WHERE id = ANY($1) AND dc = $2
 )
 
 // buildScanArgs prepares the arguments for scanning SQL rows.
-func (s CloseReason) buildScanArgs(fields []string, r *_go.CloseReason, createdBy, updatedBy *general.Lookup, tempCreatedAt, tempUpdatedAt *time.Time) []interface{} {
+func (s CloseReason) buildScanArgs(fields []string, r *_go.CloseReason, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt *time.Time) []interface{} {
 	var scanArgs []interface{}
 
 	for _, field := range fields {
@@ -382,7 +381,7 @@ func (s CloseReason) buildScanArgs(fields []string, r *_go.CloseReason, createdB
 }
 
 // populateReasonFields populates the Reason struct with the scanned values.
-func (s CloseReason) populateCloseReasonFields(fields []string, r *_go.CloseReason, createdBy, updatedBy *general.Lookup, tempCreatedAt, tempUpdatedAt time.Time) {
+func (s CloseReason) populateCloseReasonFields(fields []string, r *_go.CloseReason, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt time.Time) {
 	if s.containsField(fields, "created_by") {
 		r.CreatedBy = createdBy
 	}

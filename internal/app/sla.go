@@ -5,8 +5,7 @@ import (
 	"strings"
 	"time"
 
-	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
+	cases "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -15,6 +14,7 @@ import (
 
 type SLAService struct {
 	app *App
+	cases.UnimplementedSLAsServer
 }
 
 const (
@@ -50,7 +50,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &general.Lookup{
+	currentU := &cases.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -61,7 +61,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 		Description: req.Description,
 		ValidFrom:   req.ValidFrom.AsTime().Unix(),
 		ValidTo:     req.ValidTo.AsTime().Unix(),
-		Calendar:    &general.Lookup{Id: req.CalendarId},
+		Calendar:    &cases.Lookup{Id: req.CalendarId},
 		ReactionTime: &cases.ReactionTime{
 			Hours:   req.ReactionTime.Hours,
 			Minutes: req.ReactionTime.Minutes,
@@ -237,7 +237,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 	}
 
 	// Define the current user as the updater
-	u := &general.Lookup{
+	u := &cases.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -257,7 +257,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		Description: req.Input.Description,
 		ValidFrom:   req.Input.ValidFrom.AsTime().Unix(),
 		ValidTo:     req.Input.ValidTo.AsTime().Unix(),
-		Calendar:    &general.Lookup{Id: req.Input.CalendarId},
+		Calendar:    &cases.Lookup{Id: req.Input.CalendarId},
 		ReactionTime: &cases.ReactionTime{
 			Hours:   req.Input.ReactionTime.Hours,
 			Minutes: req.Input.ReactionTime.Minutes,

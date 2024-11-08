@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	cases "github.com/webitel/cases/api/cases"
 	"google.golang.org/protobuf/proto"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -20,6 +20,7 @@ const (
 
 type CaseCommentService struct {
 	app *App
+	cases.UnimplementedCaseCommentsServer
 }
 
 func (c *CaseCommentService) LocateComment(

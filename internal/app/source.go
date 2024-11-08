@@ -4,8 +4,7 @@ import (
 	"context"
 	"strings"
 
-	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
+	_go "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -14,6 +13,7 @@ import (
 
 type SourceService struct {
 	app *App
+	_go.UnimplementedSourcesServer
 }
 
 func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRequest) (*_go.Source, error) {
@@ -40,7 +40,7 @@ func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRe
 	}
 
 	// Define the current user as the creator and updater
-	currentU := &general.Lookup{
+	currentU := &_go.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}
@@ -168,7 +168,7 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 	}
 
 	// Define the current user as the updater
-	currentU := &general.Lookup{
+	currentU := &_go.Lookup{
 		Id:   session.GetUserId(),
 		Name: session.GetUserName(),
 	}

@@ -3,11 +3,13 @@ package store
 import (
 	"context"
 
-	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
 	"github.com/jackc/pgx/v5/pgxpool"
+	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
+
+type ScanFunc func(src any) error
 
 // Store is an interface that defines all the methods and properties that a store should implement in Cases service
 
@@ -63,15 +65,13 @@ type CaseStore interface {
 // RelatedCases attribute attached to the case (n:1)
 type LinkCaseStore interface {
 	// Create link
-	Create(ctx context.Context, rpc *model.CreateOptions, add *_go.CaseLink) (*_go.CaseLink, error)
+	Create(rpc *model.CreateOptions, caseId int64, add *_go.InputCaseLink) (*_go.CaseLink, error)
 	// List links
-	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseLinkList, error)
-	// Merge links
-	Merge(ctx context.Context, req *model.CreateOptions) (*_go.CaseLinkList, error)
+	List(rpc *model.SearchOptions) (*_go.CaseLinkList, error)
 	// Update link
-	Update(ctx context.Context, req *model.UpdateOptions) (*_go.CaseLink, error)
+	Update(req *model.UpdateOptions, upd *_go.InputCaseLink) (*_go.CaseLink, error)
 	// Delete link
-	Delete(ctx context.Context, req *model.DeleteOptions) (*_go.CaseLink, error)
+	Delete(req *model.DeleteOptions) (*_go.CaseLink, error)
 }
 
 // Comments attribute attached to the case (n:1)

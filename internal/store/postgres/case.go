@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 
-	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
+	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"

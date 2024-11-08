@@ -5,10 +5,9 @@ import (
 	"strings"
 	"time"
 
-	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
+	cases "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
@@ -30,9 +29,9 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 	query, args := s.buildCreateServiceQuery(rpc, add)
 
 	var (
-		createdByLookup, updatedByLookup general.Lookup
+		createdByLookup, updatedByLookup cases.Lookup
 		createdAt, updatedAt             time.Time
-		groupLookup, assigneeLookup      general.Lookup
+		groupLookup, assigneeLookup      cases.Lookup
 	)
 
 	err := db.QueryRow(rpc.Context, query, args...).Scan(
@@ -130,11 +129,11 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 
 		// Create service and related lookup objects
 		service := &cases.Service{
-			Sla:      &general.Lookup{},
-			Group:    &general.Lookup{},
-			Assignee: &general.Lookup{},
+			Sla:      &cases.Lookup{},
+			Group:    &cases.Lookup{},
+			Assignee: &cases.Lookup{},
 		}
-		createdBy, updatedBy := &general.Lookup{}, &general.Lookup{}
+		createdBy, updatedBy := &cases.Lookup{}, &cases.Lookup{}
 		var createdAt, updatedAt time.Time
 
 		// Build the scan arguments for the current row
@@ -185,9 +184,9 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 	}
 
 	var (
-		createdByLookup, updatedByLookup general.Lookup
+		createdByLookup, updatedByLookup cases.Lookup
 		createdAt, updatedAt             time.Time
-		groupLookup, assigneeLookup      general.Lookup
+		groupLookup, assigneeLookup      cases.Lookup
 	)
 
 	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
@@ -465,9 +464,9 @@ FROM updated_service AS service
 // buildServiceScanArgs prepares scan arguments for populating a Service object.
 func (s *ServiceStore) buildServiceScanArgs(
 	service *cases.Service, // The service object to populate
-	createdBy, updatedBy *general.Lookup, // Lookup objects for created_by and updated_by
+	createdBy, updatedBy *cases.Lookup, // Lookup objects for created_by and updated_by
 	createdAt, updatedAt *time.Time, // Temporary variables for created_at and updated_at
-	groupLookup, assigneeLookup *general.Lookup, // Lookup objects for group and assignee
+	groupLookup, assigneeLookup *cases.Lookup, // Lookup objects for group and assignee
 ) []interface{} {
 	return []interface{}{
 		// Service fields

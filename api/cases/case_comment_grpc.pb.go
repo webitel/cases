@@ -19,23 +19,29 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CaseComments_LocateComment_FullMethodName = "/webitel.cases.CaseComments/LocateComment"
-	CaseComments_UpdateComment_FullMethodName = "/webitel.cases.CaseComments/UpdateComment"
-	CaseComments_DeleteComment_FullMethodName = "/webitel.cases.CaseComments/DeleteComment"
-	CaseComments_ListComments_FullMethodName  = "/webitel.cases.CaseComments/ListComments"
-	CaseComments_MergeComments_FullMethodName = "/webitel.cases.CaseComments/MergeComments"
+	CaseComments_LocateComment_FullMethodName  = "/webitel.cases.CaseComments/LocateComment"
+	CaseComments_UpdateComment_FullMethodName  = "/webitel.cases.CaseComments/UpdateComment"
+	CaseComments_DeleteComment_FullMethodName  = "/webitel.cases.CaseComments/DeleteComment"
+	CaseComments_ListComments_FullMethodName   = "/webitel.cases.CaseComments/ListComments"
+	CaseComments_PublishComment_FullMethodName = "/webitel.cases.CaseComments/PublishComment"
 )
 
 // CaseCommentsClient is the client API for CaseComments service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Service to manage case comments.
 type CaseCommentsClient interface {
-	// Itself
+	// Retrieves a specific comment based on its etag.
 	LocateComment(ctx context.Context, in *LocateCommentRequest, opts ...grpc.CallOption) (*CaseComment, error)
+	// Updates a specific comment based on the provided data.
 	UpdateComment(ctx context.Context, in *UpdateCommentRequest, opts ...grpc.CallOption) (*CaseComment, error)
+	// Deletes a specific comment based on its etag.
 	DeleteComment(ctx context.Context, in *DeleteCommentRequest, opts ...grpc.CallOption) (*CaseComment, error)
+	// Lists all comments associated with a specific case.
 	ListComments(ctx context.Context, in *ListCommentsRequest, opts ...grpc.CallOption) (*CaseCommentList, error)
-	MergeComments(ctx context.Context, in *MergeCommentsRequest, opts ...grpc.CallOption) (*CaseCommentList, error)
+	// Publish comment into a case.
+	PublishComment(ctx context.Context, in *PublishCommentRequest, opts ...grpc.CallOption) (*CaseComment, error)
 }
 
 type caseCommentsClient struct {
@@ -86,10 +92,10 @@ func (c *caseCommentsClient) ListComments(ctx context.Context, in *ListCommentsR
 	return out, nil
 }
 
-func (c *caseCommentsClient) MergeComments(ctx context.Context, in *MergeCommentsRequest, opts ...grpc.CallOption) (*CaseCommentList, error) {
+func (c *caseCommentsClient) PublishComment(ctx context.Context, in *PublishCommentRequest, opts ...grpc.CallOption) (*CaseComment, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CaseCommentList)
-	err := c.cc.Invoke(ctx, CaseComments_MergeComments_FullMethodName, in, out, cOpts...)
+	out := new(CaseComment)
+	err := c.cc.Invoke(ctx, CaseComments_PublishComment_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -99,13 +105,19 @@ func (c *caseCommentsClient) MergeComments(ctx context.Context, in *MergeComment
 // CaseCommentsServer is the server API for CaseComments service.
 // All implementations must embed UnimplementedCaseCommentsServer
 // for forward compatibility.
+//
+// Service to manage case comments.
 type CaseCommentsServer interface {
-	// Itself
+	// Retrieves a specific comment based on its etag.
 	LocateComment(context.Context, *LocateCommentRequest) (*CaseComment, error)
+	// Updates a specific comment based on the provided data.
 	UpdateComment(context.Context, *UpdateCommentRequest) (*CaseComment, error)
+	// Deletes a specific comment based on its etag.
 	DeleteComment(context.Context, *DeleteCommentRequest) (*CaseComment, error)
+	// Lists all comments associated with a specific case.
 	ListComments(context.Context, *ListCommentsRequest) (*CaseCommentList, error)
-	MergeComments(context.Context, *MergeCommentsRequest) (*CaseCommentList, error)
+	// Publish comment into a case.
+	PublishComment(context.Context, *PublishCommentRequest) (*CaseComment, error)
 	mustEmbedUnimplementedCaseCommentsServer()
 }
 
@@ -128,8 +140,8 @@ func (UnimplementedCaseCommentsServer) DeleteComment(context.Context, *DeleteCom
 func (UnimplementedCaseCommentsServer) ListComments(context.Context, *ListCommentsRequest) (*CaseCommentList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListComments not implemented")
 }
-func (UnimplementedCaseCommentsServer) MergeComments(context.Context, *MergeCommentsRequest) (*CaseCommentList, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method MergeComments not implemented")
+func (UnimplementedCaseCommentsServer) PublishComment(context.Context, *PublishCommentRequest) (*CaseComment, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PublishComment not implemented")
 }
 func (UnimplementedCaseCommentsServer) mustEmbedUnimplementedCaseCommentsServer() {}
 func (UnimplementedCaseCommentsServer) testEmbeddedByValue()                      {}
@@ -224,20 +236,20 @@ func _CaseComments_ListComments_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CaseComments_MergeComments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MergeCommentsRequest)
+func _CaseComments_PublishComment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishCommentRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(CaseCommentsServer).MergeComments(ctx, in)
+		return srv.(CaseCommentsServer).PublishComment(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: CaseComments_MergeComments_FullMethodName,
+		FullMethod: CaseComments_PublishComment_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CaseCommentsServer).MergeComments(ctx, req.(*MergeCommentsRequest))
+		return srv.(CaseCommentsServer).PublishComment(ctx, req.(*PublishCommentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -266,8 +278,8 @@ var CaseComments_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _CaseComments_ListComments_Handler,
 		},
 		{
-			MethodName: "MergeComments",
-			Handler:    _CaseComments_MergeComments_Handler,
+			MethodName: "PublishComment",
+			Handler:    _CaseComments_PublishComment_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

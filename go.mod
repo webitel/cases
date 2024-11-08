@@ -7,17 +7,12 @@ go 1.23.0
 //)
 
 require (
-	buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20241107223652-4ae2d012b23d.1
-	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.35.1-20241107223652-4ae2d012b23d.1
-	buf.build/gen/go/webitel/general/protocolbuffers/go v1.35.1-20240527133232-b30251c3af1c.1
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240725111140-8ade8003e454.2
 	google.golang.org/protobuf v1.35.1
 )
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 // indirect
-	buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.35.1-20240617172850-a48fcebcf8f1.1 // indirect
-	buf.build/gen/go/webitel/general/grpc/go v1.5.1-20240527133232-b30251c3af1c.1 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -104,7 +99,7 @@ require (
 	github.com/nicksnyder/go-i18n v1.10.3
 	github.com/rabbitmq/amqp091-go v1.10.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.3.0
-	go.opentelemetry.io/otel/log v0.5.0
+	go.opentelemetry.io/otel/log v0.5.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.29.0
 	google.golang.org/grpc v1.67.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect

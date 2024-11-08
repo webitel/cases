@@ -7,7 +7,6 @@
 package cases
 
 import (
-	_go "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	_ "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	_ "google.golang.org/genproto/googleapis/api/visibility"
@@ -458,9 +457,9 @@ type Case struct {
 	Id                int64            `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Ver               int32            `protobuf:"varint,2,opt,name=ver,proto3" json:"ver,omitempty"`
 	Etag              string           `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"` // main field required for read, update and delete
-	CreatedBy         *_go.Lookup      `protobuf:"bytes,4,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	CreatedBy         *Lookup          `protobuf:"bytes,4,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
 	CreatedAt         int64            `protobuf:"varint,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // unixmilli
-	UpdatedBy         *_go.Lookup      `protobuf:"bytes,6,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
+	UpdatedBy         *Lookup          `protobuf:"bytes,6,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
 	UpdatedAt         int64            `protobuf:"varint,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // unixmilli
 	Name              string           `protobuf:"bytes,8,opt,name=name,proto3" json:"name,omitempty"`                             // name of the case, formed by the prefix defined in Catalog and int, in docs uses as id
 	Subject           string           `protobuf:"bytes,9,opt,name=subject,proto3" json:"subject,omitempty"`
@@ -468,25 +467,25 @@ type Case struct {
 	ContactInfo       string           `protobuf:"bytes,11,opt,name=contact_info,json=contactInfo,proto3" json:"contact_info,omitempty"`                      // free-form text to describe contact information
 	PlannedReactionAt int64            `protobuf:"varint,12,opt,name=planned_reaction_at,json=plannedReactionAt,proto3" json:"planned_reaction_at,omitempty"` // planned reaction time calculated by sla and conditions, taking into account the calendar (unixmilli)
 	PlannedResolveAt  int64            `protobuf:"varint,13,opt,name=planned_resolve_at,json=plannedResolveAt,proto3" json:"planned_resolve_at,omitempty"`    // planned resolve time calculated on-flight by sla and conditions, taking into account the calendar (unixmilli)
-	Status            *_go.Lookup      `protobuf:"bytes,14,opt,name=status,proto3" json:"status,omitempty"`                                                   // initialized from service/subservice of the catalog, should not be changed when service changed
-	CloseReasonGroup  *_go.Lookup      `protobuf:"bytes,15,opt,name=close_reason_group,json=closeReasonGroup,proto3" json:"close_reason_group,omitempty"`     // defines what close reason lookup we should use for this case, should not be changed when service changed
-	Author            *_go.Lookup      `protobuf:"bytes,16,opt,name=author,proto3" json:"author,omitempty"`                                                   // contact that created the case
-	Assignee          *_go.Lookup      `protobuf:"bytes,17,opt,name=assignee,proto3" json:"assignee,omitempty"`                                               // contact that assigned to resolve this case (optional)
-	Reporter          *_go.Lookup      `protobuf:"bytes,18,opt,name=reporter,proto3" json:"reporter,omitempty"`                                               // contact that reported that issue, if null - anonymous contact
-	Impacted          *_go.Lookup      `protobuf:"bytes,19,opt,name=impacted,proto3" json:"impacted,omitempty"`                                               // contact that can be impacted by this case, by default the reporter of the case, can be null if reporter is anonymous contact
-	Group             *_go.Lookup      `protobuf:"bytes,20,opt,name=group,proto3" json:"group,omitempty"`                                                     // contact group from the service (optional)
-	Priority          *_go.Lookup      `protobuf:"bytes,21,opt,name=priority,proto3" json:"priority,omitempty"`                                               // priority
-	Source            *_go.Lookup      `protobuf:"bytes,22,opt,name=source,proto3" json:"source,omitempty"`                                                   // source of the case
-	StatusCondition   *_go.Lookup      `protobuf:"bytes,23,opt,name=status_condition,json=statusCondition,proto3" json:"status_condition,omitempty"`          // case state value from the status_lookup
+	Status            *Lookup          `protobuf:"bytes,14,opt,name=status,proto3" json:"status,omitempty"`                                                   // initialized from service/subservice of the catalog, should not be changed when service changed
+	CloseReasonGroup  *Lookup          `protobuf:"bytes,15,opt,name=close_reason_group,json=closeReasonGroup,proto3" json:"close_reason_group,omitempty"`     // defines what close reason lookup we should use for this case, should not be changed when service changed
+	Author            *Lookup          `protobuf:"bytes,16,opt,name=author,proto3" json:"author,omitempty"`                                                   // contact that created the case
+	Assignee          *Lookup          `protobuf:"bytes,17,opt,name=assignee,proto3" json:"assignee,omitempty"`                                               // contact that assigned to resolve this case (optional)
+	Reporter          *Lookup          `protobuf:"bytes,18,opt,name=reporter,proto3" json:"reporter,omitempty"`                                               // contact that reported that issue, if null - anonymous contact
+	Impacted          *Lookup          `protobuf:"bytes,19,opt,name=impacted,proto3" json:"impacted,omitempty"`                                               // contact that can be impacted by this case, by default the reporter of the case, can be null if reporter is anonymous contact
+	Group             *Lookup          `protobuf:"bytes,20,opt,name=group,proto3" json:"group,omitempty"`                                                     // contact group from the service (optional)
+	Priority          *Lookup          `protobuf:"bytes,21,opt,name=priority,proto3" json:"priority,omitempty"`                                               // priority
+	Source            *Lookup          `protobuf:"bytes,22,opt,name=source,proto3" json:"source,omitempty"`                                                   // source of the case
+	StatusCondition   *Lookup          `protobuf:"bytes,23,opt,name=status_condition,json=statusCondition,proto3" json:"status_condition,omitempty"`          // case state value from the status_lookup
 	Close             *CloseInfo       `protobuf:"bytes,24,opt,name=close,proto3" json:"close,omitempty"`                                                     // close information, required when case is in final state
 	Rate              *RateInfo        `protobuf:"bytes,25,opt,name=rate,proto3" json:"rate,omitempty"`                                                       // rating information, not required (filled by internal services)
 	Timing            *TimingInfo      `protobuf:"bytes,26,opt,name=timing,proto3" json:"timing,omitempty"`                                                   // planned timings calculated on-flight by the SLA and it's conditions
 	SlaCondition      []*SLACondition  `protobuf:"bytes,27,rep,name=sla_condition,json=slaCondition,proto3" json:"sla_condition,omitempty"`
-	Service           *_go.Lookup      `protobuf:"bytes,28,opt,name=service,proto3" json:"service,omitempty"`
+	Service           *Lookup          `protobuf:"bytes,28,opt,name=service,proto3" json:"service,omitempty"`
 	Comments          *CaseCommentList `protobuf:"bytes,29,opt,name=comments,proto3" json:"comments,omitempty"` // all case's comments
 	Related           *RelatedCaseList `protobuf:"bytes,30,opt,name=related,proto3" json:"related,omitempty"`   // related cases
 	Links             *CaseLinkList    `protobuf:"bytes,31,opt,name=links,proto3" json:"links,omitempty"`       // attached links
-	Sla               *_go.Lookup      `protobuf:"bytes,33,opt,name=sla,proto3" json:"sla,omitempty"`           // sla from the service
+	Sla               *Lookup          `protobuf:"bytes,33,opt,name=sla,proto3" json:"sla,omitempty"`           // sla from the service
 }
 
 func (x *Case) Reset() {
@@ -540,7 +539,7 @@ func (x *Case) GetEtag() string {
 	return ""
 }
 
-func (x *Case) GetCreatedBy() *_go.Lookup {
+func (x *Case) GetCreatedBy() *Lookup {
 	if x != nil {
 		return x.CreatedBy
 	}
@@ -554,7 +553,7 @@ func (x *Case) GetCreatedAt() int64 {
 	return 0
 }
 
-func (x *Case) GetUpdatedBy() *_go.Lookup {
+func (x *Case) GetUpdatedBy() *Lookup {
 	if x != nil {
 		return x.UpdatedBy
 	}
@@ -610,70 +609,70 @@ func (x *Case) GetPlannedResolveAt() int64 {
 	return 0
 }
 
-func (x *Case) GetStatus() *_go.Lookup {
+func (x *Case) GetStatus() *Lookup {
 	if x != nil {
 		return x.Status
 	}
 	return nil
 }
 
-func (x *Case) GetCloseReasonGroup() *_go.Lookup {
+func (x *Case) GetCloseReasonGroup() *Lookup {
 	if x != nil {
 		return x.CloseReasonGroup
 	}
 	return nil
 }
 
-func (x *Case) GetAuthor() *_go.Lookup {
+func (x *Case) GetAuthor() *Lookup {
 	if x != nil {
 		return x.Author
 	}
 	return nil
 }
 
-func (x *Case) GetAssignee() *_go.Lookup {
+func (x *Case) GetAssignee() *Lookup {
 	if x != nil {
 		return x.Assignee
 	}
 	return nil
 }
 
-func (x *Case) GetReporter() *_go.Lookup {
+func (x *Case) GetReporter() *Lookup {
 	if x != nil {
 		return x.Reporter
 	}
 	return nil
 }
 
-func (x *Case) GetImpacted() *_go.Lookup {
+func (x *Case) GetImpacted() *Lookup {
 	if x != nil {
 		return x.Impacted
 	}
 	return nil
 }
 
-func (x *Case) GetGroup() *_go.Lookup {
+func (x *Case) GetGroup() *Lookup {
 	if x != nil {
 		return x.Group
 	}
 	return nil
 }
 
-func (x *Case) GetPriority() *_go.Lookup {
+func (x *Case) GetPriority() *Lookup {
 	if x != nil {
 		return x.Priority
 	}
 	return nil
 }
 
-func (x *Case) GetSource() *_go.Lookup {
+func (x *Case) GetSource() *Lookup {
 	if x != nil {
 		return x.Source
 	}
 	return nil
 }
 
-func (x *Case) GetStatusCondition() *_go.Lookup {
+func (x *Case) GetStatusCondition() *Lookup {
 	if x != nil {
 		return x.StatusCondition
 	}
@@ -708,7 +707,7 @@ func (x *Case) GetSlaCondition() []*SLACondition {
 	return nil
 }
 
-func (x *Case) GetService() *_go.Lookup {
+func (x *Case) GetService() *Lookup {
 	if x != nil {
 		return x.Service
 	}
@@ -736,7 +735,7 @@ func (x *Case) GetLinks() *CaseLinkList {
 	return nil
 }
 
-func (x *Case) GetSla() *_go.Lookup {
+func (x *Case) GetSla() *Lookup {
 	if x != nil {
 		return x.Sla
 	}
@@ -748,8 +747,8 @@ type CloseInfo struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	CloseResult string      `protobuf:"bytes,1,opt,name=close_result,json=closeResult,proto3" json:"close_result,omitempty"` // rich text with comment on resulting case
-	CloseReason *_go.Lookup `protobuf:"bytes,2,opt,name=close_reason,json=closeReason,proto3" json:"close_reason,omitempty"` // actual close reason value from the close_reason lookup
+	CloseResult string  `protobuf:"bytes,1,opt,name=close_result,json=closeResult,proto3" json:"close_result,omitempty"` // rich text with comment on resulting case
+	CloseReason *Lookup `protobuf:"bytes,2,opt,name=close_reason,json=closeReason,proto3" json:"close_reason,omitempty"` // actual close reason value from the close_reason lookup
 }
 
 func (x *CloseInfo) Reset() {
@@ -789,7 +788,7 @@ func (x *CloseInfo) GetCloseResult() string {
 	return ""
 }
 
-func (x *CloseInfo) GetCloseReason() *_go.Lookup {
+func (x *CloseInfo) GetCloseReason() *Lookup {
 	if x != nil {
 		return x.CloseReason
 	}
@@ -928,14 +927,14 @@ type InputCase struct {
 	Subject     string              `protobuf:"bytes,3,opt,name=subject,proto3" json:"subject,omitempty"`                             // create: required;
 	Description string              `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`                     // create: not required;
 	ContactInfo string              `protobuf:"bytes,5,opt,name=contact_info,json=contactInfo,proto3" json:"contact_info,omitempty"`  // create: not required;
-	Assignee    *_go.Lookup         `protobuf:"bytes,6,opt,name=assignee,proto3" json:"assignee,omitempty"`                           // create: not required, default from service or set by UI;
-	Reporter    *_go.Lookup         `protobuf:"bytes,7,opt,name=reporter,proto3" json:"reporter,omitempty"`                           // create: required (if empty recognize as anonymous contact);
-	Impacted    *_go.Lookup         `protobuf:"bytes,8,opt,name=impacted,proto3" json:"impacted,omitempty"`                           // create: required, default is reporter or ui (if empty recognize as anonymous);
-	Group       *_go.Lookup         `protobuf:"bytes,9,opt,name=group,proto3" json:"group,omitempty"`                                 // create: not required, default from service or set by UI;
-	Status      *_go.Lookup         `protobuf:"bytes,10,opt,name=status,proto3" json:"status,omitempty"`                              // create: not required, default initial value from status lookup or ui;
-	CloseReason *_go.Lookup         `protobuf:"bytes,11,opt,name=close_reason,json=closeReason,proto3" json:"close_reason,omitempty"` // create: not required;
-	Priority    *_go.Lookup         `protobuf:"bytes,12,opt,name=priority,proto3" json:"priority,omitempty"`                          // create: not required, default first value from priority lookup
-	Service     *_go.Lookup         `protobuf:"bytes,13,opt,name=service,proto3" json:"service,omitempty"`                            // on this field base many other readonly fields on return
+	Assignee    *Lookup             `protobuf:"bytes,6,opt,name=assignee,proto3" json:"assignee,omitempty"`                           // create: not required, default from service or set by UI;
+	Reporter    *Lookup             `protobuf:"bytes,7,opt,name=reporter,proto3" json:"reporter,omitempty"`                           // create: required (if empty recognize as anonymous contact);
+	Impacted    *Lookup             `protobuf:"bytes,8,opt,name=impacted,proto3" json:"impacted,omitempty"`                           // create: required, default is reporter or ui (if empty recognize as anonymous);
+	Group       *Lookup             `protobuf:"bytes,9,opt,name=group,proto3" json:"group,omitempty"`                                 // create: not required, default from service or set by UI;
+	Status      *Lookup             `protobuf:"bytes,10,opt,name=status,proto3" json:"status,omitempty"`                              // create: not required, default initial value from status lookup or ui;
+	CloseReason *Lookup             `protobuf:"bytes,11,opt,name=close_reason,json=closeReason,proto3" json:"close_reason,omitempty"` // create: not required;
+	Priority    *Lookup             `protobuf:"bytes,12,opt,name=priority,proto3" json:"priority,omitempty"`                          // create: not required, default first value from priority lookup
+	Service     *Lookup             `protobuf:"bytes,13,opt,name=service,proto3" json:"service,omitempty"`                            // on this field base many other readonly fields on return
 	Close       *CloseInfo          `protobuf:"bytes,14,opt,name=close,proto3" json:"close,omitempty"`                                // create: not required; update: required only when case status goes to the final state
 	Rate        *RateInfo           `protobuf:"bytes,15,opt,name=rate,proto3" json:"rate,omitempty"`                                  // only for API, not UI
 	Comments    []*InputCaseComment `protobuf:"bytes,16,rep,name=comments,proto3" json:"comments,omitempty"`
@@ -1009,56 +1008,56 @@ func (x *InputCase) GetContactInfo() string {
 	return ""
 }
 
-func (x *InputCase) GetAssignee() *_go.Lookup {
+func (x *InputCase) GetAssignee() *Lookup {
 	if x != nil {
 		return x.Assignee
 	}
 	return nil
 }
 
-func (x *InputCase) GetReporter() *_go.Lookup {
+func (x *InputCase) GetReporter() *Lookup {
 	if x != nil {
 		return x.Reporter
 	}
 	return nil
 }
 
-func (x *InputCase) GetImpacted() *_go.Lookup {
+func (x *InputCase) GetImpacted() *Lookup {
 	if x != nil {
 		return x.Impacted
 	}
 	return nil
 }
 
-func (x *InputCase) GetGroup() *_go.Lookup {
+func (x *InputCase) GetGroup() *Lookup {
 	if x != nil {
 		return x.Group
 	}
 	return nil
 }
 
-func (x *InputCase) GetStatus() *_go.Lookup {
+func (x *InputCase) GetStatus() *Lookup {
 	if x != nil {
 		return x.Status
 	}
 	return nil
 }
 
-func (x *InputCase) GetCloseReason() *_go.Lookup {
+func (x *InputCase) GetCloseReason() *Lookup {
 	if x != nil {
 		return x.CloseReason
 	}
 	return nil
 }
 
-func (x *InputCase) GetPriority() *_go.Lookup {
+func (x *InputCase) GetPriority() *Lookup {
 	if x != nil {
 		return x.Priority
 	}
 	return nil
 }
 
-func (x *InputCase) GetService() *_go.Lookup {
+func (x *InputCase) GetService() *Lookup {
 	if x != nil {
 		return x.Service
 	}
@@ -1105,14 +1104,14 @@ type RelatedCase struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id        int64       `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Ver       int32       `protobuf:"varint,2,opt,name=ver,proto3" json:"ver,omitempty"`
-	Etag      string      `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"` // main field required for read, update and delete
-	CreatedBy *_go.Lookup `protobuf:"bytes,4,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
-	CreatedAt int64       `protobuf:"varint,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // unixmilli
-	UpdatedBy *_go.Lookup `protobuf:"bytes,6,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
-	UpdatedAt int64       `protobuf:"varint,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // unixmilli
-	Child     *Case       `protobuf:"bytes,8,opt,name=child,proto3" json:"child,omitempty"`
+	Id        int64   `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Ver       int32   `protobuf:"varint,2,opt,name=ver,proto3" json:"ver,omitempty"`
+	Etag      string  `protobuf:"bytes,3,opt,name=etag,proto3" json:"etag,omitempty"` // main field required for read, update and delete
+	CreatedBy *Lookup `protobuf:"bytes,4,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	CreatedAt int64   `protobuf:"varint,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // unixmilli
+	UpdatedBy *Lookup `protobuf:"bytes,6,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
+	UpdatedAt int64   `protobuf:"varint,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // unixmilli
+	Child     *Case   `protobuf:"bytes,8,opt,name=child,proto3" json:"child,omitempty"`
 	// Case parent = 9; // (optional, always a case that requested)
 	RelationType RelationType `protobuf:"varint,10,opt,name=relation_type,json=relationType,proto3,enum=webitel.cases.RelationType" json:"relation_type,omitempty"`
 }
@@ -1168,7 +1167,7 @@ func (x *RelatedCase) GetEtag() string {
 	return ""
 }
 
-func (x *RelatedCase) GetCreatedBy() *_go.Lookup {
+func (x *RelatedCase) GetCreatedBy() *Lookup {
 	if x != nil {
 		return x.CreatedBy
 	}
@@ -1182,7 +1181,7 @@ func (x *RelatedCase) GetCreatedAt() int64 {
 	return 0
 }
 
-func (x *RelatedCase) GetUpdatedBy() *_go.Lookup {
+func (x *RelatedCase) GetUpdatedBy() *Lookup {
 	if x != nil {
 		return x.UpdatedBy
 	}
@@ -2128,17 +2127,18 @@ var file_case_proto_rawDesc = []byte{
 	0x73, 0x2e, 0x52, 0x65, 0x6c, 0x61, 0x74, 0x65, 0x64, 0x43, 0x61, 0x73, 0x65, 0x4c, 0x69, 0x73,
 	0x74, 0x22, 0x29, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x23, 0x3a, 0x05, 0x69, 0x6e, 0x70, 0x75, 0x74,
 	0x1a, 0x1a, 0x2f, 0x63, 0x61, 0x73, 0x65, 0x73, 0x2f, 0x7b, 0x63, 0x61, 0x73, 0x65, 0x5f, 0x65,
-	0x74, 0x61, 0x67, 0x7d, 0x2f, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x65, 0x64, 0x42, 0x97, 0x01, 0x0a,
+	0x74, 0x61, 0x67, 0x7d, 0x2f, 0x72, 0x65, 0x6c, 0x61, 0x74, 0x65, 0x64, 0x42, 0x9d, 0x01, 0x0a,
 	0x11, 0x63, 0x6f, 0x6d, 0x2e, 0x77, 0x65, 0x62, 0x69, 0x74, 0x65, 0x6c, 0x2e, 0x63, 0x61, 0x73,
 	0x65, 0x73, 0x42, 0x09, 0x43, 0x61, 0x73, 0x65, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a,
-	0x22, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x77, 0x65, 0x62, 0x69,
+	0x28, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x77, 0x65, 0x62, 0x69,
 	0x74, 0x65, 0x6c, 0x2f, 0x63, 0x61, 0x73, 0x65, 0x73, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x63, 0x61,
-	0x73, 0x65, 0x73, 0xa2, 0x02, 0x03, 0x57, 0x43, 0x58, 0xaa, 0x02, 0x0d, 0x57, 0x65, 0x62, 0x69,
-	0x74, 0x65, 0x6c, 0x2e, 0x43, 0x61, 0x73, 0x65, 0x73, 0xca, 0x02, 0x0d, 0x57, 0x65, 0x62, 0x69,
-	0x74, 0x65, 0x6c, 0x5c, 0x43, 0x61, 0x73, 0x65, 0x73, 0xe2, 0x02, 0x19, 0x57, 0x65, 0x62, 0x69,
-	0x74, 0x65, 0x6c, 0x5c, 0x43, 0x61, 0x73, 0x65, 0x73, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65, 0x74,
-	0x61, 0x64, 0x61, 0x74, 0x61, 0xea, 0x02, 0x0e, 0x57, 0x65, 0x62, 0x69, 0x74, 0x65, 0x6c, 0x3a,
-	0x3a, 0x43, 0x61, 0x73, 0x65, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x73, 0x65, 0x73, 0x3b, 0x63, 0x61, 0x73, 0x65, 0x73, 0xa2, 0x02, 0x03, 0x57, 0x43, 0x58, 0xaa,
+	0x02, 0x0d, 0x57, 0x65, 0x62, 0x69, 0x74, 0x65, 0x6c, 0x2e, 0x43, 0x61, 0x73, 0x65, 0x73, 0xca,
+	0x02, 0x0d, 0x57, 0x65, 0x62, 0x69, 0x74, 0x65, 0x6c, 0x5c, 0x43, 0x61, 0x73, 0x65, 0x73, 0xe2,
+	0x02, 0x19, 0x57, 0x65, 0x62, 0x69, 0x74, 0x65, 0x6c, 0x5c, 0x43, 0x61, 0x73, 0x65, 0x73, 0x5c,
+	0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0xea, 0x02, 0x0e, 0x57, 0x65,
+	0x62, 0x69, 0x74, 0x65, 0x6c, 0x3a, 0x3a, 0x43, 0x61, 0x73, 0x65, 0x73, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -2177,7 +2177,7 @@ var file_case_proto_goTypes = []any{
 	(*ListRelatedCasesRequest)(nil),  // 18: webitel.cases.ListRelatedCasesRequest
 	(*MergeRelatedCasesRequest)(nil), // 19: webitel.cases.MergeRelatedCasesRequest
 	(*ResetRelatedCasesRequest)(nil), // 20: webitel.cases.ResetRelatedCasesRequest
-	(*_go.Lookup)(nil),               // 21: general.Lookup
+	(*Lookup)(nil),                   // 21: general.Lookup
 	(*SLACondition)(nil),             // 22: webitel.cases.SLACondition
 	(*CaseCommentList)(nil),          // 23: webitel.cases.CaseCommentList
 	(*CaseLinkList)(nil),             // 24: webitel.cases.CaseLinkList
@@ -2267,6 +2267,7 @@ func file_case_proto_init() {
 	if File_case_proto != nil {
 		return
 	}
+	file_general_proto_init()
 	file_service_proto_init()
 	file_case_comment_proto_init()
 	file_case_file_proto_init()

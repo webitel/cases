@@ -5,10 +5,9 @@ import (
 	"strings"
 	"time"
 
-	cases "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
+	cases "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
@@ -32,7 +31,7 @@ func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA,
 	}
 
 	var (
-		createdByLookup, updatedByLookup, calendar general.Lookup
+		createdByLookup, updatedByLookup, calendar cases.Lookup
 		createdAt, updatedAt                       time.Time
 		validFrom, validTo                         time.Time
 	)
@@ -133,7 +132,7 @@ func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 		sla := &cases.SLA{}
 
 		var (
-			createdBy, updatedBy, calendar general.Lookup
+			createdBy, updatedBy, calendar cases.Lookup
 			tempCreatedAt, tempUpdatedAt   time.Time
 			tempValidFrom, tempValidTo     time.Time
 		)
@@ -173,7 +172,7 @@ func (s *SLAStore) Update(rpc *model.UpdateOptions, l *cases.SLA) (*cases.SLA, e
 	}
 
 	var (
-		createdBy, updatedBy, calendar general.Lookup
+		createdBy, updatedBy, calendar cases.Lookup
 		createdAt, updatedAt           time.Time
 		validFrom, validTo             time.Time
 	)
@@ -486,7 +485,7 @@ FROM ins
 
 func (s *SLAStore) buildScanArgs(fields []string,
 	sla *cases.SLA,
-	createdBy, updatedBy, calendar *general.Lookup,
+	createdBy, updatedBy, calendar *cases.Lookup,
 	tempCreatedAt, tempUpdatedAt *time.Time,
 	tempValidFrom, tempValidTo *time.Time,
 ) []interface{} {
@@ -531,7 +530,7 @@ func (s *SLAStore) buildScanArgs(fields []string,
 func (s *SLAStore) populateSLAFields(
 	fields []string,
 	sla *cases.SLA,
-	createdBy, updatedBy, calendar *general.Lookup,
+	createdBy, updatedBy, calendar *cases.Lookup,
 	tempCreatedAt, tempUpdatedAt time.Time,
 	tempValidFrom, tempValidTo time.Time,
 ) {

@@ -5,8 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	_go "buf.build/gen/go/webitel/cases/protocolbuffers/go"
-	general "buf.build/gen/go/webitel/general/protocolbuffers/go"
+	_go "github.com/webitel/cases/api/cases"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
@@ -40,7 +39,7 @@ func (c *CaseComment) Publish(
 	}
 
 	var (
-		createdBy, updatedBy general.Lookup
+		createdBy, updatedBy _go.Lookup
 		createdAt, updatedAt time.Time
 		id                   int64 // Not present in model | need for eta encoding
 	)

@@ -24,7 +24,7 @@ func TypeLink() Link {
 			Type: "string",
 		},
 		Url: &Metadata{
-			Name: "name",
+			Name: "url",
 			Type: "string!",
 		},
 		Author: Schema.Scalar.Lookup.Field("author", "author"),
