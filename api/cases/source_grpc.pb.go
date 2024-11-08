@@ -30,10 +30,15 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SourcesClient interface {
+	// RPC method to list or search sources.
 	ListSources(ctx context.Context, in *ListSourceRequest, opts ...grpc.CallOption) (*SourceList, error)
+	// RPC method to create a new source.
 	CreateSource(ctx context.Context, in *CreateSourceRequest, opts ...grpc.CallOption) (*Source, error)
+	// RPC method to update an existing source.
 	UpdateSource(ctx context.Context, in *UpdateSourceRequest, opts ...grpc.CallOption) (*Source, error)
+	// RPC method to delete a source.
 	DeleteSource(ctx context.Context, in *DeleteSourceRequest, opts ...grpc.CallOption) (*Source, error)
+	// RPC method to locate a source by ID.
 	LocateSource(ctx context.Context, in *LocateSourceRequest, opts ...grpc.CallOption) (*LocateSourceResponse, error)
 }
 
@@ -99,10 +104,15 @@ func (c *sourcesClient) LocateSource(ctx context.Context, in *LocateSourceReques
 // All implementations must embed UnimplementedSourcesServer
 // for forward compatibility.
 type SourcesServer interface {
+	// RPC method to list or search sources.
 	ListSources(context.Context, *ListSourceRequest) (*SourceList, error)
+	// RPC method to create a new source.
 	CreateSource(context.Context, *CreateSourceRequest) (*Source, error)
+	// RPC method to update an existing source.
 	UpdateSource(context.Context, *UpdateSourceRequest) (*Source, error)
+	// RPC method to delete a source.
 	DeleteSource(context.Context, *DeleteSourceRequest) (*Source, error)
+	// RPC method to locate a source by ID.
 	LocateSource(context.Context, *LocateSourceRequest) (*LocateSourceResponse, error)
 	mustEmbedUnimplementedSourcesServer()
 }

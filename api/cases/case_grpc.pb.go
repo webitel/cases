@@ -294,11 +294,10 @@ var Cases_ServiceDesc = grpc.ServiceDesc{
 
 const (
 	RelatedCases_LocateRelatedCase_FullMethodName = "/webitel.cases.RelatedCases/LocateRelatedCase"
+	RelatedCases_CreateRelatedCase_FullMethodName = "/webitel.cases.RelatedCases/CreateRelatedCase"
 	RelatedCases_UpdateRelatedCase_FullMethodName = "/webitel.cases.RelatedCases/UpdateRelatedCase"
 	RelatedCases_DeleteRelatedCase_FullMethodName = "/webitel.cases.RelatedCases/DeleteRelatedCase"
 	RelatedCases_ListRelatedCases_FullMethodName  = "/webitel.cases.RelatedCases/ListRelatedCases"
-	RelatedCases_MergeRelatedCases_FullMethodName = "/webitel.cases.RelatedCases/MergeRelatedCases"
-	RelatedCases_ResetRelatedCases_FullMethodName = "/webitel.cases.RelatedCases/ResetRelatedCases"
 )
 
 // RelatedCasesClient is the client API for RelatedCases service.
@@ -306,13 +305,12 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type RelatedCasesClient interface {
 	LocateRelatedCase(ctx context.Context, in *LocateRelatedCaseRequest, opts ...grpc.CallOption) (*RelatedCase, error)
+	CreateRelatedCase(ctx context.Context, in *CreateRelatedCaseRequest, opts ...grpc.CallOption) (*RelatedCase, error)
 	UpdateRelatedCase(ctx context.Context, in *UpdateRelatedCaseRequest, opts ...grpc.CallOption) (*RelatedCase, error)
 	DeleteRelatedCase(ctx context.Context, in *DeleteRelatedCaseRequest, opts ...grpc.CallOption) (*RelatedCase, error)
 	// The related cases can be obtained bidirectionally as child or parent, but we should consider them from the perspective of the requested case, by inverting their connection type
 	// Requested case always a parent and related cases a children
 	ListRelatedCases(ctx context.Context, in *ListRelatedCasesRequest, opts ...grpc.CallOption) (*RelatedCaseList, error)
-	MergeRelatedCases(ctx context.Context, in *MergeRelatedCasesRequest, opts ...grpc.CallOption) (*RelatedCaseList, error)
-	ResetRelatedCases(ctx context.Context, in *ResetRelatedCasesRequest, opts ...grpc.CallOption) (*RelatedCaseList, error)
 }
 
 type relatedCasesClient struct {
@@ -327,6 +325,16 @@ func (c *relatedCasesClient) LocateRelatedCase(ctx context.Context, in *LocateRe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RelatedCase)
 	err := c.cc.Invoke(ctx, RelatedCases_LocateRelatedCase_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *relatedCasesClient) CreateRelatedCase(ctx context.Context, in *CreateRelatedCaseRequest, opts ...grpc.CallOption) (*RelatedCase, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RelatedCase)
+	err := c.cc.Invoke(ctx, RelatedCases_CreateRelatedCase_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -363,38 +371,17 @@ func (c *relatedCasesClient) ListRelatedCases(ctx context.Context, in *ListRelat
 	return out, nil
 }
 
-func (c *relatedCasesClient) MergeRelatedCases(ctx context.Context, in *MergeRelatedCasesRequest, opts ...grpc.CallOption) (*RelatedCaseList, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RelatedCaseList)
-	err := c.cc.Invoke(ctx, RelatedCases_MergeRelatedCases_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *relatedCasesClient) ResetRelatedCases(ctx context.Context, in *ResetRelatedCasesRequest, opts ...grpc.CallOption) (*RelatedCaseList, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RelatedCaseList)
-	err := c.cc.Invoke(ctx, RelatedCases_ResetRelatedCases_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // RelatedCasesServer is the server API for RelatedCases service.
 // All implementations must embed UnimplementedRelatedCasesServer
 // for forward compatibility.
 type RelatedCasesServer interface {
 	LocateRelatedCase(context.Context, *LocateRelatedCaseRequest) (*RelatedCase, error)
+	CreateRelatedCase(context.Context, *CreateRelatedCaseRequest) (*RelatedCase, error)
 	UpdateRelatedCase(context.Context, *UpdateRelatedCaseRequest) (*RelatedCase, error)
 	DeleteRelatedCase(context.Context, *DeleteRelatedCaseRequest) (*RelatedCase, error)
 	// The related cases can be obtained bidirectionally as child or parent, but we should consider them from the perspective of the requested case, by inverting their connection type
 	// Requested case always a parent and related cases a children
 	ListRelatedCases(context.Context, *ListRelatedCasesRequest) (*RelatedCaseList, error)
-	MergeRelatedCases(context.Context, *MergeRelatedCasesRequest) (*RelatedCaseList, error)
-	ResetRelatedCases(context.Context, *ResetRelatedCasesRequest) (*RelatedCaseList, error)
 	mustEmbedUnimplementedRelatedCasesServer()
 }
 
@@ -408,6 +395,9 @@ type UnimplementedRelatedCasesServer struct{}
 func (UnimplementedRelatedCasesServer) LocateRelatedCase(context.Context, *LocateRelatedCaseRequest) (*RelatedCase, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LocateRelatedCase not implemented")
 }
+func (UnimplementedRelatedCasesServer) CreateRelatedCase(context.Context, *CreateRelatedCaseRequest) (*RelatedCase, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateRelatedCase not implemented")
+}
 func (UnimplementedRelatedCasesServer) UpdateRelatedCase(context.Context, *UpdateRelatedCaseRequest) (*RelatedCase, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateRelatedCase not implemented")
 }
@@ -416,12 +406,6 @@ func (UnimplementedRelatedCasesServer) DeleteRelatedCase(context.Context, *Delet
 }
 func (UnimplementedRelatedCasesServer) ListRelatedCases(context.Context, *ListRelatedCasesRequest) (*RelatedCaseList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRelatedCases not implemented")
-}
-func (UnimplementedRelatedCasesServer) MergeRelatedCases(context.Context, *MergeRelatedCasesRequest) (*RelatedCaseList, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method MergeRelatedCases not implemented")
-}
-func (UnimplementedRelatedCasesServer) ResetRelatedCases(context.Context, *ResetRelatedCasesRequest) (*RelatedCaseList, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResetRelatedCases not implemented")
 }
 func (UnimplementedRelatedCasesServer) mustEmbedUnimplementedRelatedCasesServer() {}
 func (UnimplementedRelatedCasesServer) testEmbeddedByValue()                      {}
@@ -458,6 +442,24 @@ func _RelatedCases_LocateRelatedCase_Handler(srv interface{}, ctx context.Contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RelatedCasesServer).LocateRelatedCase(ctx, req.(*LocateRelatedCaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RelatedCases_CreateRelatedCase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateRelatedCaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RelatedCasesServer).CreateRelatedCase(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RelatedCases_CreateRelatedCase_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RelatedCasesServer).CreateRelatedCase(ctx, req.(*CreateRelatedCaseRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -516,42 +518,6 @@ func _RelatedCases_ListRelatedCases_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _RelatedCases_MergeRelatedCases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MergeRelatedCasesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RelatedCasesServer).MergeRelatedCases(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: RelatedCases_MergeRelatedCases_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RelatedCasesServer).MergeRelatedCases(ctx, req.(*MergeRelatedCasesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _RelatedCases_ResetRelatedCases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResetRelatedCasesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RelatedCasesServer).ResetRelatedCases(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: RelatedCases_ResetRelatedCases_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RelatedCasesServer).ResetRelatedCases(ctx, req.(*ResetRelatedCasesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // RelatedCases_ServiceDesc is the grpc.ServiceDesc for RelatedCases service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -564,6 +530,10 @@ var RelatedCases_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _RelatedCases_LocateRelatedCase_Handler,
 		},
 		{
+			MethodName: "CreateRelatedCase",
+			Handler:    _RelatedCases_CreateRelatedCase_Handler,
+		},
+		{
 			MethodName: "UpdateRelatedCase",
 			Handler:    _RelatedCases_UpdateRelatedCase_Handler,
 		},
@@ -574,14 +544,6 @@ var RelatedCases_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRelatedCases",
 			Handler:    _RelatedCases_ListRelatedCases_Handler,
-		},
-		{
-			MethodName: "MergeRelatedCases",
-			Handler:    _RelatedCases_MergeRelatedCases_Handler,
-		},
-		{
-			MethodName: "ResetRelatedCases",
-			Handler:    _RelatedCases_ResetRelatedCases_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

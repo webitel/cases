@@ -34,13 +34,13 @@ const (
 type StatusConditionsClient interface {
 	// RPC method to list or search statuses
 	ListStatusConditions(ctx context.Context, in *ListStatusConditionRequest, opts ...grpc.CallOption) (*StatusConditionList, error)
-	// RPC method to create a new status
+	// RPC method to create a new status condition
 	CreateStatusCondition(ctx context.Context, in *CreateStatusConditionRequest, opts ...grpc.CallOption) (*StatusCondition, error)
-	// RPC method to update an existing status
+	// RPC method to update an existing status condition
 	UpdateStatusCondition(ctx context.Context, in *UpdateStatusConditionRequest, opts ...grpc.CallOption) (*StatusCondition, error)
-	// RPC method to delete an existing status
+	// RPC method to delete an existing status condition
 	DeleteStatusCondition(ctx context.Context, in *DeleteStatusConditionRequest, opts ...grpc.CallOption) (*StatusCondition, error)
-	// RPC method to locate a specific status by ID
+	// RPC method to locate a specific status condition by ID
 	LocateStatusCondition(ctx context.Context, in *LocateStatusConditionRequest, opts ...grpc.CallOption) (*LocateStatusConditionResponse, error)
 }
 
@@ -110,13 +110,13 @@ func (c *statusConditionsClient) LocateStatusCondition(ctx context.Context, in *
 type StatusConditionsServer interface {
 	// RPC method to list or search statuses
 	ListStatusConditions(context.Context, *ListStatusConditionRequest) (*StatusConditionList, error)
-	// RPC method to create a new status
+	// RPC method to create a new status condition
 	CreateStatusCondition(context.Context, *CreateStatusConditionRequest) (*StatusCondition, error)
-	// RPC method to update an existing status
+	// RPC method to update an existing status condition
 	UpdateStatusCondition(context.Context, *UpdateStatusConditionRequest) (*StatusCondition, error)
-	// RPC method to delete an existing status
+	// RPC method to delete an existing status condition
 	DeleteStatusCondition(context.Context, *DeleteStatusConditionRequest) (*StatusCondition, error)
-	// RPC method to locate a specific status by ID
+	// RPC method to locate a specific status condition by ID
 	LocateStatusCondition(context.Context, *LocateStatusConditionRequest) (*LocateStatusConditionResponse, error)
 	mustEmbedUnimplementedStatusConditionsServer()
 }

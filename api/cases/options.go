@@ -29,11 +29,11 @@ type HttpBinding struct {
 
 var WebitelAPI = WebitelServicesInfo{
 	"Services": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListServices": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListServiceRequest",
 				Output: "ServiceList",
 				HttpBindings: []*HttpBinding{
@@ -55,7 +55,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateService": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdateServiceRequest",
 				Output: "Service",
 				HttpBindings: []*HttpBinding{
@@ -70,7 +70,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteService": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeleteServiceRequest",
 				Output: "ServiceList",
 				HttpBindings: []*HttpBinding{
@@ -81,7 +81,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocateService": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateServiceRequest",
 				Output: "LocateServiceResponse",
 				HttpBindings: []*HttpBinding{
@@ -159,11 +159,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"CaseFiles": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "cases",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListFiles": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListFilesRequest",
 				Output: "CaseFileList",
 				HttpBindings: []*HttpBinding{
@@ -176,11 +176,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"CaseLinks": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "cases",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"LocateLink": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateLinkRequest",
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
@@ -191,7 +191,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateLink": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "UpdateLinkRequest",
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
@@ -206,7 +206,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteLink": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "DeleteLinkRequest",
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
@@ -241,11 +241,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"SLAs": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListSLAs": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListSLARequest",
 				Output: "SLAList",
 				HttpBindings: []*HttpBinding{
@@ -267,7 +267,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateSLA": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdateSLARequest",
 				Output: "SLA",
 				HttpBindings: []*HttpBinding{
@@ -282,7 +282,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteSLA": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeleteSLARequest",
 				Output: "SLA",
 				HttpBindings: []*HttpBinding{
@@ -293,7 +293,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocateSLA": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateSLARequest",
 				Output: "LocateSLAResponse",
 				HttpBindings: []*HttpBinding{
@@ -306,11 +306,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"SLAConditions": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListSLAConditions": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListSLAConditionRequest",
 				Output: "SLAConditionList",
 				HttpBindings: []*HttpBinding{
@@ -332,7 +332,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateSLACondition": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdateSLAConditionRequest",
 				Output: "SLACondition",
 				HttpBindings: []*HttpBinding{
@@ -347,7 +347,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteSLACondition": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeleteSLAConditionRequest",
 				Output: "SLACondition",
 				HttpBindings: []*HttpBinding{
@@ -358,7 +358,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocateSLACondition": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateSLAConditionRequest",
 				Output: "LocateSLAConditionResponse",
 				HttpBindings: []*HttpBinding{
@@ -371,11 +371,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"Cases": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "cases",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"SearchCases": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "SearchCasesRequest",
 				Output: "CaseList",
 				HttpBindings: []*HttpBinding{
@@ -386,7 +386,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocateCase": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateCaseRequest",
 				Output: "Case",
 				HttpBindings: []*HttpBinding{
@@ -408,7 +408,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateCase": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdateCaseRequest",
 				Output: "Case",
 				HttpBindings: []*HttpBinding{
@@ -423,7 +423,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteCase": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeleteCaseRequest",
 				Output: "Case",
 				HttpBindings: []*HttpBinding{
@@ -436,11 +436,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"RelatedCases": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "cases",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"LocateRelatedCase": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateRelatedCaseRequest",
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
@@ -450,8 +450,19 @@ var WebitelAPI = WebitelServicesInfo{
 					},
 				},
 			},
+			"CreateRelatedCase": WebitelMethod{
+				Access: 1,
+				Input:  "CreateRelatedCaseRequest",
+				Output: "RelatedCase",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/related/{etag}",
+						Method: "POST",
+					},
+				},
+			},
 			"UpdateRelatedCase": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "UpdateRelatedCaseRequest",
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
@@ -466,7 +477,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteRelatedCase": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "DeleteRelatedCaseRequest",
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
@@ -477,7 +488,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"ListRelatedCases": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "ListRelatedCasesRequest",
 				Output: "RelatedCaseList",
 				HttpBindings: []*HttpBinding{
@@ -487,36 +498,14 @@ var WebitelAPI = WebitelServicesInfo{
 					},
 				},
 			},
-			"MergeRelatedCases": WebitelMethod{
-				Access: 0,
-				Input:  "MergeRelatedCasesRequest",
-				Output: "RelatedCaseList",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/{case_etag}/related",
-						Method: "POST",
-					},
-				},
-			},
-			"ResetRelatedCases": WebitelMethod{
-				Access: 0,
-				Input:  "ResetRelatedCasesRequest",
-				Output: "RelatedCaseList",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/{case_etag}/related",
-						Method: "PUT",
-					},
-				},
-			},
 		},
 	},
 	"Catalogs": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListCatalogs": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListCatalogRequest",
 				Output: "CatalogList",
 				HttpBindings: []*HttpBinding{
@@ -538,7 +527,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateCatalog": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdateCatalogRequest",
 				Output: "Catalog",
 				HttpBindings: []*HttpBinding{
@@ -553,7 +542,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteCatalog": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeleteCatalogRequest",
 				Output: "CatalogList",
 				HttpBindings: []*HttpBinding{
@@ -564,7 +553,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocateCatalog": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateCatalogRequest",
 				Output: "LocateCatalogResponse",
 				HttpBindings: []*HttpBinding{
@@ -577,11 +566,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"CloseReasons": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListCloseReasons": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListCloseReasonRequest",
 				Output: "CloseReasonList",
 				HttpBindings: []*HttpBinding{
@@ -603,7 +592,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateCloseReason": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdateCloseReasonRequest",
 				Output: "CloseReason",
 				HttpBindings: []*HttpBinding{
@@ -618,7 +607,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteCloseReason": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeleteCloseReasonRequest",
 				Output: "CloseReason",
 				HttpBindings: []*HttpBinding{
@@ -629,7 +618,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocateCloseReason": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateCloseReasonRequest",
 				Output: "LocateCloseReasonResponse",
 				HttpBindings: []*HttpBinding{
@@ -642,11 +631,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"CloseReasonGroups": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListCloseReasonGroups": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListCloseReasonGroupsRequest",
 				Output: "CloseReasonGroupList",
 				HttpBindings: []*HttpBinding{
@@ -668,7 +657,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateCloseReasonGroup": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdateCloseReasonGroupRequest",
 				Output: "CloseReasonGroup",
 				HttpBindings: []*HttpBinding{
@@ -683,7 +672,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteCloseReasonGroup": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeleteCloseReasonGroupRequest",
 				Output: "CloseReasonGroup",
 				HttpBindings: []*HttpBinding{
@@ -694,7 +683,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocateCloseReasonGroup": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateCloseReasonGroupRequest",
 				Output: "LocateCloseReasonGroupResponse",
 				HttpBindings: []*HttpBinding{
@@ -707,11 +696,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"Priorities": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListPriorities": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListPriorityRequest",
 				Output: "PriorityList",
 				HttpBindings: []*HttpBinding{
@@ -733,7 +722,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdatePriority": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdatePriorityRequest",
 				Output: "Priority",
 				HttpBindings: []*HttpBinding{
@@ -748,7 +737,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeletePriority": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeletePriorityRequest",
 				Output: "Priority",
 				HttpBindings: []*HttpBinding{
@@ -759,7 +748,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocatePriority": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocatePriorityRequest",
 				Output: "LocatePriorityResponse",
 				HttpBindings: []*HttpBinding{
@@ -772,11 +761,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"Sources": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListSources": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListSourceRequest",
 				Output: "SourceList",
 				HttpBindings: []*HttpBinding{
@@ -798,7 +787,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateSource": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdateSourceRequest",
 				Output: "Source",
 				HttpBindings: []*HttpBinding{
@@ -813,7 +802,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteSource": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeleteSourceRequest",
 				Output: "Source",
 				HttpBindings: []*HttpBinding{
@@ -824,7 +813,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocateSource": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateSourceRequest",
 				Output: "LocateSourceResponse",
 				HttpBindings: []*HttpBinding{
@@ -837,11 +826,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"Statuses": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListStatuses": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListStatusRequest",
 				Output: "StatusList",
 				HttpBindings: []*HttpBinding{
@@ -863,7 +852,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateStatus": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdateStatusRequest",
 				Output: "Status",
 				HttpBindings: []*HttpBinding{
@@ -878,7 +867,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteStatus": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeleteStatusRequest",
 				Output: "Status",
 				HttpBindings: []*HttpBinding{
@@ -889,7 +878,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocateStatus": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateStatusRequest",
 				Output: "LocateStatusResponse",
 				HttpBindings: []*HttpBinding{
@@ -902,11 +891,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"StatusConditions": WebitelServices{
-		ObjClass:           "",
+		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListStatusConditions": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListStatusConditionRequest",
 				Output: "StatusConditionList",
 				HttpBindings: []*HttpBinding{
@@ -928,7 +917,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateStatusCondition": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "UpdateStatusConditionRequest",
 				Output: "StatusCondition",
 				HttpBindings: []*HttpBinding{
@@ -943,7 +932,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteStatusCondition": WebitelMethod{
-				Access: 0,
+				Access: 3,
 				Input:  "DeleteStatusConditionRequest",
 				Output: "StatusCondition",
 				HttpBindings: []*HttpBinding{
@@ -954,7 +943,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"LocateStatusCondition": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "LocateStatusConditionRequest",
 				Output: "LocateStatusConditionResponse",
 				HttpBindings: []*HttpBinding{
