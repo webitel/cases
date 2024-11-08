@@ -6,7 +6,6 @@ import (
 	"time"
 
 	cases "github.com/webitel/cases/api/cases"
-	"google.golang.org/protobuf/proto"
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -15,7 +14,7 @@ import (
 )
 
 const (
-	defaultFieldsCaseComments = "id, name, description"
+	defaultFieldsCaseComments = "id, comment"
 )
 
 type CaseCommentService struct {
@@ -44,18 +43,24 @@ func (c *CaseCommentService) LocateComment(
 		return nil, cerror.NewBadRequestError("case_comment_service.locate_comment.invalid_etag", "Invalid etag")
 	}
 
+	fields := util.FieldsFunc(req.Fields, util.InlineFields)
+
+	if len(fields) == 0 {
+		fields = strings.Split(defaultFieldsCaseComments, ", ")
+	}
+
 	t := time.Now()
 
 	searchOpts := model.SearchOptions{
-		Id:      id.GetOid(),
+		IDs:     []int64{id.GetOid()},
 		Session: session,
-		Fields:  req.Fields,
+		Fields:  fields,
 		Context: ctx,
 		Time:    t,
 	}
 
 	// Use ListComments to retrieve the specific comment
-	commentList, err := c.app.Store.CaseComment().List(ctx, &searchOpts)
+	commentList, err := c.app.Store.CaseComment().List(&searchOpts)
 	if err != nil {
 		return nil, cerror.NewInternalError("case_comment_service.locate_comment.fetch_error", err.Error())
 	}
@@ -93,7 +98,7 @@ func (c *CaseCommentService) UpdateComment(
 	}
 
 	// Execute the update in the store
-	updatedComment, err := c.app.Store.CaseComment().Update(ctx, updateOpts, comment)
+	updatedComment, err := c.app.Store.CaseComment().Update(updateOpts, comment)
 	if err != nil {
 		return nil, cerror.NewInternalError("case_comment_service.update_comment.store_update_failed", err.Error())
 	}
@@ -122,11 +127,11 @@ func (c *CaseCommentService) DeleteComment(
 	deleteOpts.IDs = []int64{id.GetOid()}
 
 	// Call the delete method in the store
-	comment, err := c.app.Store.CaseComment().Delete(ctx, deleteOpts)
+	err = c.app.Store.CaseComment().Delete(deleteOpts)
 	if err != nil {
 		return nil, cerror.NewInternalError("case_comment_service.delete_comment.store_delete_failed", err.Error())
 	}
-	return comment, nil
+	return nil, nil
 }
 
 func (c *CaseCommentService) ListComments(
@@ -144,9 +149,10 @@ func (c *CaseCommentService) ListComments(
 		return nil, cerror.NewUnauthorizedError("app.case_comment.list_comments.authorization.failed", err.Error())
 	}
 
-	fields := req.Fields
+	fields := util.FieldsFunc(req.Fields, util.InlineFields)
+
 	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsStatus, ", ")
+		fields = strings.Split(defaultFieldsCaseComments, ", ")
 	}
 
 	// Use default page size and page number if not provided
@@ -161,8 +167,14 @@ func (c *CaseCommentService) ListComments(
 		return nil, cerror.NewBadRequestError("case_comment_service.locate_comment.invalid_etag", "Invalid etag")
 	}
 
+	ids, err := util.ParseQin(req.Qin, etag.EtagCaseComment)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_qin", "Invalid Qin format")
+	}
+
 	t := time.Now()
 	searchOpts := model.SearchOptions{
+		IDs:     ids,
 		Id:      id.GetOid(),
 		Session: session,
 		Fields:  fields,
@@ -175,23 +187,12 @@ func (c *CaseCommentService) ListComments(
 	}
 
 	// Execute search operation to retrieve comments from the database
-	comments, err := c.app.Store.CaseComment().List(ctx, &searchOpts)
+	comments, err := c.app.Store.CaseComment().List(&searchOpts)
 	if err != nil {
 		return nil, cerror.NewInternalError("app.case_comment.list_comments.fetch_error", err.Error())
 	}
 
-	// Prepare response
-	resp := &cases.CaseCommentList{}
-
-	// Populate the response with fetched comments
-	for _, comment := range comments.Items {
-		// Create a new protobuf CaseComment to merge each comment into
-		protoComment := &cases.CaseComment{}
-		proto.Merge(protoComment, comment)
-		resp.Items = append(resp.Items, protoComment)
-	}
-
-	return resp, nil
+	return comments, nil
 }
 
 func (c *CaseCommentService) PublishComment(
@@ -223,7 +224,7 @@ func (c *CaseCommentService) PublishComment(
 	// Set the Case ID to the comment
 	createOpts.ID = caseID.GetOid()
 
-	comment, err := c.app.Store.CaseComment().Publish(ctx, createOpts, &cases.CaseComment{Text: req.Input.Text})
+	comment, err := c.app.Store.CaseComment().Publish(createOpts, &cases.CaseComment{Text: req.Input.Text})
 	if err != nil {
 		return nil, cerror.NewInternalError("case_comment_service.merge_comments.merge_error", err.Error())
 	}

@@ -77,13 +77,13 @@ type LinkCaseStore interface {
 // Comments attribute attached to the case (n:1)
 type CaseCommentStore interface {
 	// Create comment
-	Publish(ctx context.Context, rpc *model.CreateOptions, add *_go.CaseComment) (*_go.CaseComment, error)
+	Publish(rpc *model.CreateOptions, add *_go.CaseComment) (*_go.CaseComment, error)
 	// List comments
-	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseCommentList, error)
+	List(rpc *model.SearchOptions) (*_go.CaseCommentList, error)
 	// Update comment
-	Update(ctx context.Context, req *model.UpdateOptions, upd *_go.CaseComment) (*_go.CaseComment, error)
+	Update(req *model.UpdateOptions, upd *_go.CaseComment) (*_go.CaseComment, error)
 	// Delete comment
-	Delete(ctx context.Context, req *model.DeleteOptions) (*_go.CaseComment, error)
+	Delete(req *model.DeleteOptions) error
 }
 
 // ------------Access Control------------//
