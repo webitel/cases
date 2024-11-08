@@ -190,6 +190,17 @@ var WebitelAPI = WebitelServicesInfo{
 					},
 				},
 			},
+			"CreateLink": WebitelMethod{
+				Access: 1,
+				Input:  "CreateLinkRequest",
+				Output: "CaseLink",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/links/{etag}",
+						Method: "GET",
+					},
+				},
+			},
 			"UpdateLink": WebitelMethod{
 				Access: 1,
 				Input:  "UpdateLinkRequest",
@@ -224,17 +235,6 @@ var WebitelAPI = WebitelServicesInfo{
 					{
 						Path:   "/cases/{case_etag}/links",
 						Method: "GET",
-					},
-				},
-			},
-			"MergeLinks": WebitelMethod{
-				Access: 0,
-				Input:  "MergeLinksRequest",
-				Output: "CaseLinkList",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/{case_etag}/links",
-						Method: "POST",
 					},
 				},
 			},

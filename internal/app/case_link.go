@@ -23,6 +23,11 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, request *cases.LocateL
 	panic("implement me")
 }
 
+func (c *CaseLinkService) CreateLink(ctx context.Context, request *cases.CreateLinkRequest) (*cases.CaseLink, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 func (c *CaseLinkService) UpdateLink(ctx context.Context, request *cases.UpdateLinkRequest) (*cases.CaseLink, error) {
 	// TODO implement me
 	panic("implement me")
@@ -53,16 +58,6 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, request *cases.ListLink
 	graphLinkModel.Fields = graphParsedFields
 	// output: validate & normalize & defaults
 
-	panic("implement me")
-}
-
-func (c *CaseLinkService) MergeLinks(ctx context.Context, request *cases.MergeLinksRequest) (*cases.CaseLinkList, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (c *CaseLinkService) ResetLinks(ctx context.Context, request *cases.ResetLinksRequest) (*cases.CaseLinkList, error) {
-	// TODO implement me
 	panic("implement me")
 }
 
