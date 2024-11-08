@@ -1,9 +1,12 @@
 package util
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/webitel/webitel-go-kit/etag"
 )
 
 // InlineFields explodes an inline 'attr,attr2 attr3' selector into ['attr','attr2','attr3'].
@@ -146,4 +149,50 @@ func EnsureIdAndVerField(fields []string) []string {
 	}
 
 	return fields
+}
+
+// EnsureFields ensures that all specified fields are present in the list of fields.
+// If any field is missing, it will be added to the list.
+func EnsureFields(fields []string, requiredFields ...string) []string {
+	for _, requiredField := range requiredFields {
+		if !ContainsField(fields, requiredField) {
+			fields = append(fields, requiredField)
+		}
+	}
+	return fields
+}
+
+// ParseQin converts a slice of strings (each possibly containing comma-separated eTags or numeric IDs)
+// into a slice of int64. For example, given input ["1", "2,3", "etag4"], it converts each to int64 and returns []int64{1, 2, 3, 4}.
+func ParseQin(input []string, etagType etag.EtagType) ([]int64, error) {
+	var result []int64
+
+	for _, item := range input {
+		// Split the item by comma to handle comma-separated values
+		parts := strings.Split(item, ",")
+
+		for _, part := range parts {
+			// Trim whitespace
+			part = strings.TrimSpace(part)
+
+			// Try to parse as int64
+			num, err := strconv.ParseInt(part, 10, 64)
+			if err == nil {
+				// Successfully parsed as int64, add to result
+				result = append(result, num)
+				continue
+			}
+
+			// If parsing as int64 fails, try parsing as eTag
+			caseID, etagErr := etag.EtagOrId(etagType, part)
+			if etagErr != nil {
+				return nil, errors.New("invalid eTag or ID: " + part)
+			}
+
+			// Add the eTag converted ID to result
+			result = append(result, caseID.GetOid())
+		}
+	}
+
+	return result, nil
 }

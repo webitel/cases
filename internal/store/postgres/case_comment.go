@@ -1,8 +1,8 @@
 package postgres
 
 import (
-	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	_go "github.com/webitel/cases/api/cases"
@@ -22,7 +22,6 @@ type CaseComment struct {
 
 // Publish implements store.CommentCaseStore for publishing a single comment.
 func (c *CaseComment) Publish(
-	ctx context.Context,
 	rpc *model.CreateOptions,
 	add *_go.CaseComment,
 ) (*_go.CaseComment, error) {
@@ -70,7 +69,7 @@ func (c *CaseComment) Publish(
 	}
 
 	// Execute the query and scan the result directly into add
-	if err := d.QueryRow(ctx, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.cases.comment.create.scan_error", err)
 	}
 	//  Encode etag from the comment ID and version
@@ -163,33 +162,29 @@ func (c *CaseComment) buildCreateCommentsQuery(
 
 // Delete implements store.CommentCaseStore.
 func (c *CaseComment) Delete(
-	ctx context.Context,
 	rpc *model.DeleteOptions,
-) (*_go.CaseComment, error) {
+) error {
 	d, err := c.storage.Database()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.comment.delete.database_connection_error", err)
+		return dberr.NewDBInternalError("postgres.cases.comment.delete.database_connection_error", err)
 	}
 
 	query, args, dbErr := c.buildDeleteCaseCommentQuery(rpc)
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.comment.delete.query_build_error", dbErr)
+		return dberr.NewDBInternalError("postgres.cases.comment.delete.query_build_error", dbErr)
 	}
 
 	res, execErr := d.Exec(rpc.Context, query, args...)
 	if execErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.comment.delete.exec_error", execErr)
+		return dberr.NewDBInternalError("postgres.cases.comment.delete.exec_error", execErr)
 	}
 
 	affected := res.RowsAffected()
 	if affected == 0 {
-		return nil, dberr.NewDBNoRowsError("postgres.cases.comment.delete.not_found")
+		return dberr.NewDBNoRowsError("postgres.cases.comment.delete.not_found")
 	}
 
-	return &_go.CaseComment{
-		Id:   strconv.Itoa(int(rpc.IDs[0])),
-		Text: "Deleted",
-	}, nil
+	return nil
 }
 
 func (c CaseComment) buildDeleteCaseCommentQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
@@ -207,16 +202,210 @@ var deleteCaseCommentQuery = store.CompactSQL(`
 `)
 
 // List implements store.CommentCaseStore.
-func (c *CaseComment) List(
-	ctx context.Context,
-	rpc *model.SearchOptions,
-) (*_go.CaseCommentList, error) {
-	panic("unimplemented")
+func (c *CaseComment) List(rpc *model.SearchOptions) (*_go.CaseCommentList, error) {
+	// Connect to the database
+	d, dbErr := c.storage.Database()
+	if dbErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.list.database_connection_error", dbErr)
+	}
+
+	// Build the query using BuildListCaseCommentsQuery
+	query, args, err := c.BuildListCaseCommentsQuery(rpc)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.list.query_build_error", err)
+	}
+
+	// Execute the query
+	rows, err := d.Query(rpc.Context, query, args...)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.list.execution_error", err)
+	}
+	defer rows.Close()
+
+	var commentList []*_go.CaseComment
+	lCount := 0
+	next := false
+	fetchAll := rpc.GetSize() == -1 // Fetch all records if size is -1
+
+	for rows.Next() {
+		// Respect size limit unless fetching all records
+		if !fetchAll && lCount >= int(rpc.GetSize()) {
+			next = true
+			break
+		}
+
+		comment := &_go.CaseComment{}
+		var (
+			createdBy, updatedBy         _go.Lookup
+			tempCreatedAt, tempUpdatedAt time.Time
+			scanArgs                     []interface{}
+		)
+
+		// Scan fields dynamically based on requested fields
+		for _, field := range rpc.Fields {
+			switch field {
+			case "id":
+				scanArgs = append(scanArgs, &comment.Id)
+			case "comment":
+				scanArgs = append(scanArgs, &comment.Text)
+			case "case_id":
+				scanArgs = append(scanArgs, &comment.CaseId)
+			case "ver":
+				scanArgs = append(scanArgs, &comment.Ver)
+			case "created_at":
+				scanArgs = append(scanArgs, &tempCreatedAt)
+			case "updated_at":
+				scanArgs = append(scanArgs, &tempUpdatedAt)
+			case "created_by":
+				scanArgs = append(scanArgs, &createdBy.Id, &createdBy.Name)
+			case "updated_by":
+				scanArgs = append(scanArgs, &updatedBy.Id, &updatedBy.Name)
+			}
+		}
+
+		// Execute the scan
+		if err := rows.Scan(scanArgs...); err != nil {
+			return nil, dberr.NewDBInternalError("postgres.cases.case_comment.list.row_scan_error", err)
+		}
+
+		id, err := strconv.Atoi(comment.Id)
+		if err != nil {
+			return nil, dberr.NewDBInternalError("postgres.cases.case_comment.list.row_scan_error", err)
+		}
+
+		//  Encode etag from the comment ID and version
+		e := etag.EncodeEtag(etag.EtagCaseComment, int64(id), comment.Ver)
+		comment.Id = e
+
+		// Set optional fields if present
+		if util.ContainsField(rpc.Fields, "created_by") {
+			comment.CreatedBy = &createdBy
+		}
+		if util.ContainsField(rpc.Fields, "updated_by") {
+			comment.UpdatedBy = &updatedBy
+		}
+		if util.ContainsField(rpc.Fields, "created_at") {
+			comment.CreatedAt = util.Timestamp(tempCreatedAt)
+		}
+		if util.ContainsField(rpc.Fields, "updated_at") {
+			comment.UpdatedAt = util.Timestamp(tempUpdatedAt)
+		}
+		// Check if "edited" is requested and set it if created and updated times differ
+		if util.ContainsField(rpc.Fields, "edited") {
+			comment.Edited = !tempCreatedAt.Equal(tempUpdatedAt)
+		}
+
+		// Append to the comment list
+		commentList = append(commentList, comment)
+		lCount++
+	}
+
+	// Return results in CaseCommentList format
+	return &_go.CaseCommentList{
+		Page:  int64(rpc.Page),
+		Next:  next,
+		Items: commentList,
+	}, nil
+}
+
+func (c *CaseComment) BuildListCaseCommentsQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
+	// Begin building the query with base selections
+	queryBuilder := sq.Select().
+		From("cases.case_comment AS cc").
+		Where(sq.Eq{"cc.dc": rpc.Session.GetDomainId()}).
+		PlaceholderFormat(sq.Dollar)
+
+	if rpc.Id != 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": rpc.Id})
+	}
+
+	// Ensure "id" is in the fields list
+	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
+
+	// Ensure that if "edited" is requested, both "updated_at" and "created_at" are included
+	if util.ContainsField(rpc.Fields, "edited") {
+		rpc.Fields = util.EnsureFields(rpc.Fields, "updated_at", "created_at")
+	}
+
+	// Add columns based on selected fields
+	for _, field := range rpc.Fields {
+		switch field {
+		case "id", "comment", "created_at", "updated_at", "ver", "case_id":
+			queryBuilder = queryBuilder.Column("cc." + field)
+		case "created_by":
+			queryBuilder = queryBuilder.
+				Column("COALESCE(created_by.id, 0) AS cbi").    // created_by_id with NULL handled as 0
+				Column("COALESCE(created_by.name, '') AS cbn"). // created_by_name with NULL handled as ''
+				LeftJoin("directory.wbt_auth AS created_by ON cc.created_by = created_by.id")
+		case "updated_by":
+			queryBuilder = queryBuilder.
+				Column("COALESCE(updated_by.id, 0) AS ubi").    // updated_by_id with NULL handled as 0
+				Column("COALESCE(updated_by.name, '') AS ubn"). // updated_by_name with NULL handled as ''
+				LeftJoin("directory.wbt_auth AS updated_by ON cc.updated_by = updated_by.id")
+		}
+	}
+
+	// Filter by Qin
+	if len(rpc.IDs) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cc.id": rpc.IDs})
+	}
+
+	// Apply filters for specific fields, like filtering by case ID or partial text match
+	if caseID, ok := rpc.Filter["case_id"].(string); ok && caseID != "" {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": caseID})
+	}
+
+	if text, ok := rpc.Filter["text"].(string); ok && len(text) > 0 {
+		substr := util.Substring(text)
+		combinedLike := strings.Join(substr, "%")
+		queryBuilder = queryBuilder.Where(sq.ILike{"cc.text": combinedLike})
+	}
+
+	// Sort based on rpc.Sort with specified columns and sort order
+	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
+	var sortFields []string
+
+	for _, sortField := range parsedFields {
+		desc := false
+		if strings.HasPrefix(sortField, "!") {
+			desc = true
+			sortField = strings.TrimPrefix(sortField, "!")
+		}
+
+		column := "cc." + sortField
+		if desc {
+			column += " DESC"
+		} else {
+			column += " ASC"
+		}
+		sortFields = append(sortFields, column)
+	}
+
+	queryBuilder = queryBuilder.OrderBy(sortFields...)
+
+	// Pagination: Apply offset and limit based on page number and size
+	size := rpc.GetSize()
+	page := rpc.Page
+
+	if page > 1 {
+		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
+	}
+
+	if size != -1 {
+		queryBuilder = queryBuilder.Limit(uint64(size + 1))
+	}
+
+	// Generate the final SQL and arguments
+	query, args, err := queryBuilder.ToSql()
+	if err != nil {
+		return "", nil, dberr.NewDBInternalError("postgres.cases.case_comments.query_build.sql_generation_error", err)
+	}
+
+	return store.CompactSQL(query), args, nil
 }
 
 // Update implements store.CommentCaseStore.
 func (c *CaseComment) Update(
-	ctx context.Context,
 	req *model.UpdateOptions,
 	upd *_go.CaseComment,
 ) (*_go.CaseComment, error) {
