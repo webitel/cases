@@ -17,6 +17,11 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, request *cas
 	panic("implement me")
 }
 
+func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, request *cases.CreateRelatedCaseRequest) (*cases.RelatedCase, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, request *cases.UpdateRelatedCaseRequest) (*cases.RelatedCase, error) {
 	// TODO implement me
 	panic("implement me")
@@ -28,16 +33,6 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, request *cas
 }
 
 func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, request *cases.ListRelatedCasesRequest) (*cases.RelatedCaseList, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (r *RelatedCaseService) MergeRelatedCases(ctx context.Context, request *cases.MergeRelatedCasesRequest) (*cases.RelatedCaseList, error) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (r *RelatedCaseService) ResetRelatedCases(ctx context.Context, request *cases.ResetRelatedCasesRequest) (*cases.RelatedCaseList, error) {
 	// TODO implement me
 	panic("implement me")
 }
