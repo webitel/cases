@@ -2,16 +2,20 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"github.com/jackc/pgtype"
-	"strconv"
-
 	"github.com/jackc/pgx/v5/pgxpool"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"strconv"
 )
 
 type ScanFunc func(src any) error
+
+func (s ScanFunc) Scan(src any) error {
+	return s(src)
+}
 
 type TextDecoder func(src []byte) error
 
@@ -22,62 +26,141 @@ func (dec TextDecoder) DecodeText(_ *pgtype.ConnInfo, src []byte) error {
 	return nil
 }
 
-func ScanRowLookup(node *_go.Lookup) ScanFunc {
-	return func(src any) error {
-		var data []byte
-		switch src := src.(type) {
-		case []byte:
-			data = src
-		default:
-			return dberr.NewDBError("store.store.scan_row_lookup.check_input.type", "unknown input type for column ROW(id, name), []byte required")
+func (dec TextDecoder) Scan(src any) error {
+	if src == nil {
+		return dec.DecodeText(nil, nil)
+	}
+
+	switch data := src.(type) {
+	case string:
+		return dec.DecodeText(nil, []byte(data))
+	case []byte:
+		text := make([]byte, len(data))
+		copy(text, data)
+		return dec.DecodeText(nil, text)
+	}
+
+	return fmt.Errorf("text_decoder: cannot scan %T value %[1]v into %T", src, dec)
+}
+
+func ScanRowLookup(value **_go.Lookup) any {
+	return TextDecoder(func(src []byte) error {
+
+		res := *(value)
+		*(value) = nil
+
+		if len(src) == 0 {
+			return nil // NULL
+		}
+
+		if res == nil {
+			res = new(_go.Lookup)
 		}
 
 		var (
-			text pgtype.Text
-
-			scan = []pgtype.TextDecoder{
-				// id
+			ok  bool
+			str pgtype.Text
+			row = []pgtype.TextDecoder{
 				TextDecoder(func(src []byte) error {
-					err := text.DecodeText(nil, src)
+					err := str.DecodeText(nil, src)
 					if err != nil {
 						return err
 					}
-					id, err := strconv.ParseInt(text.String, 10, 64)
+					id, err := strconv.ParseInt(str.String, 10, 64)
 					if err != nil {
 						return err
 					}
-					node.Id = id
+					res.Id = id
 					return nil
 				}),
-				// name
 				TextDecoder(func(src []byte) error {
-					err := text.DecodeText(nil, src)
+					err := str.DecodeText(nil, src)
 					if err != nil {
 						return err
 					}
-					node.Name = text.String
+					res.Name = str.String
+					ok = ok || (str.String != "" && str.String != "[deleted]") // && str.Status == pgtype.Present
 					return nil
 				}),
 			}
+			raw = pgtype.NewCompositeTextScanner(nil, src)
 		)
-		raw := pgtype.NewCompositeTextScanner(nil, data)
-		// RECORD
-		node = nil // NEW
-		// ALLOC
-		if node == nil {
-			node = new(_go.Lookup)
-		}
 
-		for _, col := range scan {
+		var err error
+		for _, col := range row {
+
 			raw.ScanDecoder(col)
-			err := raw.Err()
+
+			err = raw.Err()
 			if err != nil {
 				return err
 			}
 		}
+
+		if ok {
+			*(value) = res
+		}
+
 		return nil
-	}
+	})
 }
+
+//func ScanRowLookup(node **_go.Lookup) ScanFunc {
+//	return func(src any) error {
+//		var data []byte
+//		switch src := src.(type) {
+//		case []byte:
+//			data = src
+//		case string:
+//			data = []byte(src)
+//		default:
+//			return dberr.NewDBError("store.store.scan_row_lookup.check_input.type", "unknown input type for column ROW(id, name), []byte required")
+//		}
+//
+//		var (
+//			text   pgtype.Text
+//			lookup = *node
+//
+//			scan = []pgtype.TextDecoder{
+//				// id
+//				TextDecoder(func(src []byte) error {
+//					err := text.DecodeText(nil, src)
+//					if err != nil {
+//						return err
+//					}
+//					id, err := strconv.ParseInt(text.String, 10, 64)
+//					if err != nil {
+//						return err
+//					}
+//					lookup.Id = id
+//					return nil
+//				}),
+//				// name
+//				TextDecoder(func(src []byte) error {
+//					err := text.DecodeText(nil, src)
+//					if err != nil {
+//						return err
+//					}
+//					lookup.Name = text.String
+//					return nil
+//				}),
+//			}
+//		)
+//		raw := pgtype.NewCompositeTextScanner(nil, data)
+//		// RECORD
+//		lookup = &_go.Lookup{} // NEW
+//
+//		for _, col := range scan {
+//			raw.ScanDecoder(col)
+//			err := raw.Err()
+//			if err != nil {
+//				return err
+//			}
+//		}
+//		node = &lookup
+//		return nil
+//	}
+//}
 
 // Store is an interface that defines all the methods and properties that a store should implement in Cases service
 
