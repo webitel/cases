@@ -184,13 +184,13 @@ func ParseQin(input []string, etagType etag.EtagType) ([]int64, error) {
 			}
 
 			// If parsing as int64 fails, try parsing as eTag
-			caseID, etagErr := etag.EtagOrId(etagType, part)
+			tag, etagErr := etag.EtagOrId(etagType, part)
 			if etagErr != nil {
 				return nil, errors.New("invalid eTag or ID: " + part)
 			}
 
 			// Add the eTag converted ID to result
-			result = append(result, caseID.GetOid())
+			result = append(result, tag.GetOid())
 		}
 	}
 

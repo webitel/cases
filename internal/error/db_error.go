@@ -128,6 +128,18 @@ func NewDBInternalError(id string, reason error) *DBInternalError {
 	}
 }
 
+// DBNotFoundError indicates that a specific entity was not found.
+type DBNotFoundError struct {
+	DBError
+}
+
+// NewDBNotFoundError creates a new DBNotFoundError with the specified ID and message.
+func NewDBNotFoundError(id, message string) *DBNotFoundError {
+	return &DBNotFoundError{
+		DBError: *NewDBError(id, message),
+	}
+}
+
 // Constraint registration for custom check violations.
 var (
 	checkViolationErrorRegistry = map[string]string{}
