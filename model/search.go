@@ -26,8 +26,12 @@ type SearchOptions struct {
 }
 
 type Searcher interface {
+	Locator
 	GetPage() int32
 	GetSize() int32
+}
+
+type Locator interface {
 	GetFields() []string
 }
 
@@ -43,6 +47,21 @@ func NewSearchOptions(ctx context.Context, searcher Searcher) *SearchOptions {
 		Time: time.Now(),
 		Page: searcher.GetPage(),
 		Size: searcher.GetSize(),
+	}
+}
+
+func NewLocateOptions(ctx context.Context, locator Locator) *SearchOptions {
+	sess := ctx.Value(interceptor.SessionHeader).(*session.Session)
+
+	return &SearchOptions{
+		Context: ctx,
+		Session: sess,
+		Fields: util.FieldsFunc(
+			locator.GetFields(), graph.SplitFieldsQ,
+		),
+		Time: time.Now(),
+		Page: 1,
+		Size: 1,
 	}
 }
 

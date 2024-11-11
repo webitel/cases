@@ -212,7 +212,7 @@ func (c *CaseCommentService) PublishComment(
 	}
 
 	// Initialize search options based on the request
-	createOpts := model.NewCreateOptions(ctx)
+	createOpts := model.NewCreateOptions(ctx, req)
 	// Set the fields to return in the response
 	createOpts.Fields = fields
 
@@ -222,7 +222,7 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("case_comment_service.locate_comment.invalid_etag", "Invalid etag")
 	}
 	// Set the Case ID to the comment
-	createOpts.ID = caseID.GetOid()
+	createOpts.ParentID = caseID.GetOid()
 
 	comment, err := c.app.Store.CaseComment().Publish(createOpts, &cases.CaseComment{Text: req.Input.Text})
 	if err != nil {

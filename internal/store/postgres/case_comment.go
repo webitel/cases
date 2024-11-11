@@ -97,7 +97,7 @@ func (c *CaseComment) buildCreateCommentsQuery(
 		Columns("dc", "case_id", "created_at", "created_by", "updated_at", "updated_by", "comment").
 		Values(
 			rpc.Session.GetDomainId(), // dc
-			rpc.ID,                    // case_id
+			rpc.ParentID,              // case_id
 			rpc.CurrentTime(),         // created_at (and updated_at)
 			rpc.Session.GetUserId(),   // created_by (and updated_by)
 			rpc.CurrentTime(),         // updated_at
