@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"github.com/jackc/pgtype"
+	"strconv"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_go "github.com/webitel/cases/api/cases"
@@ -10,6 +12,72 @@ import (
 )
 
 type ScanFunc func(src any) error
+
+type TextDecoder func(src []byte) error
+
+func (dec TextDecoder) DecodeText(_ *pgtype.ConnInfo, src []byte) error {
+	if dec != nil {
+		return dec(src)
+	}
+	return nil
+}
+
+func ScanRowLookup(node *_go.Lookup) ScanFunc {
+	return func(src any) error {
+		var data []byte
+		switch src := src.(type) {
+		case []byte:
+			data = src
+		default:
+			return dberr.NewDBError("store.store.scan_row_lookup.check_input.type", "unknown input type for column ROW(id, name), []byte required")
+		}
+
+		var (
+			text pgtype.Text
+
+			scan = []pgtype.TextDecoder{
+				// id
+				TextDecoder(func(src []byte) error {
+					err := text.DecodeText(nil, src)
+					if err != nil {
+						return err
+					}
+					id, err := strconv.ParseInt(text.String, 10, 64)
+					if err != nil {
+						return err
+					}
+					node.Id = id
+					return nil
+				}),
+				// name
+				TextDecoder(func(src []byte) error {
+					err := text.DecodeText(nil, src)
+					if err != nil {
+						return err
+					}
+					node.Name = text.String
+					return nil
+				}),
+			}
+		)
+		raw := pgtype.NewCompositeTextScanner(nil, data)
+		// RECORD
+		node = nil // NEW
+		// ALLOC
+		if node == nil {
+			node = new(_go.Lookup)
+		}
+
+		for _, col := range scan {
+			raw.ScanDecoder(col)
+			err := raw.Err()
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
 
 // Store is an interface that defines all the methods and properties that a store should implement in Cases service
 
