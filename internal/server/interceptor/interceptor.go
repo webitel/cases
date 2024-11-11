@@ -3,9 +3,10 @@ package interceptor
 import (
 	"context"
 	"fmt"
-	api "github.com/webitel/cases/api/cases"
 	"regexp"
 	"strings"
+
+	api "github.com/webitel/cases/api/cases"
 
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/model"
@@ -32,18 +33,18 @@ func AuthUnaryServerInterceptor(authManager auth.AuthManager) grpc.UnaryServerIn
 			return nil, autherror.NewUnauthorizedError("auth.session.invalid", fmt.Sprintf("Invalid session or expired token: %v", err))
 		}
 
-		// Retrieve authorization details
-		objClass, licenses, action := objClassWithAction(info)
+		// // Retrieve authorization details
+		// objClass, _, action := objClassWithAction(info)
 
-		// License validation
-		if missingLicenses := checkLicenses(session, licenses); len(missingLicenses) > 0 {
-			return nil, autherror.NewUnauthorizedError("auth.license.missing", fmt.Sprintf("Missing required licenses: %v", missingLicenses))
-		}
+		// // License validation
+		// if missingLicenses := checkLicenses(session, licenses); len(missingLicenses) > 0 {
+		// 	return nil, autherror.NewUnauthorizedError("auth.license.missing", fmt.Sprintf("Missing required licenses: %v", missingLicenses))
+		// }
 
 		// Permission validation
-		if ok, _ := validateSessionPermission(session, objClass, action); !ok {
-			return nil, autherror.NewUnauthorizedError("auth.permission.denied", "Permission denied for the requested action")
-		}
+		// if ok, _ := validateSessionPermission(session, objClass, action); !ok {
+		// 	return nil, autherror.NewUnauthorizedError("auth.permission.denied", "Permission denied for the requested action")
+		// }
 
 		ctx = context.WithValue(ctx, SessionHeader, session)
 

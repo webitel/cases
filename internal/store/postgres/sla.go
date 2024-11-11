@@ -250,19 +250,23 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "reaction_time_hours",
-			"reaction_time_minutes", "resolution_time_hours",
-			"resolution_time_minutes", "created_at", "updated_at":
+		case "id", "name", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
+		case "reaction_time":
+			queryBuilder = queryBuilder.Column("g.reaction_time_hours AS reaction_time_hours").
+				Column("g.reaction_time_minutes AS reaction_time_minutes")
+		case "resolution_time":
+			queryBuilder = queryBuilder.Column("g.resolution_time_hours AS resolution_time_hours").
+				Column("g.resolution_time_minutes AS resolution_time_minutes")
 		case "description":
 			// Use COALESCE to handle null values for description
 			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")
 		case "valid_from":
 			// Use COALESCE to handle null values for valid_from
-			queryBuilder = queryBuilder.Column("COALESCE(g.valid_from, '') AS valid_from")
+			queryBuilder = queryBuilder.Column("COALESCE(g.valid_from, null) AS valid_from")
 		case "valid_to":
 			// Use COALESCE to handle null values for valid_to
-			queryBuilder = queryBuilder.Column("COALESCE(g.valid_to, '') AS valid_to")
+			queryBuilder = queryBuilder.Column("COALESCE(g.valid_to, null) AS valid_to")
 		case "calendar":
 			// Include calendar_id and calendar_name
 			queryBuilder = queryBuilder.
@@ -505,14 +509,16 @@ func (s *SLAStore) buildScanArgs(fields []string,
 			scanArgs = append(scanArgs, tempValidTo)
 		case "calendar":
 			scanArgs = append(scanArgs, &calendar.Id, &calendar.Name)
-		case "reaction_time_hours":
-			scanArgs = append(scanArgs, &sla.ReactionTime.Hours)
-		case "reaction_time_minutes":
-			scanArgs = append(scanArgs, &sla.ReactionTime.Minutes)
-		case "resolution_time_hours":
-			scanArgs = append(scanArgs, &sla.ResolutionTime.Hours)
-		case "resolution_time_minutes":
-			scanArgs = append(scanArgs, &sla.ResolutionTime.Minutes)
+		case "reaction_time":
+			if sla.ReactionTime == nil {
+				sla.ReactionTime = &cases.ReactionTime{}
+			}
+			scanArgs = append(scanArgs, &sla.ReactionTime.Hours, &sla.ReactionTime.Minutes)
+		case "resolution_time":
+			if sla.ResolutionTime == nil {
+				sla.ResolutionTime = &cases.ResolutionTime{}
+			}
+			scanArgs = append(scanArgs, &sla.ResolutionTime.Hours, &sla.ResolutionTime.Minutes)
 		case "created_at":
 			scanArgs = append(scanArgs, tempCreatedAt)
 		case "updated_at":
