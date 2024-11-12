@@ -31,9 +31,11 @@ type SearchOptions struct {
 func (s *SearchOptions) HasEtag() bool {
 	return s.hasEtag
 }
+
 func (s *SearchOptions) HasId() bool {
 	return s.hasId
 }
+
 func (s *SearchOptions) HasVer() bool {
 	return s.hasVer
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
@@ -24,6 +23,12 @@ type CaseComment struct {
 	storage store.Store
 }
 
+type CommentScan func(comment *_go.CaseComment) any
+
+const (
+	left = "cc"
+)
+
 // Publish implements store.CommentCaseStore for publishing a single comment.
 func (c *CaseComment) Publish(
 	rpc *model.CreateOptions,
@@ -36,7 +41,7 @@ func (c *CaseComment) Publish(
 	}
 
 	// Build the insert and select query with RETURNING clause
-	sq, plan, err := c.buildPublishCommentsSqlizer(rpc, &_go.InputCaseComment{Text: add.Text}, add)
+	sq, plan, err := c.buildPublishCommentsSqlizer(rpc, &_go.InputCaseComment{Text: add.Text})
 	if err != nil {
 		return nil, dberr.NewDBInternalError("store.case_comment.publish.build_sqlizer_error", err)
 	}
@@ -46,21 +51,11 @@ func (c *CaseComment) Publish(
 		return nil, dberr.NewDBInternalError("store.case_comment.publish.query_to_sql_error", err)
 	}
 
-	// Temporary variables for `created_at` and `updated_at` timestamps
-	var createdAt, updatedAt time.Time
-
-	// Replace `created_at` and `updated_at` in `plan` with time.Time
-	for i, field := range rpc.Fields {
-		switch field {
-		case "created_at":
-			plan[i] = &createdAt
-		case "updated_at":
-			plan[i] = &updatedAt
-		}
-	}
+	// Convert plan to scanArgs
+	scanArgs := convertToScanArgs(plan, add)
 
 	// Execute the query and scan the result directly into `add`
-	if err = d.QueryRow(rpc.Context, query, args...).Scan(plan...); err != nil {
+	if err = d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("store.case_comment.publish.scan_error", err)
 	}
 
@@ -70,10 +65,6 @@ func (c *CaseComment) Publish(
 		return nil, dberr.NewDBInternalError("store.case_comment.publish.convert_id_error", err)
 	}
 
-	// Convert `created_at` and `updated_at` to Unix timestamps for protobuf fields
-	add.CreatedAt = util.Timestamp(createdAt)
-	add.UpdatedAt = util.Timestamp(updatedAt)
-
 	// Encode etag from the comment ID and version
 	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), add.Ver)
 	add.Id = e
@@ -81,20 +72,14 @@ func (c *CaseComment) Publish(
 	return add, nil
 }
 
-// buildPublishCommentsSqlizer builds a single query that inserts one comment
-// and returns only the specified fields from the inserted row using a CTE.
 func (c *CaseComment) buildPublishCommentsSqlizer(
 	rpc *model.CreateOptions,
 	input *_go.InputCaseComment,
-	output *_go.CaseComment,
-) (sq.Sqlizer, []any, error) {
+) (sq.Sqlizer, []CommentScan, error) {
 	// Ensure "id" and "ver" are in the fields list
 	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
 
-	// Prepare the scan plan for the query
-	var plan []any
-
-	// Start building the insert part of the query using Squirrel
+	// Build the insert query with a RETURNING clause
 	insertBuilder := sq.
 		Insert("cases.case_comment").
 		Columns("dc", "case_id", "created_at", "created_by", "updated_at", "updated_by", "comment").
@@ -119,50 +104,16 @@ func (c *CaseComment) buildPublishCommentsSqlizer(
 	// Use the insert SQL as a CTE prefix for the main select query
 	ctePrefix := sq.Expr("WITH cc AS ("+insertSQL+")", insertArgs...)
 
-	// Dynamically build the SELECT query for retrieving only the specified fields
+	// Build select clause and scan plan dynamically using buildCommentSelectColumnsAndPlan
 	selectBuilder := sq.Select()
-
-	// Add only the fields specified in rpc.Fields to the SELECT clause
-	for _, field := range rpc.Fields {
-		switch field {
-		case "id":
-			selectBuilder = selectBuilder.Column("cc.id")
-			plan = append(plan, &output.Id)
-		case "case_id":
-			selectBuilder = selectBuilder.Column("cc.case_id")
-			plan = append(plan, &output.CaseId)
-		case "created_at":
-			selectBuilder = selectBuilder.Column("cc.created_at")
-			plan = append(plan, &output.CreatedAt)
-		case "comment":
-			selectBuilder = selectBuilder.Column("cc.comment")
-			plan = append(plan, &output.Text)
-		case "ver":
-			selectBuilder = selectBuilder.Column("cc.ver")
-			plan = append(plan, &output.Ver)
-		case "created_by":
-			if output.CreatedBy == nil {
-				output.CreatedBy = &_go.Lookup{}
-			}
-			selectBuilder = selectBuilder.
-				Column("(SELECT ROW (id, name)::text FROM directory.wbt_user WHERE id = cc.created_by) AS created_by")
-			plan = append(plan, scanner.ScanRowLookup(&output.CreatedBy))
-		case "updated_by":
-			if output.UpdatedBy == nil {
-				output.UpdatedBy = &_go.Lookup{}
-			}
-			selectBuilder = selectBuilder.
-				Column("(SELECT ROW (id, name)::text FROM directory.wbt_user WHERE id = cc.updated_by) AS updated_by")
-			plan = append(plan, scanner.ScanRowLookup(&output.UpdatedBy))
-		case "updated_at":
-			selectBuilder = selectBuilder.Column("cc.updated_at")
-			plan = append(plan, &output.UpdatedAt)
-		}
+	selectBuilder, plan, dbErr := buildCommentSelectColumnsAndPlan(selectBuilder, left, rpc.Fields)
+	if dbErr != nil {
+		return nil, nil, dbErr
 	}
 
 	// Combine the CTE with the select query
 	sqBuilder := selectBuilder.
-		From("cc").
+		From(left).
 		PrefixExpr(ctePrefix)
 
 	return sqBuilder, plan, nil
@@ -220,7 +171,7 @@ func (c *CaseComment) List(rpc *model.SearchOptions) (*_go.CaseCommentList, erro
 	}
 
 	// Build the query and plan builder using BuildListCaseCommentsSqlizer
-	queryBuilder, planBuilder, err := c.BuildListCaseCommentsSqlizer(rpc, &_go.CaseComment{})
+	queryBuilder, planBuilder, err := c.BuildListCaseCommentsSqlizer(rpc)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("store.case_comment.list.query_build_error", err)
 	}
@@ -249,30 +200,15 @@ func (c *CaseComment) List(rpc *model.SearchOptions) (*_go.CaseCommentList, erro
 			break
 		}
 
+		// Create a new comment object
 		comment := &_go.CaseComment{}
-
-		// Temporary variables to hold timestamp values
-		var createdAt, updatedAt time.Time
-
-		// Plan with temporary time.Time variables for created_at and updated_at
+		// Build the scan plan using the planBuilder function
 		plan := planBuilder(comment)
-		for i, field := range rpc.Fields {
-			switch field {
-			case "created_at":
-				plan[i] = &createdAt
-			case "updated_at":
-				plan[i] = &updatedAt
-			}
-		}
 
 		// Scan row into the comment fields using the plan
 		if err := rows.Scan(plan...); err != nil {
 			return nil, dberr.NewDBInternalError("store.case_comment.list.row_scan_error", err)
 		}
-
-		// Convert the time.Time values to Unix timestamps for protobuf fields
-		comment.CreatedAt = util.Timestamp(createdAt)
-		comment.UpdatedAt = util.Timestamp(updatedAt)
 
 		// Encode the `id` and `ver` fields into an etag
 		commId, err := strconv.Atoi(comment.Id)
@@ -294,9 +230,8 @@ func (c *CaseComment) List(rpc *model.SearchOptions) (*_go.CaseCommentList, erro
 
 func (c *CaseComment) BuildListCaseCommentsSqlizer(
 	rpc *model.SearchOptions,
-	_ *_go.CaseComment,
 ) (sq.Sqlizer, func(*_go.CaseComment) []any, error) {
-	// Begin building the query
+	// Begin building the base query
 	queryBuilder := sq.Select().
 		From("cases.case_comment AS cc").
 		Where(sq.Eq{"cc.dc": rpc.Session.GetDomainId()}).
@@ -312,71 +247,19 @@ func (c *CaseComment) BuildListCaseCommentsSqlizer(
 		rpc.Fields = util.EnsureFields(rpc.Fields, "updated_at", "created_at")
 	}
 
-	// Define field mappings
-	fieldMappings := map[string]struct {
-		addToPlan func(output *_go.CaseComment) any
-		column    string
-	}{
-		"id": {
-			column:    "cc.id",
-			addToPlan: func(output *_go.CaseComment) any { return &output.Id },
-		},
-		"comment": {
-			column:    "cc.comment",
-			addToPlan: func(output *_go.CaseComment) any { return &output.Text },
-		},
-		"case_id": {
-			column:    "cc.case_id",
-			addToPlan: func(output *_go.CaseComment) any { return &output.CaseId },
-		},
-		"ver": {
-			column:    "cc.ver",
-			addToPlan: func(output *_go.CaseComment) any { return &output.Ver },
-		},
-		"created_at": {
-			column:    "cc.created_at",
-			addToPlan: func(output *_go.CaseComment) any { return &output.CreatedAt },
-		},
-		"updated_at": {
-			column:    "cc.updated_at",
-			addToPlan: func(output *_go.CaseComment) any { return &output.UpdatedAt },
-		},
-		"created_by": {
-			column: "(SELECT ROW (id, name)::text FROM directory.wbt_user WHERE id = cc.created_by) AS created_by",
-			addToPlan: func(output *_go.CaseComment) any {
-				if output.CreatedBy == nil {
-					output.CreatedBy = &_go.Lookup{}
-				}
-				return scanner.ScanRowLookup(&output.CreatedBy)
-			},
-		},
-		"updated_by": {
-			column: "(SELECT ROW (id, name)::text FROM directory.wbt_user WHERE id = cc.updated_by) AS updated_by",
-			addToPlan: func(output *_go.CaseComment) any {
-				if output.UpdatedBy == nil {
-					output.UpdatedBy = &_go.Lookup{}
-				}
-				return scanner.ScanRowLookup(&output.UpdatedBy)
-			},
-		},
-	}
-
-	// Loop over fields to add columns and prepare plan builder
-	for _, field := range rpc.Fields {
-		if mapping, ok := fieldMappings[field]; ok {
-			queryBuilder = queryBuilder.Column(mapping.column)
-		}
+	// Build select columns and scan plan using buildCommentSelectColumnsAndPlan
+	queryBuilder, plan, err := buildCommentSelectColumnsAndPlan(queryBuilder, left, rpc.Fields)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Define the plan builder function
 	planBuilder := func(output *_go.CaseComment) []any {
-		var plan []any
-		for _, field := range rpc.Fields {
-			if mapping, ok := fieldMappings[field]; ok {
-				plan = append(plan, mapping.addToPlan(output))
-			}
+		var scanPlan []any
+		for _, scanFunc := range plan {
+			scanPlan = append(scanPlan, scanFunc(output))
 		}
-		return plan
+		return scanPlan
 	}
 
 	// Apply additional filters, sorting, and pagination as needed
@@ -401,7 +284,7 @@ func (c *CaseComment) BuildListCaseCommentsSqlizer(
 			sortField = strings.TrimPrefix(sortField, "!")
 		}
 
-		column := "cc." + sortField
+		column := left + sortField
 		if desc {
 			column += " DESC"
 		} else {
@@ -467,27 +350,13 @@ func (c *CaseComment) Update(
 		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.query_build_error", err)
 	}
 
-	// Temporary variables for `created_at` and `updated_at` timestamps
-	var createdAt, updatedAt time.Time
-
-	// Replace `created_at` and `updated_at` in `plan` with time.Time
-	for i, field := range rpc.Fields {
-		switch field {
-		case "created_at":
-			plan[i] = &createdAt
-		case "updated_at":
-			plan[i] = &updatedAt
-		}
-	}
+	// Convert plan to scanArgs
+	scanArgs := convertToScanArgs(plan, upd)
 
 	// Execute the query and scan the result
-	if err := txManager.QueryRow(rpc.Context, query, args...).Scan(plan...); err != nil {
+	if err := txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.execution_error", err)
 	}
-
-	// Convert `created_at` and `updated_at` to Unix timestamps
-	upd.CreatedAt = util.Timestamp(createdAt)
-	upd.UpdatedAt = util.Timestamp(updatedAt)
 
 	// Encode etag from the comment ID and version
 	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), upd.Ver)
@@ -522,11 +391,11 @@ func (c *CaseComment) ScanVer(
 func (c *CaseComment) BuildUpdateCaseCommentSqlizer(
 	rpc *model.UpdateOptions,
 	input *_go.CaseComment,
-) (sq.Sqlizer, []any, error) {
+) (sq.Sqlizer, []CommentScan, error) {
 	// Ensure "id" and "ver" are in the fields list
 	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
 
-	// Create the `UPDATE` statement inside a CTE named `cc`
+	// Begin the update statement for `cases.case_comment`
 	updateBuilder := sq.Update("cases.case_comment").
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.CurrentTime()).
@@ -534,53 +403,89 @@ func (c *CaseComment) BuildUpdateCaseCommentSqlizer(
 		Set("ver", sq.Expr("ver + 1")). // Increment version
 		Where(sq.Eq{"id": input.Id, "dc": rpc.Session.GetDomainId()})
 
-	// Set the comment text if provided
+	// Update the `comment` field if provided
 	if input.Text != "" {
 		updateBuilder = updateBuilder.Set("comment", input.Text)
 	} else {
 		return nil, nil, dberr.NewDBInternalError("store.case_comment.update.text_required", nil)
 	}
 
-	// Initialize the main selectBuilder with the `WITH` clause containing the `updateBuilder`
+	// Generate the CTE for the update operation
 	selectBuilder := sq.Select().PrefixExpr(sq.Expr("WITH cc AS (?)", updateBuilder.Suffix("RETURNING *"))).From("cc")
 
-	// Prepare the scan plan
-	var plan []any
-	for _, field := range rpc.Fields {
-		switch field {
-		case "id":
-			selectBuilder = selectBuilder.Column("cc.id")
-			plan = append(plan, &input.Id)
-		case "comment":
-			selectBuilder = selectBuilder.Column("cc.comment")
-			plan = append(plan, &input.Text)
-		case "created_at":
-			selectBuilder = selectBuilder.Column("cc.created_at")
-			plan = append(plan, &input.CreatedAt)
-		case "updated_at":
-			selectBuilder = selectBuilder.Column("cc.updated_at")
-			plan = append(plan, &input.UpdatedAt)
-		case "ver":
-			selectBuilder = selectBuilder.Column("cc.ver")
-			plan = append(plan, &input.Ver)
-		case "created_by":
-			selectBuilder = selectBuilder.
-				Column("(SELECT ROW (id, name)::text FROM directory.wbt_user WHERE id = cc.created_by) AS created_by")
-			if input.CreatedBy == nil {
-				input.CreatedBy = &_go.Lookup{}
-			}
-			plan = append(plan, scanner.ScanRowLookup(&input.CreatedBy))
-		case "updated_by":
-			selectBuilder = selectBuilder.
-				Column("(SELECT ROW (id, name)::text FROM directory.wbt_user WHERE id = cc.updated_by) AS updated_by")
-			if input.UpdatedBy == nil {
-				input.UpdatedBy = &_go.Lookup{}
-			}
-			plan = append(plan, scanner.ScanRowLookup(&input.UpdatedBy))
-		}
+	// Use `buildCommentSelectColumnsAndPlan` to build select columns and plan based on `rpc.Fields`
+	selectBuilder, plan, err := buildCommentSelectColumnsAndPlan(selectBuilder, "cc", rpc.Fields)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return selectBuilder, plan, nil
+}
+
+// Helper function to convert a slice of CommentScan functions to a slice of empty interface{} suitable for scanning.
+func convertToScanArgs(plan []CommentScan, comment *_go.CaseComment) []any {
+	var scanArgs []any
+	for _, scan := range plan {
+		scanArgs = append(scanArgs, scan(comment))
+	}
+	return scanArgs
+}
+
+// Helper function to build the select columns and scan plan based on the fields requested.
+func buildCommentSelectColumnsAndPlan(
+	base sq.SelectBuilder,
+	left string,
+	fields []string,
+) (sq.SelectBuilder, []CommentScan, *dberr.DBError) {
+	var plan []CommentScan
+
+	for _, field := range fields {
+		switch field {
+		case "id":
+			base = base.Column(store.Ident(left, "id"))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return &comment.Id
+			})
+		case "ver":
+			base = base.Column(store.Ident(left, "ver"))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return &comment.Ver
+			})
+		case "created_by":
+			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.created_by) created_by", left))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return scanner.ScanRowLookup(&comment.CreatedBy)
+			})
+		case "created_at":
+			base = base.Column(store.Ident(left, "created_at"))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return scanner.ScanTimestamp(&comment.CreatedAt)
+			})
+		case "updated_by":
+			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by", left))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return scanner.ScanRowLookup(&comment.UpdatedBy)
+			})
+		case "updated_at":
+			base = base.Column(store.Ident(left, "updated_at"))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return scanner.ScanTimestamp(&comment.UpdatedAt)
+			})
+		case "comment":
+			base = base.Column(store.Ident(left, "comment"))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return &comment.Text
+			})
+		default:
+			return base, nil, dberr.NewDBError("postgres.case_comment.build_comment_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))
+		}
+	}
+
+	if len(plan) == 0 {
+		return base, nil, dberr.NewDBError("postgres.case_comment.build_comment_select.final_check.unknown", "no resulting columns")
+	}
+
+	return base, plan, nil
 }
 
 func NewCaseCommentStore(store store.Store) (store.CaseCommentStore, error) {

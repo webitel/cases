@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"fmt"
+	"net/url"
+
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	_go "github.com/webitel/cases/api/cases"
@@ -9,7 +11,6 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
-	"net/url"
 )
 
 type CaseLinkStore struct {
@@ -22,10 +23,6 @@ var CaseLinkFields = []string{
 }
 
 type LinkScan func(link *_go.CaseLink) any
-
-var ident = func(left, right string) string {
-	return fmt.Sprintf("%s.%s", left, right)
-}
 
 // Create implements store.CaseLinkStore.
 func (l *CaseLinkStore) Create(rpc *model.CreateOptions, add *_go.InputCaseLink) (*_go.CaseLink, error) {
@@ -94,12 +91,12 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(ident(left, "id"))
+			base = base.Column(store.Ident(left, "id"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return &link.Id
 			})
 		case "ver":
-			base = base.Column(ident(left, "ver"))
+			base = base.Column(store.Ident(left, "ver"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return &link.Ver
 			})
@@ -109,7 +106,7 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 				return scanner.ScanRowLookup(&link.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(ident(left, "created_at"))
+			base = base.Column(store.Ident(left, "created_at"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return scanner.ScanTimestamp(&link.CreatedAt)
 			})
@@ -119,17 +116,17 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 				return scanner.ScanRowLookup(&link.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(ident(left, "updated_at"))
+			base = base.Column(store.Ident(left, "updated_at"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return scanner.ScanTimestamp(&link.UpdatedAt)
 			})
 		case "name":
-			base = base.Column(ident(left, "name"))
+			base = base.Column(store.Ident(left, "name"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return scanner.ScanText(&link.Name)
 			})
 		case "url":
-			base = base.Column(ident(left, "url"))
+			base = base.Column(store.Ident(left, "url"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return &link.Url
 			})

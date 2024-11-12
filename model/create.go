@@ -2,9 +2,10 @@ package model
 
 import (
 	"context"
+	"time"
+
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
-	"time"
 
 	session "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/internal/server/interceptor"
@@ -26,9 +27,11 @@ type CreateOptions struct {
 func (s *CreateOptions) HasEtag() bool {
 	return s.hasEtag
 }
+
 func (s *CreateOptions) HasId() bool {
 	return s.hasId
 }
+
 func (s *CreateOptions) HasVer() bool {
 	return s.hasVer
 }
