@@ -94,11 +94,11 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"CaseComments": WebitelServices{
-		ObjClass:           "cases",
+		ObjClass:           "",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"LocateComment": WebitelMethod{
-				Access: 1,
+				Access: 0,
 				Input:  "LocateCommentRequest",
 				Output: "CaseComment",
 				HttpBindings: []*HttpBinding{
@@ -109,7 +109,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"UpdateComment": WebitelMethod{
-				Access: 2,
+				Access: 0,
 				Input:  "UpdateCommentRequest",
 				Output: "CaseComment",
 				HttpBindings: []*HttpBinding{
@@ -124,7 +124,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteComment": WebitelMethod{
-				Access: 3,
+				Access: 0,
 				Input:  "DeleteCommentRequest",
 				Output: "CaseComment",
 				HttpBindings: []*HttpBinding{
@@ -135,7 +135,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"ListComments": WebitelMethod{
-				Access: 1,
+				Access: 0,
 				Input:  "ListCommentsRequest",
 				Output: "CaseCommentList",
 				HttpBindings: []*HttpBinding{
@@ -190,8 +190,19 @@ var WebitelAPI = WebitelServicesInfo{
 					},
 				},
 			},
+			"CreateLink": WebitelMethod{
+				Access: 2,
+				Input:  "CreateLinkRequest",
+				Output: "CaseLink",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/links/{case_etag}",
+						Method: "POST",
+					},
+				},
+			},
 			"UpdateLink": WebitelMethod{
-				Access: 1,
+				Access: 2,
 				Input:  "UpdateLinkRequest",
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
@@ -206,7 +217,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteLink": WebitelMethod{
-				Access: 1,
+				Access: 2,
 				Input:  "DeleteLinkRequest",
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
@@ -224,17 +235,6 @@ var WebitelAPI = WebitelServicesInfo{
 					{
 						Path:   "/cases/{case_etag}/links",
 						Method: "GET",
-					},
-				},
-			},
-			"MergeLinks": WebitelMethod{
-				Access: 0,
-				Input:  "MergeLinksRequest",
-				Output: "CaseLinkList",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/{case_etag}/links",
-						Method: "POST",
 					},
 				},
 			},
@@ -456,7 +456,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/related/{case_etag}",
+						Path:   "/cases/related/{etag}",
 						Method: "POST",
 					},
 				},

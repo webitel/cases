@@ -20,10 +20,10 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	CaseLinks_LocateLink_FullMethodName = "/webitel.cases.CaseLinks/LocateLink"
+	CaseLinks_CreateLink_FullMethodName = "/webitel.cases.CaseLinks/CreateLink"
 	CaseLinks_UpdateLink_FullMethodName = "/webitel.cases.CaseLinks/UpdateLink"
 	CaseLinks_DeleteLink_FullMethodName = "/webitel.cases.CaseLinks/DeleteLink"
 	CaseLinks_ListLinks_FullMethodName  = "/webitel.cases.CaseLinks/ListLinks"
-	CaseLinks_MergeLinks_FullMethodName = "/webitel.cases.CaseLinks/MergeLinks"
 )
 
 // CaseLinksClient is the client API for CaseLinks service.
@@ -31,10 +31,11 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CaseLinksClient interface {
 	LocateLink(ctx context.Context, in *LocateLinkRequest, opts ...grpc.CallOption) (*CaseLink, error)
+	CreateLink(ctx context.Context, in *CreateLinkRequest, opts ...grpc.CallOption) (*CaseLink, error)
 	UpdateLink(ctx context.Context, in *UpdateLinkRequest, opts ...grpc.CallOption) (*CaseLink, error)
 	DeleteLink(ctx context.Context, in *DeleteLinkRequest, opts ...grpc.CallOption) (*CaseLink, error)
+	// With Case
 	ListLinks(ctx context.Context, in *ListLinksRequest, opts ...grpc.CallOption) (*CaseLinkList, error)
-	MergeLinks(ctx context.Context, in *MergeLinksRequest, opts ...grpc.CallOption) (*CaseLinkList, error)
 }
 
 type caseLinksClient struct {
@@ -49,6 +50,16 @@ func (c *caseLinksClient) LocateLink(ctx context.Context, in *LocateLinkRequest,
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CaseLink)
 	err := c.cc.Invoke(ctx, CaseLinks_LocateLink_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *caseLinksClient) CreateLink(ctx context.Context, in *CreateLinkRequest, opts ...grpc.CallOption) (*CaseLink, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CaseLink)
+	err := c.cc.Invoke(ctx, CaseLinks_CreateLink_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -85,25 +96,16 @@ func (c *caseLinksClient) ListLinks(ctx context.Context, in *ListLinksRequest, o
 	return out, nil
 }
 
-func (c *caseLinksClient) MergeLinks(ctx context.Context, in *MergeLinksRequest, opts ...grpc.CallOption) (*CaseLinkList, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CaseLinkList)
-	err := c.cc.Invoke(ctx, CaseLinks_MergeLinks_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // CaseLinksServer is the server API for CaseLinks service.
 // All implementations must embed UnimplementedCaseLinksServer
 // for forward compatibility.
 type CaseLinksServer interface {
 	LocateLink(context.Context, *LocateLinkRequest) (*CaseLink, error)
+	CreateLink(context.Context, *CreateLinkRequest) (*CaseLink, error)
 	UpdateLink(context.Context, *UpdateLinkRequest) (*CaseLink, error)
 	DeleteLink(context.Context, *DeleteLinkRequest) (*CaseLink, error)
+	// With Case
 	ListLinks(context.Context, *ListLinksRequest) (*CaseLinkList, error)
-	MergeLinks(context.Context, *MergeLinksRequest) (*CaseLinkList, error)
 	mustEmbedUnimplementedCaseLinksServer()
 }
 
@@ -117,6 +119,9 @@ type UnimplementedCaseLinksServer struct{}
 func (UnimplementedCaseLinksServer) LocateLink(context.Context, *LocateLinkRequest) (*CaseLink, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LocateLink not implemented")
 }
+func (UnimplementedCaseLinksServer) CreateLink(context.Context, *CreateLinkRequest) (*CaseLink, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateLink not implemented")
+}
 func (UnimplementedCaseLinksServer) UpdateLink(context.Context, *UpdateLinkRequest) (*CaseLink, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateLink not implemented")
 }
@@ -125,9 +130,6 @@ func (UnimplementedCaseLinksServer) DeleteLink(context.Context, *DeleteLinkReque
 }
 func (UnimplementedCaseLinksServer) ListLinks(context.Context, *ListLinksRequest) (*CaseLinkList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListLinks not implemented")
-}
-func (UnimplementedCaseLinksServer) MergeLinks(context.Context, *MergeLinksRequest) (*CaseLinkList, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method MergeLinks not implemented")
 }
 func (UnimplementedCaseLinksServer) mustEmbedUnimplementedCaseLinksServer() {}
 func (UnimplementedCaseLinksServer) testEmbeddedByValue()                   {}
@@ -164,6 +166,24 @@ func _CaseLinks_LocateLink_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CaseLinksServer).LocateLink(ctx, req.(*LocateLinkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CaseLinks_CreateLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateLinkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CaseLinksServer).CreateLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CaseLinks_CreateLink_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CaseLinksServer).CreateLink(ctx, req.(*CreateLinkRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -222,24 +242,6 @@ func _CaseLinks_ListLinks_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CaseLinks_MergeLinks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MergeLinksRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CaseLinksServer).MergeLinks(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: CaseLinks_MergeLinks_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CaseLinksServer).MergeLinks(ctx, req.(*MergeLinksRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // CaseLinks_ServiceDesc is the grpc.ServiceDesc for CaseLinks service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -252,6 +254,10 @@ var CaseLinks_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _CaseLinks_LocateLink_Handler,
 		},
 		{
+			MethodName: "CreateLink",
+			Handler:    _CaseLinks_CreateLink_Handler,
+		},
+		{
 			MethodName: "UpdateLink",
 			Handler:    _CaseLinks_UpdateLink_Handler,
 		},
@@ -262,10 +268,6 @@ var CaseLinks_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListLinks",
 			Handler:    _CaseLinks_ListLinks_Handler,
-		},
-		{
-			MethodName: "MergeLinks",
-			Handler:    _CaseLinks_MergeLinks_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -15,7 +15,7 @@ import (
 type Store struct {
 	//------------cases stores ------------ ----//
 	caseStore        store.CaseStore
-	linkCaseStore    store.LinkCaseStore
+	linkCaseStore    store.CaseLinkStore
 	caseCommentStore store.CaseCommentStore
 	//----------dictionary stores ------------ //
 	sourceStore           store.SourceStore
@@ -52,7 +52,7 @@ func (s *Store) Case() store.CaseStore {
 	return s.caseStore
 }
 
-func (s *Store) LinkCase() store.LinkCaseStore {
+func (s *Store) CaseLink() store.CaseLinkStore {
 	if s.linkCaseStore == nil {
 		linkCase, err := NewLinkCaseStore(s)
 		if err != nil {

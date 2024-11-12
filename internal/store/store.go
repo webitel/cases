@@ -15,7 +15,7 @@ type Store interface {
 	// ------------ Cases Stores ------------ //
 	Case() CaseStore
 	CaseComment() CaseCommentStore
-	LinkCase() LinkCaseStore
+	CaseLink() CaseLinkStore
 
 	// ------------ Dictionary Stores ------------ //
 	Source() SourceStore
@@ -61,9 +61,9 @@ type CaseStore interface {
 }
 
 // RelatedCases attribute attached to the case (n:1)
-type LinkCaseStore interface {
+type CaseLinkStore interface {
 	// Create link
-	Create(rpc *model.CreateOptions, caseId int64, add *_go.InputCaseLink) (*_go.CaseLink, error)
+	Create(rpc *model.CreateOptions, add *_go.InputCaseLink) (*_go.CaseLink, error)
 	// List links
 	List(rpc *model.SearchOptions) (*_go.CaseLinkList, error)
 	// Update link

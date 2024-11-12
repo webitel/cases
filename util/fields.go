@@ -63,6 +63,31 @@ func FieldsFunc(src []string, fn func(string) []string) []string {
 	return dst
 }
 
+func ProcessEtag(fields []string) (res []string, hasEtag bool, hasId bool, hasVer bool) {
+
+	// Iterate through the fields and update the flags
+	for _, field := range fields {
+		if field == "etag" {
+			hasEtag = true
+			continue
+		} else if field == "id" {
+			hasId = true
+		} else if field == "ver" {
+			hasVer = true
+		}
+		res = append(res, field)
+	}
+	if hasEtag {
+		if !hasId {
+			res = append(res, "id")
+		}
+		if !hasVer {
+			res = append(res, "ver")
+		}
+	}
+	return
+}
+
 // MergeFields appends a unique set from src to dst.
 func MergeFields(dst, src []string) []string {
 	if len(src) == 0 {

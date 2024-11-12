@@ -37,7 +37,7 @@ func (c *CaseCommentService) LocateComment(
 		fields = defaultFieldsCaseComments
 	}
 
-	searchOpts := model.NewLocateOptions(ctx, req)
+	searchOpts := model.NewLocateOptions(ctx, req, nil)
 	searchOpts.IDs = []int64{tag.GetOid()}
 	searchOpts.Fields = fields
 
@@ -187,7 +187,7 @@ func (c *CaseCommentService) PublishComment(
 		fields = defaultFieldsCaseComments
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req)
+	createOpts := model.NewCreateOptions(ctx, req, nil)
 	createOpts.Fields = fields
 
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.CaseEtag)

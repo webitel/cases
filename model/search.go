@@ -23,6 +23,25 @@ type SearchOptions struct {
 	Id      int64
 	Page    int32
 	Size    int32
+	hasEtag bool
+	hasId   bool
+	hasVer  bool
+}
+
+func (s *SearchOptions) HasEtag() bool {
+	return s.hasEtag
+}
+func (s *SearchOptions) HasId() bool {
+	return s.hasId
+}
+func (s *SearchOptions) HasVer() bool {
+	return s.hasVer
+}
+
+type Etagger interface {
+	HasEtag() bool
+	HasId() bool
+	HasVer() bool
 }
 
 type Searcher interface {
@@ -35,34 +54,48 @@ type Locator interface {
 	GetFields() []string
 }
 
-func NewSearchOptions(ctx context.Context, searcher Searcher) *SearchOptions {
-	sess := ctx.Value(interceptor.SessionHeader).(*session.Session)
-
-	return &SearchOptions{
+func NewSearchOptions(ctx context.Context, searcher Searcher, defaultFields []string) *SearchOptions {
+	opts := &SearchOptions{
 		Context: ctx,
-		Session: sess,
-		Fields: util.FieldsFunc(
-			searcher.GetFields(), graph.SplitFieldsQ, // explode: by COMMA(',')
-		),
-		Time: time.Now(),
-		Page: searcher.GetPage(),
-		Size: searcher.GetSize(),
+		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
+		Page:    searcher.GetPage(),
+		Size:    searcher.GetSize(),
 	}
+	// set current time
+	opts.CurrentTime()
+
+	// normalize fields
+	fields := util.FieldsFunc(
+		searcher.GetFields(), graph.SplitFieldsQ,
+	)
+	if len(fields) == 0 {
+		fields = defaultFields
+	}
+	opts.Fields, opts.hasEtag, opts.hasId, opts.hasVer = util.ProcessEtag(fields)
+	return opts
 }
 
-func NewLocateOptions(ctx context.Context, locator Locator) *SearchOptions {
-	sess := ctx.Value(interceptor.SessionHeader).(*session.Session)
-
-	return &SearchOptions{
+func NewLocateOptions(ctx context.Context, locator Locator, defaultFields []string) *SearchOptions {
+	opts := &SearchOptions{
 		Context: ctx,
-		Session: sess,
-		Fields: util.FieldsFunc(
-			locator.GetFields(), graph.SplitFieldsQ,
-		),
-		Time: time.Now(),
-		Page: 1,
-		Size: 1,
+		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
+		Time:    time.Now(),
+		Page:    1,
+		Size:    1,
 	}
+	// set current time
+	opts.CurrentTime()
+
+	// normalize fields
+	fields := util.FieldsFunc(
+		locator.GetFields(), graph.SplitFieldsQ,
+	)
+	if len(fields) == 0 {
+		fields = defaultFields
+	}
+	// find and process etag field
+	opts.Fields, opts.hasEtag, opts.hasId, opts.hasVer = util.ProcessEtag(fields)
+	return opts
 }
 
 // DeafaultSearchSize is a constant integer == 16.

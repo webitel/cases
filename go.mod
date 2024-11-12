@@ -9,17 +9,13 @@ go 1.23.0
 require (
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240725111140-8ade8003e454.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.23.0
+	github.com/jackc/pgtype v1.14.4
 	google.golang.org/genproto/googleapis/api v0.0.0-20241104194629-dd2ea8efbc28
 	google.golang.org/protobuf v1.35.1
 )
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 // indirect
-	buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.35.1-20240617172850-a48fcebcf8f1.1 // indirect
-	buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20241111113310-30f91005e426.1 // indirect
-	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.35.1-20241111113310-30f91005e426.1 // indirect
-	buf.build/gen/go/webitel/general/protocolbuffers/go v1.35.1-20240527133232-b30251c3af1c.1 // indirect
-	buf.build/gen/go/webitel/protoc-gen-go-webitel/protocolbuffers/go v1.35.1-20240830062629-411a5fb2aec7.1 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -27,6 +23,7 @@ require (
 	github.com/google/cel-go v0.21.0 // indirect
 	github.com/grafana/otel-profiling-go v0.5.1 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
+	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
@@ -98,7 +95,6 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/hashicorp/consul/api v1.29.2
 	github.com/jackc/pgconn v1.14.3
-	github.com/jackc/pgtype v1.14.4
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/lib/pq v1.10.9

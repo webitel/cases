@@ -18,6 +18,19 @@ type CreateOptions struct {
 	Ids             []int64
 	// ParentID is the attribute to represent parent object, that creation process connected to
 	ParentID int64
+	hasEtag  bool
+	hasId    bool
+	hasVer   bool
+}
+
+func (s *CreateOptions) HasEtag() bool {
+	return s.hasEtag
+}
+func (s *CreateOptions) HasId() bool {
+	return s.hasId
+}
+func (s *CreateOptions) HasVer() bool {
+	return s.hasVer
 }
 
 type Creator interface {
@@ -33,16 +46,22 @@ func (rpc *CreateOptions) CurrentTime() time.Time {
 	return ts
 }
 
-func NewCreateOptions(ctx context.Context, creator Creator) *CreateOptions {
-	sess := ctx.Value(interceptor.SessionHeader).(*session.Session)
-
+func NewCreateOptions(ctx context.Context, creator Creator, defaultFields []string) *CreateOptions {
 	createOpts := &CreateOptions{
 		Context: ctx,
-		Session: sess,
-		Fields: util.FieldsFunc(
-			creator.GetFields(), graph.SplitFieldsQ,
-		),
+		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
 	}
-	createOpts.Time = createOpts.CurrentTime()
+
+	// set current time
+	createOpts.CurrentTime()
+
+	// normalize fields
+	fields := util.FieldsFunc(
+		creator.GetFields(), graph.SplitFieldsQ,
+	)
+	if len(fields) == 0 {
+		fields = defaultFields
+	}
+	createOpts.Fields, createOpts.hasEtag, createOpts.hasId, createOpts.hasVer = util.ProcessEtag(fields)
 	return createOpts
 }
