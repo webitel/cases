@@ -190,8 +190,19 @@ var WebitelAPI = WebitelServicesInfo{
 					},
 				},
 			},
+			"CreateLink": WebitelMethod{
+				Access: 2,
+				Input:  "CreateLinkRequest",
+				Output: "CaseLink",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/links/{case_etag}",
+						Method: "POST",
+					},
+				},
+			},
 			"UpdateLink": WebitelMethod{
-				Access: 1,
+				Access: 2,
 				Input:  "UpdateLinkRequest",
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
@@ -206,7 +217,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteLink": WebitelMethod{
-				Access: 1,
+				Access: 2,
 				Input:  "DeleteLinkRequest",
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
@@ -224,17 +235,6 @@ var WebitelAPI = WebitelServicesInfo{
 					{
 						Path:   "/cases/{case_etag}/links",
 						Method: "GET",
-					},
-				},
-			},
-			"MergeLinks": WebitelMethod{
-				Access: 0,
-				Input:  "MergeLinksRequest",
-				Output: "CaseLinkList",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/{case_etag}/links",
-						Method: "POST",
 					},
 				},
 			},

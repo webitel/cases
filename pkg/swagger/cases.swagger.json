@@ -923,6 +923,66 @@
         ]
       }
     },
+    "/cases/links/{case_etag}": {
+      "post": {
+        "operationId": "CreateLink",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/casesCaseLink"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "case_etag",
+            "description": "new comment link",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "description": "result fields needed on the front-end for each comment",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "input.etag",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "input.url",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "input.name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "CaseLinks"
+        ]
+      }
+    },
     "/cases/links/{etag}": {
       "get": {
         "operationId": "LocateLink",
@@ -3309,6 +3369,7 @@
     },
     "/cases/{case_etag}/links": {
       "get": {
+        "summary": "With Case",
         "operationId": "ListLinks",
         "responses": {
           "200": {
@@ -3370,58 +3431,6 @@
           },
           {
             "name": "fields",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          }
-        ],
-        "tags": [
-          "CaseLinks"
-        ]
-      },
-      "post": {
-        "operationId": "MergeLinks",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/casesCaseLinkList"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "case_etag",
-            "description": "new/existing comments belong to (id accepted)",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "input",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "$ref": "#/definitions/casesInputCaseLink"
-              }
-            }
-          },
-          {
-            "name": "fields",
-            "description": "result fields needed on the front-end for each comment",
             "in": "query",
             "required": false,
             "type": "array",
