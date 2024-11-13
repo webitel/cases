@@ -64,7 +64,6 @@ func FieldsFunc(src []string, fn func(string) []string) []string {
 }
 
 func ProcessEtag(fields []string) (res []string, hasEtag bool, hasId bool, hasVer bool) {
-
 	// Iterate through the fields and update the flags
 	for _, field := range fields {
 		if field == "etag" {
@@ -171,6 +170,27 @@ func EnsureIdAndVerField(fields []string) []string {
 	// Necessary for etag encoding as ver is required
 	if !hasVer {
 		fields = append(fields, "ver")
+	}
+
+	return fields
+}
+
+// EnsureIdField ensures that "id" is present in the rpc.Fields.
+// Necessary when the "id" field is required for specific operations.
+func EnsureIdField(fields []string) []string {
+	hasId := false
+
+	// Check for "id" in the fields
+	for _, field := range fields {
+		if field == "id" {
+			hasId = true
+			break
+		}
+	}
+
+	// Add "id" if not found
+	if !hasId {
+		fields = append(fields, "id")
 	}
 
 	return fields

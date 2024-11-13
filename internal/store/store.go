@@ -16,6 +16,7 @@ type Store interface {
 	Case() CaseStore
 	CaseComment() CaseCommentStore
 	CaseLink() CaseLinkStore
+	CaseFile() CaseFileStore
 
 	// ------------ Dictionary Stores ------------ //
 	Source() SourceStore
@@ -82,6 +83,11 @@ type CaseCommentStore interface {
 	Update(req *model.UpdateOptions, upd *_go.CaseComment) (*_go.CaseComment, error)
 	// Delete comment
 	Delete(req *model.DeleteOptions) error
+}
+
+type CaseFileStore interface {
+	// List files
+	List(rpc *model.SearchOptions) (*_go.CaseFileList, error)
 }
 
 // ------------Access Control------------//

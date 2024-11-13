@@ -3239,7 +3239,7 @@
     },
     "/cases/{case_etag}/files": {
       "get": {
-        "summary": "With Case",
+        "summary": "Retrieve a list of files associated with a case",
         "operationId": "ListFiles",
         "responses": {
           "200": {
@@ -3258,13 +3258,14 @@
         "parameters": [
           {
             "name": "case_etag",
-            "description": "simple filter query language [SFQL]\n( -\u003e start of the filter or filter node\n) -\u003e end of the filter or the filter node\nlast ( -\u003e always start of the filter\n[ -\u003e start of the operator\n] -\u003e end of the operator\noperands - simple strings, first string should always be a valid field name, second should\noperators:\n[and] [or] -- only applied to the filter node, after them always should be a ( as filter or another filter node\n[eq], [gte], [gt], [lte], [lt], [regex], [neq] -- only applied to the filter, value after them and to the ) symbol considered as string\n...?size=10\u0026page=1\u0026filter=((file[eq]fghj)[and](name[eq]yehor))[or])\n oneof filters {\n   FilterNode node = 7;\n   Filter filter = 8;\n }",
+            "description": "ID of the case to fetch files for (required).",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "page",
+            "description": "The page number to retrieve.",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -3272,20 +3273,15 @@
           },
           {
             "name": "size",
+            "description": "Number of items per page.",
             "in": "query",
             "required": false,
             "type": "integer",
             "format": "int32"
           },
           {
-            "name": "q",
-            "description": "covered by filters?",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
             "name": "qin",
+            "description": "Query parameters for filtering.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -3293,15 +3289,10 @@
               "type": "string"
             },
             "collectionFormat": "multi"
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "required": false,
-            "type": "string"
           },
           {
             "name": "fields",
+            "description": "Fields to include in the response.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -3309,12 +3300,6 @@
               "type": "string"
             },
             "collectionFormat": "multi"
-          },
-          {
-            "name": "filter",
-            "in": "query",
-            "required": false,
-            "type": "string"
           }
         ],
         "tags": [
@@ -5064,31 +5049,37 @@
       "properties": {
         "author": {
           "$ref": "#/definitions/generalLookup",
-          "title": "contact of the creator"
+          "description": "The contact information of the creator (author) of the file."
         },
         "file": {
-          "$ref": "#/definitions/casesFile"
+          "$ref": "#/definitions/casesFile",
+          "description": "File metadata and details."
         }
-      }
+      },
+      "description": "Represents a file associated with a case, including author information and file details."
     },
     "casesCaseFileList": {
       "type": "object",
       "properties": {
         "page": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "description": "Current page number."
         },
         "next": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Indicator if there is a next page."
         },
         "items": {
           "type": "array",
           "items": {
             "type": "object",
             "$ref": "#/definitions/casesCaseFile"
-          }
+          },
+          "description": "List of case files."
         }
-      }
+      },
+      "description": "Contains a list of case files with pagination."
     },
     "casesCaseLink": {
       "type": "object",
@@ -5643,28 +5634,32 @@
         "id": {
           "type": "string",
           "format": "int64",
-          "title": "storage.file id"
+          "description": "Storage file ID."
         },
         "created_by": {
-          "$ref": "#/definitions/generalLookup"
+          "$ref": "#/definitions/generalLookup",
+          "description": "Creator of the file."
         },
         "created_at": {
           "type": "string",
           "format": "int64",
-          "title": "unixmilli"
+          "description": "Creation timestamp in Unix milliseconds."
         },
         "size": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "description": "File size in bytes."
         },
         "mime": {
           "type": "string",
-          "title": "MIME type"
+          "description": "MIME type of the file."
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "File name."
         }
-      }
+      },
+      "description": "Metadata for a file associated with a case."
     },
     "casesInputCase": {
       "type": "object",

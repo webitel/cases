@@ -25,8 +25,10 @@ const (
 // CaseFilesClient is the client API for CaseFiles service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Service for managing files associated with cases.
 type CaseFilesClient interface {
-	// With Case
+	// Retrieves a list of files associated with a specific case.
 	ListFiles(ctx context.Context, in *ListFilesRequest, opts ...grpc.CallOption) (*CaseFileList, error)
 }
 
@@ -51,8 +53,10 @@ func (c *caseFilesClient) ListFiles(ctx context.Context, in *ListFilesRequest, o
 // CaseFilesServer is the server API for CaseFiles service.
 // All implementations must embed UnimplementedCaseFilesServer
 // for forward compatibility.
+//
+// Service for managing files associated with cases.
 type CaseFilesServer interface {
-	// With Case
+	// Retrieves a list of files associated with a specific case.
 	ListFiles(context.Context, *ListFilesRequest) (*CaseFileList, error)
 	mustEmbedUnimplementedCaseFilesServer()
 }
