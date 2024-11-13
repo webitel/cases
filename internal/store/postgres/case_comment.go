@@ -16,7 +16,6 @@ import (
 	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
-	"github.com/webitel/webitel-go-kit/etag"
 )
 
 type CaseComment struct {
@@ -58,16 +57,6 @@ func (c *CaseComment) Publish(
 	if err = d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("store.case_comment.publish.scan_error", err)
 	}
-
-	// Convert the returned ID to integer and handle any error
-	commId, err := strconv.Atoi(add.Id)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.publish.convert_id_error", err)
-	}
-
-	// Encode etag from the comment ID and version
-	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), add.Ver)
-	add.Id = e
 
 	return add, nil
 }
@@ -210,13 +199,6 @@ func (c *CaseComment) List(rpc *model.SearchOptions) (*_go.CaseCommentList, erro
 			return nil, dberr.NewDBInternalError("store.case_comment.list.row_scan_error", err)
 		}
 
-		// Encode the `id` and `ver` fields into an etag
-		commId, err := strconv.Atoi(comment.Id)
-		if err != nil {
-			return nil, dberr.NewDBInternalError("store.case_comment.list.id_conversion_error", err)
-		}
-		comment.Id = etag.EncodeEtag(etag.EtagCaseComment, int64(commId), comment.Ver)
-
 		commentList = append(commentList, comment)
 		lCount++
 	}
@@ -310,6 +292,11 @@ func (c *CaseComment) Update(
 	rpc *model.UpdateOptions,
 	upd *_go.CaseComment,
 ) (*_go.CaseComment, error) {
+	commId, err := strconv.Atoi(upd.Id)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.id_error", err)
+	}
+
 	// Get the database connection
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -323,11 +310,6 @@ func (c *CaseComment) Update(
 	}
 	defer tx.Rollback(rpc.Context)
 	txManager := store.NewTxManager(tx)
-
-	commId, err := strconv.Atoi(upd.Id)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.id_error", err)
-	}
 
 	// Scan the current version of the comment
 	ver, err := c.ScanVer(rpc.Context, int64(commId), txManager)
@@ -357,10 +339,6 @@ func (c *CaseComment) Update(
 	if err := txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.execution_error", err)
 	}
-
-	// Encode etag from the comment ID and version
-	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), upd.Ver)
-	upd.Id = e
 
 	// Commit the transaction
 	if err := tx.Commit(rpc.Context); err != nil {

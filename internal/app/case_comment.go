@@ -91,6 +91,15 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewInternalError("app.case_comment.update_comment.store_update_failed", err.Error())
 	}
 
+	commId, err := strconv.Atoi(updatedComment.Id)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case_comment.update_comment.parse.comment_id", err.Error())
+	}
+
+	// Encode etag from the comment ID and version
+	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), updatedComment.Ver)
+	updatedComment.Id = e
+
 	return updatedComment, nil
 }
 
@@ -169,6 +178,18 @@ func (c *CaseCommentService) ListComments(
 		return nil, cerror.NewInternalError("app.case_comment.list_comments.fetch_error", err.Error())
 	}
 
+	// Iterate through each comment to parse and encode the `Id` field as etag
+	for _, comment := range comments.Items {
+		// Parse the `Id` field to an integer for etag encoding
+		commId, err := strconv.Atoi(comment.Id)
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case_comment.list_comments.id_conversion_error", err.Error())
+		}
+
+		// Encode the `id` and `ver` fields into an etag and assign it back to `Id`
+		comment.Id = etag.EncodeEtag(etag.EtagCaseComment, int64(commId), comment.Ver)
+	}
+
 	return comments, nil
 }
 
@@ -200,6 +221,16 @@ func (c *CaseCommentService) PublishComment(
 	if err != nil {
 		return nil, cerror.NewInternalError("app.case_comment.publish_comment.publish_error", err.Error())
 	}
+
+	// Convert the returned ID to integer and handle any error
+	commId, err := strconv.Atoi(comment.Id)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case_comment.publish.convert_id_error", err.Error())
+	}
+
+	// Encode etag from the comment ID and version
+	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), comment.Ver)
+	comment.Id = e
 
 	return comment, nil
 }
