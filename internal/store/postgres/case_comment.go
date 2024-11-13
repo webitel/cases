@@ -322,7 +322,7 @@ func (c *CaseComment) Update(
 	}
 
 	// Build the update query
-	queryBuilder, plan, err := c.BuildUpdateCaseCommentSqlizer(rpc, upd)
+	queryBuilder, plan, err := c.BuildUpdateCaseCommentSqlizer(rpc, &_go.InputCaseComment{Text: upd.Text, Etag: upd.Id})
 	if err != nil {
 		return nil, err
 	}
@@ -368,7 +368,7 @@ func (c *CaseComment) ScanVer(
 
 func (c *CaseComment) BuildUpdateCaseCommentSqlizer(
 	rpc *model.UpdateOptions,
-	input *_go.CaseComment,
+	input *_go.InputCaseComment,
 ) (sq.Sqlizer, []CommentScan, error) {
 	// Ensure "id" and "ver" are in the fields list
 	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
@@ -379,7 +379,8 @@ func (c *CaseComment) BuildUpdateCaseCommentSqlizer(
 		Set("updated_at", rpc.CurrentTime()).
 		Set("updated_by", rpc.Session.GetUserId()).
 		Set("ver", sq.Expr("ver + 1")). // Increment version
-		Where(sq.Eq{"id": input.Id, "dc": rpc.Session.GetDomainId()})
+		// input.Etag == input.ID
+		Where(sq.Eq{"id": input.Etag, "dc": rpc.Session.GetDomainId()})
 
 	// Update the `comment` field if provided
 	if input.Text != "" {
