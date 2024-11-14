@@ -240,71 +240,6 @@ var WebitelAPI = WebitelServicesInfo{
 			},
 		},
 	},
-	"SLAs": WebitelServices{
-		ObjClass:           "dictionaries",
-		AdditionalLicenses: []string{},
-		WebitelMethods: map[string]WebitelMethod{
-			"ListSLAs": WebitelMethod{
-				Access: 1,
-				Input:  "ListSLARequest",
-				Output: "SLAList",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/slas",
-						Method: "GET",
-					},
-				},
-			},
-			"CreateSLA": WebitelMethod{
-				Access: 0,
-				Input:  "CreateSLARequest",
-				Output: "SLA",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/slas",
-						Method: "POST",
-					},
-				},
-			},
-			"UpdateSLA": WebitelMethod{
-				Access: 2,
-				Input:  "UpdateSLARequest",
-				Output: "SLA",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/slas/{id}",
-						Method: "PUT",
-					},
-					{
-						Path:   "/cases/slas/{id}",
-						Method: "PATCH",
-					},
-				},
-			},
-			"DeleteSLA": WebitelMethod{
-				Access: 3,
-				Input:  "DeleteSLARequest",
-				Output: "SLA",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/slas/{id}",
-						Method: "DELETE",
-					},
-				},
-			},
-			"LocateSLA": WebitelMethod{
-				Access: 1,
-				Input:  "LocateSLARequest",
-				Output: "LocateSLAResponse",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/slas/{id}",
-						Method: "GET",
-					},
-				},
-			},
-		},
-	},
 	"SLAConditions": WebitelServices{
 		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
@@ -754,6 +689,71 @@ var WebitelAPI = WebitelServicesInfo{
 				HttpBindings: []*HttpBinding{
 					{
 						Path:   "/cases/priorities/{id}",
+						Method: "GET",
+					},
+				},
+			},
+		},
+	},
+	"SLAs": WebitelServices{
+		ObjClass:           "dictionaries",
+		AdditionalLicenses: []string{},
+		WebitelMethods: map[string]WebitelMethod{
+			"ListSLAs": WebitelMethod{
+				Access: 1,
+				Input:  "ListSLARequest",
+				Output: "SLAList",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/slas",
+						Method: "GET",
+					},
+				},
+			},
+			"CreateSLA": WebitelMethod{
+				Access: 0,
+				Input:  "CreateSLARequest",
+				Output: "SLA",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/slas",
+						Method: "POST",
+					},
+				},
+			},
+			"UpdateSLA": WebitelMethod{
+				Access: 2,
+				Input:  "UpdateSLARequest",
+				Output: "SLA",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/slas/{id}",
+						Method: "PUT",
+					},
+					{
+						Path:   "/cases/slas/{id}",
+						Method: "PATCH",
+					},
+				},
+			},
+			"DeleteSLA": WebitelMethod{
+				Access: 3,
+				Input:  "DeleteSLARequest",
+				Output: "SLA",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/slas/{id}",
+						Method: "DELETE",
+					},
+				},
+			},
+			"LocateSLA": WebitelMethod{
+				Access: 1,
+				Input:  "LocateSLARequest",
+				Output: "LocateSLAResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/slas/{id}",
 						Method: "GET",
 					},
 				},

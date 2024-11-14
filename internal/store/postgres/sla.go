@@ -39,8 +39,7 @@ func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA,
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &add.Description,
 		&validFrom, &validTo, &calendar.Id, &calendar.Name,
-		&add.ReactionTime.Hours, &add.ReactionTime.Minutes,
-		&add.ResolutionTime.Hours, &add.ResolutionTime.Minutes,
+		&add.ReactionTime, &add.ResolutionTime,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
 	)
@@ -50,24 +49,18 @@ func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA,
 
 	t := rpc.Time
 	return &cases.SLA{
-		Id:          add.Id,
-		Name:        add.Name,
-		Description: add.Description,
-		ValidFrom:   util.Timestamp(validFrom),
-		ValidTo:     util.Timestamp(validTo),
-		Calendar:    &calendar,
-		ReactionTime: &cases.ReactionTime{
-			Hours:   add.ReactionTime.Hours,
-			Minutes: add.ReactionTime.Minutes,
-		},
-		ResolutionTime: &cases.ResolutionTime{
-			Hours:   add.ResolutionTime.Hours,
-			Minutes: add.ResolutionTime.Minutes,
-		},
-		CreatedAt: util.Timestamp(t),
-		UpdatedAt: util.Timestamp(t),
-		CreatedBy: &createdByLookup,
-		UpdatedBy: &updatedByLookup,
+		Id:             add.Id,
+		Name:           add.Name,
+		Description:    add.Description,
+		ValidFrom:      util.Timestamp(validFrom),
+		ValidTo:        util.Timestamp(validTo),
+		Calendar:       &calendar,
+		ReactionTime:   add.ReactionTime,
+		ResolutionTime: add.ResolutionTime,
+		CreatedAt:      util.Timestamp(t),
+		UpdatedAt:      util.Timestamp(t),
+		CreatedBy:      &createdByLookup,
+		UpdatedBy:      &updatedByLookup,
 	}, nil
 }
 
@@ -180,8 +173,7 @@ func (s *SLAStore) Update(rpc *model.UpdateOptions, l *cases.SLA) (*cases.SLA, e
 	err = d.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
 		&validFrom, &validTo, &calendar.Id, &calendar.Name,
-		&l.ReactionTime.Hours, &l.ReactionTime.Minutes,
-		&l.ResolutionTime.Hours, &l.ResolutionTime.Minutes,
+		&l.ReactionTime, &l.ResolutionTime,
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name,
 	)
 	if err != nil {
@@ -209,18 +201,16 @@ func (s SLAStore) buildCreateSLAQuery(rpc *model.CreateOptions, sla *cases.SLA) 
 
 	query := createSLAQuery
 	args := []interface{}{
-		sla.Name,                   // $1 name
-		rpc.Session.GetDomainId(),  // $2 dc
-		rpc.Time,                   // $3 created_at
-		sla.Description,            // $4 description
-		rpc.Session.GetUserId(),    // $5 created_by
-		validFrom,                  // $6 valid_from
-		validTo,                    // $7 valid_to
-		sla.Calendar.Id,            // $8 calendar_id
-		sla.ReactionTime.Hours,     // $9 reaction_time_hours
-		sla.ReactionTime.Minutes,   // $10 reaction_time_minutes
-		sla.ResolutionTime.Hours,   // $11 resolution_time_hours
-		sla.ResolutionTime.Minutes, // $12 resolution_time_minutes
+		sla.Name,                  // $1 name
+		rpc.Session.GetDomainId(), // $2 dc
+		rpc.Time,                  // $3 created_at
+		sla.Description,           // $4 description
+		rpc.Session.GetUserId(),   // $5 created_by
+		validFrom,                 // $6 valid_from
+		validTo,                   // $7 valid_to
+		sla.Calendar.Id,           // $8 calendar_id
+		sla.ReactionTime,          // $9 reaction_time
+		sla.ResolutionTime,        // $10 resolution_time
 	}
 	return query, args, nil
 }
@@ -253,11 +243,9 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 		case "id", "name", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
 		case "reaction_time":
-			queryBuilder = queryBuilder.Column("g.reaction_time_hours AS reaction_time_hours").
-				Column("g.reaction_time_minutes AS reaction_time_minutes")
+			queryBuilder = queryBuilder.Column("g.reaction_time AS reaction_time")
 		case "resolution_time":
-			queryBuilder = queryBuilder.Column("g.resolution_time_hours AS resolution_time_hours").
-				Column("g.resolution_time_minutes AS resolution_time_minutes")
+			queryBuilder = queryBuilder.Column("g.resolution_time AS resolution_time")
 		case "description":
 			// Use COALESCE to handle null values for description
 			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")
@@ -383,21 +371,13 @@ func (s SLAStore) buildUpdateSLAQuery(rpc *model.UpdateOptions, l *cases.SLA) (s
 			if l.Calendar.Id != 0 {
 				updateBuilder = updateBuilder.Set("calendar_id", l.Calendar.Id)
 			}
-		case "reaction_time_hours":
-			if l.ReactionTime.Hours != 0 {
-				updateBuilder = updateBuilder.Set("reaction_time_hours", l.ReactionTime.Hours)
+		case "reaction_time":
+			if l.ReactionTime != 0 {
+				updateBuilder = updateBuilder.Set("reaction_time", l.ReactionTime)
 			}
-		case "reaction_time_minutes":
-			if l.ReactionTime.Minutes != 0 {
-				updateBuilder = updateBuilder.Set("reaction_time_minutes", l.ReactionTime.Minutes)
-			}
-		case "resolution_time_hours":
-			if l.ResolutionTime.Hours != 0 {
-				updateBuilder = updateBuilder.Set("resolution_time_hours", l.ResolutionTime.Hours)
-			}
-		case "resolution_time_minutes":
-			if l.ResolutionTime.Minutes != 0 {
-				updateBuilder = updateBuilder.Set("resolution_time_minutes", l.ResolutionTime.Minutes)
+		case "resolution_time":
+			if l.ResolutionTime != 0 {
+				updateBuilder = updateBuilder.Set("resolution_time", l.ResolutionTime)
 			}
 		}
 	}
@@ -416,8 +396,7 @@ func (s SLAStore) buildUpdateSLAQuery(rpc *model.UpdateOptions, l *cases.SLA) (s
 WITH upd AS (%s
     RETURNING id, name, created_at, updated_at,
               description, valid_from, valid_to, calendar_id,
-              reaction_time_hours, reaction_time_minutes,
-              resolution_time_hours, resolution_time_minutes,
+              reaction_time, resolution_time,
               created_by, updated_by)
 SELECT
     upd.id,
@@ -429,10 +408,8 @@ SELECT
     COALESCE(upd.valid_to, NULL)                 AS valid_to,
     upd.calendar_id,
     COALESCE(cal.name, '')                     AS calendar_name,
-    upd.reaction_time_hours,
-    upd.reaction_time_minutes,
-    upd.resolution_time_hours,
-    upd.resolution_time_minutes,
+    upd.reaction_time,
+    upd.resolution_time,
     upd.created_by                             AS created_by_id,
     COALESCE(c.name::text, c.username, '')     AS created_by_name,
     upd.updated_by                             AS updated_by_id,
@@ -454,10 +431,9 @@ WITH ins AS (
                            name, dc, created_at, description,
                            created_by, updated_at, updated_by,
                            valid_from, valid_to, calendar_id,
-                           reaction_time_hours, reaction_time_minutes,
-                           resolution_time_hours, resolution_time_minutes
+                           reaction_time, resolution_time
         )
-        VALUES ($1, $2, $3, NULLIF($4, ''), $5, $3, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, NULLIF($4, ''), $5, $3, $5, $6, $7, $8, $9, $10)
         RETURNING *)
 SELECT ins.id,
        ins.name,
@@ -467,10 +443,8 @@ SELECT ins.id,
        COALESCE(ins.valid_to, NULL)         AS valid_to,
        ins.calendar_id,
        COALESCE(cal.name, '')             AS calendar_name,
-       ins.reaction_time_hours,
-       ins.reaction_time_minutes,
-       ins.resolution_time_hours,
-       ins.resolution_time_minutes,
+       ins.reaction_time,
+       ins.resolution_time,
        ins.created_by                     AS created_by_id,
        COALESCE(c.name::text, c.username) AS created_by_name,
        ins.updated_at,
@@ -510,15 +484,9 @@ func (s *SLAStore) buildScanArgs(fields []string,
 		case "calendar":
 			scanArgs = append(scanArgs, &calendar.Id, &calendar.Name)
 		case "reaction_time":
-			if sla.ReactionTime == nil {
-				sla.ReactionTime = &cases.ReactionTime{}
-			}
-			scanArgs = append(scanArgs, &sla.ReactionTime.Hours, &sla.ReactionTime.Minutes)
+			scanArgs = append(scanArgs, &sla.ReactionTime)
 		case "resolution_time":
-			if sla.ResolutionTime == nil {
-				sla.ResolutionTime = &cases.ResolutionTime{}
-			}
-			scanArgs = append(scanArgs, &sla.ResolutionTime.Hours, &sla.ResolutionTime.Minutes)
+			scanArgs = append(scanArgs, &sla.ResolutionTime)
 		case "created_at":
 			scanArgs = append(scanArgs, tempCreatedAt)
 		case "updated_at":

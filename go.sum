@@ -1,5 +1,15 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 h1:hl0FrmGlNpQZIGvU1/jDz0lsPDd0BhCE0QDRwPfLZcA=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2/go.mod h1:ylS4c28ACSI59oJrOdW4pHS4n0Hw4TgSPHn8rpHl4Yw=
+buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.35.1-20240617172850-a48fcebcf8f1.1 h1:56K2aAfywpsJln2seD16Sfp2NJy7kYH8q3bxwbvR3J8=
+buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.35.1-20240617172850-a48fcebcf8f1.1/go.mod h1:Gob4yM1VtJ2LFWFjGhPVK32vpn1ftYpKEr72JEqRJDk=
+buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20241114130920-1ce4b7918457.1 h1:AGvH3Z1j6ARKmvjFE3I9gs4QtWRTVFEv4k6nj1MTfd0=
+buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20241114130920-1ce4b7918457.1/go.mod h1:0X+aWHcGAtDH7ljY/guQRES/Zc2NmmOFmUgdxpX49Wg=
+buf.build/gen/go/webitel/cases/protocolbuffers/go v1.35.1-20241114130920-1ce4b7918457.1 h1:Q8Bib7n8RS+g0nASTB/a3GB4VvQbm+Upj39Md27GhmY=
+buf.build/gen/go/webitel/cases/protocolbuffers/go v1.35.1-20241114130920-1ce4b7918457.1/go.mod h1:IYCKV2RofitSq64Hkw0hC/6kyko8ybSj7H+6KwfMi8I=
+buf.build/gen/go/webitel/general/protocolbuffers/go v1.35.1-20240527133232-b30251c3af1c.1 h1:p90JxthlwQoTbEZ0F8sF4PHKyzxDVTFtPCVIfnubzTE=
+buf.build/gen/go/webitel/general/protocolbuffers/go v1.35.1-20240527133232-b30251c3af1c.1/go.mod h1:fDnlzIkNa1+JfSPxNtrvzcmGIAGTaUobC0pt3xrURHI=
+buf.build/gen/go/webitel/protoc-gen-go-webitel/protocolbuffers/go v1.35.1-20240830062629-411a5fb2aec7.1 h1:j/MbBjDk+ydwkL84Y80td6TvXsEOo26W19Hgnl6Q6A4=
+buf.build/gen/go/webitel/protoc-gen-go-webitel/protocolbuffers/go v1.35.1-20240830062629-411a5fb2aec7.1/go.mod h1:ets6lmxuBdjJwdZJNSiPlyKrqLM0Nq/jnGJ6x9WAQho=
 buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20240725111140-8ade8003e454.1 h1:0zrqqJtCmc0BiyZfLzExXDUcxFb9XyCwSzPc4YYBM48=
 buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20240725111140-8ade8003e454.1/go.mod h1:+hPe2SWUrmIXF8syT8Gs0u5Fj3848w78nc+pnYoZV+s=
 buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240725111140-8ade8003e454.2 h1:bJoBKyzpwXp2TvPlkxN3K7dj5qmSC3ZUcay//bWkDd0=

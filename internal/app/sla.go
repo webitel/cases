@@ -30,10 +30,10 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 	if req.CalendarId == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.calendar_id.required", "Calendar ID is required")
 	}
-	if req.ReactionTime.Hours == 0 && req.ReactionTime.Minutes == 0 {
+	if req.ReactionTime == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.reaction_time.required", "Reaction time is required")
 	}
-	if req.ResolutionTime.Hours == 0 && req.ResolutionTime.Minutes == 0 {
+	if req.ResolutionTime == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.resolution_time.required", "Resolution time is required")
 	}
 
@@ -57,27 +57,20 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 
 	// Create a new SLA model
 	sla := &cases.SLA{
-		Name:        req.Name,
-		Description: req.Description,
-		ValidFrom:   req.ValidFrom.AsTime().Unix(),
-		ValidTo:     req.ValidTo.AsTime().Unix(),
-		Calendar:    &cases.Lookup{Id: req.CalendarId},
-		ReactionTime: &cases.ReactionTime{
-			Hours:   req.ReactionTime.Hours,
-			Minutes: req.ReactionTime.Minutes,
-		},
-		ResolutionTime: &cases.ResolutionTime{
-			Hours:   req.ResolutionTime.Hours,
-			Minutes: req.ResolutionTime.Minutes,
-		},
-		CreatedBy: currentU,
-		UpdatedBy: currentU,
+		Name:           req.Name,
+		Description:    req.Description,
+		ValidFrom:      req.ValidFrom.AsTime().Unix(),
+		ValidTo:        req.ValidTo.AsTime().Unix(),
+		Calendar:       &cases.Lookup{Id: req.CalendarId},
+		ReactionTime:   req.ReactionTime,
+		ResolutionTime: req.ResolutionTime,
+		CreatedBy:      currentU,
+		UpdatedBy:      currentU,
 	}
 
 	fields := []string{
 		"id", "lookup_id", "name", "description", "valid_from",
-		"valid_to", "calendar_id", "reaction_time_hours", "reaction_time_minutes",
-		"resolution_time_hours", "resolution_time_minutes", "created_at", "updated_at",
+		"valid_to", "calendar_id", "reaction_time", "resolution_time", "created_at", "updated_at",
 		"created_by", "updated_by",
 	}
 
@@ -242,31 +235,17 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		Name: session.GetUserName(),
 	}
 
-	// Initialize ReactionTime and ResolutionTime if nil
-	if req.Input.ReactionTime == nil {
-		req.Input.ReactionTime = &cases.ReactionTime{}
-	}
-	if req.Input.ResolutionTime == nil {
-		req.Input.ResolutionTime = &cases.ResolutionTime{}
-	}
-
 	// Update SLA model
 	sla := &cases.SLA{
-		Id:          req.Id,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-		ValidFrom:   req.Input.ValidFrom.AsTime().Unix(),
-		ValidTo:     req.Input.ValidTo.AsTime().Unix(),
-		Calendar:    &cases.Lookup{Id: req.Input.CalendarId},
-		ReactionTime: &cases.ReactionTime{
-			Hours:   req.Input.ReactionTime.Hours,
-			Minutes: req.Input.ReactionTime.Minutes,
-		},
-		ResolutionTime: &cases.ResolutionTime{
-			Hours:   req.Input.ResolutionTime.Hours,
-			Minutes: req.Input.ResolutionTime.Minutes,
-		},
-		UpdatedBy: u,
+		Id:             req.Id,
+		Name:           req.Input.Name,
+		Description:    req.Input.Description,
+		ValidFrom:      req.Input.ValidFrom.AsTime().Unix(),
+		ValidTo:        req.Input.ValidTo.AsTime().Unix(),
+		Calendar:       &cases.Lookup{Id: req.Input.CalendarId},
+		ReactionTime:   req.Input.ReactionTime,
+		ResolutionTime: req.Input.ResolutionTime,
+		UpdatedBy:      u,
 	}
 
 	fields := []string{"id"}
@@ -290,14 +269,10 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 			if req.Input.CalendarId == 0 {
 				return nil, cerror.NewBadRequestError("sla_service.update_sla.calendar_id.required", "Calendar ID is required")
 			}
-		case "reaction_time_hours":
-			fields = append(fields, "reaction_time_hours")
-		case "reaction_time_minutes":
-			fields = append(fields, "reaction_time_minutes")
-		case "resolution_time_hours":
-			fields = append(fields, "resolution_time_hours")
-		case "resolution_time_minutes":
-			fields = append(fields, "resolution_time_minutes")
+		case "reaction_time":
+			fields = append(fields, "reaction_time")
+		case "resolution_time":
+			fields = append(fields, "resolution_time")
 		}
 	}
 

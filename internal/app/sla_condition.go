@@ -30,10 +30,10 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 	if len(req.Priorities) == 0 {
 		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.priorities.required", "At least one priority is required")
 	}
-	if req.ReactionTime.Hours == 0 && req.ReactionTime.Minutes == 0 {
+	if req.ReactionTime == 0 {
 		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.reaction_time.required", "Reaction time is required")
 	}
-	if req.ResolutionTime.Hours == 0 && req.ResolutionTime.Minutes == 0 {
+	if req.ResolutionTime == 0 {
 		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.resolution_time.required", "Resolution time is required")
 	}
 	if req.SlaId == 0 {
@@ -60,23 +60,16 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 
 	// Create a new SLACondition model
 	slaCondition := &cases.SLACondition{
-		Name: req.Name,
-		ReactionTime: &cases.ReactionTime{
-			Hours:   req.ReactionTime.Hours,
-			Minutes: req.ReactionTime.Minutes,
-		},
-		ResolutionTime: &cases.ResolutionTime{
-			Hours:   req.ResolutionTime.Hours,
-			Minutes: req.ResolutionTime.Minutes,
-		},
-		SlaId:     req.SlaId,
-		CreatedBy: currentU,
-		UpdatedBy: currentU,
+		Name:           req.Name,
+		ReactionTime:   req.ReactionTime,
+		ResolutionTime: req.ResolutionTime,
+		SlaId:          req.SlaId,
+		CreatedBy:      currentU,
+		UpdatedBy:      currentU,
 	}
 
 	fields := []string{
-		"id", "name", "reaction_time_hours", "reaction_time_minutes",
-		"resolution_time_hours", "resolution_time_minutes", "sla_id",
+		"id", "name", "reaction_time", "resolution_time", "sla_id",
 		"created_at", "updated_at", "created_by", "updated_by",
 	}
 
@@ -244,30 +237,14 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		Name: session.GetUserName(),
 	}
 
-	// Initialize ReactionTime if nil
-	if req.Input.ReactionTime == nil {
-		req.Input.ReactionTime = &cases.ReactionTime{}
-	}
-
-	// Initialize ResolutionTime if nil
-	if req.Input.ResolutionTime == nil {
-		req.Input.ResolutionTime = &cases.ResolutionTime{}
-	}
-
 	// Update SLACondition model
 	slaCondition := &cases.SLACondition{
-		Id:   req.Id,
-		Name: req.Input.Name,
-		ReactionTime: &cases.ReactionTime{
-			Hours:   req.Input.ReactionTime.Hours,
-			Minutes: req.Input.ReactionTime.Minutes,
-		},
-		ResolutionTime: &cases.ResolutionTime{
-			Hours:   req.Input.ResolutionTime.Hours,
-			Minutes: req.Input.ResolutionTime.Minutes,
-		},
-		SlaId:     req.Input.SlaId,
-		UpdatedBy: u,
+		Id:             req.Id,
+		Name:           req.Input.Name,
+		ReactionTime:   req.Input.ReactionTime,
+		ResolutionTime: req.Input.ResolutionTime,
+		SlaId:          req.Input.SlaId,
+		UpdatedBy:      u,
 	}
 
 	fields := []string{"id"}
@@ -280,14 +257,10 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 			if req.Input.Name == "" {
 				return nil, cerror.NewBadRequestError("sla_condition_service.update_sla_condition.name.required", "SLA Condition name is required and cannot be empty")
 			}
-		case "reaction_time_hours":
-			fields = append(fields, "reaction_time_hours")
-		case "reaction_time_minutes":
-			fields = append(fields, "reaction_time_minutes")
-		case "resolution_time_hours":
-			fields = append(fields, "resolution_time_hours")
-		case "resolution_time_minutes":
-			fields = append(fields, "resolution_time_minutes")
+		case "reaction_time":
+			fields = append(fields, "reaction_time")
+		case "resolution_time":
+			fields = append(fields, "resolution_time")
 		case "sla_id":
 			fields = append(fields, "sla_id")
 		}

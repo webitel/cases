@@ -46,8 +46,8 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 		var lookup cases.Lookup
 		if err := rows.Scan(
 			&add.Id, &add.Name, &createdAt,
-			&add.ReactionTime.Hours, &add.ReactionTime.Minutes, &add.ResolutionTime.Hours,
-			&add.ResolutionTime.Minutes, &add.SlaId, &createdByLookup.Id,
+			&add.ReactionTime, &add.ResolutionTime,
+			&add.SlaId, &createdByLookup.Id,
 			&createdByLookup.Name, &updatedAt, &updatedByLookup.Id,
 			&updatedByLookup.Name, &lookup.Id, &lookup.Name,
 		); err != nil {
@@ -64,22 +64,16 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 	// Prepare the SLACondition object to return
 	t := rpc.Time
 	return &cases.SLACondition{
-		Id:   add.Id,
-		Name: add.Name,
-		ReactionTime: &cases.ReactionTime{
-			Hours:   add.ReactionTime.Hours,
-			Minutes: add.ReactionTime.Minutes,
-		},
-		ResolutionTime: &cases.ResolutionTime{
-			Hours:   add.ResolutionTime.Hours,
-			Minutes: add.ResolutionTime.Minutes,
-		},
-		SlaId:      add.SlaId,
-		CreatedAt:  util.Timestamp(t),
-		UpdatedAt:  util.Timestamp(t),
-		CreatedBy:  &createdByLookup,
-		UpdatedBy:  &updatedByLookup,
-		Priorities: prio,
+		Id:             add.Id,
+		Name:           add.Name,
+		ReactionTime:   add.ReactionTime,
+		ResolutionTime: add.ResolutionTime,
+		SlaId:          add.SlaId,
+		CreatedAt:      util.Timestamp(t),
+		UpdatedAt:      util.Timestamp(t),
+		CreatedBy:      &createdByLookup,
+		UpdatedBy:      &updatedByLookup,
+		Priorities:     prio,
 	}, nil
 }
 
@@ -259,8 +253,8 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 	// Execute the update query for sla_condition and fetch priorities JSON
 	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt,
-		&l.ReactionTime.Hours, &l.ReactionTime.Minutes,
-		&l.ResolutionTime.Hours, &l.ResolutionTime.Minutes, &l.SlaId,
+		&l.ReactionTime, &l.ResolutionTime,
+		&l.SlaId,
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, // Corrected to include user names
 		&prioritiesJSON, // Fetch JSON aggregated priorities
 	)
@@ -295,15 +289,13 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc *model.CreateOptions, sla *cases.SLACondition) (string, []interface{}) {
 	// Create arguments for the SQL query
 	args := []interface{}{
-		sla.Name,                   // $1
-		rpc.Time,                   // $2
-		rpc.Session.GetUserId(),    // $3
-		sla.ReactionTime.Hours,     // $4
-		sla.ReactionTime.Minutes,   // $5
-		sla.ResolutionTime.Hours,   // $6
-		sla.ResolutionTime.Minutes, // $7
-		sla.SlaId,                  // $8
-		rpc.Session.GetDomainId(),  // $9
+		sla.Name,                  // $1
+		rpc.Time,                  // $2
+		rpc.Session.GetUserId(),   // $3
+		sla.ReactionTime,          // $4
+		sla.ResolutionTime,        // $5
+		sla.SlaId,                 // $6
+		rpc.Session.GetDomainId(), // $7
 	}
 
 	// SQL query construction
@@ -311,21 +303,20 @@ func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc *model.CreateOption
 WITH inserted_sla AS (
     INSERT INTO cases.sla_condition (
                                      name, created_at, created_by, updated_at,
-                                     updated_by, reaction_time_hours,
-                                     reaction_time_minutes, resolution_time_hours,
-                                     resolution_time_minutes, sla_id, dc
+                                     updated_by, reaction_time, resolution_time,
+									 sla_id, dc
         )
-        VALUES ($1, $2, $3, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id, name, created_at, reaction_time_hours,
-            reaction_time_minutes, resolution_time_hours,
-            resolution_time_minutes, sla_id, created_by AS created_by_id,
+        VALUES ($1, $2, $3, $2, $3, $4, $5, $6, $7)
+        RETURNING id, name, created_at,
+            reaction_time, resolution_time,
+			sla_id, created_by AS created_by_id,
             updated_by AS updated_by_id, updated_at),
      inserted_priorities AS (
          INSERT INTO cases.priority_sla_condition (
                                                    created_at, updated_at, created_by, updated_by,
                                                    sla_condition_id, priority_id, dc
              )
-             SELECT $2, $2, $3, $3, inserted_sla.id, p.priority_id, $9
+             SELECT $2, $2, $3, $3, inserted_sla.id, p.priority_id, $7
              FROM inserted_sla,
                   (SELECT unnest(ARRAY [`
 
@@ -337,16 +328,14 @@ WITH inserted_sla AS (
 		query += fmt.Sprintf("%d", priorityId)
 	}
 
-	query += `]) AS priority_id, $9 AS dc) p
+	query += `]) AS priority_id, $7 AS dc) p
         RETURNING sla_condition_id, priority_id
     )
 SELECT inserted_sla.id,
        inserted_sla.name,
        inserted_sla.created_at,
-       inserted_sla.reaction_time_hours,
-       inserted_sla.reaction_time_minutes,
-       inserted_sla.resolution_time_hours,
-       inserted_sla.resolution_time_minutes,
+       inserted_sla.reaction_time,
+       inserted_sla.resolution_time,
        inserted_sla.sla_id,
        inserted_sla.created_by_id,
        COALESCE(c.name, c.username) AS created_by_name,
@@ -397,9 +386,8 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "reaction_time_hours", "reaction_time_minutes",
-			"resolution_time_hours", "resolution_time_minutes", "sla_id",
-			"created_at", "updated_at":
+		case "id", "name", "reaction_time", "resolution_time",
+			"sla_id", "created_at", "updated_at":
 			queryBuilder = queryBuilder.Column("g." + field)
 			groupByFields = append(groupByFields, "g."+field) // Add non-aggregated fields to GROUP BY
 		case "created_by":
@@ -452,8 +440,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 
 		var column string
 		switch sortField {
-		case "name", "reaction_time_hours", "reaction_time_minutes",
-			"resolution_time_hours", "resolution_time_minutes", "created_at", "updated_at":
+		case "name", "reaction_time", "resolution_time", "created_at", "updated_at":
 			column = "g." + sortField
 		default:
 			continue
@@ -543,14 +530,10 @@ func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc *model.UpdateOption
 		switch field {
 		case "name":
 			updateBuilder = updateBuilder.Set("name", l.Name)
-		case "reaction_time_hours":
-			updateBuilder = updateBuilder.Set("reaction_time_hours", l.ReactionTime.Hours)
-		case "reaction_time_minutes":
-			updateBuilder = updateBuilder.Set("reaction_time_minutes", l.ReactionTime.Minutes)
-		case "resolution_time_hours":
-			updateBuilder = updateBuilder.Set("resolution_time_hours", l.ResolutionTime.Hours)
-		case "resolution_time_minutes":
-			updateBuilder = updateBuilder.Set("resolution_time_minutes", l.ResolutionTime.Minutes)
+		case "reaction_time":
+			updateBuilder = updateBuilder.Set("reaction_time", l.ReactionTime)
+		case "resolution_time":
+			updateBuilder = updateBuilder.Set("resolution_time", l.ResolutionTime)
 		case "sla_id":
 			updateBuilder = updateBuilder.Set("sla_id", l.SlaId)
 		}
@@ -564,16 +547,13 @@ func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc *model.UpdateOption
 
 	query := fmt.Sprintf(`
    WITH upd_condition AS (%s
-        RETURNING id, name, created_at, updated_at, reaction_time_hours, reaction_time_minutes,
-                  resolution_time_hours, resolution_time_minutes, sla_id, created_by, updated_by)
+        RETURNING id, name, created_at, updated_at, reaction_time,resolution_time, sla_id, created_by, updated_by)
 SELECT usc.id,
        usc.name,
        usc.created_at,
        usc.updated_at,
-       usc.reaction_time_hours,
-       usc.reaction_time_minutes,
-       usc.resolution_time_hours,
-       usc.resolution_time_minutes,
+       usc.reaction_time,
+       usc.resolution_time,
        usc.sla_id,
        usc.created_by,
        COALESCE(c.name, '')                                    AS created_by_name,
@@ -586,9 +566,8 @@ FROM upd_condition usc
          LEFT JOIN cases.priority_sla_condition psc ON usc.id = psc.sla_condition_id
          LEFT JOIN cases.priority p ON p.id = psc.priority_id
 GROUP BY usc.id, usc.name, usc.created_at, usc.updated_at,
-         usc.reaction_time_hours, usc.reaction_time_minutes,
-         usc.resolution_time_hours, usc.resolution_time_minutes, usc.sla_id,
-         usc.created_by, usc.updated_by, c.name, u.name
+         usc.reaction_time, usc.resolution_time,
+		 usc.sla_id, usc.created_by, usc.updated_by, c.name, u.name
     `, updateSQL)
 
 	return query, args, nil
@@ -610,14 +589,10 @@ func (s *SLAConditionStore) buildScanArgs(
 			scanArgs = append(scanArgs, &slaCondition.Id)
 		case "name":
 			scanArgs = append(scanArgs, &slaCondition.Name)
-		case "reaction_time_hours":
-			scanArgs = append(scanArgs, &slaCondition.ReactionTime.Hours)
-		case "reaction_time_minutes":
-			scanArgs = append(scanArgs, &slaCondition.ReactionTime.Minutes)
-		case "resolution_time_hours":
-			scanArgs = append(scanArgs, &slaCondition.ResolutionTime.Hours)
-		case "resolution_time_minutes":
-			scanArgs = append(scanArgs, &slaCondition.ResolutionTime.Minutes)
+		case "reaction_time":
+			scanArgs = append(scanArgs, &slaCondition.ReactionTime)
+		case "resolution_time":
+			scanArgs = append(scanArgs, &slaCondition.ResolutionTime)
 		case "sla_id":
 			scanArgs = append(scanArgs, &slaCondition.SlaId)
 		case "created_at":

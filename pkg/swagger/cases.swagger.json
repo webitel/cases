@@ -26,9 +26,6 @@
       "name": "CaseLinks"
     },
     {
-      "name": "SLAs"
-    },
-    {
       "name": "SLAConditions"
     },
     {
@@ -48,6 +45,9 @@
     },
     {
       "name": "Priorities"
+    },
+    {
+      "name": "SLAs"
     },
     {
       "name": "Sources"
@@ -4227,10 +4227,12 @@
                   "title": "List of priority IDs for creation [FROM Priority Dictionary]"
                 },
                 "reaction_time": {
-                  "$ref": "#/definitions/casesReactionTime"
+                  "type": "string",
+                  "format": "int64"
                 },
                 "resolution_time": {
-                  "$ref": "#/definitions/casesResolutionTime"
+                  "type": "string",
+                  "format": "int64"
                 }
               },
               "title": "CreateSLAConditionRequest message for creating a new SLACondition",
@@ -5528,11 +5530,13 @@
           "title": "Calendar ID from the \"Calendars\" dictionary"
         },
         "reaction_time": {
-          "$ref": "#/definitions/casesReactionTime",
+          "type": "string",
+          "format": "int64",
           "title": "Reaction time"
         },
         "resolution_time": {
-          "$ref": "#/definitions/casesResolutionTime",
+          "type": "string",
+          "format": "int64",
           "title": "Resolution time"
         }
       },
@@ -5928,11 +5932,13 @@
           "title": "Calendar ID from the \"Calendars\" dictionary"
         },
         "reaction_time": {
-          "$ref": "#/definitions/casesReactionTime",
+          "type": "string",
+          "format": "int64",
           "title": "Reaction time"
         },
         "resolution_time": {
-          "$ref": "#/definitions/casesResolutionTime",
+          "type": "string",
+          "format": "int64",
           "title": "Resolution time"
         }
       },
@@ -5953,10 +5959,12 @@
           "title": "List of priority IDs for creation"
         },
         "reaction_time": {
-          "$ref": "#/definitions/casesReactionTime"
+          "type": "string",
+          "format": "int64"
         },
         "resolution_time": {
-          "$ref": "#/definitions/casesResolutionTime"
+          "type": "string",
+          "format": "int64"
         },
         "sla_id": {
           "type": "string",
@@ -6230,20 +6238,6 @@
         }
       }
     },
-    "casesReactionTime": {
-      "type": "object",
-      "properties": {
-        "hours": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "minutes": {
-          "type": "integer",
-          "format": "int32"
-        }
-      },
-      "title": "ReactionTime message represents the reaction time in hours and minutes"
-    },
     "casesRelatedCase": {
       "type": "object",
       "properties": {
@@ -6319,20 +6313,6 @@
       "default": "BlockedBy",
       "title": "- Blocks: inversed\n - DuplicatedBy: inversed\n - CausedBy: inversed\n - IsParentOf: inversed\n - RelatesTo: bidirectional"
     },
-    "casesResolutionTime": {
-      "type": "object",
-      "properties": {
-        "hours": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "minutes": {
-          "type": "integer",
-          "format": "int32"
-        }
-      },
-      "title": "ResolutionTime message represents the resolution time in hours and minutes"
-    },
     "casesSLA": {
       "type": "object",
       "properties": {
@@ -6363,11 +6343,13 @@
           "title": "Calendar ID from the \"Calendars\" dictionary - required"
         },
         "reaction_time": {
-          "$ref": "#/definitions/casesReactionTime",
+          "type": "string",
+          "format": "int64",
           "title": "Reaction time - required"
         },
         "resolution_time": {
-          "$ref": "#/definitions/casesResolutionTime",
+          "type": "string",
+          "format": "int64",
           "title": "Resolution time - required"
         },
         "created_at": {
@@ -6412,11 +6394,13 @@
           "title": "Priorities associated with the SLACondition - fetched as Lookup entities [ Priority name + ID ]"
         },
         "reaction_time": {
-          "$ref": "#/definitions/casesReactionTime",
+          "type": "string",
+          "format": "int64",
           "title": "Reaction time - required"
         },
         "resolution_time": {
-          "$ref": "#/definitions/casesResolutionTime",
+          "type": "string",
+          "format": "int64",
           "title": "Resolution time - required"
         },
         "sla_id": {
