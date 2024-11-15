@@ -362,11 +362,11 @@ func (s SLAStore) buildUpdateSLAQuery(rpc *model.UpdateOptions, l *cases.SLA) (s
 			// Use NULLIF to set NULL if description is an empty string
 			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", l.Description))
 		case "valid_from":
-			// Use NULLIF to set NULL if valid_from is 0
-			updateBuilder = updateBuilder.Set("valid_from", sq.Expr("NULLIF(?, 0)", validFrom))
+			// Set valid_from directly as time.Time
+			updateBuilder = updateBuilder.Set("valid_from", validFrom)
 		case "valid_to":
-			// Use NULLIF to set NULL if valid_to is 0
-			updateBuilder = updateBuilder.Set("valid_to", sq.Expr("NULLIF(?, 0)", validTo))
+			// Set valid_to directly as time.Time
+			updateBuilder = updateBuilder.Set("valid_to", validTo)
 		case "calendar_id":
 			if l.Calendar.Id != 0 {
 				updateBuilder = updateBuilder.Set("calendar_id", l.Calendar.Id)
