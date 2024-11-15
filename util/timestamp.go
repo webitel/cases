@@ -76,7 +76,7 @@ func hasTimeZone(timeStr string) bool {
 // posibly precised with UnixToTimestamp
 func LocalTime(ts int64) time.Time {
 	if ts > 0 {
-		return time.Unix(ts, 0).UTC()
+		return time.UnixMilli(ts).UTC()
 	}
 	return time.Time{} // Return zero value if `ts` is 0 or negative
 }
