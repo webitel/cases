@@ -44,11 +44,11 @@ func New(config *conf.DatabaseConfig) *Store {
 
 func (s *Store) Case() store.CaseStore {
 	if s.caseStore == nil {
-		caseStore, err := NewCaseStore(s)
+		cs, err := NewCaseStore(s)
 		if err != nil {
 			return nil
 		}
-		s.caseStore = caseStore
+		s.caseStore = cs
 	}
 	return s.caseStore
 }
@@ -83,7 +83,7 @@ func (s *Store) CaseFile() store.CaseFileStore {
 		}
 		s.caseFileStore = caseFile
 	}
-	return s.CaseFile()
+	return s.caseFileStore
 }
 
 // -------------Dictionary Stores ------------ //

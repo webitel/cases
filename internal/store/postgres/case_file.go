@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
@@ -13,12 +14,12 @@ import (
 	util "github.com/webitel/cases/util"
 )
 
-type CaseFile struct {
+type CaseFileStore struct {
 	storage store.Store
 }
 
 // FileScan function type used for building scan plans dynamically based on requested fields
-type FileScan func(file *cases.CaseFile) any
+type FileScan func(file *cases.File) any
 
 const (
 	// Alias for the storage.files table
@@ -27,7 +28,7 @@ const (
 )
 
 // List implements store.CaseFileStore for listing case files.
-func (c *CaseFile) List(rpc *model.SearchOptions) (*cases.CaseFileList, error) {
+func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, error) {
 	// Connect to the database
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -53,7 +54,7 @@ func (c *CaseFile) List(rpc *model.SearchOptions) (*cases.CaseFileList, error) {
 	}
 	defer rows.Close()
 
-	var fileList []*cases.CaseFile
+	var fileList []*cases.File
 	lCount := 0
 	next := false
 	fetchAll := rpc.GetSize() == -1
@@ -65,7 +66,7 @@ func (c *CaseFile) List(rpc *model.SearchOptions) (*cases.CaseFileList, error) {
 		}
 
 		// Create a new file object
-		file := &cases.CaseFile{}
+		file := &cases.File{}
 		// Build the scan plan using the planBuilder function
 
 		// Scan row into the file fields using the plan directly
@@ -90,7 +91,7 @@ func (c *CaseFile) List(rpc *model.SearchOptions) (*cases.CaseFileList, error) {
 	}, nil
 }
 
-func (c *CaseFile) BuildListCaseFilesSqlizer(
+func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 	rpc *model.SearchOptions,
 ) (sq.Sqlizer, []FileScan, error) {
 	// Begin building the base query with alias `cf`
@@ -98,8 +99,8 @@ func (c *CaseFile) BuildListCaseFilesSqlizer(
 		From("storage.files AS cf").
 		Where(
 			sq.And{
-				sq.Eq{"cf.dc": rpc.Session.GetDomainId()},
-				sq.Eq{"cf.uuid": rpc.Id},
+				sq.Eq{"cf.domain_id": rpc.Session.GetDomainId()},
+				sq.Eq{"cf.uuid": strconv.Itoa(int(rpc.Id))},
 				sq.Eq{"cf.channel": channel},
 			},
 		).
@@ -164,38 +165,33 @@ func buildFilesSelectColumnsAndPlan(
 		switch field {
 		case "id":
 			base = base.Column(store.Ident(left, "id"))
-			plan = append(plan, func(file *cases.CaseFile) any {
-				return &file.File.Id
+			plan = append(plan, func(file *cases.File) any {
+				return &file.Id
 			})
 		case "created_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.created_by) created_by", left))
-			plan = append(plan, func(file *cases.CaseFile) any {
-				return scanner.ScanRowLookup(&file.File.CreatedBy)
+			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.uploaded_by) created_by", left))
+			plan = append(plan, func(file *cases.File) any {
+				return scanner.ScanRowLookup(&file.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(left, "created_at"))
-			plan = append(plan, func(file *cases.CaseFile) any {
-				return scanner.ScanTimestamp(&file.File.CreatedAt)
+			base = base.Column(store.Ident(left, "uploaded_at"))
+			plan = append(plan, func(file *cases.File) any {
+				return scanner.ScanTimestamp(&file.CreatedAt)
 			})
 		case "size":
 			base = base.Column(store.Ident(left, "size"))
-			plan = append(plan, func(file *cases.CaseFile) any {
-				return &file.File.Size
+			plan = append(plan, func(file *cases.File) any {
+				return &file.Size
 			})
 		case "mime":
-			base = base.Column(store.Ident(left, "mime"))
-			plan = append(plan, func(file *cases.CaseFile) any {
-				return &file.File.Mime
+			base = base.Column(store.Ident(left, "mime_type"))
+			plan = append(plan, func(file *cases.File) any {
+				return &file.Mime
 			})
 		case "name":
 			base = base.Column(store.Ident(left, "name"))
-			plan = append(plan, func(file *cases.CaseFile) any {
-				return &file.File.Name
-			})
-		case "author":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.author) author", left))
-			plan = append(plan, func(file *cases.CaseFile) any {
-				return scanner.ScanRowLookup(&file.Author)
+			plan = append(plan, func(file *cases.File) any {
+				return &file.Name
 			})
 		default:
 			return base, nil, dberr.NewDBError("postgres.case_file.build_file_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))
@@ -214,5 +210,5 @@ func NewCaseFileStore(store store.Store) (store.CaseFileStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_case_file.check.bad_arguments", "error creating case file interface, main store is nil")
 	}
-	return &CaseFile{storage: store}, nil
+	return &CaseFileStore{storage: store}, nil
 }

@@ -5055,20 +5055,6 @@
       },
       "description": "Contains a paginated list of comments."
     },
-    "casesCaseFile": {
-      "type": "object",
-      "properties": {
-        "author": {
-          "$ref": "#/definitions/generalLookup",
-          "description": "The contact information of the creator (author) of the file."
-        },
-        "file": {
-          "$ref": "#/definitions/casesFile",
-          "description": "File metadata and details."
-        }
-      },
-      "description": "Represents a file associated with a case, including author information and file details."
-    },
     "casesCaseFileList": {
       "type": "object",
       "properties": {
@@ -5085,7 +5071,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "$ref": "#/definitions/casesCaseFile"
+            "$ref": "#/definitions/casesFile"
           },
           "description": "List of case files."
         }

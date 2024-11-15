@@ -15,7 +15,7 @@ type CaseFileService struct {
 	cases.UnimplementedCaseFilesServer
 }
 
-var defaultFieldsCaseFile = []string{"file", "size", "mime", "name", "created_at"}
+var defaultFieldsCaseFile = []string{"size", "mime", "name", "created_at"}
 
 func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesRequest) (*cases.CaseFileList, error) {
 	if req.CaseEtag == "" {
