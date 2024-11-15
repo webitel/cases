@@ -5503,12 +5503,12 @@
         },
         "valid_from": {
           "type": "string",
-          "format": "date-time",
+          "format": "int64",
           "title": "Validity period for the SLA"
         },
         "valid_to": {
           "type": "string",
-          "format": "date-time"
+          "format": "int64"
         },
         "calendar_id": {
           "type": "string",
@@ -5905,12 +5905,12 @@
         },
         "valid_from": {
           "type": "string",
-          "format": "date-time",
+          "format": "int64",
           "title": "Validity period for the SLA"
         },
         "valid_to": {
           "type": "string",
-          "format": "date-time"
+          "format": "int64"
         },
         "calendar_id": {
           "type": "string",
