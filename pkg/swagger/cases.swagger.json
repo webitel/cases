@@ -1287,12 +1287,23 @@
         },
         "parameters": [
           {
-            "name": "body",
+            "name": "input",
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/casesCreatePriorityRequest"
+              "$ref": "#/definitions/casesInputPriority"
             }
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1405,6 +1416,17 @@
             "schema": {
               "$ref": "#/definitions/casesInputPriority"
             }
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1443,6 +1465,17 @@
             "schema": {
               "$ref": "#/definitions/casesInputPriority"
             }
+          },
+          {
+            "name": "fields",
+            "description": "Fields to be retrieved as a result.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -5468,24 +5501,6 @@
         }
       },
       "title": "CreateCloseReasonGroupRequest message for creating a new close reason group",
-      "required": [
-        "name"
-      ]
-    },
-    "casesCreatePriorityRequest": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "color": {
-          "type": "string"
-        }
-      },
-      "title": "CreatePriorityRequest message for creating a new priority",
       "required": [
         "name"
       ]
