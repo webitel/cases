@@ -164,7 +164,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/casesInputCase"
+              "$ref": "#/definitions/casesInputCreateCase"
             }
           }
         ],
@@ -3714,6 +3714,10 @@
                   "$ref": "#/definitions/generalLookup",
                   "title": "create: not required, default first value from priority lookup"
                 },
+                "source": {
+                  "$ref": "#/definitions/generalLookup",
+                  "title": "source of the case"
+                },
                 "service": {
                   "$ref": "#/definitions/generalLookup",
                   "title": "on this field base many other readonly fields on return"
@@ -3843,6 +3847,10 @@
                 "priority": {
                   "$ref": "#/definitions/generalLookup",
                   "title": "create: not required, default first value from priority lookup"
+                },
+                "source": {
+                  "$ref": "#/definitions/generalLookup",
+                  "title": "source of the case"
                 },
                 "service": {
                   "$ref": "#/definitions/generalLookup",
@@ -5433,6 +5441,35 @@
       },
       "title": "CloseReasonList message contains a list of CloseReason items with pagination"
     },
+    "casesCreateCaseCloseInput": {
+      "type": "object",
+      "properties": {
+        "close_result": {
+          "type": "string",
+          "title": "rich text with comment on resulting case"
+        },
+        "close_reason": {
+          "type": "string",
+          "format": "int64",
+          "title": "actual close reason value from the close_reason lookup"
+        }
+      }
+    },
+    "casesCreateCaseRelatedCaseInput": {
+      "type": "object",
+      "properties": {
+        "etag": {
+          "type": "string"
+        },
+        "relation_type": {
+          "$ref": "#/definitions/casesRelationType"
+        },
+        "related_to": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
     "casesCreateCatalogRequest": {
       "type": "object",
       "properties": {
@@ -5725,6 +5762,10 @@
           "$ref": "#/definitions/generalLookup",
           "title": "create: not required, default first value from priority lookup"
         },
+        "source": {
+          "$ref": "#/definitions/generalLookup",
+          "title": "source of the case"
+        },
         "service": {
           "$ref": "#/definitions/generalLookup",
           "title": "on this field base many other readonly fields on return"
@@ -5871,6 +5912,105 @@
         },
         "description": {
           "type": "string"
+        }
+      }
+    },
+    "casesInputCreateCase": {
+      "type": "object",
+      "properties": {
+        "etag": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "title": "create: required;"
+        },
+        "subject": {
+          "type": "string",
+          "title": "create: required;"
+        },
+        "description": {
+          "type": "string",
+          "title": "create: not required;"
+        },
+        "contact_info": {
+          "type": "string",
+          "title": "create: not required;"
+        },
+        "assignee": {
+          "type": "string",
+          "format": "int64",
+          "title": "create: not required, default from service or set by UI;"
+        },
+        "reporter": {
+          "type": "string",
+          "format": "int64",
+          "title": "create: required (if empty recognize as anonymous contact);"
+        },
+        "impacted": {
+          "type": "string",
+          "format": "int64",
+          "title": "create: required, default is reporter or ui (if empty recognize as anonymous);"
+        },
+        "group": {
+          "type": "string",
+          "format": "int64",
+          "title": "create: not required, default from service or set by UI;"
+        },
+        "status": {
+          "type": "string",
+          "format": "int64",
+          "title": "create: not required, default initial value from status lookup or ui;"
+        },
+        "close_reason": {
+          "type": "string",
+          "format": "int64",
+          "title": "create: not required;"
+        },
+        "priority": {
+          "type": "string",
+          "format": "int64",
+          "title": "create: not required, default first value from priority lookup"
+        },
+        "source": {
+          "type": "string",
+          "format": "int64",
+          "title": "source of the case"
+        },
+        "service": {
+          "type": "string",
+          "format": "int64",
+          "title": "on this field base many other readonly fields on return"
+        },
+        "close": {
+          "$ref": "#/definitions/casesCreateCaseCloseInput",
+          "title": "create: not required; update: required only when case status goes to the final state"
+        },
+        "rate": {
+          "$ref": "#/definitions/casesRateInfo",
+          "title": "only for API, not UI"
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/casesInputCaseComment"
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/casesInputCaseLink"
+          },
+          "title": "repeated InputCaseFile files = 17;"
+        },
+        "related": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/casesCreateCaseRelatedCaseInput"
+          }
         }
       }
     },

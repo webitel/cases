@@ -16,11 +16,6 @@ require (
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 // indirect
-	buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.35.1-20240617172850-a48fcebcf8f1.1 // indirect
-	buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20241114130920-1ce4b7918457.1 // indirect
-	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.35.1-20241114130920-1ce4b7918457.1 // indirect
-	buf.build/gen/go/webitel/general/protocolbuffers/go v1.35.1-20240527133232-b30251c3af1c.1 // indirect
-	buf.build/gen/go/webitel/protoc-gen-go-webitel/protocolbuffers/go v1.35.1-20240830062629-411a5fb2aec7.1 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -79,7 +74,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1
-	github.com/webitel/webitel-go-kit v0.0.21-0.20241105101307-954c5cba127c
+	github.com/webitel/webitel-go-kit v0.0.21-0.20241119150027-e518fa947331
 	go.opentelemetry.io/otel v1.29.0
 	go.opentelemetry.io/otel/metric v1.29.0 // indirect
 	go.opentelemetry.io/otel/trace v1.29.0 // indirect

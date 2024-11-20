@@ -18,7 +18,7 @@ import (
 	util "github.com/webitel/cases/util"
 )
 
-type CaseComment struct {
+type CaseCommentStore struct {
 	storage store.Store
 }
 
@@ -29,7 +29,7 @@ const (
 )
 
 // Publish implements store.CommentCaseStore for publishing a single comment.
-func (c *CaseComment) Publish(
+func (c *CaseCommentStore) Publish(
 	rpc *model.CreateOptions,
 	add *_go.CaseComment,
 ) (*_go.CaseComment, error) {
@@ -61,7 +61,7 @@ func (c *CaseComment) Publish(
 	return add, nil
 }
 
-func (c *CaseComment) buildPublishCommentsSqlizer(
+func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 	rpc *model.CreateOptions,
 	input *_go.InputCaseComment,
 ) (sq.Sqlizer, []CommentScan, error) {
@@ -109,7 +109,7 @@ func (c *CaseComment) buildPublishCommentsSqlizer(
 }
 
 // Delete implements store.CommentCaseStore.
-func (c *CaseComment) Delete(
+func (c *CaseCommentStore) Delete(
 	rpc *model.DeleteOptions,
 ) error {
 	// Establish database connection
@@ -138,7 +138,7 @@ func (c *CaseComment) Delete(
 	return nil
 }
 
-func (c CaseComment) buildDeleteCaseCommentQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+func (c CaseCommentStore) buildDeleteCaseCommentQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
 	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
@@ -152,7 +152,7 @@ var deleteCaseCommentQuery = store.CompactSQL(`
 	WHERE id = ANY($1) AND dc = $2
 `)
 
-func (c *CaseComment) List(rpc *model.SearchOptions) (*_go.CaseCommentList, error) {
+func (c *CaseCommentStore) List(rpc *model.SearchOptions) (*_go.CaseCommentList, error) {
 	// Connect to the database
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -210,7 +210,7 @@ func (c *CaseComment) List(rpc *model.SearchOptions) (*_go.CaseCommentList, erro
 	}, nil
 }
 
-func (c *CaseComment) BuildListCaseCommentsSqlizer(
+func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 	rpc *model.SearchOptions,
 ) (sq.Sqlizer, func(*_go.CaseComment) []any, error) {
 	// Begin building the base query
@@ -288,7 +288,7 @@ func (c *CaseComment) BuildListCaseCommentsSqlizer(
 	return queryBuilder, planBuilder, nil
 }
 
-func (c *CaseComment) Update(
+func (c *CaseCommentStore) Update(
 	rpc *model.UpdateOptions,
 	upd *_go.CaseComment,
 ) (*_go.CaseComment, error) {
@@ -348,7 +348,7 @@ func (c *CaseComment) Update(
 	return upd, nil
 }
 
-func (c *CaseComment) ScanVer(
+func (c *CaseCommentStore) ScanVer(
 	ctx context.Context,
 	commentID int64,
 	txManager *store.TxManager,
@@ -366,7 +366,7 @@ func (c *CaseComment) ScanVer(
 	return ver, nil
 }
 
-func (c *CaseComment) BuildUpdateCaseCommentSqlizer(
+func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 	rpc *model.UpdateOptions,
 	input *_go.InputCaseComment,
 ) (sq.Sqlizer, []CommentScan, error) {
@@ -472,5 +472,5 @@ func NewCaseCommentStore(store store.Store) (store.CaseCommentStore, error) {
 		return nil, dberr.NewDBError("postgres.new_case_comment.check.bad_arguments",
 			"error creating comment case interface to the case_comment table, main store is nil")
 	}
-	return &CaseComment{storage: store}, nil
+	return &CaseCommentStore{storage: store}, nil
 }

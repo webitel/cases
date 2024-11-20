@@ -50,15 +50,15 @@ type Store interface {
 // ------------ Cases Stores ------------ //
 type CaseStore interface {
 	// Create a new case
-	Create(ctx context.Context, rpc *model.CreateOptions, add *_go.Case) (*_go.Case, error)
+	Create(rpc *model.CreateOptions, add *_go.Case) (*_go.Case, error)
 	// List cases
-	List(ctx context.Context, rpc *model.SearchOptions) (*_go.CaseList, error)
+	List(rpc *model.SearchOptions) (*_go.CaseList, error)
 	// Merge cases
-	Merge(ctx context.Context, req *model.CreateOptions) (*_go.CaseList, error)
+	Merge(req *model.CreateOptions) (*_go.CaseList, error)
 	// Update case
-	Update(ctx context.Context, req *model.UpdateOptions) (*_go.Case, error)
+	Update(req *model.UpdateOptions) (*_go.Case, error)
 	// Delete case
-	Delete(ctx context.Context, req *model.DeleteOptions) (*_go.Case, error)
+	Delete(req *model.DeleteOptions) (*_go.Case, error)
 }
 
 // RelatedCases attribute attached to the case (n:1)
