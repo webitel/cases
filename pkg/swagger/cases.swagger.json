@@ -166,6 +166,17 @@
             "schema": {
               "$ref": "#/definitions/casesInputCreateCase"
             }
+          },
+          {
+            "name": "fields",
+            "description": "Result fields to include in the response.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
           }
         ],
         "tags": [

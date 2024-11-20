@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"fmt"
-	"log"
 
 	sq "github.com/Masterminds/squirrel"
 	_go "github.com/webitel/cases/api/cases"
@@ -44,8 +43,6 @@ func (c *CaseStore) Create(rpc *model.CreateOptions, add *_go.Case) (*_go.Case, 
 	}
 
 	query = store.CompactSQL(query)
-
-	log.Printf("Insert Args: %+v", args)
 
 	// Prepare the scan arguments
 	scanArgs := convertToCaseScanArgs(plan, add)

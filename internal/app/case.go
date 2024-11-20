@@ -3,12 +3,12 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"time"
 
 	cases "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -129,6 +129,18 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, cerror.NewBadRequestError("app.case.create_case.subject_required", "Case subject is required")
 	}
 
+	if req.Input.Status == 0 {
+		return nil, cerror.NewBadRequestError("app.case.create_case.status_required", "Case status is required")
+	}
+
+	if req.Input.CloseReason == 0 {
+		return nil, cerror.NewBadRequestError("app.case.create_case.close_reason_required", "Case close reason is required")
+	}
+
+	if req.Input.Source == 0 {
+		return nil, cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
+	}
+
 	if req.Input.Reporter == 0 {
 		return nil, cerror.NewBadRequestError("app.case.create_case.reporter_required", "Reporter is required")
 	}
@@ -146,86 +158,54 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, cerror.NewBadRequestError("app.case.create_case.invalid_service", "Invalid service specified")
 	}
 
-	// // Convert InputCaseComment to CaseCommentList
-	// var comments *cases.CaseCommentList
-	// if req.Input.Comments != nil && len(req.Input.Comments) > 0 {
-	// 	comments = &cases.CaseCommentList{
-	// 		Items: make([]*cases.CaseComment, len(req.Input.Comments)),
-	// 	}
-	// 	for i, inputComment := range req.Input.Comments {
-	// 		tag, err := etag.EtagOrId(etag.EtagCase, inputComment.Etag)
-	// 		if err != nil {
-	// 			return nil, cerror.NewBadRequestError("app.case.create_case.invalid_etag", "Invalid etag")
-	// 		}
-	// 		comments.Items[i] = &cases.CaseComment{
-	// 			Id: strconv.Itoa(int(tag.GetOid())),
-	// 		}
-	// 	}
-	// }
-
-	// // Convert InputCaseLink to CaseLinkList
-	// var links *cases.CaseLinkList
-	// if req.Input.Links != nil && len(req.Input.Links) > 0 {
-	// 	linkItems := make([]*cases.CaseLink, len(req.Input.Links))
-	// 	for i, inputLink := range req.Input.Links {
-	// 		tag, err := etag.EtagOrId(etag.EtagCaseLink, inputLink.Etag)
-	// 		if err != nil {
-	// 			return nil, cerror.NewBadRequestError("app.case.create_case.invalid_etag", "Invalid etag for link")
-	// 		}
-	// 		linkItems[i] = &cases.CaseLink{
-	// 			Id: tag.GetOid(),
-	// 		}
-	// 	}
-	// 	links = &cases.CaseLinkList{Items: linkItems}
-	// }
-
-	// // Convert InputRelatedCase to RelatedCaseList
-	// var related *cases.RelatedCaseList
-	// if req.Input.Related != nil && len(req.Input.Related) > 0 {
-	// 	relatedItems := make([]*cases.RelatedCase, len(req.Input.Related))
-	// 	for i, inputRelated := range req.Input.Related {
-	// 		tag, err := etag.EtagOrId(etag.EtagRelatedCase, inputRelated.Etag)
-	// 		if err != nil {
-	// 			return nil, cerror.NewBadRequestError("app.case.create_case.invalid_etag", "Invalid etag for related case")
-	// 		}
-	// 		relatedItems[i] = &cases.RelatedCase{
-	// 			Id: tag.GetOid(),
-	// 		}
-	// 	}
-	// 	related = &cases.RelatedCaseList{Items: relatedItems}
-	// }
-
 	var (
-		commentItems []*cases.CaseComment
-		linkItems    []*cases.CaseLink
-		relatedItems []*cases.RelatedCase
+		comments *cases.CaseCommentList
+		related  *cases.RelatedCaseList
+		links    *cases.CaseLinkList
 	)
-
 	if len(req.Input.Comments) > 0 {
-		commentItems, err = transformWithEtag(req.Input.Comments, etag.EtagCase, "app.case.create_case.invalid_comment_etag", func(etag int64) *cases.CaseComment {
-			return &cases.CaseComment{Id: strconv.Itoa(int(etag))}
-		})
-		if err != nil {
-			return nil, err
+		commentItems := make([]*cases.CaseComment, len(req.Input.Comments))
+		var tag etag.Tid
+		for i, inputComment := range req.Input.Comments {
+			tag, err = etag.EtagOrId(etag.EtagCase, inputComment.Etag)
+			if err != nil {
+				return nil, cerror.NewBadRequestError("app.case.create_case.invalid_etag", "Invalid etag for comment")
+			}
+			commentItems[i] = &cases.CaseComment{
+				Id: strconv.Itoa(int(tag.GetOid())),
+			}
 		}
+		comments = &cases.CaseCommentList{Items: commentItems}
 	}
 
-	if len(req.Input.Comments) > 0 {
-		linkItems, err = transformWithEtag(req.Input.Links, etag.EtagCaseLink, "app.case.create_case.invalid_link_etag", func(etag int64) *cases.CaseLink {
-			return &cases.CaseLink{Id: etag}
-		})
-		if err != nil {
-			return nil, err
+	if len(req.Input.Links) > 0 {
+		linkItems := make([]*cases.CaseLink, len(req.Input.Links))
+		var tag etag.Tid
+		for i, inputLink := range req.Input.Links {
+			tag, err = etag.EtagOrId(etag.EtagCaseLink, inputLink.Etag)
+			if err != nil {
+				return nil, cerror.NewBadRequestError("app.case.create_case.invalid_etag", "Invalid etag for link")
+			}
+			linkItems[i] = &cases.CaseLink{
+				Id: tag.GetOid(),
+			}
 		}
+		links = &cases.CaseLinkList{Items: linkItems}
 	}
 
-	if len(req.Input.Comments) > 0 {
-		relatedItems, err = transformWithEtag(req.Input.Related, etag.EtagRelatedCase, "app.case.create_case.invalid_related_case_etag", func(etag int64) *cases.RelatedCase {
-			return &cases.RelatedCase{Id: etag}
-		})
-		if err != nil {
-			return nil, err
+	if len(req.Input.Related) > 0 {
+		relatedItems := make([]*cases.RelatedCase, len(req.Input.Related))
+		var tag etag.Tid
+		for i, inputRelated := range req.Input.Related {
+			tag, err = etag.EtagOrId(etag.EtagRelatedCase, inputRelated.Etag)
+			if err != nil {
+				return nil, cerror.NewBadRequestError("app.case.create_case.invalid_etag", "Invalid etag for related case")
+			}
+			relatedItems[i] = &cases.RelatedCase{
+				Id: tag.GetOid(),
+			}
 		}
+		related = &cases.RelatedCaseList{Items: relatedItems}
 	}
 
 	// -----------------------------------------------------------------------------
@@ -269,13 +249,18 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		},
 		Priority: &cases.Lookup{Id: req.Input.Priority},
 		Service:  &cases.Lookup{Id: req.Input.Service},
-		Comments: &cases.CaseCommentList{Items: commentItems},
-		Links:    &cases.CaseLinkList{Items: linkItems},
-		Related:  &cases.RelatedCaseList{Items: relatedItems},
+		Comments: comments,
+		Links:    links,
+		Related:  related,
 		Rate: &cases.RateInfo{
 			Rating:        req.Input.Rate.GetRating(),
 			RatingComment: req.Input.Rate.GetRatingComment(),
 		},
+	}
+
+	fields := util.FieldsFunc(req.Fields, util.InlineFields)
+	if len(fields) == 0 {
+		fields = defaultFieldsCase
 	}
 	t := time.Now().UTC()
 
@@ -284,7 +269,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Session: session,
 		Context: ctx,
 		Time:    t,
-		Fields:  defaultFieldsCase,
+		Fields:  fields,
 	}
 
 	newCase, err = c.app.Store.Case().Create(&createOpts, newCase)
@@ -323,40 +308,6 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	}
 
 	return newCase, nil
-}
-
-// Generic function to transform a list of inputs with etag validation
-func transformWithEtag[T any, R any](
-	inputList []*T, // List of input items to process
-	etagType etag.EtagType, // Type of etag to validate
-	errorIdentifier string, // Error identifier for invalid etag
-	transform func(int64) R, // Transformation function to generate output item
-) ([]R, error) {
-	if len(inputList) == 0 {
-		return nil, nil
-	}
-
-	// Initialize the output slice
-	outputList := make([]R, len(inputList))
-
-	for i, input := range inputList {
-		// Ensure the input implements the GetEtag method
-		etagSource, ok := any(input).(interface{ GetEtag() string })
-		if !ok {
-			return nil, fmt.Errorf("input does not implement GetEtag")
-		}
-
-		// Extract and validate the etag
-		tag, err := etag.EtagOrId(etagType, etagSource.GetEtag())
-		if err != nil {
-			return nil, cerror.NewBadRequestError(errorIdentifier, "Invalid etag")
-		}
-
-		// Transform the validated etag to the desired output type
-		outputList[i] = transform(tag.GetOid())
-	}
-
-	return outputList, nil
 }
 
 func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.Case, error) {
