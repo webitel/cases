@@ -205,7 +205,7 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 	// Update priorities first if there are any IDs
 
 	for _, fields := range rpc.Fields {
-		if fields == "priority" {
+		if fields == "priorities" {
 			priorityQuery, priorityArgs := s.buildUpdatePrioritiesQuery(rpc, l)
 
 			// Execute the query and get the total number of rows affected

@@ -263,6 +263,8 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 			fields = append(fields, "resolution_time")
 		case "sla_id":
 			fields = append(fields, "sla_id")
+		case "priorities":
+			fields = append(fields, "priorities")
 		}
 	}
 
