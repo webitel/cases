@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	_go "github.com/webitel/cases/api/cases"
@@ -22,16 +23,40 @@ const (
 	caseLeft = "c"
 )
 
-// Create implements store.CaseStore.
-func (c *CaseStore) Create(rpc *model.CreateOptions, add *_go.Case) (*_go.Case, error) {
+func (c *CaseStore) Create(
+	rpc *model.CreateOptions,
+	add *_go.Case,
+) (*_go.Case, error) {
 	// Get the database connection
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.database_connection_error", dbErr)
 	}
 
+	// Begin a transaction
+	tx, err := d.Begin(rpc.Context)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", err)
+	}
+	defer tx.Rollback(rpc.Context)
+	txManager := store.NewTxManager(tx)
+
+	// Scan SLA details
+	// Sla_id
+	// reaction_at & resolve_at in [milli]seconds
+	slaID, reaction_at, resolve_at, calendarID, err := c.ScanSla(rpc, txManager, add.Service.GetId())
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.create.scan_sla_error", err)
+	}
+
+	// Calculate planned times within the transaction
+	err = c.calculatePlannedReactionAndResolutionTime(rpc, calendarID, reaction_at, resolve_at, txManager, add)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.create.calculate_planned_times_error", err)
+	}
+
 	// Build the query
-	selectBuilder, plan, err := c.buildCreateCaseSqlizer(rpc, add)
+	selectBuilder, plan, err := c.buildCreateCaseSqlizer(rpc, add, slaID)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.build_query_error", err)
 	}
@@ -48,33 +73,69 @@ func (c *CaseStore) Create(rpc *model.CreateOptions, add *_go.Case) (*_go.Case, 
 	scanArgs := convertToCaseScanArgs(plan, add)
 
 	// Execute the query
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.execution_error", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(rpc.Context); err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.create.commit_error", err)
 	}
 
 	return add, nil
 }
 
+// ScanSla fetches the SLA ID, reaction time, resolution time, and calendar ID for the given service ID.
+func (c *CaseStore) ScanSla(
+	rpc *model.CreateOptions,
+	txManager *store.TxManager,
+	serviceId int64,
+) (int, int, int, int, error) {
+	var slaId, reactionTime, resolutionTime, calendarId int
+
+	err := txManager.QueryRow(rpc.Context, `
+		WITH RECURSIVE service_hierarchy AS (
+    -- Start with the given service ID
+    SELECT id, root_id, sla_id
+    FROM cases.service_catalog
+    WHERE id = $1
+
+    UNION ALL
+
+    -- Traverse to child services
+    SELECT sc.id, sc.root_id, sc.sla_id
+    FROM cases.service_catalog sc
+             INNER JOIN service_hierarchy sh ON sc.root_id = sh.id)
+SELECT sla.id AS sla_id,
+       sla.reaction_time,
+       sla.resolution_time,
+       sla.calendar_id
+FROM service_hierarchy sh
+         LEFT JOIN cases.sla sla ON sh.sla_id = sla.id
+WHERE sh.id = (
+    -- Get the last child with a non-NULL SLA
+    SELECT MAX(id)
+    FROM service_hierarchy
+    WHERE sla_id IS NOT NULL)
+LIMIT 1
+	`, serviceId).Scan(&slaId, &reactionTime, &resolutionTime, &calendarId)
+	if err != nil {
+		return 0, 0, 0, 0, dberr.NewDBInternalError("failed to scan SLA: %w", err)
+	}
+
+	return slaId, reactionTime, resolutionTime, calendarId, nil
+}
+
 func (c *CaseStore) buildCreateCaseSqlizer(
 	rpc *model.CreateOptions,
 	caseItem *_go.Case,
+	slaID int,
 ) (sq.SelectBuilder, []CaseScan, error) {
 	rpc.Fields = util.EnsureIdField(rpc.Fields)
 
-	// CTEs for Service Catalog, SLA, and Status Condition
-	serviceCatalogCTE := `
-		service_catalog_cte AS (
-			SELECT sc.sla_id
-			FROM cases.service_catalog sc
-			WHERE sc.id = $21 -- service_id
-		)`
-
-	slaCTE := `
-		sla_cte AS (
-			SELECT sla.id AS sla_id
-			FROM cases.sla sla
-			WHERE sla.id = (SELECT sla_id FROM service_catalog_cte)
-		)`
+	// convert int64 timestamp of planned_reaction & planned_resolve to Datetime
+	reaction_at := util.LocalTime(caseItem.PlannedReactionAt)
+	resolve_at := util.LocalTime(caseItem.PlannedResolveAt)
 
 	statusConditionCTE := `
 		status_condition_cte AS (
@@ -106,14 +167,14 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			caseItem.CloseReasonGroup.GetId(),
 			caseItem.Group.GetId(),
 			caseItem.Subject,
-			10, // Mocked planned_reaction_at
-			10, // Mocked planned_resolve_at
+			reaction_at,
+			resolve_at,
 			caseItem.Reporter.GetId(),
 			caseItem.Impacted.GetId(),
 			caseItem.Service.GetId(),
 			sq.Expr("NULLIF(?, '')", caseItem.Description),
 			caseItem.Assignee.GetId(),
-			sq.Expr("(SELECT sla_id FROM sla_cte)"),
+			slaID,
 			sq.Expr("(SELECT status_condition_id FROM status_condition_cte)")).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -126,10 +187,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	// Construct the final CTE query
 	cteSQL := fmt.Sprintf(`
 		WITH %s,
-		%s,
-		%s,
-		c AS (%s)
-	`, serviceCatalogCTE, slaCTE, statusConditionCTE, insertSQL)
+		%s AS (%s)
+	`, statusConditionCTE, caseLeft, insertSQL)
 
 	// Build the SELECT query to fetch the returned columns
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(sq.Select(), rpc.Fields)
@@ -140,9 +199,112 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	// Combine the CTE with the SELECT query
 	selectBuilder = selectBuilder.
 		PrefixExpr(sq.Expr(cteSQL, insertArgs...)).
-		From("c")
+		From(caseLeft)
 
 	return selectBuilder, plan, nil
+}
+
+func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
+	rpc *model.CreateOptions,
+	calendarID int,
+	reactionTime int,
+	resolutionTime int,
+	txManager *store.TxManager,
+	caseItem *_go.Case,
+) error {
+	rows, err := txManager.Query(rpc.Context, `
+		SELECT day, start_time_of_day, end_time_of_day, special, disabled
+		FROM flow.calendar, UNNEST(accepts::flow.calendar_accept_time[]) x
+		WHERE id = $1
+		ORDER BY day, start_time_of_day`, calendarID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch calendar details: %w", err)
+	}
+	defer rows.Close()
+
+	var calendar []struct {
+		Day            int
+		StartTimeOfDay int
+		EndTimeOfDay   int
+		Special        bool
+		Disabled       bool
+	}
+	for rows.Next() {
+		var entry struct {
+			Day            int
+			StartTimeOfDay int
+			EndTimeOfDay   int
+			Special        bool
+			Disabled       bool
+		}
+		if err = rows.Scan(&entry.Day, &entry.StartTimeOfDay, &entry.EndTimeOfDay, &entry.Special, &entry.Disabled); err != nil {
+			return fmt.Errorf("failed to scan calendar entry: %w", err)
+		}
+		if !entry.Disabled {
+			calendar = append(calendar, entry)
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("error iterating over calendar rows: %w", err)
+	}
+
+	// Convert reaction and resolution times from milliseconds to minutes
+	reactionMinutes := reactionTime / 60000
+	resolutionMinutes := resolutionTime / 60000
+
+	currentTime := rpc.CurrentTime()
+	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, reactionMinutes, calendar)
+	if err != nil {
+		return fmt.Errorf("failed to calculate planned reaction time: %w", err)
+	}
+
+	//?? TODO
+	// resolveTimestamp, err := calculateTimestampFromCalendar(reactionTimestamp, resolutionMinutes, calendar)
+	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, resolutionMinutes, calendar)
+	if err != nil {
+		return fmt.Errorf("failed to calculate planned resolution time: %w", err)
+	}
+
+	caseItem.PlannedReactionAt = util.Timestamp(reactionTimestamp)
+	caseItem.PlannedResolveAt = util.Timestamp(resolveTimestamp)
+
+	return nil
+}
+
+func calculateTimestampFromCalendar(
+	startTime time.Time,
+	requiredMinutes int,
+	calendar []struct {
+		Day            int
+		StartTimeOfDay int
+		EndTimeOfDay   int
+		Special        bool
+		Disabled       bool
+	},
+) (time.Time, error) {
+	remainingMinutes := requiredMinutes
+	currentDay := int(startTime.Weekday())
+	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute()
+
+	for {
+		for _, slot := range calendar {
+			// Match the current day and ensure the slot is in the future
+			if slot.Day == currentDay && slot.StartTimeOfDay >= currentTimeInMinutes {
+				availableMinutes := slot.EndTimeOfDay - slot.StartTimeOfDay
+				if availableMinutes >= remainingMinutes {
+					// Calculate the exact timestamp
+					return startTime.Add(time.Duration(remainingMinutes) * time.Minute), nil
+				}
+				remainingMinutes -= availableMinutes
+				currentTimeInMinutes = slot.EndTimeOfDay // Move to the end of the current slot
+			}
+		}
+
+		// If no slots available, move to the next day
+		currentDay = (currentDay + 1) % 7 // Wrap around to the start of the week if necessary
+		currentTimeInMinutes = 0          // Reset to start of the day
+		startTime = startTime.Add(24 * time.Hour)
+	}
 }
 
 func (c *CaseStore) buildCaseSelectColumnsAndPlan(
@@ -215,14 +377,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 		case "planned_reaction_at":
 			base = base.Column(store.Ident(caseLeft, "planned_reaction_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				// return scanner.ScanTimestamp(&caseItem.PlannedReactionAt)
-				return &caseItem.PlannedReactionAt
+				return scanner.ScanTimestamp(&caseItem.PlannedReactionAt)
 			})
 		case "planned_resolve_at":
 			base = base.Column(store.Ident(caseLeft, "planned_resolve_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				// return scanner.ScanTimestamp(&caseItem.PlannedResolveAt) -- Need to be implemented
-				return &caseItem.PlannedResolveAt
+				return scanner.ScanTimestamp(&caseItem.PlannedResolveAt)
 			})
 		case "close_reason_group":
 			base = base.Column(fmt.Sprintf(
@@ -316,7 +476,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 					'id', sc.id,
 					'name', sc.name
 				)) FROM cases.sla_condition sc
-				WHERE sc.sla_id = (SELECT sla_id FROM sla_cte)) AS sla_conditions`)
+				WHERE sc.sla_id = c.sla) AS sla_conditions`)
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanJSONToStructList(&caseItem.SlaCondition)
 			})

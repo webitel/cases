@@ -497,7 +497,6 @@ FROM (SELECT sla_condition_id
       SELECT sla_condition_id
       FROM deleted_priorities) AS total_affected;
 	`
-
 	return query, args
 }
 
