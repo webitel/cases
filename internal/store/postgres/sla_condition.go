@@ -222,22 +222,6 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 		}
 	}
 
-	// if len(rpc.IDs) > 0 {
-	// 	priorityQuery, priorityArgs := s.buildUpdatePrioritiesQuery(rpc, l)
-
-	// 	// Execute the query and get the total number of rows affected
-	// 	var totalRowsAffected int
-	// 	err = txManager.QueryRow(rpc.Context, priorityQuery, priorityArgs...).Scan(&totalRowsAffected)
-	// 	if err != nil {
-	// 		return nil, model.NewInternalError("postgres.sla_condition.update.priorities_execution_error", err.Error())
-	// 	}
-
-	// 	// Check if any rows were affected
-	// 	if totalRowsAffected == 0 {
-	// 		return nil, model.NewInternalError("postgres.sla_condition.update.no_priorities_affected", "No priorities were updated or deleted.")
-	// 	}
-	// }
-
 	// Build and execute the update query for sla_condition and return priorities JSON in one query
 	query, args, err := s.buildUpdateSLAConditionQuery(rpc, l)
 	if err != nil {
@@ -408,7 +392,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 				Column("COALESCE(updated_by.name, '') AS ubn"). // Handle NULL as '' for updated_by_name
 				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
 			groupByFields = append(groupByFields, "updated_by.id", "updated_by.name")
-		case "priority":
+		case "priorities":
 			// Aggregate priorities as JSON array
 			queryBuilder = queryBuilder.
 				Column("json_agg(json_build_object('id', p.id, 'name', p.name)) AS priorities").
