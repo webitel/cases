@@ -587,7 +587,7 @@ func (s *SLAConditionStore) buildScanArgs(
 			scanArgs = append(scanArgs, &createdBy.Id, &createdBy.Name)
 		case "updated_by":
 			scanArgs = append(scanArgs, &updatedBy.Id, &updatedBy.Name)
-		case "priority":
+		case "priorities":
 			scanArgs = append(scanArgs, prioritiesJSON)
 		}
 	}
