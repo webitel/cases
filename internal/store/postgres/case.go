@@ -44,7 +44,12 @@ func (c *CaseStore) Create(
 	// Scan SLA details
 	// Sla_id
 	// reaction_at & resolve_at in [milli]seconds
-	slaID, reaction_at, resolve_at, calendarID, err := c.ScanSla(rpc, txManager, add.Service.GetId())
+	slaID, slaConditionID, reaction_at, resolve_at, calendarID, err := c.ScanSla(
+		rpc,
+		txManager,
+		add.Service.GetId(),
+		add.Priority.GetId(),
+	)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.scan_sla_error", err)
 	}
@@ -56,7 +61,7 @@ func (c *CaseStore) Create(
 	}
 
 	// Build the query
-	selectBuilder, plan, err := c.buildCreateCaseSqlizer(rpc, add, slaID)
+	selectBuilder, plan, err := c.buildCreateCaseSqlizer(rpc, add, slaID, slaConditionID)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.build_query_error", err)
 	}
@@ -85,51 +90,100 @@ func (c *CaseStore) Create(
 	return add, nil
 }
 
-// ScanSla fetches the SLA ID, reaction time, resolution time, and calendar ID for the given service ID.
+// ScanSla fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
 func (c *CaseStore) ScanSla(
 	rpc *model.CreateOptions,
 	txManager *store.TxManager,
-	serviceId int64,
-) (int, int, int, int, error) {
-	var slaId, reactionTime, resolutionTime, calendarId int
+	serviceID int64,
+	priorityID int64,
+) (
+	slaID,
+	slaConditionID,
+	reactionTime,
+	resolutionTime,
+	calendarID int,
+	err error,
+) {
+	// var slaId, reactionTime, resolutionTime, calendarId, slaConditionId int
 
-	err := txManager.QueryRow(rpc.Context, `
-		WITH RECURSIVE service_hierarchy AS (
-    -- Start with the given service ID
-    SELECT id, root_id, sla_id
-    FROM cases.service_catalog
-    WHERE id = $1
+	err = txManager.QueryRow(rpc.Context, `
+WITH RECURSIVE
+    service_hierarchy AS (SELECT id, root_id, sla_id, 1 AS level
+                          FROM cases.service_catalog
+                          WHERE id = $1 -- Start with the given service ID provided as $1
 
-    UNION ALL
+                          UNION ALL
 
-    -- Traverse to child services
-    SELECT sc.id, sc.root_id, sc.sla_id
-    FROM cases.service_catalog sc
-             INNER JOIN service_hierarchy sh ON sc.root_id = sh.id)
-SELECT sla.id AS sla_id,
-       sla.reaction_time,
-       sla.resolution_time,
-       sla.calendar_id
-FROM service_hierarchy sh
-         LEFT JOIN cases.sla sla ON sh.sla_id = sla.id
-WHERE sh.id = (
-    -- Get the last child with a non-NULL SLA
-    SELECT MAX(id)
-    FROM service_hierarchy
-    WHERE sla_id IS NOT NULL)
-LIMIT 1
-	`, serviceId).Scan(&slaId, &reactionTime, &resolutionTime, &calendarId)
+                          SELECT sc.id, sc.root_id, sc.sla_id, sh.level + 1
+                          FROM cases.service_catalog sc
+                                   INNER JOIN service_hierarchy sh ON sc.root_id = sh.id
+        -- Recursively traverse downward to find all child services, incrementing the level with each step
+    ),
+    valid_sla_hierarchy AS (SELECT sh.id AS service_id, -- Current service ID
+                                   sh.root_id,          -- Parent service ID
+                                   sh.sla_id,           -- SLA ID for the current service
+                                   sh.level,            -- Depth level in the hierarchy
+                                   sla.reaction_time,   -- Reaction time from the SLA
+                                   sla.resolution_time, -- Resolution time from the SLA
+                                   sla.calendar_id      -- Calendar ID associated with the SLA
+                            FROM service_hierarchy sh
+                                     LEFT JOIN cases.sla sla ON sh.sla_id = sla.id
+                            WHERE sh.sla_id IS NOT NULL -- Keep only services with non-NULL SLA
+        -- Here, we extract details of all services with SLAs, preparing them for prioritization
+    ),
+    deepest_sla
+        AS (SELECT DISTINCT ON (sh.level, sh.id) sh.id AS service_id, -- Service ID for the deepest child or nearest valid SLA
+                                                 sh.root_id,          -- Parent service ID
+                                                 sh.sla_id,           -- SLA ID for the selected service
+                                                 sh.level,            -- Depth level in the hierarchy
+                                                 sla.reaction_time,   -- Reaction time from SLA
+                                                 sla.resolution_time, -- Resolution time from SLA
+                                                 sla.calendar_id      -- Calendar ID associated with the SLA
+            FROM service_hierarchy sh
+                     LEFT JOIN cases.sla sla ON sh.sla_id = sla.id
+            ORDER BY sh.level DESC, sh.id
+        -- Select the "deepest" child service by level, falling back to the next service upward if necessary
+    ),
+    priority_condition AS (SELECT sc.id AS sla_condition_id, -- Fetch the SLA condition ID
+                                  sc.reaction_time,
+                                  sc.resolution_time
+                           FROM cases.sla_condition sc
+                                    INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+                                    INNER JOIN deepest_sla ON sc.sla_id = deepest_sla.sla_id
+                           WHERE psc.priority_id = $2 -- Match the given priority ID provided as $2
+                           LIMIT 1
+        -- Extract reaction and resolution times from SLA conditions if a priority-specific condition exists
+    )
+SELECT deepest_sla.sla_id,                                                                           -- Final SLA ID
+       COALESCE(priority_condition.reaction_time, deepest_sla.reaction_time)     AS reaction_time,
+       -- Use priority-specific reaction time if available, otherwise fall back to SLA reaction time
+       COALESCE(priority_condition.resolution_time, deepest_sla.resolution_time) AS resolution_time,
+       -- Use priority-specific resolution time if available, otherwise fall back to SLA resolution time
+       deepest_sla.calendar_id,                                                                      -- Calendar ID associated with the final SLA
+       COALESCE(priority_condition.sla_condition_id, 0)                          AS sla_condition_id -- Return SLA condition ID if a priority match is found
+FROM deepest_sla
+         LEFT JOIN priority_condition ON true;
+-- Combine the results to ensure we have reaction and resolution times even if no priority-specific condition exists
+
+	`, serviceID, priorityID).Scan(
+		&slaID,
+		&reactionTime,
+		&resolutionTime,
+		&calendarID,
+		&slaConditionID,
+	)
 	if err != nil {
-		return 0, 0, 0, 0, dberr.NewDBInternalError("failed to scan SLA: %w", err)
+		return 0, 0, 0, 0, 0, dberr.NewDBInternalError("failed to scan SLA: %w", err)
 	}
 
-	return slaId, reactionTime, resolutionTime, calendarId, nil
+	return slaID, slaConditionID, reactionTime, resolutionTime, calendarID, nil
 }
 
 func (c *CaseStore) buildCreateCaseSqlizer(
 	rpc *model.CreateOptions,
 	caseItem *_go.Case,
 	slaID int,
+	slaConditionID int,
 ) (sq.SelectBuilder, []CaseScan, error) {
 	rpc.Fields = util.EnsureIdField(rpc.Fields)
 
@@ -144,12 +198,18 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			WHERE sc.status_id = $13 AND sc.initial = true
 		)`
 
+	// Use NULL for slaConditionID if it's 0
+	slaConditionExpr := sq.Expr("NULL")
+	if slaConditionID != 0 {
+		slaConditionExpr = sq.Expr("?", slaConditionID)
+	}
+
 	insertBuilder := sq.Insert("cases.case").
 		Columns("rating", "dc", "created_at", "created_by", "updated_at", "updated_by",
 			"close_result", "priority", "source", "close_reason",
 			"rating_comment", "name", "status", "close_reason_group", "\"group\"",
 			"subject", "planned_reaction_at", "planned_resolve_at", "reporter",
-			"impacted", "service", "description", "assignee", "sla", "status_condition").
+			"impacted", "service", "description", "assignee", "sla", "sla_condition_id", "status_condition").
 		Values(
 			caseItem.Rate.GetRating(),
 			rpc.Session.GetDomainId(),
@@ -175,6 +235,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			sq.Expr("NULLIF(?, '')", caseItem.Description),
 			caseItem.Assignee.GetId(),
 			slaID,
+			slaConditionExpr,
 			sq.Expr("(SELECT status_condition_id FROM status_condition_cte)")).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
