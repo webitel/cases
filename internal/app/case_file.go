@@ -37,14 +37,14 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
 	}
 
-	ids, err := util.ParseQin(req.Qin, etag.EtagCaseComment)
+	ids, err := util.ParseIds(req.Ids, etag.EtagCaseComment)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_qin", "Invalid Qin")
 	}
 	// Build search options
 	searchOpts := model.NewSearchOptions(ctx, req, fields)
 	searchOpts.IDs = ids
-	searchOpts.Id = tag.GetOid()
+	searchOpts.ParentId = tag.GetOid()
 
 	files, err := c.app.Store.CaseFile().List(searchOpts)
 	if err != nil {

@@ -14,42 +14,22 @@ import (
 type SearchOptions struct {
 	Time time.Time
 	context.Context
-	Session *session.Session
-	Filter  map[string]interface{}
-	Search  string
-	IDs     []int64
-	Sort    []string
-	Fields  []string
-	Id      int64
-	Page    int32
-	Size    int32
-	hasEtag bool
-	hasId   bool
-	hasVer  bool
-}
-
-func (s *SearchOptions) HasEtag() bool {
-	return s.hasEtag
-}
-
-func (s *SearchOptions) HasId() bool {
-	return s.hasId
-}
-
-func (s *SearchOptions) HasVer() bool {
-	return s.hasVer
-}
-
-type Etagger interface {
-	HasEtag() bool
-	HasId() bool
-	HasVer() bool
+	Session  *session.Session
+	Filter   map[string]interface{}
+	Search   string
+	IDs      []int64
+	Sort     []string
+	Fields   []string
+	ParentId int64
+	Page     int32
+	Size     int32
 }
 
 type Searcher interface {
 	Locator
 	GetPage() int32
 	GetSize() int32
+	GetQ() string
 }
 
 type Locator interface {
@@ -62,6 +42,7 @@ func NewSearchOptions(ctx context.Context, searcher Searcher, defaultFields []st
 		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
 		Page:    searcher.GetPage(),
 		Size:    searcher.GetSize(),
+		Search:  searcher.GetQ(),
 	}
 	// set current time
 	opts.CurrentTime()
@@ -71,9 +52,10 @@ func NewSearchOptions(ctx context.Context, searcher Searcher, defaultFields []st
 		searcher.GetFields(), graph.SplitFieldsQ,
 	)
 	if len(fields) == 0 {
-		fields = defaultFields
+		fields = make([]string, len(defaultFields))
+		copy(fields, defaultFields)
 	}
-	opts.Fields, opts.hasEtag, opts.hasId, opts.hasVer = util.ProcessEtag(fields)
+	opts.Fields = util.ParseFieldsForEtag(fields)
 	return opts
 }
 
@@ -93,16 +75,16 @@ func NewLocateOptions(ctx context.Context, locator Locator, defaultFields []stri
 		locator.GetFields(), graph.SplitFieldsQ,
 	)
 	if len(fields) == 0 {
-		fields = defaultFields
+		copy(fields, defaultFields)
 	}
 	// find and process etag field
-	opts.Fields, opts.hasEtag, opts.hasId, opts.hasVer = util.ProcessEtag(fields)
+	opts.Fields = util.ParseFieldsForEtag(fields)
 	return opts
 }
 
 // DeafaultSearchSize is a constant integer == 16.
 const (
-	DefaultSearchSize = 16
+	DefaultSearchSize = 10
 )
 
 func (rpc *SearchOptions) GetSize() int32 {

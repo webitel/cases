@@ -34,7 +34,7 @@ func NewDeleteOptions(ctx context.Context) *DeleteOptions {
 		Context: ctx,
 		Session: sess,
 	}
-	deleteOpts.Time = deleteOpts.CurrentTime() // Set Time using CurrentTime
+	deleteOpts.CurrentTime() // Set Time using CurrentTime
 
 	return deleteOpts
 }

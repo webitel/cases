@@ -2,6 +2,9 @@ package model
 
 import (
 	"context"
+	"github.com/webitel/cases/model/graph"
+	"github.com/webitel/cases/util"
+	"github.com/webitel/webitel-go-kit/etag"
 	"time"
 
 	session "github.com/webitel/cases/auth/model"
@@ -16,6 +19,7 @@ type UpdateOptions struct {
 	Fields  []string
 	Mask    []string
 	IDs     []int64
+	Etags   []*etag.Tid
 	// ID      int64
 }
 
@@ -27,11 +31,14 @@ type Updator interface {
 // NewUpdateOptions initializes UpdateOptions with values from a context and an Updator-compliant struct
 func NewUpdateOptions(ctx context.Context, req Updator) *UpdateOptions {
 	sess := ctx.Value(interceptor.SessionHeader).(*session.Session)
-
+	fields := util.FieldsFunc(
+		req.GetFields(), graph.SplitFieldsQ,
+	)
+	fields = util.ParseFieldsForEtag(fields)
 	return &UpdateOptions{
 		Context: ctx,
 		Session: sess,
-		Fields:  req.GetFields(),
+		Fields:  fields,
 		Mask:    req.GetXJsonMask(),
 		Time:    time.Now(),
 	}

@@ -5,6 +5,7 @@ import (
 	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 )
 
@@ -14,42 +15,66 @@ import (
 type CaseLinkService struct {
 	app *App
 	cases.UnimplementedCaseLinksServer
+	Fields map[string]string
+}
+
+type UtilCaseLinkFields struct {
+	Etag      string
+	CreatedBy string
+	CreatedAt string
+	UpdatedBy string
+	UpdatedAt string
+	Author    string
+	Name      string
+	Url       string
+	CaseId    string
+}
+
+var CaseLinkFields = UtilCaseLinkFields{
+	Etag:      "etag",
+	CreatedBy: "created_by",
+	CreatedAt: "created_at",
+	UpdatedBy: "updated_by",
+	UpdatedAt: "updated_at",
+	Author:    "author",
+	Name:      "name",
+	Url:       "url",
+	CaseId:    "case_id",
 }
 
 var DefaultCaseLinkFields = []string{
-	"etag", "created_by", "created_at", "author", "name", "url",
+	CaseLinkFields.Etag,
+	CaseLinkFields.CreatedBy,
+	CaseLinkFields.CreatedAt,
+	CaseLinkFields.Author,
+	CaseLinkFields.Url,
+	CaseLinkFields.Name,
 }
 
 func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkRequest) (*cases.CaseLink, error) {
 	// Validate required fields
-	//if req.Etag == "" {
-	//	return nil, cerror.NewBadRequestError("app.case_link.locate.case_etag.check_args.etag", "Etag is required")
-	//}
-	//
-	//// Convert the etag to an internal identifier (Tid) for filtering by ID and Ver
-	////etag, err := etag.EtagOrId(etag.EtagCaseLink, req.Etag)
-	////if err != nil {
-	////	return nil, cerror.NewBadRequestError("app.case_link.locate.case_etag.check_args.etag", err.Error())
-	////}
-	//
-	//searchOpts := model.NewLocateOptions(ctx, req, DefaultCaseLinkFields)
-	//
-	//// Use ListComments to retrieve the specific comment
-	//commentList, err := c.app.Store.CaseComment().List(searchOpts)
-	//if err != nil {
-	//	return nil, cerror.NewInternalError("case_comment_service.locate_comment.fetch_error", err.Error())
-	//}
-	//
-	//// Ensure we found exactly one comment
-	//if len(commentList.Items) == 0 {
-	//	return nil, cerror.NewNotFoundError("case_comment_service.locate_comment.not_found", "Comment not found")
-	//} else if len(commentList.Items) > 1 {
-	//	return nil, cerror.NewInternalError("case_comment_service.locate_comment.multiple_found", "Multiple comments found")
-	//}
+	if req.Etag == "" {
+		return nil, cerror.NewBadRequestError("app.case_link.locate.check_args.etag", "Etag is required")
+	}
 
-	// Return the located comment
-	//return commentList.Items[0], nil
-	return nil, nil
+	etg, err := etag.EtagOrId(etag.EtagCaseLink, req.Etag)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
+	}
+
+	searchOpts := model.NewLocateOptions(ctx, req, DefaultCaseLinkFields)
+	searchOpts.IDs = []int64{etg.GetOid()}
+
+	links, err := c.app.Store.CaseLink().List(searchOpts)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case_link.locate.get_list.error", err.Error())
+	}
+	res := links.Items[0]
+	// hide etag if needed
+	NormalizeResponseLink(res, req)
+
+	//Return the located comment
+	return links.Items[0], nil
 }
 
 func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkRequest) (*cases.CaseLink, error) {
@@ -72,56 +97,120 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		return nil, dbErr
 	}
 
-	if createOpts.HasEtag() {
-		res.Etag = etag.EncodeEtag(etag.EtagCaseLink, res.Id, res.Ver)
-		// hide
-		if !createOpts.HasId() {
-			res.Id = 0
-		}
-		if !createOpts.HasVer() {
-			res.Ver = 0
-		}
-	}
-
+	NormalizeResponseLink(res, req)
 	return res, nil
 }
 
 func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkRequest) (*cases.CaseLink, error) {
-	// TODO implement me
-	panic("implement me")
+	if req.GetEtag() == "" {
+		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.etag", "case etag required")
+	}
+	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetEtag())
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
+	}
+	updateOpts := model.NewUpdateOptions(ctx, req)
+	updateOpts.Etags = []*etag.Tid{&linkTID}
+	updated, err := c.app.Store.CaseLink().Update(updateOpts, req.Input)
+	if err != nil {
+		return nil, err
+	}
+	NormalizeResponseLink(updated, req)
+
+	return updated, nil
 }
 
 func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkRequest) (*cases.CaseLink, error) {
-	// TODO implement me
-	panic("implement me")
+	if req.GetEtag() == "" {
+		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.etag", "case etag required")
+	}
+	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetEtag())
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
+	}
+	deleteOpts := model.NewDeleteOptions(ctx)
+	deleteOpts.ID = linkTID.GetOid()
+	err = c.app.Store.CaseLink().Delete(deleteOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
 
 func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksRequest) (*cases.CaseLinkList, error) {
-	//searchOpts := model.NewSearchOptions(ctx, req)
-	//// output: validate & normalize & defaults
-	//graphLinkModel := struct {
-	//	graph.Query
-	//	FieldsParse func(rawFields []string, decode ...graph.FieldEncoding) (fields graph.FieldsQ, err error)
-	//	// Output      func(*cases.CaseLinkList, *graph.Query)
-	//}{
-	//	Query: graph.Query{
-	//		Name: "listLinks",
-	//	},
-	//	FieldsParse: casegraph.Schema.Case.Link.Output.ParseFields,
-	//}
-	//graphParsedFields, err := graphLinkModel.FieldsParse(searchOpts.Fields)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//graphLinkModel.Fields = graphParsedFields
-	// output: validate & normalize & defaults
+	// Validate required fields
+	if req.GetCaseEtag() == "" {
+		return nil, cerror.NewBadRequestError("app.case_link.list.case_etag.check_args.etag", "case etag is required")
+	}
 
-	panic("implement me")
+	etg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
+	}
+
+	searchOpts := model.NewSearchOptions(ctx, req, DefaultCaseLinkFields)
+	searchOpts.ParentId = etg.GetOid()
+	//
+	ids, err := util.ParseIds(req.GetIds(), etag.EtagCaseLink)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
+	}
+	searchOpts.IDs = ids
+
+	links, err := c.app.Store.CaseLink().List(searchOpts)
+	if err != nil {
+		return nil, cerror.NewInternalError("case_comment_service.locate_comment.fetch_error", err.Error())
+	}
+
+	NormalizeResponseLinks(links, req)
+
+	//Return the located comment
+	return links, nil
 }
 
 func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewBadRequestError("app.case.new_case_comment_service.check_args.app", "unable to init service, app is nil")
 	}
-	return &CaseLinkService{app: app}, nil
+	return &CaseLinkService{app: app, Fields: map[string]string{"": ""}}, nil
+}
+
+func NormalizeResponseLink(res *cases.CaseLink, opts model.Locator) {
+	fields := opts.GetFields()
+	if len(opts.GetFields()) == 0 {
+		fields = DefaultCaseLinkFields
+	}
+	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
+	if hasEtag {
+		res.Etag = etag.EncodeEtag(etag.EtagCaseLink, res.Id, res.Ver)
+		// hide
+		if !hasId {
+			res.Id = 0
+		}
+		if !hasVer {
+			res.Ver = 0
+		}
+	}
+}
+
+func NormalizeResponseLinks(res *cases.CaseLinkList, opts model.Locator) {
+	fields := opts.GetFields()
+	if len(fields) == 0 {
+		fields = make([]string, len(DefaultCaseLinkFields))
+		copy(fields, DefaultCaseLinkFields)
+	}
+	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
+	for _, re := range res.Items {
+		if hasEtag {
+			re.Etag = etag.EncodeEtag(etag.EtagCaseLink, re.Id, re.Ver)
+			// hide
+			if !hasId {
+				re.Id = 0
+			}
+			if !hasVer {
+				re.Ver = 0
+			}
+		}
+	}
 }

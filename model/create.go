@@ -19,21 +19,6 @@ type CreateOptions struct {
 	Ids             []int64
 	// ParentID is the attribute to represent parent object, that creation process connected to
 	ParentID int64
-	hasEtag  bool
-	hasId    bool
-	hasVer   bool
-}
-
-func (s *CreateOptions) HasEtag() bool {
-	return s.hasEtag
-}
-
-func (s *CreateOptions) HasId() bool {
-	return s.hasId
-}
-
-func (s *CreateOptions) HasVer() bool {
-	return s.hasVer
 }
 
 type Creator interface {
@@ -63,8 +48,8 @@ func NewCreateOptions(ctx context.Context, creator Creator, defaultFields []stri
 		creator.GetFields(), graph.SplitFieldsQ,
 	)
 	if len(fields) == 0 {
-		fields = defaultFields
+		copy(fields, defaultFields)
 	}
-	createOpts.Fields, createOpts.hasEtag, createOpts.hasId, createOpts.hasVer = util.ProcessEtag(fields)
+	createOpts.Fields = util.ParseFieldsForEtag(fields)
 	return createOpts
 }

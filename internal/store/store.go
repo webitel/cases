@@ -70,7 +70,7 @@ type CaseLinkStore interface {
 	// Update link
 	Update(req *model.UpdateOptions, upd *_go.InputCaseLink) (*_go.CaseLink, error)
 	// Delete link
-	Delete(req *model.DeleteOptions) (*_go.CaseLink, error)
+	Delete(req *model.DeleteOptions) error
 }
 
 // Comments attribute attached to the case (n:1)

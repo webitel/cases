@@ -63,25 +63,64 @@ func FieldsFunc(src []string, fn func(string) []string) []string {
 	return dst
 }
 
-func ProcessEtag(fields []string) (res []string, hasEtag bool, hasId bool, hasVer bool) {
-	// Iterate through the fields and update the flags
-	for _, field := range fields {
+// AddVersionAndIdByEtag searches for etag, id, ver fields and determines what fields should be added
+// to provide full functionality of etag
+func AddVersionAndIdByEtag(fields []string) {
+	var hasEtag, hasId, hasVer bool
+	hasEtag, hasId, hasVer = FindEtagFields(fields)
+	if hasEtag {
+		if !hasId {
+			fields = append(fields, "id")
+		}
+		if !hasVer {
+			fields = append(fields, "ver")
+		}
+	}
+
+	return
+}
+
+// AddVersionAndIdByEtag searches for etag, id, ver fields and determines what fields should be added
+// to provide full functionality of etag
+func ParseFieldsForEtag(fields []string) []string {
+	var (
+		res                    []string
+		hasEtag, hasId, hasVer bool
+		etagIndex              int
+	)
+	for i, field := range fields {
 		if field == "etag" {
 			hasEtag = true
-			continue
+			etagIndex = i
 		} else if field == "id" {
 			hasId = true
 		} else if field == "ver" {
 			hasVer = true
+		} else {
+			res = append(res, field)
 		}
-		res = append(res, field)
 	}
 	if hasEtag {
+		res = append(fields[:etagIndex], fields[etagIndex+1:]...)
 		if !hasId {
 			res = append(res, "id")
 		}
 		if !hasVer {
 			res = append(res, "ver")
+		}
+	}
+	return res
+}
+
+func FindEtagFields(fields []string) (hasEtag bool, hasId bool, hasVer bool) {
+	// Iterate through the fields and update the flags
+	for _, field := range fields {
+		if field == "etag" {
+			hasEtag = true
+		} else if field == "id" {
+			hasId = true
+		} else if field == "ver" {
+			hasVer = true
 		}
 	}
 	return
@@ -207,9 +246,9 @@ func EnsureFields(fields []string, requiredFields ...string) []string {
 	return fields
 }
 
-// ParseQin converts a slice of strings (each possibly containing comma-separated eTags or numeric IDs)
+// ParseIds converts a slice of strings (each possibly containing comma-separated eTags or numeric IDs)
 // into a slice of int64. For example, given input ["1", "2,3", "etag4"], it converts each to int64 and returns []int64{1, 2, 3, 4}.
-func ParseQin(input []string, etagType etag.EtagType) ([]int64, error) {
+func ParseIds(input []string, etagType etag.EtagType) ([]int64, error) {
 	var result []int64
 
 	for _, item := range input {

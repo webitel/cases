@@ -149,28 +149,28 @@ func (c *CaseCommentService) ListComments(
 		page = 1
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.CaseEtag)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_etag", "Invalid etag")
 	}
 
-	ids, err := util.ParseQin(req.Qin, etag.EtagCaseComment)
+	ids, err := util.ParseIds(req.Ids, etag.EtagCaseComment)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_qin", "Invalid Qin format")
 	}
 
 	t := time.Now()
 	searchOpts := model.SearchOptions{
-		IDs:     ids,
-		Id:      tag.GetOid(),
-		Session: session,
-		Fields:  fields,
-		Context: ctx,
-		Sort:    []string{req.Sort},
-		Page:    int32(page),
-		Size:    int32(req.Size),
-		Time:    t,
-		Filter:  make(map[string]interface{}),
+		IDs:      ids,
+		ParentId: tag.GetOid(),
+		Session:  session,
+		Fields:   fields,
+		Context:  ctx,
+		Sort:     []string{req.Sort},
+		Page:     page,
+		Size:     req.Size,
+		Time:     t,
+		Filter:   make(map[string]interface{}),
 	}
 
 	comments, err := c.app.Store.CaseComment().List(&searchOpts)

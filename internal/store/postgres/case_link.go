@@ -1,8 +1,10 @@
 package postgres
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -18,9 +20,11 @@ type CaseLinkStore struct {
 	mainTable string
 }
 
-var CaseLinkFields = []string{
-	"created_by", "created_at", "updated_by", "updated_at", "id", "ver", "author", "name", "url", "etag",
-}
+var (
+	CaseLinkFields = []string{
+		"created_by", "created_at", "updated_by", "updated_at", "id", "ver", "author", "name", "url",
+	}
+)
 
 type LinkScan func(link *_go.CaseLink) any
 
@@ -36,7 +40,7 @@ func (l *CaseLinkStore) Create(rpc *model.CreateOptions, add *_go.InputCaseLink)
 	if len(rpc.Fields) == 0 {
 		rpc.Fields = CaseLinkFields
 	}
-	base, plan, dbErr := buildCreateLinkQuery(rpc, rpc.ParentID, add)
+	base, plan, dbErr := buildCreateLinkQuery(rpc, add)
 	if dbErr != nil {
 		return nil, dbErr
 	}
@@ -49,7 +53,7 @@ func (l *CaseLinkStore) Create(rpc *model.CreateOptions, add *_go.InputCaseLink)
 		return nil, dberr.NewDBError("postgres.case_link.create.convert_to_sql.error", goErr.Error())
 	}
 	row := db.QueryRow(rpc.Context, store.CompactSQL(query), args...)
-	res, goErr := scanLink(row, plan)
+	res, goErr := l.scanLink(row, plan)
 	if goErr != nil {
 		return nil, dberr.NewDBError("postgres.case_link.create.scan.error", goErr.Error())
 	}
@@ -58,23 +62,132 @@ func (l *CaseLinkStore) Create(rpc *model.CreateOptions, add *_go.InputCaseLink)
 }
 
 // Delete implements store.CaseLinkStore.
-func (l *CaseLinkStore) Delete(req *model.DeleteOptions) (*_go.CaseLink, error) {
-	panic("unimplemented")
+func (l *CaseLinkStore) Delete(opts *model.DeleteOptions) error {
+	if opts == nil {
+		return dberr.NewDBError("postgres.case_link.delete.check_args.opts", "delete options required")
+	}
+	if opts.ID == 0 {
+		return dberr.NewDBError("postgres.case_link.delete.check_args.id", "id required")
+	}
+	base := squirrel.
+		Delete(l.mainTable).
+		Where("id = ?", opts.ID).
+		PlaceholderFormat(squirrel.Dollar)
+	query, args, err := base.ToSql()
+	if err != nil {
+		return dberr.NewDBError("postgres.case_link.delete.parse_query.error", err.Error())
+	}
+	db, dbErr := l.storage.Database()
+	if dbErr != nil {
+		return dbErr
+	}
+
+	res, err := db.Exec(opts.Context, query, args...)
+	if err != nil {
+		return dberr.NewDBError("postgres.case_link.delete.execute.error", err.Error())
+	}
+	if affected := res.RowsAffected(); affected == 0 || affected > 1 {
+		return dberr.NewDBError("postgres.case_link.delete.final_check.rows", "wrong filters for deleting")
+	}
+	return nil
+
 }
 
 // List implements store.CaseLinkStore.
-func (l *CaseLinkStore) List(rpc *model.SearchOptions) (*_go.CaseLinkList, error) {
-	panic("unimplemented")
-}
+func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, error) {
+	// validate
+	if opts == nil {
+		return nil, dberr.NewDBError("postgres.case_link.list.check_args.opts", "search options required")
+	}
+	if opts.ParentId == 0 {
+		return nil, dberr.NewDBError("postgres.case_link.list.check_args.parent_id", "case id required")
+	}
+	// form query
+	db, dbErr := l.storage.Database()
+	if dbErr != nil {
+		return nil, dbErr
+	}
+	//
+	base := squirrel.
+		Select().
+		From(l.mainTable).
+		PlaceholderFormat(squirrel.Dollar).
+		Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "case_id")), opts.ParentId)
+	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, l.mainTable, opts.Fields)
 
-// Merge implements store.CaseLinkStore.
-func (l *CaseLinkStore) Merge(req *model.CreateOptions) (*_go.CaseLinkList, error) {
-	panic("unimplemented")
+	if opts.GetSize() > 0 {
+		base = base.Limit(uint64(opts.GetSize() + 1))
+		if opts.GetPage() > 1 {
+			base = base.Offset(uint64((opts.GetPage() - 1) * opts.GetSize()))
+		}
+	}
+
+	if len(opts.Sort) != 0 {
+		for _, s := range opts.Sort {
+			desc := strings.HasPrefix(s, "-")
+			if desc {
+				s = strings.TrimPrefix(s, "-")
+			}
+
+			if desc {
+				s += " DESC"
+			} else {
+				s += " ASC"
+			}
+			base = base.OrderBy(s)
+		}
+	}
+	// execute
+	query, args, err := base.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBError("postgres.case_link.list.convert_sql.error", err.Error())
+	}
+
+	rows, err := db.Query(opts.Context, query, args...)
+	if err != nil {
+		return nil, dberr.NewDBError("postgres.case_link.list.execute.error", err.Error())
+	}
+	// result
+	links, err := l.scanLinks(rows, plan)
+	if err != nil {
+		return nil, err
+	}
+	var res _go.CaseLinkList
+	if opts.GetSize() > 0 && len(links) > int(opts.GetSize()) {
+		res.Next = true
+		links = links[:len(links)-1]
+	}
+	res.Page = res.GetPage()
+	res.Items = links
+	return &res, nil
 }
 
 // Update implements store.CaseLinkStore.
-func (l *CaseLinkStore) Update(req *model.UpdateOptions, upd *_go.InputCaseLink) (*_go.CaseLink, error) {
-	panic("unimplemented")
+func (l *CaseLinkStore) Update(opts *model.UpdateOptions, upd *_go.InputCaseLink) (*_go.CaseLink, error) {
+	if opts == nil {
+		return nil, dberr.NewDBError("postgres.case_link.update.check_args.opts", "update options required")
+	}
+	query, plan, dbErr := buildUpdateLinkQuery(opts, upd)
+	if dbErr != nil {
+		return nil, dbErr
+	}
+	db, dbErr := l.storage.Database()
+	if dbErr != nil {
+		return nil, dbErr
+	}
+	slct, args, err := query.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBError("postgres.case_link.update.convert_to_sql.error", err.Error())
+	}
+	row := db.QueryRow(opts.Context, slct, args...)
+	res, err := l.scanLink(row, plan)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, dberr.NewDBNotFoundError("postgres.case_link.update.scan_ver.not_found", "Link not found")
+		}
+		return nil, err
+	}
+	return res, nil
 }
 
 func NewLinkCaseStore(store store.Store) (store.CaseLinkStore, error) {
@@ -87,6 +200,9 @@ func NewLinkCaseStore(store store.Store) (store.CaseLinkStore, error) {
 
 func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fields []string) (squirrel.SelectBuilder, []LinkScan, *dberr.DBError) {
 	var plan []LinkScan
+	if len(fields) == 0 {
+		fields = CaseLinkFields
+	}
 
 	for _, field := range fields {
 		switch field {
@@ -111,7 +227,7 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 				return scanner.ScanTimestamp(&link.CreatedAt)
 			})
 		case "updated_by":
-			base = base.Column("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = i.updated_by) updated_by")
+			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by", left))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return scanner.ScanRowLookup(&link.UpdatedBy)
 			})
@@ -147,30 +263,65 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 	return base, plan, nil
 }
 
-func buildCreateLinkQuery(rpc *model.CreateOptions, caseId int64, add *_go.InputCaseLink) (squirrel.Sqlizer, []LinkScan, *dberr.DBError) {
+func buildCreateLinkQuery(rpc *model.CreateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []LinkScan, *dberr.DBError) {
 	// insert
 	base := squirrel.SelectBuilder{}.Prefix(`WITH i AS (INSERT INTO cases.case_link (created_by, updated_by, name, url, case_id, dc) VALUES (?, ?,
 	                                                                                           NULLIF(?, ''),
 	                                                                                           ?,
 	                                                                                           ?, ?) RETURNING *)`,
-		rpc.Session.GetUserId(), rpc.Session.GetUserId(), add.GetName(), add.GetUrl(), caseId, rpc.Session.GetDomainId())
+		rpc.Session.GetUserId(), rpc.Session.GetUserId(), add.GetName(), add.GetUrl(), rpc.ParentID, rpc.Session.GetDomainId())
 
 	// select
 	base = base.From("i").PlaceholderFormat(squirrel.Dollar)
 	// build plan from columns
-	base, plan, err := buildLinkSelectColumnsAndPlan(base, "i", rpc.Fields)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return base, plan, nil
+	return buildLinkSelectColumnsAndPlan(base, "i", rpc.Fields)
 }
 
-func scanLinks(rows pgx.Rows, plan []LinkScan) ([]*_go.CaseLink, error) {
+func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []LinkScan, *dberr.DBError) {
+	if len(opts.Etags) == 0 {
+		return nil, nil, dberr.NewDBError("postgres.case_link.update.etag.empty", "link etag required")
+	}
+	if len(opts.Mask) == 0 {
+		return nil, nil, dberr.NewDBError("postgres.case_link.update.mask.empty", "link update mask required")
+	}
+	tid := opts.Etags[0]
+	// insert
+	insert := squirrel.
+		Update("cases.case_link").
+		Set("updated_by", opts.Session.GetUserId()).
+		Set("updated_at", opts.Time).
+		Set("ver", squirrel.Expr("ver+1")).
+		Where("id = ?", tid.GetOid()).
+		Where("ver = ?", tid.GetVer()).
+		Suffix("RETURNING *").
+		PlaceholderFormat(squirrel.Dollar)
+	for _, field := range opts.Mask {
+		switch field {
+		case "url":
+			_, err := url.Parse(add.Url)
+			if err != nil {
+				return nil, nil, dberr.NewDBError("postgres.case_link.build_update_query.url.validate.error", err.Error())
+			}
+			insert = insert.Set("url", add.Url)
+		case "name":
+			insert = insert.Set("name", add.Name)
+		}
+	}
+	prefixAlias := "ins"
+	prefix, args, err := store.FormAsCTE(insert, prefixAlias)
+	if err != nil {
+		return nil, nil, dberr.NewDBError("postgres.case_link.build_update_query.form_cte.error", err.Error())
+	}
+	slct := squirrel.Select().Prefix(prefix, args...).From(prefixAlias)
+	// build plan from columns
+	return buildLinkSelectColumnsAndPlan(slct, prefixAlias, opts.Fields)
+}
+
+func (l *CaseLinkStore) scanLinks(rows pgx.Rows, plan []LinkScan) ([]*_go.CaseLink, error) {
 	var res []*_go.CaseLink
 
 	for rows.Next() {
-		link, err := scanLink(rows, plan)
+		link, err := l.scanLink(rows, plan)
 		if err != nil {
 			return nil, err
 		}
@@ -179,7 +330,7 @@ func scanLinks(rows pgx.Rows, plan []LinkScan) ([]*_go.CaseLink, error) {
 	return res, nil
 }
 
-func scanLink(row pgx.Row, plan []LinkScan) (*_go.CaseLink, error) {
+func (l *CaseLinkStore) scanLink(row pgx.Row, plan []LinkScan) (*_go.CaseLink, error) {
 	var link _go.CaseLink
 	var scanPlan []any
 	for _, scan := range plan {
