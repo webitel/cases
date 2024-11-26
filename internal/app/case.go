@@ -54,6 +54,7 @@ var defaultFieldsCase = []string{
 	"impacted",
 	"author",
 	"planned_reaction_at",
+	"service",
 	"planned_resolve_at",
 	"status",
 	"close_reason_group",
@@ -64,6 +65,8 @@ var defaultFieldsCase = []string{
 	"rating_comment",
 	"sla_conditions",
 	"status_condition",
+	"related_cases",
+	"links",
 	"sla",
 }
 
@@ -120,11 +123,6 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, cerror.NewUnauthorizedError("app.case.create_case.authorization_failed", err.Error())
 	}
 
-	// Validate required fields
-	if req.Input.Name == "" {
-		return nil, cerror.NewBadRequestError("app.case.create_case.name_required", "Case name is required")
-	}
-
 	if req.Input.Subject == "" {
 		return nil, cerror.NewBadRequestError("app.case.create_case.subject_required", "Case subject is required")
 	}
@@ -159,35 +157,16 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	}
 
 	var (
-		comments *cases.CaseCommentList
-		related  *cases.RelatedCaseList
-		links    *cases.CaseLinkList
+		related *cases.RelatedCaseList
+		links   *cases.CaseLinkList
 	)
-	if len(req.Input.Comments) > 0 {
-		commentItems := make([]*cases.CaseComment, len(req.Input.Comments))
-		var tag etag.Tid
-		for i, inputComment := range req.Input.Comments {
-			tag, err = etag.EtagOrId(etag.EtagCase, inputComment.Etag)
-			if err != nil {
-				return nil, cerror.NewBadRequestError("app.case.create_case.invalid_etag", "Invalid etag for comment")
-			}
-			commentItems[i] = &cases.CaseComment{
-				Id: strconv.Itoa(int(tag.GetOid())),
-			}
-		}
-		comments = &cases.CaseCommentList{Items: commentItems}
-	}
 
 	if len(req.Input.Links) > 0 {
 		linkItems := make([]*cases.CaseLink, len(req.Input.Links))
-		var tag etag.Tid
 		for i, inputLink := range req.Input.Links {
-			tag, err = etag.EtagOrId(etag.EtagCaseLink, inputLink.Etag)
-			if err != nil {
-				return nil, cerror.NewBadRequestError("app.case.create_case.invalid_etag", "Invalid etag for link")
-			}
 			linkItems[i] = &cases.CaseLink{
-				Id: tag.GetOid(),
+				Url:  inputLink.GetUrl(),
+				Name: inputLink.GetName(),
 			}
 		}
 		links = &cases.CaseLinkList{Items: linkItems}
@@ -195,14 +174,10 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 
 	if len(req.Input.Related) > 0 {
 		relatedItems := make([]*cases.RelatedCase, len(req.Input.Related))
-		var tag etag.Tid
 		for i, inputRelated := range req.Input.Related {
-			tag, err = etag.EtagOrId(etag.EtagRelatedCase, inputRelated.Etag)
-			if err != nil {
-				return nil, cerror.NewBadRequestError("app.case.create_case.invalid_etag", "Invalid etag for related case")
-			}
 			relatedItems[i] = &cases.RelatedCase{
-				Id: tag.GetOid(),
+				Id:           inputRelated.GetRelatedTo(),
+				RelationType: inputRelated.RelationType,
 			}
 		}
 		related = &cases.RelatedCaseList{Items: relatedItems}
@@ -249,7 +224,6 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		},
 		Priority: &cases.Lookup{Id: req.Input.Priority},
 		Service:  &cases.Lookup{Id: req.Input.Service},
-		Comments: comments,
 		Links:    links,
 		Related:  related,
 		Rate: &cases.RateInfo{

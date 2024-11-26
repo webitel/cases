@@ -1,10 +1,13 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
@@ -20,7 +23,9 @@ type CaseStore struct {
 type CaseScan func(caseItem *_go.Case) any
 
 const (
-	caseLeft = "c"
+	caseLeft     = "c"
+	relatedAlias = "related"
+	linksAlias   = "links"
 )
 
 func (c *CaseStore) Create(
@@ -78,9 +83,18 @@ func (c *CaseStore) Create(
 	scanArgs := convertToCaseScanArgs(plan, add)
 
 	// Execute the query
-	if err := txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err = txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.execution_error", err)
 	}
+
+	// Update the name
+	name, err := c.UpdateCaseName(rpc.Context, add.Id, add.Service.GetId(), txManager)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.create.update_name_error", err)
+	}
+
+	// Assign the new name to the case
+	add.Name = name
 
 	// Commit the transaction
 	if err := tx.Commit(rpc.Context); err != nil {
@@ -88,6 +102,37 @@ func (c *CaseStore) Create(
 	}
 
 	return add, nil
+}
+
+func (c *CaseStore) UpdateCaseName(
+	ctx context.Context,
+	caseID int64,
+	serviceID int64,
+	txManager *store.TxManager,
+) (string, error) {
+	// SQL query to update the name based on the prefix and return the new name
+	query := `
+		WITH prefix_cte AS (
+			SELECT prefix
+			FROM cases.service_catalog
+			WHERE id = $1
+			LIMIT 1
+		)
+		UPDATE cases.case
+		SET name = CONCAT((SELECT prefix FROM prefix_cte), '_', id)
+		WHERE id = $2
+		RETURNING name
+	`
+
+	var updatedName string
+
+	// Execute the query and scan the returned name
+	err := txManager.QueryRow(ctx, query, serviceID, caseID).Scan(&updatedName)
+	if err != nil {
+		return "", dberr.NewDBInternalError("postgres.case.update_name.execution_error", err)
+	}
+
+	return updatedName, nil
 }
 
 // ScanSla fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
@@ -187,10 +232,11 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 ) (sq.SelectBuilder, []CaseScan, error) {
 	rpc.Fields = util.EnsureIdField(rpc.Fields)
 
-	// convert int64 timestamp of planned_reaction & planned_resolve to Datetime
-	reaction_at := util.LocalTime(caseItem.PlannedReactionAt)
-	resolve_at := util.LocalTime(caseItem.PlannedResolveAt)
+	// Convert timestamps for planned_reaction and planned_resolve
+	reactionAt := util.LocalTime(caseItem.PlannedReactionAt)
+	resolveAt := util.LocalTime(caseItem.PlannedResolveAt)
 
+	// CTE for status condition
 	statusConditionCTE := `
 		status_condition_cte AS (
 			SELECT sc.id AS status_condition_id
@@ -204,7 +250,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		slaConditionExpr = sq.Expr("?", slaConditionID)
 	}
 
-	insertBuilder := sq.Insert("cases.case").
+	caseInsertBuilder := sq.Insert("cases.case").
 		Columns("rating", "dc", "created_at", "created_by", "updated_at", "updated_by",
 			"close_result", "priority", "source", "close_reason",
 			"rating_comment", "name", "status", "close_reason_group", "\"group\"",
@@ -222,13 +268,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			caseItem.Source.GetId(),
 			caseItem.Close.CloseReason.GetId(),
 			caseItem.Rate.GetRatingComment(),
-			caseItem.Name,
+			"Mock Name", // mocked name as NAME is NOT null, prefixed name will be passed using trigger in db
 			caseItem.Status.GetId(),
 			caseItem.CloseReasonGroup.GetId(),
 			caseItem.Group.GetId(),
 			caseItem.Subject,
-			reaction_at,
-			resolve_at,
+			reactionAt,
+			resolveAt,
 			caseItem.Reporter.GetId(),
 			caseItem.Impacted.GetId(),
 			caseItem.Service.GetId(),
@@ -238,31 +284,117 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			slaConditionExpr,
 			sq.Expr("(SELECT status_condition_id FROM status_condition_cte)")).
 		PlaceholderFormat(sq.Dollar).
+		// Suffix("RETURNING *")
 		Suffix("RETURNING *")
-
-	insertSQL, insertArgs, err := insertBuilder.ToSql()
+	// Generate SQL for main case insert
+	caseInsertSQL, caseInsertArgs, err := caseInsertBuilder.ToSql()
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.case.create.insert_query_build_error", err)
 	}
 
-	// Construct the final CTE query
-	cteSQL := fmt.Sprintf(`
-		WITH %s,
-		%s AS (%s)
-	`, statusConditionCTE, caseLeft, insertSQL)
+	// Add related cases insert
+	relatedInsertSQL := ""
+	if caseItem.Related != nil && len(caseItem.Related.Items) > 0 {
 
-	// Build the SELECT query to fetch the returned columns
+		var relatedValues []string
+		for _, related := range caseItem.Related.Items {
+			relationTypeInt, relationTypeErr := ConvertRelationType(related.RelationType)
+			if relationTypeErr != nil {
+				return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.case.create.convert_relation_type", relationTypeErr)
+			}
+			relatedValues = append(relatedValues, fmt.Sprintf(
+				"(%d, '%s', %d, '%s', %d, (SELECT id FROM %s), %d, %d)",
+				rpc.Session.GetUserId(),
+				rpc.CurrentTime().Format(time.RFC3339),
+				rpc.Session.GetUserId(),
+				rpc.CurrentTime().Format(time.RFC3339),
+				relationTypeInt,
+				caseLeft,
+				related.GetId(),
+				rpc.Session.GetDomainId(),
+			))
+		}
+		relatedInsertSQL = fmt.Sprintf(`
+			INSERT INTO cases.related_case (
+				created_by, created_at, updated_by, updated_at, relation_type, parent_case_id, child_case_id, dc
+			) VALUES %s RETURNING *`, strings.Join(relatedValues, ", "))
+	}
+
+	// Add links insert
+	linksInsertSQL := ""
+	if caseItem.Links != nil && len(caseItem.Links.Items) > 0 {
+		var linksValues []string
+		for _, link := range caseItem.Links.Items {
+			linksValues = append(linksValues, fmt.Sprintf(
+				"(%d, '%s', %d, '%s', '%s', '%s', (SELECT id FROM %s), %d)",
+				rpc.Session.GetUserId(),
+				rpc.CurrentTime().Format(time.RFC3339),
+				rpc.Session.GetUserId(),
+				rpc.CurrentTime().Format(time.RFC3339),
+				link.Name,
+				link.Url,
+				caseLeft,
+				rpc.Session.GetDomainId(),
+			))
+		}
+		linksInsertSQL = fmt.Sprintf(`
+			INSERT INTO cases.case_link (
+				created_by, created_at, updated_by, updated_at, name, url, case_id, dc
+			) VALUES %s RETURNING *`, strings.Join(linksValues, ", "))
+	}
+
+	// Combine all queries into a CTE
+	cteSQL := fmt.Sprintf(`
+	WITH %s,
+	%s AS (%s)
+	`,
+		statusConditionCTE, caseLeft, caseInsertSQL)
+
+	if relatedInsertSQL != "" {
+		cteSQL += fmt.Sprintf(", %s AS (%s)", relatedAlias, relatedInsertSQL)
+	}
+	if linksInsertSQL != "" {
+		cteSQL += fmt.Sprintf(", %s AS (%s)", linksAlias, linksInsertSQL)
+	}
+
+	// Build SELECT query to fetch case data
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(sq.Select(), rpc.Fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
 
-	// Combine the CTE with the SELECT query
+	// Combine all SQL parts
 	selectBuilder = selectBuilder.
-		PrefixExpr(sq.Expr(cteSQL, insertArgs...)).
+		PrefixExpr(sq.Expr(cteSQL, caseInsertArgs...)).
 		From(caseLeft)
 
 	return selectBuilder, plan, nil
+}
+
+// ConvertRelationType validates the cases.RelationType and returns its integer representation.
+func ConvertRelationType(relationType _go.RelationType) (int, error) {
+	switch relationType {
+	case _go.RelationType_BlockedBy:
+		return 0, nil
+	case _go.RelationType_Blocks:
+		return 1, nil
+	case _go.RelationType_Duplicates:
+		return 2, nil
+	case _go.RelationType_DuplicatedBy:
+		return 3, nil
+	case _go.RelationType_Causes:
+		return 4, nil
+	case _go.RelationType_CausedBy:
+		return 5, nil
+	case _go.RelationType_IsChildOf:
+		return 6, nil
+	case _go.RelationType_IsParentOf:
+		return 7, nil
+	case _go.RelationType_RelatesTo:
+		return 8, nil
+	default:
+		return -1, fmt.Errorf("invalid relation type: %v", relationType)
+	}
 }
 
 func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
@@ -512,6 +644,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Priority)
 			})
+		case "service":
+			base = base.Column(fmt.Sprintf(
+				"(SELECT ROW(s.id, s.name)::text FROM cases.service_catalog s WHERE s.id = %s.service) AS service", caseLeft))
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanRowLookup(&caseItem.Service)
+			})
 		case "assignee":
 			base = base.Column(fmt.Sprintf(
 				"(SELECT ROW(a.id, a.common_name)::text FROM contacts.contact a WHERE a.id = %s.assignee) AS assignee", caseLeft))
@@ -562,11 +700,14 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 					'id', cl.id,
 					'url', cl.url,
 					'name', cl.name,
-					'created_by', JSON_BUILD_OBJECT('id', cl.created_by, 'name', u.name),
-					'created_at', cl.created_at
-				)) FROM cases.case_link cl
+					'created_at', CAST(EXTRACT(EPOCH FROM cl.created_at) * 1000 AS BIGINT),
+					'created_by', JSON_BUILD_OBJECT(
+					   'name', u.name,
+					   'id', u.id
+					)
+				)) FROM %s cl
 				LEFT JOIN directory.wbt_user u ON cl.created_by = u.id
-				WHERE cl.case_id = %s.id) AS links`, caseLeft))
+				WHERE cl.case_id = %s.id) AS links`, linksAlias, caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanJSONToStructList(&caseItem.Links.Items)
 			})
@@ -574,13 +715,27 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 		case "related_cases":
 			base = base.Column(fmt.Sprintf(`
 				(SELECT JSON_AGG(JSON_BUILD_OBJECT(
-					'id', rc.related_case_id,
-					'name', c.name,
-					'subject', c.subject,
-					'description', c.description
-				)) FROM cases.related_case rc
-				JOIN cases.case c ON rc.related_case_id = c.id
-				WHERE rc.case_id = %s.id) AS related_cases`, caseLeft))
+					'id', rc.id, -- ID of the related_case record
+					'child', JSON_BUILD_OBJECT( -- Child case details
+						'id', c_child.id,
+						'name', c_child.name,
+						'subject', c_child.subject,
+						'description', c_child.description
+					),
+					'created_at', CAST(EXTRACT(EPOCH FROM rc.created_at) * 1000 AS BIGINT),
+					'created_by', JSON_BUILD_OBJECT(
+					   'name', u.name,
+					   'id', u.id
+					),
+					'relation_type', rc.relation_type  -- Output numeric enum value directly
+				))
+				FROM %s rc
+                JOIN cases.case c_child
+                ON rc.child_case_id = c_child.id -- Fetch details for the child case
+				LEFT JOIN directory.wbt_user u ON rc.created_by = u.id
+                WHERE rc.parent_case_id = %s.id) AS related_cases`, relatedAlias, caseLeft))
+			// parent_case_id -- newly created case
+			// child_case_id -- attached case id
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanJSONToStructList(&caseItem.Related.Items)
 			})
