@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"github.com/webitel/webitel-go-kit/etag"
 	"strconv"
 	"strings"
 
@@ -229,8 +230,8 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 		Where(sq.Eq{"cc.dc": rpc.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	if rpc.Id != 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": rpc.Id})
+	if rpc.ParentId != 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": rpc.ParentId})
 	}
 
 	// Ensure necessary fields are included
