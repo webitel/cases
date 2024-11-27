@@ -14,29 +14,6 @@ import (
 	cerror "github.com/webitel/cases/internal/error"
 )
 
-/*
-
-API layer
-
-- etag formation
-- graphQL types declaration and validation
-- authorization interceptor
-- rabbitMQ events
-- case name forming
--------------------------------------------------
-- OpenTelemetry interceptors and init
-- storage interfaces
-- additional auth layer with context attributes, client name and service registry
-
-
-Database layer
-
-proto filter parsing
-storages (singleton)
-calendar storage and calculation module
-sql scripts structure
-*/
-
 var defaultFieldsCase = []string{
 	"id",
 	"ver",
@@ -106,16 +83,6 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	panic("implement me")
 }
 
-/*
-CreateCase
-Authorization
-Obac
-Fields validation with graph
-Database layer with create options
-Calendar's logic
-Result construction
-Rabbit event publishing
-*/
 func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseRequest) (*cases.Case, error) {
 	// Authorize the user
 	session, err := c.app.AuthorizeFromContext(ctx)
@@ -192,22 +159,26 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	// - planned_resolve_at:
 	//     * Computed dynamically using SLA rules and calendar settings.
 	//     * Represents the anticipated resolution time for the case.
-	// - source:
-	//     * Derived from the case's service.
 	// - status_condition:
-	//     * Set based on the provided status or inferred through system logic.
+	//     * Set based on the provided status.
 	// - timing:
 	//     * Calculated dynamically by the SLA engine during case lifecycle.
 	//     * Represents SLA-driven timing metrics for reaction and resolution.
 	// - SLA:
-	//     * Pulled from the associated service's configuration.
-	//     * Defines the service-level agreements applicable to this case.
+	//     * Pulled from the associated service's configuration using a recursive query.
+	//     * The process begins by traversing the service hierarchy, starting from the given service ID,
+	//       and recursively finding the "deepest" child service (the lowest level in the hierarchy) that has a non-NULL SLA.
+	//     * The SLA is selected from this lowest-level service.
+	//     * SLA conditions are further checked for specific priorities.
+	//         - If a condition matches the priority, the reaction and resolution times are derived from the SLA condition.
+	//         - If no condition matches the priority, the default reaction and resolution times are taken directly from the SLA.
 	// - SLA Conditions:
 	//     * Derived from the associated service's SLA configuration.
-	//     * Specifies conditions and thresholds for SLA adherence.
+	//     * SLA conditions define specific rules and thresholds for SLA adherence based on the priority of the case.
+	//     * During SLA resolution:
+	//         - If a condition matches the given priority, the corresponding SLA condition is selected and applied.
 	// -----------------------------------------------------------------------------
 	newCase := &cases.Case{
-		Name:             req.Input.Name,
 		Subject:          req.Input.Subject,
 		Description:      req.Input.Description,
 		ContactInfo:      req.Input.ContactInfo,

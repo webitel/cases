@@ -11,6 +11,10 @@ import (
 	"github.com/webitel/cases/model"
 )
 
+const (
+	defaultSourceFields = "id, name, description,type"
+)
+
 type SourceService struct {
 	app *App
 	_go.UnimplementedSourcesServer
@@ -87,7 +91,7 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 
 	fields := req.Fields
 	if len(fields) == 0 {
-		fields = strings.Split(defaultFields, ", ")
+		fields = strings.Split(defaultSourceFields, ", ")
 	}
 
 	// Use default page size and page number if not provided
