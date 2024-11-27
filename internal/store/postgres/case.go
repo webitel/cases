@@ -811,7 +811,10 @@ func (c *CaseStore) List(rpc *model.SearchOptions) (*_go.CaseList, error) {
 }
 
 // Update implements store.CaseStore.
-func (c *CaseStore) Update(req *model.UpdateOptions) (*_go.Case, error) {
+func (c *CaseStore) Update(
+	req *model.UpdateOptions,
+	upd *_go.Case,
+) (*_go.Case, error) {
 	panic("unimplemented")
 }
 

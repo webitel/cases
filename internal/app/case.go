@@ -256,8 +256,75 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 }
 
 func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.Case, error) {
-	// TODO implement me
-	panic("implement me")
+	if req.Input.Etag == "" {
+		return nil, cerror.NewBadRequestError("app.case.update_case.etag_required", "Etag is required")
+	}
+	if req.Input.Subject == "" {
+		return nil, cerror.NewBadRequestError("app.case.update_case.subject_required", "Subject is required")
+	}
+	if req.Input.Status.GetId() == 0 {
+		return nil, cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
+	}
+	if req.Input.CloseReason.GetId() == 0 {
+		return nil, cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
+	}
+	if req.Input.Priority.GetId() == 0 {
+		return nil, cerror.NewBadRequestError("app.case.update_case.priority_required", "Priority is required")
+	}
+	if req.Input.Source.GetId() == 0 {
+		return nil, cerror.NewBadRequestError("app.case.update_case.source_required", "Source is required")
+	}
+	if req.Input.Service.GetId() == 0 {
+		return nil, cerror.NewBadRequestError("app.case.update_case.service_required", "Service is required")
+	}
+
+	fields := util.FieldsFunc(req.Fields, util.InlineFields)
+	if len(fields) == 0 {
+		fields = defaultFieldsCase
+	}
+
+	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Input.Etag)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
+	}
+
+	updateOpts := model.NewUpdateOptions(ctx, req)
+	updateOpts.IDs = []int64{tag.GetOid()}
+	updateOpts.Fields = fields
+
+	upd := &cases.Case{
+		Ver:              tag.GetVer(),
+		Subject:          req.Input.Subject,
+		Description:      req.Input.Description,
+		Status:           &cases.Lookup{Id: req.Input.Status.GetId()},
+		CloseReasonGroup: &cases.Lookup{Id: req.Input.CloseReason.GetId()},
+		Assignee:         &cases.Lookup{Id: req.Input.Assignee.GetId()},
+		Reporter:         &cases.Lookup{Id: req.Input.Reporter.GetId()},
+		Impacted:         &cases.Lookup{Id: req.Input.Impacted.GetId()},
+		Group:            &cases.Lookup{Id: req.Input.Group.GetId()},
+		Priority:         &cases.Lookup{Id: req.Input.Priority.GetId()},
+		Source:           &cases.Lookup{Id: req.Input.Source.GetId()},
+		Close: &cases.CloseInfo{
+			CloseResult: req.Input.Close.CloseResult,
+			CloseReason: req.Input.GetCloseReason(),
+		},
+		Rate: &cases.RateInfo{
+			Rating:        req.Input.Rate.Rating,
+			RatingComment: req.Input.Rate.RatingComment,
+		},
+		Service: &cases.Lookup{Id: req.Input.Service.GetId()},
+	}
+
+	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case.update_case.store_update_failed", err.Error())
+	}
+
+	// Encode etag from the comment ID and version
+	e := etag.EncodeEtag(etag.EtagCaseComment, int64(updatedCase.Id), updatedCase.Ver)
+	updatedCase.Etag = e
+
+	return updatedCase, nil
 }
 
 func (c *CaseService) DeleteCase(

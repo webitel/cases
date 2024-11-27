@@ -54,7 +54,7 @@ type CaseStore interface {
 	// List cases
 	List(rpc *model.SearchOptions) (*_go.CaseList, error)
 	// Update case
-	Update(req *model.UpdateOptions) (*_go.Case, error)
+	Update(req *model.UpdateOptions, upd *_go.Case) (*_go.Case, error)
 	// Delete case
 	Delete(req *model.DeleteOptions) error
 }
