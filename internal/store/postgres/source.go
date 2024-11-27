@@ -251,7 +251,7 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 	// Adding columns based on fields
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "type", "created_at", "updated_at":
+		case "id", "name", "type", "created_at", "updated_at", "source":
 			queryBuilder = queryBuilder.Column("g." + field)
 		case "description":
 			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")

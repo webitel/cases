@@ -112,18 +112,14 @@ func (c *CaseStore) UpdateCaseName(
 	txManager *store.TxManager,
 ) (string, error) {
 	// SQL query to update the name based on the prefix and return the new name
-	query := `
-		WITH prefix_cte AS (
-			SELECT prefix
-			FROM cases.service_catalog
-			WHERE id = $1
-			LIMIT 1
-		)
-		UPDATE cases.case
-		SET name = CONCAT((SELECT prefix FROM prefix_cte), '_', id)
-		WHERE id = $2
-		RETURNING name
-	`
+	query := `WITH prefix_cte AS (SELECT prefix
+                    FROM cases.service_catalog
+                    WHERE id = $1
+                    LIMIT 1)
+UPDATE cases.case
+SET name = CONCAT((SELECT prefix FROM prefix_cte), '_', id)
+WHERE id = $2
+RETURNING name`
 
 	var updatedName string
 
@@ -811,11 +807,6 @@ var deleteCaseQuery = store.CompactSQL(`
 
 // List implements store.CaseStore.
 func (c *CaseStore) List(rpc *model.SearchOptions) (*_go.CaseList, error) {
-	panic("unimplemented")
-}
-
-// Merge implements store.CaseStore.
-func (c *CaseStore) Merge(req *model.CreateOptions) (*_go.CaseList, error) {
 	panic("unimplemented")
 }
 

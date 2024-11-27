@@ -53,8 +53,6 @@ type CaseStore interface {
 	Create(rpc *model.CreateOptions, add *_go.Case) (*_go.Case, error)
 	// List cases
 	List(rpc *model.SearchOptions) (*_go.CaseList, error)
-	// Merge cases
-	Merge(req *model.CreateOptions) (*_go.CaseList, error)
 	// Update case
 	Update(req *model.UpdateOptions) (*_go.Case, error)
 	// Delete case

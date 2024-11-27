@@ -1053,20 +1053,9 @@
         "parameters": [
           {
             "name": "etag",
-            "description": "(etag only)",
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "fields",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
           }
         ],
         "tags": [
@@ -1909,6 +1898,21 @@
           },
           {
             "name": "input.related_to.links.next",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "input.related_to.files.page",
+            "description": "Current page number.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "input.related_to.files.next",
+            "description": "Indicator if there is a next page.",
             "in": "query",
             "required": false,
             "type": "boolean"
@@ -3257,8 +3261,8 @@
             "type": "string"
           },
           {
-            "name": "qin",
-            "description": "List of search terms.",
+            "name": "ids",
+            "description": "Array of requested id.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -3384,8 +3388,15 @@
             "format": "int32"
           },
           {
-            "name": "qin",
-            "description": "Query parameters for filtering.",
+            "name": "q",
+            "description": "Search term.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to include in the response.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -3395,8 +3406,8 @@
             "collectionFormat": "multi"
           },
           {
-            "name": "fields",
-            "description": "Fields to include in the response.",
+            "name": "ids",
+            "description": "Array of requested id.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -3432,7 +3443,6 @@
         "parameters": [
           {
             "name": "case_etag",
-            "description": "oneof filters {\n   FilterNode node = 7;\n   Filter filter = 8;\n }",
             "in": "path",
             "required": true,
             "type": "string"
@@ -3458,7 +3468,7 @@
             "type": "string"
           },
           {
-            "name": "qin",
+            "name": "ids",
             "in": "query",
             "required": false,
             "type": "array",
@@ -5032,6 +5042,10 @@
           "$ref": "#/definitions/casesCaseLinkList",
           "title": "attached links"
         },
+        "files": {
+          "$ref": "#/definitions/casesCaseFileList",
+          "title": "attached files"
+        },
         "sla": {
           "$ref": "#/definitions/generalLookup",
           "title": "sla from the service"
@@ -5162,11 +5176,11 @@
         },
         "author": {
           "$ref": "#/definitions/generalLookup",
-          "title": "contact-author calculated on-flight"
+          "title": "contact-author calculated on-flight (optional)"
         },
         "name": {
           "type": "string",
-          "title": "link name"
+          "title": "link name (optional)"
         },
         "url": {
           "type": "string",
@@ -5929,13 +5943,6 @@
     "casesInputCreateCase": {
       "type": "object",
       "properties": {
-        "etag": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string",
-          "title": "create: required;"
-        },
         "subject": {
           "type": "string",
           "title": "create: required;"
@@ -6001,20 +6008,12 @@
           "$ref": "#/definitions/casesRateInfo",
           "title": "only for API, not UI"
         },
-        "comments": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "$ref": "#/definitions/casesInputCaseComment"
-          }
-        },
         "links": {
           "type": "array",
           "items": {
             "type": "object",
             "$ref": "#/definitions/casesInputCaseLink"
-          },
-          "title": "repeated InputCaseFile files = 17;"
+          }
         },
         "related": {
           "type": "array",
