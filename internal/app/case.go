@@ -289,9 +289,27 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	panic("implement me")
 }
 
-func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseRequest) (*cases.Case, error) {
-	// TODO implement me
-	panic("implement me")
+func (c *CaseService) DeleteCase(
+	ctx context.Context,
+	req *cases.DeleteCaseRequest,
+) (*cases.Case, error) {
+	if req.Etag == "" {
+		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
+	}
+
+	deleteOpts := model.NewDeleteOptions(ctx)
+
+	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Etag)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case.delete_case.invalid_etag", "Invalid etag")
+	}
+	deleteOpts.IDs = []int64{tag.GetOid()}
+
+	err = c.app.Store.Case().Delete(deleteOpts)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case.delete_case.store_delete_failed", err.Error())
+	}
+	return nil, nil
 }
 
 func NewCaseService(app *App) (*CaseService, cerror.AppError) {

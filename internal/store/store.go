@@ -58,7 +58,7 @@ type CaseStore interface {
 	// Update case
 	Update(req *model.UpdateOptions) (*_go.Case, error)
 	// Delete case
-	Delete(req *model.DeleteOptions) (*_go.Case, error)
+	Delete(req *model.DeleteOptions) error
 }
 
 // RelatedCases attribute attached to the case (n:1)

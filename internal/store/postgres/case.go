@@ -7,6 +7,7 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/lib/pq"
 
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
@@ -348,7 +349,10 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	WITH %s,
 	%s AS (%s)
 	`,
-		statusConditionCTE, caseLeft, caseInsertSQL)
+		statusConditionCTE,
+		caseLeft,
+		caseInsertSQL,
+	)
 
 	if relatedInsertSQL != "" {
 		cteSQL += fmt.Sprintf(", %s AS (%s)", relatedAlias, relatedInsertSQL)
@@ -761,9 +765,49 @@ func convertToCaseScanArgs(plan []CaseScan, caseItem *_go.Case) []any {
 }
 
 // Delete implements store.CaseStore.
-func (c *CaseStore) Delete(req *model.DeleteOptions) (*_go.Case, error) {
-	panic("unimplemented")
+func (c *CaseStore) Delete(rpc *model.DeleteOptions) error {
+	// Establish database connection
+	d, err := c.storage.Database()
+	if err != nil {
+		return dberr.NewDBInternalError("store.case.delete.database_connection_error", err)
+	}
+
+	// Build the delete query
+	query, args, dbErr := c.buildDeleteCaseQuery(rpc)
+	if dbErr != nil {
+		return dberr.NewDBInternalError("store.case.delete.query_build_error", dbErr)
+	}
+
+	// Execute the query
+	res, execErr := d.Exec(rpc.Context, query, args...)
+	if execErr != nil {
+		return dberr.NewDBInternalError("store.case.delete.exec_error", execErr)
+	}
+
+	// Check if any rows were affected
+	if res.RowsAffected() == 0 {
+		return dberr.NewDBNoRowsError("store.case.delete.not_found")
+	}
+
+	return nil
 }
+
+func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
+
+	query := deleteCaseQuery
+	args := []interface{}{
+		pq.Array(ids),
+		rpc.Session.GetDomainId(),
+	}
+	return query, args, nil
+}
+
+var deleteCaseQuery = store.CompactSQL(`
+	DELETE FROM cases.case
+	WHERE id = ANY($1) AND dc = $2
+`)
 
 // List implements store.CaseStore.
 func (c *CaseStore) List(rpc *model.SearchOptions) (*_go.CaseList, error) {
