@@ -3,9 +3,10 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"github.com/webitel/webitel-go-kit/etag"
 	"strconv"
 	"strings"
+
+	"github.com/webitel/webitel-go-kit/etag"
 
 	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
@@ -26,7 +27,7 @@ type CaseCommentStore struct {
 type CommentScan func(comment *_go.CaseComment) any
 
 const (
-	left = "cc"
+	caseCommentLeft = "cc"
 )
 
 // Publish implements store.CommentCaseStore for publishing a single comment.
@@ -106,14 +107,14 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 
 	// Build select clause and scan plan dynamically using buildCommentSelectColumnsAndPlan
 	selectBuilder := sq.Select()
-	selectBuilder, plan, dbErr := buildCommentSelectColumnsAndPlan(selectBuilder, left, rpc.Fields)
+	selectBuilder, plan, dbErr := buildCommentSelectColumnsAndPlan(selectBuilder, caseCommentLeft, rpc.Fields)
 	if dbErr != nil {
 		return nil, nil, dbErr
 	}
 
 	// Combine the CTE with the select query
 	sqBuilder := selectBuilder.
-		From(left).
+		From(caseCommentLeft).
 		PrefixExpr(ctePrefix)
 
 	return sqBuilder, plan, nil
@@ -241,7 +242,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 	}
 
 	// Build select columns and scan plan using buildCommentSelectColumnsAndPlan
-	queryBuilder, plan, err := buildCommentSelectColumnsAndPlan(queryBuilder, left, rpc.Fields)
+	queryBuilder, plan, err := buildCommentSelectColumnsAndPlan(queryBuilder, caseCommentLeft, rpc.Fields)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -277,7 +278,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 			sortField = strings.TrimPrefix(sortField, "!")
 		}
 
-		column := left + sortField
+		column := caseCommentLeft + sortField
 		if desc {
 			column += " DESC"
 		} else {
