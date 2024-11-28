@@ -88,7 +88,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
-	updateOpts := model.NewUpdateOptions(ctx, req)
+	updateOpts := model.NewUpdateOptions(ctx, req, CaseLinkMetadata)
 	updateOpts.Etags = []*etag.Tid{&linkTID}
 	updated, err := c.app.Store.CaseLink().Update(updateOpts, req.Input)
 	if err != nil {

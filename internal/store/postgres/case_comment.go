@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/webitel/webitel-go-kit/etag"
-
 	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
 
@@ -59,16 +57,6 @@ func (c *CaseCommentStore) Publish(
 	if err = d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("store.case_comment.publish.scan_error", err)
 	}
-
-	// Convert the returned ID to integer and handle any error
-	commId, err := strconv.Atoi(add.Id)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.publish.convert_id_error", err)
-	}
-
-	// Encode etag from the comment ID and version
-	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), add.Ver)
-	add.Id = e
 
 	return add, nil
 }

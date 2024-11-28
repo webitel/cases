@@ -16,6 +16,18 @@ var defaultFieldsPriority = []string{
 	"id", "name", "description", "color",
 }
 
+var PriorityMetadata = model.NewObjectMetadata(
+	[]*model.Field{
+		{"id", true},
+		{"created_by", false},
+		{"created_at", false},
+		{"updated_by", false},
+		{"updated_at", false},
+		{"name", true},
+		{"description", true},
+		{"color", true},
+	})
+
 type PriorityService struct {
 	app *App
 	api.UnimplementedPrioritiesServer
@@ -165,7 +177,7 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 		fields = defaultFieldsPriority
 	}
 
-	updateOpts := model.NewUpdateOptions(ctx, req)
+	updateOpts := model.NewUpdateOptions(ctx, req, PriorityMetadata)
 	updateOpts.Fields = fields
 	updateOpts.Mask = mask
 

@@ -15,11 +15,12 @@ import (
 type UpdateOptions struct {
 	Time time.Time
 	context.Context
-	Session *session.Session
-	Fields  []string
-	Mask    []string
-	IDs     []int64
-	Etags   []*etag.Tid
+	Session       *session.Session
+	Fields        []string
+	UnknownFields []string
+	Mask          []string
+	IDs           []int64
+	Etags         []*etag.Tid
 	// ID      int64
 }
 
@@ -29,19 +30,29 @@ type Updator interface {
 }
 
 // NewUpdateOptions initializes UpdateOptions with values from a context and an Updator-compliant struct
-func NewUpdateOptions(ctx context.Context, req Updator) *UpdateOptions {
-	sess := ctx.Value(interceptor.SessionHeader).(*session.Session)
-	fields := util.FieldsFunc(
-		req.GetFields(), graph.SplitFieldsQ,
-	)
-	fields = util.ParseFieldsForEtag(fields)
-	return &UpdateOptions{
+func NewUpdateOptions(ctx context.Context, req Updator, objMetadata *ObjectMetadata) *UpdateOptions {
+	opts := &UpdateOptions{
 		Context: ctx,
-		Session: sess,
-		Fields:  fields,
+		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
 		Mask:    req.GetXJsonMask(),
 		Time:    time.Now(),
 	}
+
+	// normalize fields
+	var resultingFields []string
+	if requestedFields := req.GetFields(); len(requestedFields) == 0 {
+		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
+		copy(resultingFields, objMetadata.GetDefaultFields())
+	} else {
+		resultingFields = util.FieldsFunc(
+			requestedFields, graph.SplitFieldsQ,
+		)
+	}
+
+	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
+	opts.Fields = util.ParseFieldsForEtag(resultingFields)
+
+	return opts
 }
 
 // CurrentTime ensures Time is set to the current time if not already set, and returns it

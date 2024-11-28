@@ -2,29 +2,25 @@ package app
 
 import (
 	"context"
-	"strconv"
-	"time"
-
 	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	"strconv"
 )
-
-var defaultFieldsCaseComments = []string{"id", "comment"}
 
 var CaseCommentMetadata = model.NewObjectMetadata(
 	[]*model.Field{
 		{Name: "etag", Default: true},
-		{Name: "created_at", Default:true},
-		{Name: "created_by", Default:true},
-		{Name: "updated_at",Default: true},
-		{Name: "updated_by",Default: false},
-		{Name: "text", Default:true},
-		{Name: "edited",Default: true},
-		{Name: "can_edit",Default: true},
-		{Name: "author", Default:true},
+		{Name: "created_at", Default: true},
+		{Name: "created_by", Default: true},
+		{Name: "updated_at", Default: true},
+		{Name: "updated_by", Default: false},
+		{Name: "text", Default: true},
+		{Name: "edited", Default: true},
+		//{Name: "can_edit",Default: true},
+		{Name: "author", Default: true},
 	})
 
 type CaseCommentService struct {
@@ -45,14 +41,8 @@ func (c *CaseCommentService) LocateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.invalid_etag", "Invalid etag")
 	}
 
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = defaultFieldsCaseComments
-	}
-
 	searchOpts := model.NewLocateOptions(ctx, req, CaseCommentMetadata)
 	searchOpts.IDs = []int64{tag.GetOid()}
-	searchOpts.Fields = fields
 
 	commentList, err := c.app.Store.CaseComment().List(searchOpts)
 	if err != nil {
@@ -79,19 +69,13 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.text_required", "Text is required")
 	}
 
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = defaultFieldsCaseComments
-	}
-
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Input.Etag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts := model.NewUpdateOptions(ctx, req)
+	updateOpts := model.NewUpdateOptions(ctx, req, CaseCommentMetadata)
 	updateOpts.IDs = []int64{tag.GetOid()}
-	updateOpts.Fields = fields
 
 	comment := &cases.CaseComment{
 		Id:   strconv.Itoa(int(tag.GetOid())),
@@ -147,21 +131,6 @@ func (c *CaseCommentService) ListComments(
 		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.case_etag_required", "Case etag is required")
 	}
 
-	session, err := c.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("app.case_comment.list_comments.authorization_failed", err.Error())
-	}
-
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = defaultFieldsCaseComments
-	}
-
-	page := req.Page
-	if page == 0 {
-		page = 1
-	}
-
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_etag", "Invalid etag")
@@ -171,22 +140,11 @@ func (c *CaseCommentService) ListComments(
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_qin", "Invalid Qin format")
 	}
+	searchOpts := model.NewSearchOptions(ctx, req, CaseCommentMetadata)
+	searchOpts.ParentId = tag.GetOid()
+	searchOpts.IDs = ids
 
-	t := time.Now()
-	searchOpts := model.SearchOptions{
-		IDs:      ids,
-		ParentId: tag.GetOid(),
-		Session:  session,
-		Fields:   fields,
-		Context:  ctx,
-		Sort:     []string{req.Sort},
-		Page:     page,
-		Size:     req.Size,
-		Time:     t,
-		Filter:   make(map[string]interface{}),
-	}
-
-	comments, err := c.app.Store.CaseComment().List(&searchOpts)
+	comments, err := c.app.Store.CaseComment().List(searchOpts)
 	if err != nil {
 		return nil, cerror.NewInternalError("app.case_comment.list_comments.fetch_error", err.Error())
 	}
@@ -216,13 +174,7 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
 	}
 
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = defaultFieldsCaseComments
-	}
-
 	createOpts := model.NewCreateOptions(ctx, req, CaseCommentMetadata)
-	createOpts.Fields = fields
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
@@ -236,14 +188,15 @@ func (c *CaseCommentService) PublishComment(
 	}
 
 	// Convert the returned ID to integer and handle any error
-	commId, err := strconv.Atoi(comment.Id)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case_comment.publish.convert_id_error", err.Error())
-	}
-
-	// Encode etag from the comment ID and version
-	e := etag.EncodeEtag(etag.EtagCase, int64(commId), comment.Ver)
-	comment.Id = e
+	// TODO: Normalize func
+	//commId, err := strconv.Atoi(comment.Id)
+	//if err != nil {
+	//	return nil, cerror.NewInternalError("app.case_comment.publish.convert_id_error", err.Error())
+	//}
+	//
+	//// Encode etag from the comment ID and version
+	//e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), comment.Ver)
+	//comment.Id = e
 
 	return comment, nil
 }
