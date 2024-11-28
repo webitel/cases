@@ -110,10 +110,12 @@ type DBInternalError struct {
 	DBError
 }
 
-// Error implements error.
-// Subtle: this method shadows the method (DBError).Error of DBInternalError.DBError.
+// Error implements the error interface for DBInternalError.
 func (d *DBInternalError) Error() string {
-	panic("unimplemented")
+	if d.Reason != nil {
+		return fmt.Sprintf("DBInternalError [%s]: %s (Reason: %s)", d.ID, d.Message, d.Reason.Error())
+	}
+	return fmt.Sprintf("DBInternalError [%s]: %s", d.ID, d.Message)
 }
 
 func NewDBInternalError(id string, reason error) *DBInternalError {
