@@ -241,7 +241,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			caseItem.Source.GetId(),
 			caseItem.Close.CloseReason.GetId(),
 			caseItem.Rate.GetRatingComment(),
-			sq.Expr("CONCAT((SELECT id FROM id_cte), '_', (SELECT prefix FROM prefix_cte))"), // Generate name dynamically
+			sq.Expr("CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM prefix_cte))"), // Generate name dynamically
 			caseItem.Status.GetId(),
 			caseItem.CloseReasonGroup.GetId(),
 			caseItem.Group.GetId(),
