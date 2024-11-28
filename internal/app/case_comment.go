@@ -14,6 +14,19 @@ import (
 
 var defaultFieldsCaseComments = []string{"id", "comment"}
 
+var CaseCommentMetadata = model.NewObjectMetadata(
+	[]*model.Field{
+		{"etag", true},
+		{"created_at", true},
+		{"created_by", true},
+		{"updated_at", true},
+		{"updated_by", false},
+		{"text", true},
+		{"edited", true},
+		{"can_edit", true},
+		{"author", true},
+	})
+
 type CaseCommentService struct {
 	app *App
 	cases.UnimplementedCaseCommentsServer
@@ -37,7 +50,7 @@ func (c *CaseCommentService) LocateComment(
 		fields = defaultFieldsCaseComments
 	}
 
-	searchOpts := model.NewLocateOptions(ctx, req, nil)
+	searchOpts := model.NewLocateOptions(ctx, req, CaseCommentMetadata)
 	searchOpts.IDs = []int64{tag.GetOid()}
 	searchOpts.Fields = fields
 
@@ -208,10 +221,10 @@ func (c *CaseCommentService) PublishComment(
 		fields = defaultFieldsCaseComments
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, nil)
+	createOpts := model.NewCreateOptions(ctx, req, CaseCommentMetadata)
 	createOpts.Fields = fields
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.CaseEtag)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.invalid_etag", "Invalid etag")
 	}
@@ -219,7 +232,7 @@ func (c *CaseCommentService) PublishComment(
 
 	comment, err := c.app.Store.CaseComment().Publish(createOpts, &cases.CaseComment{Text: req.Input.Text})
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case_comment.publish_comment.publish_error", err.Error())
+		return nil, err
 	}
 
 	// Convert the returned ID to integer and handle any error
@@ -229,7 +242,7 @@ func (c *CaseCommentService) PublishComment(
 	}
 
 	// Encode etag from the comment ID and version
-	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), comment.Ver)
+	e := etag.EncodeEtag(etag.EtagCase, int64(commId), comment.Ver)
 	comment.Id = e
 
 	return comment, nil

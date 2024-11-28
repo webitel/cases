@@ -99,7 +99,7 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 	// Convert insertBuilder to SQL to use it within a CTE
 	insertSQL, insertArgs, err := insertBuilder.ToSql()
 	if err != nil {
-		return nil, nil, dberr.NewDBInternalError("store.case_comment.build_publish_comments_sqlizer.insert_query_error", err)
+		return nil, nil, dberr.NewDBError("store.case_comment.build_publish_comments_sqlizer.insert_query_error", err.Error())
 	}
 
 	// Use the insert SQL as a CTE prefix for the main select query
@@ -462,10 +462,22 @@ func buildCommentSelectColumnsAndPlan(
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanTimestamp(&comment.UpdatedAt)
 			})
-		case "comment":
+		case "text":
 			base = base.Column(store.Ident(left, "comment"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Text
+			})
+		case "author":
+			base = base.Column(fmt.Sprintf(`(SELECT ROW(ct.id, ct.common_name)::text
+					FROM contacts.contact ct
+					WHERE id = (SELECT contact_id FROM directory.wbt_user WHERE id = %s.created_by)) author`, left))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return scanner.ScanRowLookup(&comment.Author)
+			})
+		case "edited":
+			base = base.Column(fmt.Sprintf(`(%s.created_at < %[1]s.updated_at) edited`, left))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return &comment.Edited
 			})
 		default:
 			return base, nil, dberr.NewDBError("postgres.case_comment.build_comment_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))

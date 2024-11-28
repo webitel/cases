@@ -15,41 +15,20 @@ import (
 type CaseLinkService struct {
 	app *App
 	cases.UnimplementedCaseLinksServer
-	Fields map[string]string
 }
 
-type UtilCaseLinkFields struct {
-	Etag      string
-	CreatedBy string
-	CreatedAt string
-	UpdatedBy string
-	UpdatedAt string
-	Author    string
-	Name      string
-	Url       string
-	CaseId    string
-}
-
-var CaseLinkFields = UtilCaseLinkFields{
-	Etag:      "etag",
-	CreatedBy: "created_by",
-	CreatedAt: "created_at",
-	UpdatedBy: "updated_by",
-	UpdatedAt: "updated_at",
-	Author:    "author",
-	Name:      "name",
-	Url:       "url",
-	CaseId:    "case_id",
-}
-
-var DefaultCaseLinkFields = []string{
-	CaseLinkFields.Etag,
-	CaseLinkFields.CreatedBy,
-	CaseLinkFields.CreatedAt,
-	CaseLinkFields.Author,
-	CaseLinkFields.Url,
-	CaseLinkFields.Name,
-}
+var CaseLinkMetadata = model.NewObjectMetadata(
+	[]*model.Field{
+		{"etag", true},
+		{"created_by", true},
+		{"created_at", true},
+		{"updated_by", false},
+		{"updated_at", false},
+		{"author", true},
+		{"name", true},
+		{"url", true},
+		{"case_id", true},
+	})
 
 func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkRequest) (*cases.CaseLink, error) {
 	// Validate required fields
@@ -62,7 +41,7 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
 
-	searchOpts := model.NewLocateOptions(ctx, req, DefaultCaseLinkFields)
+	searchOpts := model.NewLocateOptions(ctx, req, CaseLinkMetadata)
 	searchOpts.IDs = []int64{etg.GetOid()}
 
 	links, err := c.app.Store.CaseLink().List(searchOpts)
@@ -90,7 +69,7 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, DefaultCaseLinkFields)
+	createOpts := model.NewCreateOptions(ctx, req, CaseLinkMetadata)
 	createOpts.ParentID = caseTID.GetOid()
 	res, dbErr := c.app.Store.CaseLink().Create(createOpts, req.Input)
 	if dbErr != nil {
@@ -149,7 +128,7 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
 
-	searchOpts := model.NewSearchOptions(ctx, req, DefaultCaseLinkFields)
+	searchOpts := model.NewSearchOptions(ctx, req, CaseLinkMetadata)
 	searchOpts.ParentId = etg.GetOid()
 	//
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCaseLink)
@@ -173,13 +152,13 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewBadRequestError("app.case.new_case_comment_service.check_args.app", "unable to init service, app is nil")
 	}
-	return &CaseLinkService{app: app, Fields: map[string]string{"": ""}}, nil
+	return &CaseLinkService{app: app}, nil
 }
 
 func NormalizeResponseLink(res *cases.CaseLink, opts model.Locator) {
 	fields := opts.GetFields()
 	if len(opts.GetFields()) == 0 {
-		fields = DefaultCaseLinkFields
+		fields = CaseLinkMetadata.GetDefaultFields()
 	}
 	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
 	if hasEtag {
@@ -197,8 +176,7 @@ func NormalizeResponseLink(res *cases.CaseLink, opts model.Locator) {
 func NormalizeResponseLinks(res *cases.CaseLinkList, opts model.Locator) {
 	fields := opts.GetFields()
 	if len(fields) == 0 {
-		fields = make([]string, len(DefaultCaseLinkFields))
-		copy(fields, DefaultCaseLinkFields)
+		fields = CaseLinkMetadata.GetDefaultFields()
 	}
 	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
 	for _, re := range res.Items {

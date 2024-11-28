@@ -14,15 +14,16 @@ import (
 type SearchOptions struct {
 	Time time.Time
 	context.Context
-	Session  *session.Session
-	Filter   map[string]interface{}
-	Search   string
-	IDs      []int64
-	Sort     []string
-	Fields   []string
-	ParentId int64
-	Page     int32
-	Size     int32
+	Session       *session.Session
+	Filter        map[string]interface{}
+	Search        string
+	IDs           []int64
+	Sort          []string
+	Fields        []string
+	ParentId      int64
+	Page          int32
+	Size          int32
+	UnknownFields []string
 }
 
 type Searcher interface {
@@ -36,7 +37,7 @@ type Locator interface {
 	GetFields() []string
 }
 
-func NewSearchOptions(ctx context.Context, searcher Searcher, defaultFields []string) *SearchOptions {
+func NewSearchOptions(ctx context.Context, searcher Searcher, objMetadata ObjectMetadatter) *SearchOptions {
 	opts := &SearchOptions{
 		Context: ctx,
 		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
@@ -48,18 +49,21 @@ func NewSearchOptions(ctx context.Context, searcher Searcher, defaultFields []st
 	opts.CurrentTime()
 
 	// normalize fields
-	fields := util.FieldsFunc(
-		searcher.GetFields(), graph.SplitFieldsQ,
-	)
-	if len(fields) == 0 {
-		fields = make([]string, len(defaultFields))
-		copy(fields, defaultFields)
+	var resultingFields []string
+	if requestedFields := searcher.GetFields(); len(requestedFields) == 0 {
+		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
+		copy(resultingFields, objMetadata.GetDefaultFields())
+	} else {
+		resultingFields = util.FieldsFunc(
+			requestedFields, graph.SplitFieldsQ,
+		)
 	}
-	opts.Fields = util.ParseFieldsForEtag(fields)
+	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
+	opts.Fields = util.ParseFieldsForEtag(resultingFields)
 	return opts
 }
 
-func NewLocateOptions(ctx context.Context, locator Locator, defaultFields []string) *SearchOptions {
+func NewLocateOptions(ctx context.Context, locator Locator, objMetadata ObjectMetadatter) *SearchOptions {
 	opts := &SearchOptions{
 		Context: ctx,
 		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
@@ -71,14 +75,17 @@ func NewLocateOptions(ctx context.Context, locator Locator, defaultFields []stri
 	opts.CurrentTime()
 
 	// normalize fields
-	fields := util.FieldsFunc(
-		locator.GetFields(), graph.SplitFieldsQ,
-	)
-	if len(fields) == 0 {
-		copy(fields, defaultFields)
+	var resultingFields []string
+	if requestedFields := locator.GetFields(); len(requestedFields) == 0 {
+		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
+		copy(resultingFields, objMetadata.GetDefaultFields())
+	} else {
+		resultingFields = util.FieldsFunc(
+			requestedFields, graph.SplitFieldsQ,
+		)
 	}
-	// find and process etag field
-	opts.Fields = util.ParseFieldsForEtag(fields)
+	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
+	opts.Fields = util.ParseFieldsForEtag(resultingFields)
 	return opts
 }
 

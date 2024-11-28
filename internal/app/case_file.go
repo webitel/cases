@@ -15,6 +15,14 @@ type CaseFileService struct {
 	cases.UnimplementedCaseFilesServer
 }
 
+var CaseFileMetadata = model.NewObjectMetadata(
+	[]*model.Field{
+		{"size", true},
+		{"mime", true},
+		{"name", true},
+		{"created_at", true},
+	})
+
 var defaultFieldsCaseFile = []string{"size", "mime", "name", "created_at"}
 
 func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesRequest) (*cases.CaseFileList, error) {
@@ -42,7 +50,7 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_qin", "Invalid Qin")
 	}
 	// Build search options
-	searchOpts := model.NewSearchOptions(ctx, req, fields)
+	searchOpts := model.NewSearchOptions(ctx, req, CaseFileMetadata)
 	searchOpts.IDs = ids
 	searchOpts.ParentId = tag.GetOid()
 

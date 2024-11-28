@@ -14,113 +14,78 @@ import (
 	cerror "github.com/webitel/cases/internal/error"
 )
 
-var defaultFieldsCase = []string{
-	"id",
-	"ver",
-	"created_by",
-	"created_at",
-	"updated_by",
-	"updated_at",
-	"assignee",
-	"reporter",
-	"name",
-	"subject",
-	"description",
-	"source",
-	"priority",
-	"impacted",
-	"author",
-	"planned_reaction_at",
-	"service",
-	"planned_resolve_at",
-	"status",
-	"close_reason_group",
-	"group",
-	"close_result",
-	"close_reason",
-	"rating",
-	"rating_comment",
-	"sla_conditions",
-	"status_condition",
-	"related_cases",
-	"links",
-	"sla",
-}
+var CaseMetadata = model.NewObjectMetadata(
+	[]*model.Field{
+		{"etag", true},
+		{"created_by", true},
+		{"created_at", true},
+		{"updated_by", false},
+		{"updated_at", false},
+		{"assignee", true},
+		{"reporter", true},
+		{"name", true},
+		{"subject", true},
+		{"description", true},
+		{"source", true},
+		{"priority", true},
+		{"priority", true},
+		{"impacted", true},
+		{"author", true},
+		{"planned_reaction_at", true},
+		{"planned_resolve_at", true},
+		{"status", true},
+		{"close_reason_group", true},
+		{"group", true},
+		{"close_result", false},
+		{"close_reason", false},
+		{"rating", false},
+		{"rating_comment", false},
+		{"sla_conditions", true},
+		{"status_condition", true},
+		{"sla", true},
+	})
 
 type CaseService struct {
 	app *App
 	cases.UnimplementedCasesServer
 }
 
-/*
-SearchCases
-Authorization
-Obac
-Rbac
-Fields validation with graph
-Search options construction with filters
-Database layer with search options
-Result construction by fields requested
-*/
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
-	// TODO implement me
-	panic("implement me")
+	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata)
+	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
+	}
+	searchOpts.IDs = ids
+	list, err := c.app.Store.Case().List(searchOpts)
+	if err != nil {
+		return nil, err
+	}
+	c.NormalizeResponseCases(list, req)
+	return list, nil
 }
 
-/*
-LocateCase
-Authorization
-Obac
-Rbac
-Etag parsing
-Fields validation with graph
-Search options construction with filters
-Database layer with search options
-Result construction with etag
-*/
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
-	// TODO implement me
-	panic("implement me")
+	searchOpts := model.NewLocateOptions(ctx, req, CaseMetadata)
+	id, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
+	}
+	searchOpts.IDs = id
+	list, err := c.app.Store.Case().List(searchOpts)
+	if err != nil {
+		return nil, err
+	}
+	c.NormalizeResponseCases(list, req)
+	return list.Items[0], nil
 }
 
 func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseRequest) (*cases.Case, error) {
-	// Authorize the user
-	session, err := c.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("app.case.create_case.authorization_failed", err.Error())
-	}
 
-	if req.Input.Subject == "" {
-		return nil, cerror.NewBadRequestError("app.case.create_case.subject_required", "Case subject is required")
-	}
-
-	if req.Input.Status == 0 {
-		return nil, cerror.NewBadRequestError("app.case.create_case.status_required", "Case status is required")
-	}
-
-	if req.Input.CloseReason == 0 {
-		return nil, cerror.NewBadRequestError("app.case.create_case.close_reason_required", "Case close reason is required")
-	}
-
-	if req.Input.Source == 0 {
-		return nil, cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
-	}
-
-	if req.Input.Reporter == 0 {
-		return nil, cerror.NewBadRequestError("app.case.create_case.reporter_required", "Reporter is required")
-	}
-
-	if req.Input.Impacted == 0 {
-		return nil, cerror.NewBadRequestError("app.case.create_case.impacted_required", "Impacted contact is required")
-	}
-
-	// Validate additional optional fields if needed
-	if req.Input.Priority == 0 {
-		return nil, cerror.NewBadRequestError("app.case.create_case.invalid_priority", "Invalid priority specified")
-	}
-
-	if req.Input.Service == 0 {
-		return nil, cerror.NewBadRequestError("app.case.create_case.invalid_service", "Invalid service specified")
+	// Validate required fields
+	appErr := c.ValidateCreateInput(req.Input)
+	if appErr != nil {
+		return nil, appErr
 	}
 
 	var (
@@ -203,33 +168,22 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		},
 	}
 
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = defaultFieldsCase
-	}
-	t := time.Now().UTC()
+	createOpts := model.NewCreateOptions(ctx, req, CaseMetadata)
 
-	// Define create options
-	createOpts := model.CreateOptions{
-		Session: session,
-		Context: ctx,
-		Time:    t,
-		Fields:  fields,
-	}
-
-	newCase, err = c.app.Store.Case().Create(&createOpts, newCase)
+	newCase, err := c.app.Store.Case().Create(createOpts, newCase)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case_comment.publish_comment.publish_error", err.Error())
+		return nil, err
 	}
 
 	// Encode etag from the case ID and version
-	etag := etag.EncodeEtag(etag.EtagCaseComment, int64(newCase.Id), newCase.Ver)
+	etag := etag.EncodeEtag(etag.EtagCaseComment, newCase.Id, newCase.Ver)
 	newCase.Etag = etag
+	userId := createOpts.Session.GetUserId()
 
 	// Publish an event to RabbitMQ
 	event := map[string]interface{}{
 		"action":    "CreateCase",
-		"user":      session.GetUserId(),
+		"user":      userId,
 		"case_id":   newCase.Id,
 		"case_etag": etag,
 		"case_ver":  newCase.Ver,
@@ -245,7 +199,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		model.APP_SERVICE_NAME,
 		"create_case_key",
 		eventData,
-		strconv.Itoa(int(session.GetUserId())),
+		strconv.Itoa(int(userId)),
 		time.Now(),
 	)
 	if err != nil {
@@ -256,98 +210,13 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 }
 
 func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.Case, error) {
-	if req.Input.Etag == "" {
-		return nil, cerror.NewBadRequestError("app.case.update_case.etag_required", "Etag is required")
-	}
-	if req.Input.Subject == "" {
-		return nil, cerror.NewBadRequestError("app.case.update_case.subject_required", "Subject is required")
-	}
-	if req.Input.Status.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
-	}
-	if req.Input.CloseReason.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
-	}
-	if req.Input.Priority.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("app.case.update_case.priority_required", "Priority is required")
-	}
-	if req.Input.Source.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("app.case.update_case.source_required", "Source is required")
-	}
-	if req.Input.Service.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("app.case.update_case.service_required", "Service is required")
-	}
-
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = defaultFieldsCase
-	}
-
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Input.Etag)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
-	}
-
-	updateOpts := model.NewUpdateOptions(ctx, req)
-	updateOpts.IDs = []int64{tag.GetOid()}
-	updateOpts.Fields = fields
-
-	upd := &cases.Case{
-		Ver:              tag.GetVer(),
-		Subject:          req.Input.Subject,
-		Description:      req.Input.Description,
-		Status:           &cases.Lookup{Id: req.Input.Status.GetId()},
-		CloseReasonGroup: &cases.Lookup{Id: req.Input.CloseReason.GetId()},
-		Assignee:         &cases.Lookup{Id: req.Input.Assignee.GetId()},
-		Reporter:         &cases.Lookup{Id: req.Input.Reporter.GetId()},
-		Impacted:         &cases.Lookup{Id: req.Input.Impacted.GetId()},
-		Group:            &cases.Lookup{Id: req.Input.Group.GetId()},
-		Priority:         &cases.Lookup{Id: req.Input.Priority.GetId()},
-		Source:           &cases.Lookup{Id: req.Input.Source.GetId()},
-		Close: &cases.CloseInfo{
-			CloseResult: req.Input.Close.CloseResult,
-			CloseReason: req.Input.GetCloseReason(),
-		},
-		Rate: &cases.RateInfo{
-			Rating:        req.Input.Rate.Rating,
-			RatingComment: req.Input.Rate.RatingComment,
-		},
-		Service: &cases.Lookup{Id: req.Input.Service.GetId()},
-	}
-
-	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case.update_case.store_update_failed", err.Error())
-	}
-
-	// Encode etag from the comment ID and version
-	e := etag.EncodeEtag(etag.EtagCaseComment, int64(updatedCase.Id), updatedCase.Ver)
-	updatedCase.Etag = e
-
-	return updatedCase, nil
+	// TODO implement me
+	panic("implement me")
 }
 
-func (c *CaseService) DeleteCase(
-	ctx context.Context,
-	req *cases.DeleteCaseRequest,
-) (*cases.Case, error) {
-	if req.Etag == "" {
-		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
-	}
-
-	deleteOpts := model.NewDeleteOptions(ctx)
-
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Etag)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case.delete_case.invalid_etag", "Invalid etag")
-	}
-	deleteOpts.IDs = []int64{tag.GetOid()}
-
-	err = c.app.Store.Case().Delete(deleteOpts)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case.delete_case.store_delete_failed", err.Error())
-	}
-	return nil, nil
+func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseRequest) (*cases.Case, error) {
+	// TODO implement me
+	panic("implement me")
 }
 
 func NewCaseService(app *App) (*CaseService, cerror.AppError) {
@@ -355,4 +224,60 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 		return nil, cerror.NewBadRequestError("app.case.new_case_service.check_args.app", "unable to init case service, app is nil")
 	}
 	return &CaseService{app: app}, nil
+}
+
+func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, opts model.Locator) {
+	fields := opts.GetFields()
+	if len(fields) == 0 {
+		fields = CaseMetadata.GetDefaultFields()
+	}
+	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
+	for _, re := range res.Items {
+		if hasEtag {
+			re.Etag = etag.EncodeEtag(etag.EtagCase, re.Id, re.Ver)
+			// hide
+			if !hasId {
+				re.Id = 0
+			}
+			if !hasVer {
+				re.Ver = 0
+			}
+		}
+	}
+}
+
+func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.AppError {
+	if input.Subject == "" {
+		return cerror.NewBadRequestError("app.case.create_case.subject_required", "Case subject is required")
+	}
+
+	if input.Status == 0 {
+		return cerror.NewBadRequestError("app.case.create_case.status_required", "Case status is required")
+	}
+
+	if input.CloseReason == 0 {
+		return cerror.NewBadRequestError("app.case.create_case.close_reason_required", "Case close reason is required")
+	}
+
+	if input.Source == 0 {
+		return cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
+	}
+
+	if input.Reporter == 0 {
+		return cerror.NewBadRequestError("app.case.create_case.reporter_required", "Reporter is required")
+	}
+
+	if input.Impacted == 0 {
+		return cerror.NewBadRequestError("app.case.create_case.impacted_required", "Impacted contact is required")
+	}
+
+	// Validate additional optional fields if needed
+	if input.Priority == 0 {
+		return cerror.NewBadRequestError("app.case.create_case.invalid_priority", "Invalid priority specified")
+	}
+
+	if input.Service == 0 {
+		return cerror.NewBadRequestError("app.case.create_case.invalid_service", "Invalid service specified")
+	}
+	return nil
 }

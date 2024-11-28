@@ -16,6 +16,7 @@ type CreateOptions struct {
 	context.Context // binding
 	Time            time.Time
 	Fields          []string
+	UnknownFields   []string
 	Ids             []int64
 	// ParentID is the attribute to represent parent object, that creation process connected to
 	ParentID int64
@@ -34,7 +35,7 @@ func (rpc *CreateOptions) CurrentTime() time.Time {
 	return ts
 }
 
-func NewCreateOptions(ctx context.Context, creator Creator, defaultFields []string) *CreateOptions {
+func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMetadatter) *CreateOptions {
 	createOpts := &CreateOptions{
 		Context: ctx,
 		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
@@ -44,12 +45,16 @@ func NewCreateOptions(ctx context.Context, creator Creator, defaultFields []stri
 	createOpts.CurrentTime()
 
 	// normalize fields
-	fields := util.FieldsFunc(
-		creator.GetFields(), graph.SplitFieldsQ,
-	)
-	if len(fields) == 0 {
-		copy(fields, defaultFields)
+	var resultingFields []string
+	if requestedFields := creator.GetFields(); len(requestedFields) == 0 {
+		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
+		copy(resultingFields, objMetadata.GetDefaultFields())
+	} else {
+		resultingFields = util.FieldsFunc(
+			requestedFields, graph.SplitFieldsQ,
+		)
 	}
-	createOpts.Fields = util.ParseFieldsForEtag(fields)
+	resultingFields, createOpts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
+	createOpts.Fields = util.ParseFieldsForEtag(resultingFields)
 	return createOpts
 }

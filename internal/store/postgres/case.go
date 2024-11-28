@@ -18,7 +18,8 @@ import (
 )
 
 type CaseStore struct {
-	storage store.Store
+	storage   store.Store
+	mainTable string
 }
 
 type CaseScan func(caseItem *_go.Case) any
@@ -806,8 +807,99 @@ var deleteCaseQuery = store.CompactSQL(`
 `)
 
 // List implements store.CaseStore.
-func (c *CaseStore) List(rpc *model.SearchOptions) (*_go.CaseList, error) {
-	panic("unimplemented")
+func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
+	if opts == nil {
+		return nil, dberr.NewDBError("postgres.case.list.check_args.opts", "search options required")
+	}
+	query, plan, err := c.buildListCaseSqlizer(opts)
+	if err != nil {
+		return nil, err
+	}
+	slct, args, err := query.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBError("postgres.case.list.to_sql.error", err.Error())
+	}
+	db, dbErr := c.storage.Database()
+	if dbErr != nil {
+		return nil, dbErr
+	}
+	rows, err := db.Query(opts.Context, slct, args...)
+	if err != nil {
+		return nil, dberr.NewDBError("postgres.case.list.exec.error", err.Error())
+	}
+	var (
+		res _go.CaseList
+		i   int
+	)
+	for ; rows.Next(); i++ {
+		if i > int(opts.GetSize()) {
+			res.Next = true
+			res.Page = int64(opts.GetPage())
+			break
+		}
+		var node _go.Case
+		scanArgs := convertToCaseScanArgs(plan, &node)
+		err = rows.Scan(scanArgs...)
+		if err != nil {
+			return nil, dberr.NewDBError("postgres.case.list.scan.error", err.Error())
+		}
+		res.Items = append(res.Items, &node)
+	}
+	return &res, nil
+}
+
+func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []CaseScan, error) {
+	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
+	base, plan, err := c.buildCaseSelectColumnsAndPlan(base, opts.Fields)
+	if err != nil {
+		return base, nil, err
+	}
+
+	base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.Session.GetDomainId())
+	if opts.Search != "" {
+		base = store.AddSearchTerm(base, store.Ident(caseLeft, "name"), store.Ident(caseLeft, "subject"), store.Ident(caseLeft, "contact_info"))
+	}
+	// pagination
+	if opts.GetSize() > 0 {
+		base = base.Limit(uint64(opts.GetSize() + 1))
+		if opts.GetPage() > 1 {
+			base = base.Offset(uint64((opts.GetPage() - 1) * opts.GetSize()))
+		}
+	}
+
+	// sort
+	if len(opts.Sort) != 0 {
+		for _, s := range opts.Sort {
+			desc := strings.HasPrefix(s, "-")
+			if desc {
+				s = strings.TrimPrefix(s, "-")
+			}
+
+			if desc {
+				s += " DESC"
+			} else {
+				s += " ASC"
+			}
+			base = base.OrderBy(s)
+		}
+	}
+	if len(opts.Sort) != 0 {
+		for _, s := range opts.Sort {
+			desc := strings.HasPrefix(s, "-")
+			if desc {
+				s = strings.TrimPrefix(s, "-")
+			}
+
+			if desc {
+				s += " DESC"
+			} else {
+				s += " ASC"
+			}
+			base = base.OrderBy(s)
+		}
+	}
+
+	return base, plan, nil
 }
 
 // Update implements store.CaseStore.
@@ -823,5 +915,5 @@ func NewCaseStore(store store.Store) (store.CaseStore, error) {
 		return nil, dberr.NewDBError("postgres.new_case.check.bad_arguments",
 			"error creating case interface to the case table, main store is nil")
 	}
-	return &CaseStore{storage: store}, nil
+	return &CaseStore{storage: store, mainTable: "cases.case"}, nil
 }

@@ -3,6 +3,12 @@ package store
 import (
 	"fmt"
 	"github.com/Masterminds/squirrel"
+	"strings"
+)
+
+const (
+	ComparisonILike  = "ilike"
+	ComparisonRegexp = "~"
 )
 
 // Ident returns a string that represents a qualified identifier.
@@ -18,4 +24,29 @@ func FormAsCTE(in squirrel.Sqlizer, alias string) (string, []any, error) {
 	}
 	query = fmt.Sprintf("WITH %s AS (%s)", alias, query)
 	return query, args, nil
+}
+
+// ParseSearchTerm delimit searches for the regexp search indicators and if found returns string without indicators and indicator that regexp search found.
+// Returns changed copy of the input slice.
+func ParseSearchTerm(q string) (s string, operator string) {
+	var (
+		escapePre = "/"
+		escapeSu  = "/"
+	)
+	if strings.HasPrefix(q, escapePre) && strings.HasSuffix(q, escapeSu) {
+		pre, _ := strings.CutPrefix(q, escapePre)
+		su, _ := strings.CutSuffix(pre, escapeSu)
+		return su, ComparisonRegexp
+	} else {
+		return "%" + q + "%", ComparisonILike
+	}
+
+}
+
+func AddSearchTerm(base squirrel.SelectBuilder, q string, columns ...string) squirrel.SelectBuilder {
+	search, operator := ParseSearchTerm(q)
+	for _, column := range columns {
+		base = base.Where(fmt.Sprintf("%s %s ?", column, operator), search)
+	}
+	return base
 }

@@ -80,28 +80,27 @@ func AddVersionAndIdByEtag(fields []string) {
 	return
 }
 
-// AddVersionAndIdByEtag searches for etag, id, ver fields and determines what fields should be added
-// to provide full functionality of etag
+// AddVersionAndIdByEtag searches for etag, id, ver fields and adds missing
+// to provide full functionality of etag (do not changes fields, returns fully new slice)
 func ParseFieldsForEtag(fields []string) []string {
 	var (
 		res                    []string
 		hasEtag, hasId, hasVer bool
-		etagIndex              int
 	)
-	for i, field := range fields {
+	for _, field := range fields {
 		if field == "etag" {
 			hasEtag = true
-			etagIndex = i
 		} else if field == "id" {
+			res = append(res, field)
 			hasId = true
 		} else if field == "ver" {
+			res = append(res, field)
 			hasVer = true
 		} else {
 			res = append(res, field)
 		}
 	}
 	if hasEtag {
-		res = append(fields[:etagIndex], fields[etagIndex+1:]...)
 		if !hasId {
 			res = append(res, "id")
 		}
@@ -279,4 +278,21 @@ func ParseIds(input []string, etagType etag.EtagType) ([]int64, error) {
 	}
 
 	return result, nil
+}
+
+func SplitKnownAndUnknownFields(requestedFields []string, modelFields []string) (known []string, unknown []string) {
+	for _, field := range requestedFields {
+		var found bool
+		for _, modelField := range modelFields {
+			if field == modelField {
+				known = append(known, field)
+				found = true
+				break
+			}
+		}
+		if !found {
+			unknown = append(unknown, field)
+		}
+	}
+	return
 }
