@@ -105,13 +105,12 @@
           },
           {
             "name": "q",
-            "description": "covered by filters?",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "qin",
+            "name": "ids",
             "in": "query",
             "required": false,
             "type": "array",
@@ -3598,8 +3597,7 @@
             "name": "etag",
             "in": "path",
             "required": true,
-            "type": "string",
-            "format": "int64"
+            "type": "string"
           },
           {
             "name": "fields",
@@ -5089,6 +5087,14 @@
         "edited": {
           "type": "boolean",
           "description": "Indicates if the comment was edited; true if created_at \u003c updated_at."
+        },
+        "can_edit": {
+          "type": "boolean",
+          "description": "Indicates if the comment can be edited by current user."
+        },
+        "author": {
+          "$ref": "#/definitions/generalLookup",
+          "description": "Contact-author of the comment."
         },
         "case_id": {
           "type": "string",

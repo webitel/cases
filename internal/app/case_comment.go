@@ -16,15 +16,15 @@ var defaultFieldsCaseComments = []string{"id", "comment"}
 
 var CaseCommentMetadata = model.NewObjectMetadata(
 	[]*model.Field{
-		{"etag", true},
-		{"created_at", true},
-		{"created_by", true},
-		{"updated_at", true},
-		{"updated_by", false},
-		{"text", true},
-		{"edited", true},
-		{"can_edit", true},
-		{"author", true},
+		{Name: "etag", Default: true},
+		{Name: "created_at", Default:true},
+		{Name: "created_by", Default:true},
+		{Name: "updated_at",Default: true},
+		{Name: "updated_by",Default: false},
+		{Name: "text", Default:true},
+		{Name: "edited",Default: true},
+		{Name: "can_edit",Default: true},
+		{Name: "author", Default:true},
 	})
 
 type CaseCommentService struct {

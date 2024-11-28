@@ -16,33 +16,33 @@ import (
 
 var CaseMetadata = model.NewObjectMetadata(
 	[]*model.Field{
-		{"etag", true},
-		{"created_by", true},
-		{"created_at", true},
-		{"updated_by", false},
-		{"updated_at", false},
-		{"assignee", true},
-		{"reporter", true},
-		{"name", true},
-		{"subject", true},
-		{"description", true},
-		{"source", true},
-		{"priority", true},
-		{"priority", true},
-		{"impacted", true},
-		{"author", true},
-		{"planned_reaction_at", true},
-		{"planned_resolve_at", true},
-		{"status", true},
-		{"close_reason_group", true},
-		{"group", true},
-		{"close_result", false},
-		{"close_reason", false},
-		{"rating", false},
-		{"rating_comment", false},
-		{"sla_conditions", true},
-		{"status_condition", true},
-		{"sla", true},
+		{Name: "etag", Default: true},
+		{Name: "created_by", Default: true},
+		{Name: "created_at", Default: true},
+		{Name: "updated_by", Default: false},
+		{Name: "updated_at", Default: false},
+		{Name: "assignee", Default: true},
+		{Name: "reporter", Default: true},
+		{Name: "name", Default: true},
+		{Name: "subject", Default: true},
+		{Name: "description", Default: true},
+		{Name: "source", Default: true},
+		{Name: "priority", Default: true},
+		{Name: "priority", Default: true},
+		{Name: "impacted", Default: true},
+		{Name: "author", Default: true},
+		{Name: "planned_reaction_at", Default: true},
+		{Name: "planned_resolve_at", Default: true},
+		{Name: "status", Default: true},
+		{Name: "close_reason_group", Default: true},
+		{Name: "group", Default: true},
+		{Name: "close_result", Default: false},
+		{Name: "close_reason", Default: false},
+		{Name: "rating", Default: false},
+		{Name: "rating_comment", Default: false},
+		{Name: "sla_conditions", Default: true},
+		{Name: "status_condition", Default: true},
+		{Name: "sla", Default: true},
 	})
 
 type CaseService struct {
@@ -81,7 +81,6 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 }
 
 func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseRequest) (*cases.Case, error) {
-
 	// Validate required fields
 	appErr := c.ValidateCreateInput(req.Input)
 	if appErr != nil {

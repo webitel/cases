@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -89,48 +88,12 @@ func (c *CaseStore) Create(
 		return nil, dberr.NewDBInternalError("postgres.case.create.execution_error", err)
 	}
 
-	// Update the name
-	name, err := c.UpdateCaseName(rpc.Context, add.Id, add.Service.GetId(), txManager)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.create.update_name_error", err)
-	}
-
-	// Assign the new name to the case
-	add.Name = name
-
 	// Commit the transaction
 	if err := tx.Commit(rpc.Context); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.commit_error", err)
 	}
 
 	return add, nil
-}
-
-func (c *CaseStore) UpdateCaseName(
-	ctx context.Context,
-	caseID int64,
-	serviceID int64,
-	txManager *store.TxManager,
-) (string, error) {
-	// SQL query to update the name based on the prefix and return the new name
-	query := `WITH prefix_cte AS (SELECT prefix
-                    FROM cases.service_catalog
-                    WHERE id = $1
-                    LIMIT 1)
-UPDATE cases.case
-SET name = CONCAT((SELECT prefix FROM prefix_cte), '_', id)
-WHERE id = $2
-RETURNING name`
-
-	var updatedName string
-
-	// Execute the query and scan the returned name
-	err := txManager.QueryRow(ctx, query, serviceID, caseID).Scan(&updatedName)
-	if err != nil {
-		return "", dberr.NewDBInternalError("postgres.case.update_name.execution_error", err)
-	}
-
-	return updatedName, nil
 }
 
 // ScanSla fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
@@ -235,12 +198,23 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	resolveAt := util.LocalTime(caseItem.PlannedResolveAt)
 
 	// CTE for status condition
-	statusConditionCTE := `
-		status_condition_cte AS (
+	statusConditionCTE := fmt.Sprintf(
+		`status_condition_cte AS (
 			SELECT sc.id AS status_condition_id
 			FROM cases.status_condition sc
-			WHERE sc.status_id = $13 AND sc.initial = true
-		)`
+			WHERE sc.status_id = %d AND sc.initial = true
+		)`, caseItem.Status.GetId())
+
+	// Define the CTE for prefix and nextval
+	prefixCTE := fmt.Sprintf(`
+	prefix_cte AS (
+		SELECT prefix
+		FROM cases.service_catalog
+		WHERE id = %d
+		LIMIT 1
+	), id_cte AS (
+		SELECT nextval('cases.case_id'::regclass) AS id
+	)`, caseItem.Service.GetId())
 
 	// Use NULL for slaConditionID if it's 0
 	slaConditionExpr := sq.Expr("NULL")
@@ -249,12 +223,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	}
 
 	caseInsertBuilder := sq.Insert("cases.case").
-		Columns("rating", "dc", "created_at", "created_by", "updated_at", "updated_by",
+		Columns("id", "rating", "dc", "created_at", "created_by", "updated_at", "updated_by",
 			"close_result", "priority", "source", "close_reason",
 			"rating_comment", "name", "status", "close_reason_group", "\"group\"",
 			"subject", "planned_reaction_at", "planned_resolve_at", "reporter",
 			"impacted", "service", "description", "assignee", "sla", "sla_condition_id", "status_condition").
 		Values(
+			sq.Expr("(SELECT id FROM id_cte)"), // Use the generated ID
 			caseItem.Rate.GetRating(),
 			rpc.Session.GetDomainId(),
 			rpc.CurrentTime(),
@@ -266,7 +241,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			caseItem.Source.GetId(),
 			caseItem.Close.CloseReason.GetId(),
 			caseItem.Rate.GetRatingComment(),
-			"Mock Name", // mocked name as NAME is NOT null, prefixed name will be passed using trigger in db
+			sq.Expr("CONCAT((SELECT id FROM id_cte), '_', (SELECT prefix FROM prefix_cte))"), // Generate name dynamically
 			caseItem.Status.GetId(),
 			caseItem.CloseReasonGroup.GetId(),
 			caseItem.Group.GetId(),
@@ -344,8 +319,10 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	// Combine all queries into a CTE
 	cteSQL := fmt.Sprintf(`
 	WITH %s,
+	%s,
 	%s AS (%s)
 	`,
+		prefixCTE,
 		statusConditionCTE,
 		caseLeft,
 		caseInsertSQL,

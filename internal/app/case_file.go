@@ -17,10 +17,10 @@ type CaseFileService struct {
 
 var CaseFileMetadata = model.NewObjectMetadata(
 	[]*model.Field{
-		{"size", true},
-		{"mime", true},
-		{"name", true},
-		{"created_at", true},
+		{Name: "size", Default: true},
+		{Name: "mime", Default: true},
+		{Name: "name", Default: true},
+		{Name: "created_at", Default: true},
 	})
 
 var defaultFieldsCaseFile = []string{"size", "mime", "name", "created_at"}
