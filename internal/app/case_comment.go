@@ -2,12 +2,13 @@ package app
 
 import (
 	"context"
+	"strconv"
+
 	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
-	"strconv"
 )
 
 var CaseCommentMetadata = model.NewObjectMetadata(
@@ -19,7 +20,7 @@ var CaseCommentMetadata = model.NewObjectMetadata(
 		{Name: "updated_by", Default: false},
 		{Name: "text", Default: true},
 		{Name: "edited", Default: true},
-		//{Name: "can_edit",Default: true},
+		{Name: "can_edit", Default: true},
 		{Name: "author", Default: true},
 	})
 
@@ -187,16 +188,14 @@ func (c *CaseCommentService) PublishComment(
 		return nil, err
 	}
 
-	// Convert the returned ID to integer and handle any error
-	// TODO: Normalize func
-	//commId, err := strconv.Atoi(comment.Id)
-	//if err != nil {
-	//	return nil, cerror.NewInternalError("app.case_comment.publish.convert_id_error", err.Error())
-	//}
-	//
-	//// Encode etag from the comment ID and version
-	//e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), comment.Ver)
-	//comment.Id = e
+	commId, err := strconv.Atoi(comment.Id)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case_comment.publish_comment.parse.comment_id", err.Error())
+	}
+
+	// Encode etag from the comment ID and version
+	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), comment.Ver)
+	comment.Id = e
 
 	return comment, nil
 }

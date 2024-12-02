@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -95,7 +96,12 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 
 	// Build select clause and scan plan dynamically using buildCommentSelectColumnsAndPlan
 	selectBuilder := sq.Select()
-	selectBuilder, plan, dbErr := buildCommentSelectColumnsAndPlan(selectBuilder, caseCommentLeft, rpc.Fields)
+	selectBuilder, plan, dbErr := buildCommentSelectColumnsAndPlan(
+		selectBuilder,
+		caseCommentLeft,
+		rpc.Fields,
+		rpc.Session.GetUserId(),
+	)
 	if dbErr != nil {
 		return nil, nil, dbErr
 	}
@@ -230,7 +236,12 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 	}
 
 	// Build select columns and scan plan using buildCommentSelectColumnsAndPlan
-	queryBuilder, plan, err := buildCommentSelectColumnsAndPlan(queryBuilder, caseCommentLeft, rpc.Fields)
+	queryBuilder, plan, err := buildCommentSelectColumnsAndPlan(
+		queryBuilder,
+		caseCommentLeft,
+		rpc.Fields,
+		rpc.Session.GetUserId(),
+	)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -318,7 +329,7 @@ func (c *CaseCommentStore) Update(
 	}
 
 	if upd.Ver != int32(ver) {
-		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.conflict_error", fmt.Errorf("version mismatch"))
+		return nil, dberr.NewDBConflictError("postgres.cases.case_comment.update.version_mismatch", "Version mismatch, update failed")
 	}
 
 	// Build the update query
@@ -335,8 +346,11 @@ func (c *CaseCommentStore) Update(
 	// Convert plan to scanArgs
 	scanArgs := convertToScanArgs(plan, upd)
 
-	// Execute the query and scan the result
 	if err := txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Explicitly indicate that the user is not the creator
+			return nil, dberr.NewDBForbiddenError("postgres.cases.case_comment.update.forbidden", "User is not the creator of this comment")
+		}
 		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.execution_error", err)
 	}
 
@@ -380,7 +394,11 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 		Set("updated_by", rpc.Session.GetUserId()).
 		Set("ver", sq.Expr("ver + 1")). // Increment version
 		// input.Etag == input.ID
-		Where(sq.Eq{"id": input.Etag, "dc": rpc.Session.GetDomainId()})
+		Where(sq.Eq{
+			"id":         input.Etag,
+			"dc":         rpc.Session.GetDomainId(),
+			"created_by": rpc.Session.GetUserId(), // Ensure only the creator can edit
+		})
 
 	// Update the `comment` field if provided
 	if input.Text != "" {
@@ -393,7 +411,12 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 	selectBuilder := sq.Select().PrefixExpr(sq.Expr("WITH cc AS (?)", updateBuilder.Suffix("RETURNING *"))).From("cc")
 
 	// Use `buildCommentSelectColumnsAndPlan` to build select columns and plan based on `rpc.Fields`
-	selectBuilder, plan, err := buildCommentSelectColumnsAndPlan(selectBuilder, "cc", rpc.Fields)
+	selectBuilder, plan, err := buildCommentSelectColumnsAndPlan(
+		selectBuilder,
+		caseCommentLeft,
+		rpc.Fields,
+		rpc.Session.GetUserId(),
+	)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -415,6 +438,7 @@ func buildCommentSelectColumnsAndPlan(
 	base sq.SelectBuilder,
 	left string,
 	fields []string,
+	userID int64,
 ) (sq.SelectBuilder, []CommentScan, *dberr.DBError) {
 	var plan []CommentScan
 
@@ -466,6 +490,11 @@ func buildCommentSelectColumnsAndPlan(
 			base = base.Column(fmt.Sprintf(`(%s.created_at < %[1]s.updated_at) edited`, left))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Edited
+			})
+		case "can_edit":
+			base = base.Column(fmt.Sprintf(`(%s.created_by = %d) can_edit`, left, userID))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return &comment.CanEdit
 			})
 		default:
 			return base, nil, dberr.NewDBError("postgres.case_comment.build_comment_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))

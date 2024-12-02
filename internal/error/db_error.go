@@ -104,6 +104,30 @@ func NewDBEntityConflictError(id string) *DBEntityConflictError {
 	return &DBEntityConflictError{DBError: *NewDBError(id, "found more than one requested entity")}
 }
 
+// DBConflictError indicates a conflict in the database operation (e.g., version mismatch).
+type DBConflictError struct {
+	DBError
+}
+
+// NewDBConflictError creates a new DBConflictError with the specified ID and message.
+func NewDBConflictError(id, message string) *DBConflictError {
+	return &DBConflictError{
+		DBError: *NewDBError(id, message),
+	}
+}
+
+// DBForbiddenError indicates that the user is forbidden from performing an action.
+type DBForbiddenError struct {
+	DBError
+}
+
+// NewDBForbiddenError creates a new DBForbiddenError with the specified ID and message.
+func NewDBForbiddenError(id, message string) *DBForbiddenError {
+	return &DBForbiddenError{
+		DBError: *NewDBError(id, message),
+	}
+}
+
 // DBInternalError indicates an internal database error.
 type DBInternalError struct {
 	Reason error

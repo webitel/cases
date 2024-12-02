@@ -28,7 +28,6 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "description", Default: true},
 		{Name: "source", Default: true},
 		{Name: "priority", Default: true},
-		{Name: "priority", Default: true},
 		{Name: "impacted", Default: true},
 		{Name: "author", Default: true},
 		{Name: "planned_reaction_at", Default: true},
@@ -41,6 +40,7 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "rating", Default: false},
 		{Name: "rating_comment", Default: false},
 		{Name: "sla_conditions", Default: true},
+		{Name: "service", Default: true},
 		{Name: "status_condition", Default: true},
 		{Name: "sla", Default: true},
 	})
@@ -209,13 +209,72 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 }
 
 func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.Case, error) {
-	// TODO implement me
-	panic("implement me")
+	// Validate input
+	appErr := c.ValidateUpdateInput(req.Input, req.XJsonMask)
+	if appErr != nil {
+		return nil, appErr
+	}
+
+	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Input.Etag)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
+	}
+
+	updateOpts := model.NewUpdateOptions(ctx, req, CaseMetadata)
+
+	upd := &cases.Case{
+		Id:               tag.GetOid(),
+		Ver:              tag.GetVer(),
+		Subject:          req.Input.Subject,
+		Description:      req.Input.Description,
+		Status:           &cases.Lookup{Id: req.Input.Status.GetId()},
+		CloseReasonGroup: &cases.Lookup{Id: req.Input.CloseReason.GetId()},
+		Assignee:         &cases.Lookup{Id: req.Input.Assignee.GetId()},
+		Reporter:         &cases.Lookup{Id: req.Input.Reporter.GetId()},
+		Impacted:         &cases.Lookup{Id: req.Input.Impacted.GetId()},
+		Group:            &cases.Lookup{Id: req.Input.Group.GetId()},
+		Priority:         &cases.Lookup{Id: req.Input.Priority.GetId()},
+		Source:           &cases.Lookup{Id: req.Input.Source.GetId()},
+		Close: &cases.CloseInfo{
+			CloseResult: req.Input.Close.CloseResult,
+			CloseReason: req.Input.GetCloseReason(),
+		},
+		Rate: &cases.RateInfo{
+			Rating:        req.Input.Rate.Rating,
+			RatingComment: req.Input.Rate.RatingComment,
+		},
+		Service: &cases.Lookup{Id: req.Input.Service.GetId()},
+	}
+
+	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case.update_case.store_update_failed", err.Error())
+	}
+
+	// Encode etag from the comment ID and version
+	e := etag.EncodeEtag(etag.EtagCaseComment, int64(updatedCase.Id), updatedCase.Ver)
+	updatedCase.Etag = e
+	return updatedCase, nil
 }
 
 func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseRequest) (*cases.Case, error) {
-	// TODO implement me
-	panic("implement me")
+	if req.Etag == "" {
+		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
+	}
+
+	deleteOpts := model.NewDeleteOptions(ctx)
+
+	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Etag)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case.delete_case.invalid_etag", "Invalid etag")
+	}
+	deleteOpts.IDs = []int64{tag.GetOid()}
+
+	err = c.app.Store.Case().Delete(deleteOpts)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case.delete_case.store_delete_failed", err.Error())
+	}
+	return nil, nil
 }
 
 func NewCaseService(app *App) (*CaseService, cerror.AppError) {
@@ -243,6 +302,56 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, opts model.Loc
 			}
 		}
 	}
+}
+
+func (c *CaseService) ValidateUpdateInput(
+	input *cases.InputCase,
+	xJsonMask []string,
+) cerror.AppError {
+	if input.Etag == "" {
+		return cerror.NewBadRequestError("app.case.update_case.etag_required", "Etag is required")
+	}
+
+	// Ensure nested structures are initialized
+	if input.Rate == nil {
+		input.Rate = &cases.RateInfo{}
+	}
+	if input.Close == nil {
+		input.Close = &cases.CloseInfo{}
+	}
+
+	// Iterate over xJsonMask and validate corresponding fields
+	// Validating fields passed for updating
+	for _, field := range xJsonMask {
+		switch field {
+		case "subject":
+			if input.Subject == "" {
+				return cerror.NewBadRequestError("app.case.update_case.subject_required", "Subject is required")
+			}
+		case "status":
+			if input.Status.GetId() == 0 {
+				return cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
+			}
+		case "close.close_reason":
+			if input.CloseReason.GetId() == 0 {
+				return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
+			}
+		case "priority":
+			if input.Priority.GetId() == 0 {
+				return cerror.NewBadRequestError("app.case.update_case.priority_required", "Priority is required")
+			}
+		case "source":
+			if input.Source.GetId() == 0 {
+				return cerror.NewBadRequestError("app.case.update_case.source_required", "Source is required")
+			}
+		case "service":
+			if input.Service.GetId() == 0 {
+				return cerror.NewBadRequestError("app.case.update_case.service_required", "Service is required")
+			}
+		}
+	}
+
+	return nil
 }
 
 func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.AppError {

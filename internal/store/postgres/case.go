@@ -1,11 +1,13 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx"
 	"github.com/lib/pq"
 
 	_go "github.com/webitel/cases/api/cases"
@@ -478,6 +480,301 @@ func calculateTimestampFromCalendar(
 	}
 }
 
+// Delete implements store.CaseStore.
+func (c *CaseStore) Delete(rpc *model.DeleteOptions) error {
+	// Establish database connection
+	d, err := c.storage.Database()
+	if err != nil {
+		return dberr.NewDBInternalError("store.case.delete.database_connection_error", err)
+	}
+
+	// Build the delete query
+	query, args, dbErr := c.buildDeleteCaseQuery(rpc)
+	if dbErr != nil {
+		return dberr.NewDBInternalError("store.case.delete.query_build_error", dbErr)
+	}
+
+	// Execute the query
+	res, execErr := d.Exec(rpc.Context, query, args...)
+	if execErr != nil {
+		return dberr.NewDBInternalError("store.case.delete.exec_error", execErr)
+	}
+
+	// Check if any rows were affected
+	if res.RowsAffected() == 0 {
+		return dberr.NewDBNoRowsError("store.case.delete.not_found")
+	}
+
+	return nil
+}
+
+func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	ids := util.FieldsFunc(convertedIds, util.InlineFields)
+
+	query := deleteCaseQuery
+	args := []interface{}{
+		pq.Array(ids),
+		rpc.Session.GetDomainId(),
+	}
+	return query, args, nil
+}
+
+var deleteCaseQuery = store.CompactSQL(`
+	DELETE FROM cases.case
+	WHERE id = ANY($1) AND dc = $2
+`)
+
+// List implements store.CaseStore.
+func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
+	if opts == nil {
+		return nil, dberr.NewDBError("postgres.case.list.check_args.opts", "search options required")
+	}
+	query, plan, err := c.buildListCaseSqlizer(opts)
+	if err != nil {
+		return nil, err
+	}
+	slct, args, err := query.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBError("postgres.case.list.to_sql.error", err.Error())
+	}
+	db, dbErr := c.storage.Database()
+	if dbErr != nil {
+		return nil, dbErr
+	}
+	rows, err := db.Query(opts.Context, slct, args...)
+	if err != nil {
+		return nil, dberr.NewDBError("postgres.case.list.exec.error", err.Error())
+	}
+	var (
+		res _go.CaseList
+		i   int
+	)
+	for ; rows.Next(); i++ {
+		if i > int(opts.GetSize()) {
+			res.Next = true
+			res.Page = int64(opts.GetPage())
+			break
+		}
+		var node _go.Case
+		scanArgs := convertToCaseScanArgs(plan, &node)
+		err = rows.Scan(scanArgs...)
+		if err != nil {
+			return nil, dberr.NewDBError("postgres.case.list.scan.error", err.Error())
+		}
+		res.Items = append(res.Items, &node)
+	}
+	return &res, nil
+}
+
+func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []CaseScan, error) {
+	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
+	base, plan, err := c.buildCaseSelectColumnsAndPlan(base, opts.Fields)
+	if err != nil {
+		return base, nil, err
+	}
+
+	base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.Session.GetDomainId())
+	if opts.Search != "" {
+		base = store.AddSearchTerm(base, store.Ident(caseLeft, "name"), store.Ident(caseLeft, "subject"), store.Ident(caseLeft, "contact_info"))
+	}
+	// pagination
+	if opts.GetSize() > 0 {
+		base = base.Limit(uint64(opts.GetSize() + 1))
+		if opts.GetPage() > 1 {
+			base = base.Offset(uint64((opts.GetPage() - 1) * opts.GetSize()))
+		}
+	}
+
+	// sort
+	if len(opts.Sort) != 0 {
+		for _, s := range opts.Sort {
+			desc := strings.HasPrefix(s, "-")
+			if desc {
+				s = strings.TrimPrefix(s, "-")
+			}
+
+			if desc {
+				s += " DESC"
+			} else {
+				s += " ASC"
+			}
+			base = base.OrderBy(s)
+		}
+	}
+	if len(opts.Sort) != 0 {
+		for _, s := range opts.Sort {
+			desc := strings.HasPrefix(s, "-")
+			if desc {
+				s = strings.TrimPrefix(s, "-")
+			}
+
+			if desc {
+				s += " DESC"
+			} else {
+				s += " ASC"
+			}
+			base = base.OrderBy(s)
+		}
+	}
+
+	return base, plan, nil
+}
+
+func (c *CaseStore) Update(
+	rpc *model.UpdateOptions,
+	upd *_go.Case,
+) (*_go.Case, error) {
+	// Establish database connection
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.update.database_connection_error", err)
+	}
+
+	// Begin a transaction
+	tx, txErr := db.Begin(rpc.Context)
+	if txErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.cases.case.update.transaction_error", txErr)
+	}
+	defer tx.Rollback(rpc.Context)
+	txManager := store.NewTxManager(tx)
+
+	// Scan the current version of the comment
+	ver, verErr := c.ScanVer(rpc.Context, upd.Id, txManager)
+	if verErr != nil {
+		return nil, verErr
+	}
+
+	if upd.Ver != int32(ver) {
+		return nil, dberr.NewDBConflictError("postgres.cases.case.update.version_mismatch", "Version mismatch, update failed")
+	}
+
+	// Build the SQL query and scan plan
+	queryBuilder, plan, sqErr := c.buildUpdateCaseSqlizer(rpc, upd)
+	if sqErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.update.query_build_error", sqErr)
+	}
+
+	// Generate the SQL and arguments
+	query, args, sqErr := queryBuilder.ToSql()
+	if sqErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.update.query_to_sql_error", sqErr)
+	}
+
+	query = store.CompactSQL(query)
+
+	// Prepare scan arguments
+	scanArgs := convertToCaseScanArgs(plan, upd)
+
+	// Execute the query
+	if sqErr = db.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); sqErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.update.execution_error", sqErr)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(rpc.Context); err != nil {
+		return nil, dberr.NewDBInternalError("postgres.cases.case.update.commit_error", err)
+	}
+
+	return upd, nil
+}
+
+func (c *CaseStore) ScanVer(
+	ctx context.Context,
+	caseID int64,
+	txManager *store.TxManager,
+) (int64, error) {
+	// Retrieve the current version (`ver`) of the case
+	var ver int64
+	err := txManager.QueryRow(ctx, "SELECT ver FROM cases.case WHERE id = $1", caseID).Scan(&ver)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			// Return a specific error if no case with the given ID is found
+			return 0, dberr.NewDBNotFoundError("postgres.cases.case.scan_ver.not_found", "Case not found")
+		}
+		return 0, dberr.NewDBInternalError("postgres.cases.case.scan_ver.query_error", err)
+	}
+	return ver, nil
+}
+
+func (c *CaseStore) buildUpdateCaseSqlizer(
+	req *model.UpdateOptions,
+	upd *_go.Case,
+) (sq.Sqlizer, []CaseScan, error) {
+	// Ensure required fields (ID and Version) are included
+	req.Fields = util.EnsureIdAndVerField(req.Fields)
+
+	// Initialize the update query
+	updateBuilder := sq.Update(c.mainTable).
+		PlaceholderFormat(sq.Dollar).
+		Set("updated_at", req.CurrentTime()).
+		Set("updated_by", req.Session.GetUserId()).
+		Where(sq.Eq{"id": upd.Id, "dc": req.Session.GetDomainId()})
+
+	// Increment version
+	updateBuilder = updateBuilder.Set("ver", sq.Expr("ver + 1"))
+
+	// Handle nested fields using switch-case on req.Mask
+	for _, field := range req.Mask {
+		switch field {
+		case "subject":
+			updateBuilder = updateBuilder.Set("subject", upd.Subject)
+		case "description":
+			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", upd.Description))
+		case "priority":
+			updateBuilder = updateBuilder.Set("priority", upd.Priority.GetId())
+		case "source":
+			updateBuilder = updateBuilder.Set("source", upd.Source.GetId())
+		case "status":
+			updateBuilder = updateBuilder.Set("status", upd.Status.GetId())
+		case "close.close_reason":
+			if upd.Close != nil {
+				updateBuilder = updateBuilder.Set("close_reason", upd.Close.CloseReason.GetId())
+			}
+		case "close.close_result":
+			if upd.Close != nil {
+				updateBuilder = updateBuilder.Set("close_result", upd.Close.CloseResult)
+			}
+		case "assignee":
+			updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
+		case "reporter":
+			updateBuilder = updateBuilder.Set("reporter", upd.Reporter.GetId())
+		case "impacted":
+			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
+		case "group":
+			updateBuilder = updateBuilder.Set("group", upd.Group.GetId())
+		case "planned_reaction_at":
+			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.PlannedReactionAt))
+		case "planned_resolve_at":
+			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(upd.PlannedResolveAt))
+		case "rate.rating":
+			if upd.Rate != nil {
+				updateBuilder = updateBuilder.Set("rating", upd.Rate.Rating)
+			}
+		case "rate.rating_comment":
+			if upd.Rate != nil {
+				updateBuilder = updateBuilder.Set("rating_comment", sq.Expr("NULLIF(?, '')", upd.Rate.RatingComment))
+			}
+		default:
+			// Optionally handle unknown fields
+			return nil, nil, dberr.NewDBError("postgres.case.update.invalid_field", fmt.Sprintf("Unknown field: %s", field))
+		}
+	}
+
+	// Define SELECT query for returning updated fields
+	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
+		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
+		req.Fields,
+	)
+	if err != nil {
+		return nil, nil, dberr.NewDBError("postgres.case.update.select_query_build_error", err.Error())
+	}
+
+	selectBuilder = selectBuilder.From(caseLeft)
+
+	return selectBuilder, plan, nil
+}
+
 func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 	base sq.SelectBuilder,
 	fields []string,
@@ -736,155 +1033,6 @@ func convertToCaseScanArgs(plan []CaseScan, caseItem *_go.Case) []any {
 		scanArgs = append(scanArgs, scan(caseItem))
 	}
 	return scanArgs
-}
-
-// Delete implements store.CaseStore.
-func (c *CaseStore) Delete(rpc *model.DeleteOptions) error {
-	// Establish database connection
-	d, err := c.storage.Database()
-	if err != nil {
-		return dberr.NewDBInternalError("store.case.delete.database_connection_error", err)
-	}
-
-	// Build the delete query
-	query, args, dbErr := c.buildDeleteCaseQuery(rpc)
-	if dbErr != nil {
-		return dberr.NewDBInternalError("store.case.delete.query_build_error", dbErr)
-	}
-
-	// Execute the query
-	res, execErr := d.Exec(rpc.Context, query, args...)
-	if execErr != nil {
-		return dberr.NewDBInternalError("store.case.delete.exec_error", execErr)
-	}
-
-	// Check if any rows were affected
-	if res.RowsAffected() == 0 {
-		return dberr.NewDBNoRowsError("store.case.delete.not_found")
-	}
-
-	return nil
-}
-
-func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
-	ids := util.FieldsFunc(convertedIds, util.InlineFields)
-
-	query := deleteCaseQuery
-	args := []interface{}{
-		pq.Array(ids),
-		rpc.Session.GetDomainId(),
-	}
-	return query, args, nil
-}
-
-var deleteCaseQuery = store.CompactSQL(`
-	DELETE FROM cases.case
-	WHERE id = ANY($1) AND dc = $2
-`)
-
-// List implements store.CaseStore.
-func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
-	if opts == nil {
-		return nil, dberr.NewDBError("postgres.case.list.check_args.opts", "search options required")
-	}
-	query, plan, err := c.buildListCaseSqlizer(opts)
-	if err != nil {
-		return nil, err
-	}
-	slct, args, err := query.ToSql()
-	if err != nil {
-		return nil, dberr.NewDBError("postgres.case.list.to_sql.error", err.Error())
-	}
-	db, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dbErr
-	}
-	rows, err := db.Query(opts.Context, slct, args...)
-	if err != nil {
-		return nil, dberr.NewDBError("postgres.case.list.exec.error", err.Error())
-	}
-	var (
-		res _go.CaseList
-		i   int
-	)
-	for ; rows.Next(); i++ {
-		if i > int(opts.GetSize()) {
-			res.Next = true
-			res.Page = int64(opts.GetPage())
-			break
-		}
-		var node _go.Case
-		scanArgs := convertToCaseScanArgs(plan, &node)
-		err = rows.Scan(scanArgs...)
-		if err != nil {
-			return nil, dberr.NewDBError("postgres.case.list.scan.error", err.Error())
-		}
-		res.Items = append(res.Items, &node)
-	}
-	return &res, nil
-}
-
-func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []CaseScan, error) {
-	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
-	base, plan, err := c.buildCaseSelectColumnsAndPlan(base, opts.Fields)
-	if err != nil {
-		return base, nil, err
-	}
-
-	base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.Session.GetDomainId())
-	if opts.Search != "" {
-		base = store.AddSearchTerm(base, store.Ident(caseLeft, "name"), store.Ident(caseLeft, "subject"), store.Ident(caseLeft, "contact_info"))
-	}
-	// pagination
-	if opts.GetSize() > 0 {
-		base = base.Limit(uint64(opts.GetSize() + 1))
-		if opts.GetPage() > 1 {
-			base = base.Offset(uint64((opts.GetPage() - 1) * opts.GetSize()))
-		}
-	}
-
-	// sort
-	if len(opts.Sort) != 0 {
-		for _, s := range opts.Sort {
-			desc := strings.HasPrefix(s, "-")
-			if desc {
-				s = strings.TrimPrefix(s, "-")
-			}
-
-			if desc {
-				s += " DESC"
-			} else {
-				s += " ASC"
-			}
-			base = base.OrderBy(s)
-		}
-	}
-	if len(opts.Sort) != 0 {
-		for _, s := range opts.Sort {
-			desc := strings.HasPrefix(s, "-")
-			if desc {
-				s = strings.TrimPrefix(s, "-")
-			}
-
-			if desc {
-				s += " DESC"
-			} else {
-				s += " ASC"
-			}
-			base = base.OrderBy(s)
-		}
-	}
-
-	return base, plan, nil
-}
-
-// Update implements store.CaseStore.
-func (c *CaseStore) Update(
-	req *model.UpdateOptions,
-	upd *_go.Case,
-) (*_go.Case, error) {
-	panic("unimplemented")
 }
 
 func NewCaseStore(store store.Store) (store.CaseStore, error) {
