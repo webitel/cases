@@ -114,7 +114,9 @@ func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, erro
 		PlaceholderFormat(squirrel.Dollar).
 		Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "case_id")), opts.ParentId)
 	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, l.mainTable, opts.Fields)
-
+	if dbErr != nil {
+		return nil, dbErr
+	}
 	if opts.GetSize() > 0 {
 		base = base.Limit(uint64(opts.GetSize() + 1))
 		if opts.GetPage() > 1 {
@@ -198,8 +200,38 @@ func NewLinkCaseStore(store store.Store) (store.CaseLinkStore, error) {
 	return &CaseLinkStore{storage: store, mainTable: "cases.case_link"}, nil
 }
 
-func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fields []string) (squirrel.SelectBuilder, []LinkScan, *dberr.DBError) {
-	var plan []LinkScan
+func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fields []string) (squirrel.SelectBuilder, []func(link *_go.CaseLink) any, *dberr.DBError) {
+	var (
+		plan           []func(link *_go.CaseLink) any
+		createdByAlias string
+		joinCreatedBy  = func() {
+			if createdByAlias != "" {
+				return
+			}
+			createdByAlias = "cb"
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.created_by", createdByAlias, left))
+			return
+		}
+		updatedByAlias string
+		joinUpdatedBy  = func() {
+			if updatedByAlias != "" {
+				return
+			}
+			updatedByAlias = "ub"
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.updated_by", updatedByAlias, left))
+			return
+		}
+		authorAlias string
+		joinAuthor  = func() {
+			if authorAlias != "" {
+				return
+			}
+			joinCreatedBy()
+			authorAlias = "au"
+			base = base.LeftJoin(fmt.Sprintf("contacts.contact %s ON %[1]s.id = %s.contact_id", authorAlias, createdByAlias))
+			return
+		}
+	)
 	if len(fields) == 0 {
 		fields = CaseLinkFields
 	}
@@ -217,7 +249,8 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 				return &link.Ver
 			})
 		case "created_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.created_by) created_by", left))
+			joinCreatedBy()
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text created_by", createdByAlias))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return scanner.ScanRowLookup(&link.CreatedBy)
 			})
@@ -227,7 +260,8 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 				return scanner.ScanTimestamp(&link.CreatedAt)
 			})
 		case "updated_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by", left))
+			joinUpdatedBy()
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text updated_by", updatedByAlias))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return scanner.ScanRowLookup(&link.UpdatedBy)
 			})
@@ -247,9 +281,8 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 				return &link.Url
 			})
 		case "author":
-			base = base.Column(fmt.Sprintf(`(SELECT ROW(ct.id, ct.common_name)::text
-					FROM contacts.contact ct
-					WHERE id = (SELECT contact_id FROM directory.wbt_user WHERE id = %s.created_by)) author`, left))
+			joinAuthor()
+			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, %[1]s.common_name)::text author`, authorAlias))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return scanner.ScanRowLookup(&link.Author)
 			})
@@ -263,7 +296,7 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 	return base, plan, nil
 }
 
-func buildCreateLinkQuery(rpc *model.CreateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []LinkScan, *dberr.DBError) {
+func buildCreateLinkQuery(rpc *model.CreateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []func(link *_go.CaseLink) any, *dberr.DBError) {
 	// insert
 	base := squirrel.SelectBuilder{}.Prefix(`WITH i AS (INSERT INTO cases.case_link (created_by, updated_by, name, url, case_id, dc) VALUES (?, ?,
 	                                                                                           NULLIF(?, ''),
@@ -277,7 +310,7 @@ func buildCreateLinkQuery(rpc *model.CreateOptions, add *_go.InputCaseLink) (squ
 	return buildLinkSelectColumnsAndPlan(base, "i", rpc.Fields)
 }
 
-func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []LinkScan, *dberr.DBError) {
+func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []func(link *_go.CaseLink) any, *dberr.DBError) {
 	if len(opts.Etags) == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_link.update.etag.empty", "link etag required")
 	}
@@ -317,7 +350,7 @@ func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (sq
 	return buildLinkSelectColumnsAndPlan(slct, prefixAlias, opts.Fields)
 }
 
-func (l *CaseLinkStore) scanLinks(rows pgx.Rows, plan []LinkScan) ([]*_go.CaseLink, error) {
+func (l *CaseLinkStore) scanLinks(rows pgx.Rows, plan []func(link *_go.CaseLink) any) ([]*_go.CaseLink, error) {
 	var res []*_go.CaseLink
 
 	for rows.Next() {
@@ -330,7 +363,7 @@ func (l *CaseLinkStore) scanLinks(rows pgx.Rows, plan []LinkScan) ([]*_go.CaseLi
 	return res, nil
 }
 
-func (l *CaseLinkStore) scanLink(row pgx.Row, plan []LinkScan) (*_go.CaseLink, error) {
+func (l *CaseLinkStore) scanLink(row pgx.Row, plan []func(link *_go.CaseLink) any) (*_go.CaseLink, error) {
 	var link _go.CaseLink
 	var scanPlan []any
 	for _, scan := range plan {

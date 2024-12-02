@@ -27,7 +27,7 @@ var CaseLinkMetadata = model.NewObjectMetadata(
 		{"author", true},
 		{"name", true},
 		{"url", true},
-		{"case_id", true},
+		{"case_id", false},
 	})
 
 func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkRequest) (*cases.CaseLink, error) {

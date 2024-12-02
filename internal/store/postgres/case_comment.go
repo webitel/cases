@@ -65,7 +65,7 @@ func (c *CaseCommentStore) Publish(
 func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 	rpc *model.CreateOptions,
 	input *_go.InputCaseComment,
-) (sq.Sqlizer, []CommentScan, error) {
+) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
 	// Ensure "id" and "ver" are in the fields list
 	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
 
@@ -383,7 +383,7 @@ func (c *CaseCommentStore) ScanVer(
 func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 	rpc *model.UpdateOptions,
 	input *_go.InputCaseComment,
-) (sq.Sqlizer, []CommentScan, error) {
+) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
 	// Ensure "id" and "ver" are in the fields list
 	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
 
@@ -425,7 +425,7 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 }
 
 // Helper function to convert a slice of CommentScan functions to a slice of empty interface{} suitable for scanning.
-func convertToScanArgs(plan []CommentScan, comment *_go.CaseComment) []any {
+func convertToScanArgs(plan []func(comment *_go.CaseComment) any, comment *_go.CaseComment) []any {
 	var scanArgs []any
 	for _, scan := range plan {
 		scanArgs = append(scanArgs, scan(comment))
@@ -439,8 +439,8 @@ func buildCommentSelectColumnsAndPlan(
 	left string,
 	fields []string,
 	userID int64,
-) (sq.SelectBuilder, []CommentScan, *dberr.DBError) {
-	var plan []CommentScan
+) (sq.SelectBuilder, []func(comment *_go.CaseComment) any, *dberr.DBError) {
+	var plan []func(comment *_go.CaseComment) any
 
 	for _, field := range fields {
 		switch field {
