@@ -34,7 +34,7 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "planned_resolve_at", Default: true},
 		{Name: "status", Default: true},
 		{Name: "close_reason_group", Default: true},
-		{Name: "group", Default: true},
+		{Name: "contact_group", Default: true},
 		{Name: "close_result", Default: false},
 		{Name: "close_reason", Default: false},
 		{Name: "rating", Default: false},

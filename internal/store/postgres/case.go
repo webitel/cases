@@ -227,7 +227,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	caseInsertBuilder := sq.Insert("cases.case").
 		Columns("id", "rating", "dc", "created_at", "created_by", "updated_at", "updated_by",
 			"close_result", "priority", "source", "close_reason",
-			"rating_comment", "name", "status", "close_reason_group", "\"group\"",
+			"rating_comment", "name", "status", "close_reason_group", "contact_group",
 			"subject", "planned_reaction_at", "planned_resolve_at", "reporter",
 			"impacted", "service", "description", "assignee", "sla", "sla_condition_id", "status_condition").
 		Values(
@@ -243,7 +243,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			caseItem.Source.GetId(),
 			caseItem.Close.CloseReason.GetId(),
 			caseItem.Rate.GetRatingComment(),
-			sq.Expr("CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM prefix_cte))"), // Generate name dynamically
+			sq.Expr("CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte))"), // Generate name dynamically
 			caseItem.Status.GetId(),
 			caseItem.CloseReasonGroup.GetId(),
 			caseItem.Group.GetId(),
@@ -741,8 +741,8 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("reporter", upd.Reporter.GetId())
 		case "impacted":
 			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
-		case "group":
-			updateBuilder = updateBuilder.Set("group", upd.Group.GetId())
+		case "contact_group":
+			updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
 		case "planned_reaction_at":
 			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.PlannedReactionAt))
 		case "planned_resolve_at":
@@ -832,9 +832,9 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Description
 			})
-		case "group":
+		case "contact_group":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(g.id, g.name)::text FROM contacts.group g WHERE g.id = %s.group) AS contact_group", caseLeft))
+				"(SELECT ROW(g.id, g.name)::text FROM contacts.group g WHERE g.id = %s.contact_group) AS contact_group", caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Group)
 			})
