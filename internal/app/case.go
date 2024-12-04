@@ -45,6 +45,7 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "sla", Default: true},
 		{Name: "comments", Default: true},
 		{Name: "links", Default: true},
+		{Name: "related_cases", Default: false},
 	})
 
 type CaseService struct {

@@ -2,8 +2,9 @@ package store
 
 import (
 	"fmt"
-	"github.com/Masterminds/squirrel"
 	"strings"
+
+	"github.com/Masterminds/squirrel"
 )
 
 const (
@@ -22,7 +23,7 @@ func FormAsCTE(in squirrel.Sqlizer, alias string) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	query = fmt.Sprintf("WITH %s AS (%s)", alias, query)
+	query = fmt.Sprintf("%s AS (%s)", alias, query)
 	return query, args, nil
 }
 
@@ -40,7 +41,6 @@ func ParseSearchTerm(q string) (s string, operator string) {
 	} else {
 		return "%" + q + "%", ComparisonILike
 	}
-
 }
 
 func AddSearchTerm(base squirrel.SelectBuilder, q string, columns ...string) squirrel.SelectBuilder {
