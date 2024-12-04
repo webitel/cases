@@ -296,3 +296,47 @@ func SplitKnownAndUnknownFields(requestedFields []string, modelFields []string) 
 	}
 	return
 }
+
+// NormalizeEtag normalizes etag, id, ver fields visibility for the response depending on what fields were requested.
+func NormalizeEtag(fields []string, etg *string, id *int64, ver *int32) {
+	hasEtag, hasId, hasVer := FindEtagFields(fields)
+	if hasEtag {
+		*etg = etag.EncodeEtag(etag.EtagCase, *id, *ver)
+		// hide
+		if !hasId {
+			*id = 0
+		}
+		if !hasVer {
+			*ver = 0
+		}
+	}
+}
+
+// NormalizeEtags normalizes etag, id, ver fields visibility for the response depending on what fields were requested.
+// Function is an optimized-for-slice copy of NormalizeEtag function.
+//
+// Before usage you should call FindEtagFields on requested fields to find hasEtag, hasId, hasVer args.
+// Optimization consists in reduced number of cycles running through requested fields. If you are going to use
+// NormalizeEtag for each item in slice of your elements, FindEtagFields will be executed for each slice element.
+func NormalizeEtags(hasEtag bool, hasId bool, hasVer bool, etg *string, id *int64, ver *int32) {
+	if hasEtag {
+		*etg = etag.EncodeEtag(etag.EtagCase, *id, *ver)
+		// hide
+		if !hasId {
+			*id = 0
+		}
+		if !hasVer {
+			*ver = 0
+		}
+	}
+}
+
+func ContainsStringIgnoreCase(slice []string, target string) bool {
+	targetLower := strings.ToLower(target)
+	for _, str := range slice {
+		if strings.ToLower(str) == targetLower {
+			return true
+		}
+	}
+	return false
+}

@@ -6,7 +6,6 @@ import (
 	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 )
 
@@ -17,41 +16,23 @@ type CaseFileService struct {
 
 var CaseFileMetadata = model.NewObjectMetadata(
 	[]*model.Field{
+		{Name: "id", Default: true},
 		{Name: "size", Default: true},
 		{Name: "mime", Default: true},
 		{Name: "name", Default: true},
 		{Name: "created_at", Default: true},
 	})
 
-var defaultFieldsCaseFile = []string{"size", "mime", "name", "created_at"}
-
 func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesRequest) (*cases.CaseFileList, error) {
 	if req.CaseEtag == "" {
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.case_etag_required", "Case Etag is required")
 	}
-
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = defaultFieldsCaseFile
-	}
-
-	page := req.Page
-	if page == 0 {
-		page = 1
-	}
-
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.CaseEtag)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
 	}
-
-	ids, err := util.ParseIds(req.Ids, etag.EtagCaseComment)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_qin", "Invalid Qin")
-	}
 	// Build search options
 	searchOpts := model.NewSearchOptions(ctx, req, CaseFileMetadata)
-	searchOpts.IDs = ids
 	searchOpts.ParentId = tag.GetOid()
 
 	files, err := c.app.Store.CaseFile().List(searchOpts)

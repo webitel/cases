@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"strings"
+	authmodel "github.com/webitel/cases/auth/model"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -323,9 +323,9 @@ WITH ` + statusConditionCTE + `, ` + prefixCTE + `, ` + caseLeft + ` AS (
 	// Construct SELECT query to return case data
 	// This builds the final SELECT query with all necessary columns and associated scan plan.
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
+		rpc.Session,
 		sq.Select().PrefixExpr(sq.Expr(boundQuery, args...)),
 		rpc.Fields,
-		rpc.Session.GetUserId(),
 	)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.case.create.build_select_query_error", err)
@@ -585,7 +585,7 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 		i   int
 	)
 	for ; rows.Next(); i++ {
-		if i > int(opts.GetSize()) {
+		if i > int(opts.GetSize())-1 {
 			res.Next = true
 			res.Page = int64(opts.GetPage())
 			break
@@ -603,7 +603,7 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 
 func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []CaseScan, error) {
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
-	base, plan, err := c.buildCaseSelectColumnsAndPlan(base, opts.Fields, opts.Session.GetUserId())
+	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts.Session, base, opts.Fields)
 	if err != nil {
 		return base, nil, err
 	}
@@ -613,44 +613,10 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		base = store.AddSearchTerm(base, store.Ident(caseLeft, "name"), store.Ident(caseLeft, "subject"), store.Ident(caseLeft, "contact_info"))
 	}
 	// pagination
-	if opts.GetSize() > 0 {
-		base = base.Limit(uint64(opts.GetSize() + 1))
-		if opts.GetPage() > 1 {
-			base = base.Offset(uint64((opts.GetPage() - 1) * opts.GetSize()))
-		}
-	}
+	base = store.ApplyPaging(opts, base)
 
 	// sort
-	if len(opts.Sort) != 0 {
-		for _, s := range opts.Sort {
-			desc := strings.HasPrefix(s, "-")
-			if desc {
-				s = strings.TrimPrefix(s, "-")
-			}
-
-			if desc {
-				s += " DESC"
-			} else {
-				s += " ASC"
-			}
-			base = base.OrderBy(s)
-		}
-	}
-	if len(opts.Sort) != 0 {
-		for _, s := range opts.Sort {
-			desc := strings.HasPrefix(s, "-")
-			if desc {
-				s = strings.TrimPrefix(s, "-")
-			}
-
-			if desc {
-				s += " DESC"
-			} else {
-				s += " ASC"
-			}
-			base = base.OrderBy(s)
-		}
-	}
+	base = store.ApplyDefaultSorting(opts, base)
 
 	return base, plan, nil
 }
@@ -775,7 +741,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("reporter", upd.Reporter.GetId())
 		case "impacted":
 			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
-		case "group":
+		case "contact_group":
 			updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
 		case "planned_reaction_at":
 			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.PlannedReactionAt))
@@ -797,9 +763,9 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 
 	// Define SELECT query for returning updated fields
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
+		req.Session,
 		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
 		req.Fields,
-		req.Session.GetUserId(),
 	)
 	if err != nil {
 		return nil, nil, dberr.NewDBError("postgres.case.update.select_query_build_error", err.Error())
@@ -810,10 +776,10 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	return selectBuilder, plan, nil
 }
 
-func (c *CaseStore) buildCaseSelectColumnsAndPlan(
+// session required to get some columns
+func (c *CaseStore) buildCaseSelectColumnsAndPlan(session *authmodel.Session,
 	base sq.SelectBuilder,
 	fields []string,
-	currentUserId int64,
 ) (sq.SelectBuilder, []CaseScan, error) {
 	var plan []CaseScan
 
@@ -991,46 +957,101 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				return scanner.ScanJSONToStructList(&caseItem.SlaCondition)
 			})
 		case "comments":
-			subquery := sq.Select().From("cases.case_comment cc").Where(fmt.Sprintf("cc.case_id = %s", store.Ident(caseLeft, "id")))
-			subquery, scanPlan, dbErr := buildCommentSelectColumnsAndPlan(subquery, "cc", []string{
+			opts := &model.SearchOptions{Session: session, Page: 1, Size: 10, Fields: []string{
 				"id",
 				"ver",
 				"text",
 				"created_by",
 				"updated_by",
 				"updated_at",
-			}, currentUserId)
+			}}
+			subquery, scanPlan, filtersApplied, dbErr := buildCommentsSelectAsSubquery(opts, caseLeft)
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
-			base = AddSubqueryAsColumn(base, subquery, "comments")
+			base = AddSubqueryAsColumn(base, subquery, "comments", filtersApplied > 0)
 			plan = append(plan, func(value *_go.Case) any {
-				if value.Comments == nil {
-					value.Comments = &_go.CaseCommentList{}
+				var items []*_go.CaseComment
+				postProcessing := func() error {
+					if len(items) == 0 {
+						return nil
+					}
+					res := &_go.CaseCommentList{Items: items}
+					if len(items) > int(opts.GetSize()) {
+						res.Items = res.Items[:len(res.Items)-1]
+						res.Next = true
+					}
+					res.Page = int64(opts.GetPage())
+					value.Comments = res
+					return nil
 				}
-				return scanner.GetCompositeTextScanFunction(scanPlan, &value.Comments.Items)
+				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
 		case "links":
-			subquery := sq.Select().From("cases.case_link cc").Where(fmt.Sprintf("cc.case_id = %s", store.Ident(caseLeft, "id")))
-			subquery, scanPlan, dbErr := buildLinkSelectColumnsAndPlan(subquery, "cc", []string{
+			opts := &model.SearchOptions{Page: 1, Size: 10, Fields: []string{
 				"id",
 				"ver",
 				"url",
 				"name",
 				"author",
 				"created_by",
-			})
+			}}
+			subquery, scanPlan, filtersApplied, dbErr := buildLinkSelectAsSubquery(opts, caseLeft)
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
-			base = AddSubqueryAsColumn(base, subquery, "links")
+			base = AddSubqueryAsColumn(base, subquery, "links", filtersApplied > 0)
 			plan = append(plan, func(value *_go.Case) any {
-				if value.Links == nil {
-					value.Links = &_go.CaseLinkList{}
+				var items []*_go.CaseLink
+				postProcessing := func() error {
+					if len(items) == 0 {
+						return nil
+					}
+					res := &_go.CaseLinkList{Items: items}
+					if len(items) > int(opts.GetSize()) {
+						res.Items = res.Items[:len(res.Items)-1]
+						res.Next = true
+					}
+					res.Page = int64(opts.GetPage())
+					value.Links = res
+					return nil
 				}
-				return scanner.GetCompositeTextScanFunction(scanPlan, &value.Links.Items)
+				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
-
+		case "files":
+			opts := &model.SearchOptions{Page: 1, Size: 10, Fields: []string{
+				"id",
+				"size",
+				"mime",
+				"name",
+				"created_at",
+			}}
+			subquery, scanPlan, dbErr := buildFilesSelectAsSubquery(opts, caseLeft)
+			if dbErr != nil {
+				return base, nil, dbErr
+			}
+			var filtersApplied bool
+			if len(opts.Filter) > 0 {
+				filtersApplied = true
+			}
+			base = AddSubqueryAsColumn(base, subquery, "files", filtersApplied)
+			plan = append(plan, func(value *_go.Case) any {
+				var items []*_go.File
+				postProcessing := func() error {
+					if len(items) == 0 {
+						return nil
+					}
+					res := &_go.CaseFileList{Items: items}
+					if len(items) > int(opts.GetSize()) {
+						res.Items = res.Items[:len(res.Items)-1]
+						res.Next = true
+					}
+					res.Page = int64(opts.GetPage())
+					value.Files = res
+					return nil
+				}
+				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
+			})
 		case "related_cases":
 			base = base.Column(fmt.Sprintf(`
 				(SELECT JSON_AGG(JSON_BUILD_OBJECT(
@@ -1073,12 +1094,18 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func AddSubqueryAsColumn(mainQuery sq.SelectBuilder, subquery sq.SelectBuilder, subAlias string) sq.SelectBuilder {
-	// construct subquery as a column to the main query
-	subquery = subquery.Prefix("ARRAY(SELECT (sub) FROM (").Suffix(fmt.Sprintf(") sub)::text %s", subAlias))
-	query, args, _ := subquery.ToSql()
-	// add subquery to the main query
-	mainQuery = mainQuery.Column(query, args...)
+func AddSubqueryAsColumn(mainQuery sq.SelectBuilder, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) sq.SelectBuilder {
+	if filtersApplied {
+		subquery = subquery.Prefix("LATERAL (SELECT ARRAY(SELECT (sub) FROM (").Suffix(fmt.Sprintf(") sub) %s) %[1]s ON array_length(%[1]s.%[1]s, 1) > 0", subAlias))
+		query, args, _ := subquery.ToSql()
+		mainQuery = mainQuery.Join(query, args...)
+	} else {
+		subquery = subquery.Prefix("LATERAL (SELECT ARRAY(SELECT (sub) FROM (").Suffix(fmt.Sprintf(") sub) %s) %[1]s ON true", subAlias))
+		query, args, _ := subquery.ToSql()
+		mainQuery = mainQuery.LeftJoin(query, args...)
+	}
+	mainQuery = mainQuery.Column(subAlias + "::text")
+
 	return mainQuery
 }
 

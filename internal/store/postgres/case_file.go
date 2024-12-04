@@ -18,9 +18,6 @@ type CaseFileStore struct {
 	storage store.Store
 }
 
-// FileScan function type used for building scan plans dynamically based on requested fields
-type FileScan func(file *cases.File) any
-
 const (
 	// Alias for the storage.files table
 	fileAlias = "cf"
@@ -93,7 +90,7 @@ func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, err
 
 func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 	rpc *model.SearchOptions,
-) (sq.Sqlizer, []FileScan, error) {
+) (sq.Sqlizer, []func(link *cases.File) any, error) {
 	// Begin building the base query with alias `cf`
 	queryBuilder := sq.Select().
 		From("storage.files AS cf").
@@ -158,8 +155,8 @@ func buildFilesSelectColumnsAndPlan(
 	base sq.SelectBuilder,
 	left string,
 	fields []string,
-) (sq.SelectBuilder, []FileScan, *dberr.DBError) {
-	var plan []FileScan
+) (sq.SelectBuilder, []func(link *cases.File) any, *dberr.DBError) {
+	var plan []func(link *cases.File) any
 
 	for _, field := range fields {
 		switch field {
@@ -203,6 +200,20 @@ func buildFilesSelectColumnsAndPlan(
 	}
 
 	return base, plan, nil
+}
+
+func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(link *cases.File) any, *dberr.DBError) {
+	alias := "s"
+	if caseAlias == alias {
+		alias = "q"
+	}
+	base := sq.
+		Select().
+		From("storage.files "+alias).
+		Where(fmt.Sprintf("%s::text = %s", store.Ident(alias, "uuid"), store.Ident(caseAlias, "id"))).
+		Where(fmt.Sprintf("%s = ?", store.Ident(alias, "channel")), channel)
+
+	return buildFilesSelectColumnsAndPlan(store.ApplyPaging(opts, base), alias, opts.Fields)
 }
 
 // NewCaseFileStore initializes a new CaseFileStore.

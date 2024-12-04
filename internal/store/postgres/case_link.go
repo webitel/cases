@@ -3,9 +3,6 @@ package postgres
 import (
 	"errors"
 	"fmt"
-	"net/url"
-	"strings"
-
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	_go "github.com/webitel/cases/api/cases"
@@ -13,6 +10,14 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
+	"net/url"
+)
+
+const (
+	caseLinkCreatedByAlias = "cb"
+	caseLinkUpdatedByAlias = "ub"
+	caseLinkAuthorAlias    = "au"
 )
 
 type CaseLinkStore struct {
@@ -25,8 +30,6 @@ var (
 		"created_by", "created_at", "updated_by", "updated_at", "id", "ver", "author", "name", "url",
 	}
 )
-
-type LinkScan func(link *_go.CaseLink) any
 
 // Create implements store.CaseLinkStore.
 func (l *CaseLinkStore) Create(rpc *model.CreateOptions, add *_go.InputCaseLink) (*_go.CaseLink, error) {
@@ -99,46 +102,32 @@ func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, erro
 	if opts == nil {
 		return nil, dberr.NewDBError("postgres.case_link.list.check_args.opts", "search options required")
 	}
-	if opts.ParentId == 0 {
+	if opts.ParentId == 0 && len(opts.IDs) == 0 {
 		return nil, dberr.NewDBError("postgres.case_link.list.check_args.parent_id", "case id required")
 	}
-	// form query
 	db, dbErr := l.storage.Database()
 	if dbErr != nil {
 		return nil, dbErr
 	}
-	//
+
+	// build query
 	base := squirrel.
 		Select().
 		From(l.mainTable).
-		PlaceholderFormat(squirrel.Dollar).
-		Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "case_id")), opts.ParentId)
+		PlaceholderFormat(squirrel.Dollar)
+	if opts.ParentId != 0 {
+		base = base.Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "case_id")), opts.ParentId)
+	}
+	if len(opts.IDs) != 0 {
+		base = base.Where(fmt.Sprintf("%s = any(?)", store.Ident(l.mainTable, "id")), opts.IDs)
+	}
+	base = store.ApplyPaging(opts, base)
+	base = store.ApplyDefaultSorting(opts, base)
 	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, l.mainTable, opts.Fields)
 	if dbErr != nil {
 		return nil, dbErr
 	}
-	if opts.GetSize() > 0 {
-		base = base.Limit(uint64(opts.GetSize() + 1))
-		if opts.GetPage() > 1 {
-			base = base.Offset(uint64((opts.GetPage() - 1) * opts.GetSize()))
-		}
-	}
 
-	if len(opts.Sort) != 0 {
-		for _, s := range opts.Sort {
-			desc := strings.HasPrefix(s, "-")
-			if desc {
-				s = strings.TrimPrefix(s, "-")
-			}
-
-			if desc {
-				s += " DESC"
-			} else {
-				s += " ASC"
-			}
-			base = base.OrderBy(s)
-		}
-	}
 	// execute
 	query, args, err := base.ToSql()
 	if err != nil {
@@ -208,7 +197,7 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 			if createdByAlias != "" {
 				return
 			}
-			createdByAlias = "cb"
+			createdByAlias = caseLinkCreatedByAlias
 			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.created_by", createdByAlias, left))
 			return
 		}
@@ -217,7 +206,7 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 			if updatedByAlias != "" {
 				return
 			}
-			updatedByAlias = "ub"
+			updatedByAlias = caseLinkUpdatedByAlias
 			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.updated_by", updatedByAlias, left))
 			return
 		}
@@ -227,7 +216,7 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 				return
 			}
 			joinCreatedBy()
-			authorAlias = "au"
+			authorAlias = caseLinkAuthorAlias
 			base = base.LeftJoin(fmt.Sprintf("contacts.contact %s ON %[1]s.id = %s.contact_id", authorAlias, createdByAlias))
 			return
 		}
@@ -319,7 +308,7 @@ func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (sq
 	}
 	tid := opts.Etags[0]
 	// insert
-	insert := squirrel.
+	update := squirrel.
 		Update("cases.case_link").
 		Set("updated_by", opts.Session.GetUserId()).
 		Set("updated_at", opts.Time).
@@ -335,13 +324,13 @@ func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (sq
 			if err != nil {
 				return nil, nil, dberr.NewDBError("postgres.case_link.build_update_query.url.validate.error", err.Error())
 			}
-			insert = insert.Set("url", add.Url)
+			update = update.Set("url", add.Url)
 		case "name":
-			insert = insert.Set("name", add.Name)
+			update = update.Set("name", add.Name)
 		}
 	}
-	prefixAlias := "ins"
-	prefix, args, err := store.FormAsCTE(insert, prefixAlias)
+	prefixAlias := "upd"
+	prefix, args, err := store.FormAsCTE(update, prefixAlias)
 	if err != nil {
 		return nil, nil, dberr.NewDBError("postgres.case_link.build_update_query.form_cte.error", err.Error())
 	}
@@ -375,6 +364,75 @@ func (l *CaseLinkStore) scanLink(row pgx.Row, plan []func(link *_go.CaseLink) an
 	}
 
 	return &link, nil
+}
+
+func buildLinkSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (updatedBase squirrel.SelectBuilder, scanPlan []func(link *_go.CaseLink) any, filtersApplied int, dbErr *dberr.DBError) {
+	alias := "links"
+	if caseAlias == alias {
+		alias = "sub_" + alias
+	}
+	base := squirrel.
+		Select().
+		From("cases.case_link " + alias).
+		Where(fmt.Sprintf("%s = %s", store.Ident(alias, "case_id"), store.Ident(caseAlias, "id")))
+	if opts.Search != "" {
+		base = store.AddSearchTerm(base, opts.Search, store.Ident(alias, "name"), store.Ident(alias, "url"))
+	}
+
+	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, alias, opts.Fields)
+	if dbErr != nil {
+		return base, nil, 0, dbErr
+	}
+	base, applied, dbErr := applyCaseLinkFilters(opts, base, alias)
+	if dbErr != nil {
+		return base, nil, 0, dbErr
+	}
+	base = store.ApplyPaging(opts, base)
+
+	return base, plan, applied, nil
+}
+
+func applyCaseLinkFilters(opts *model.SearchOptions, base squirrel.SelectBuilder, alias string) (updatedBase squirrel.SelectBuilder, filtersApplied int, err *dberr.DBError) {
+	if opts == nil || len(opts.Filter) == 0 {
+		return base, 0, nil
+	}
+
+	for column, value := range opts.Filter {
+		if !util.ContainsStringIgnoreCase(opts.Fields, column) {
+			continue
+		}
+		switch column {
+		case "created_by":
+			switch v := value.(type) {
+			case int64, int, int32, *int64, *int, *int32:
+				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLinkCreatedByAlias, "id")), v)
+			case string, *string:
+				// apply search
+				//base = store.AddSearchTerm(base, )
+			}
+		case "author":
+			switch v := value.(type) {
+			case int64, int, int32, *int64, *int, *int32:
+				//
+				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLinkUpdatedByAlias, "id")), v)
+			case string, *string:
+				// apply search
+				//base = store.AddSearchTerm(base, )
+			}
+		case "updated_by":
+			switch v := value.(type) {
+			case int64, int, int32, *int64, *int, *int32:
+				//
+				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLinkAuthorAlias, "id")), v)
+			case string, *string:
+				// apply search
+				//base = store.AddSearchTerm(base, )
+			}
+			filtersApplied++
+		}
+
+	}
+	return base, filtersApplied, nil
 }
 
 func ValidateLinkCreate(caseId int64, input *_go.InputCaseLink) *dberr.DBError {

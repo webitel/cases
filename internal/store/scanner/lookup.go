@@ -87,6 +87,9 @@ func ScanRowLookup(value **_go.Lookup) any {
 			str pgtype.Text
 			row = []pgtype.TextDecoder{
 				TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
 					err := str.DecodeText(nil, src)
 					if err != nil {
 						return err
@@ -99,6 +102,9 @@ func ScanRowLookup(value **_go.Lookup) any {
 					return nil
 				}),
 				TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
 					err := str.DecodeText(nil, src)
 					if err != nil {
 						return err

@@ -17,6 +17,8 @@ import (
 var CaseMetadata = model.NewObjectMetadata(
 	[]*model.Field{
 		{Name: "etag", Default: true},
+		{Name: "id", Default: false},
+		{Name: "ver", Default: false},
 		{Name: "created_by", Default: true},
 		{Name: "created_at", Default: true},
 		{Name: "updated_by", Default: false},
@@ -44,7 +46,8 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "status_condition", Default: true},
 		{Name: "sla", Default: true},
 		{Name: "comments", Default: true},
-		{Name: "links", Default: true},
+		{Name: "links", Default: false},
+		{Name: "files", Default: false},
 		{Name: "related_cases", Default: false},
 	})
 
@@ -56,6 +59,12 @@ type CaseService struct {
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
 	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata)
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
+	for column, value := range req.GetFilters() {
+		if column == "" || value == "" {
+			continue
+		}
+		searchOpts.Filter[column] = value
+	}
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
 	}
@@ -207,7 +216,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		return nil, cerror.NewInternalError("app.case.create_case.event_publish.failed", err.Error())
 	}
-
+	c.NormalizeResponseCase(newCase, req)
 	return newCase, nil
 }
 
@@ -254,9 +263,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, cerror.NewInternalError("app.case.update_case.store_update_failed", err.Error())
 	}
 
-	// Encode etag from the comment ID and version
-	e := etag.EncodeEtag(etag.EtagCaseComment, int64(updatedCase.Id), updatedCase.Ver)
-	updatedCase.Etag = e
+	c.NormalizeResponseCase(updatedCase, req)
 	return updatedCase, nil
 }
 
@@ -285,26 +292,6 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 		return nil, cerror.NewBadRequestError("app.case.new_case_service.check_args.app", "unable to init case service, app is nil")
 	}
 	return &CaseService{app: app}, nil
-}
-
-func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, opts model.Locator) {
-	fields := opts.GetFields()
-	if len(fields) == 0 {
-		fields = CaseMetadata.GetDefaultFields()
-	}
-	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
-	for _, re := range res.Items {
-		if hasEtag {
-			re.Etag = etag.EncodeEtag(etag.EtagCase, re.Id, re.Ver)
-			// hide
-			if !hasId {
-				re.Id = 0
-			}
-			if !hasVer {
-				re.Ver = 0
-			}
-		}
-	}
 }
 
 func (c *CaseService) ValidateUpdateInput(
@@ -357,6 +344,8 @@ func (c *CaseService) ValidateUpdateInput(
 	return nil
 }
 
+// region UTILITY
+
 func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.AppError {
 	if input.Subject == "" {
 		return cerror.NewBadRequestError("app.case.create_case.subject_required", "Case subject is required")
@@ -392,3 +381,26 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 	}
 	return nil
 }
+
+// NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.
+func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, opts model.Fielder) {
+	fields := opts.GetFields()
+	if len(fields) == 0 {
+		fields = CaseMetadata.GetDefaultFields()
+	}
+	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
+	for _, item := range res.Items {
+		util.NormalizeEtags(hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
+	}
+}
+
+// NormalizeResponseCase validates and normalizes the response cases.Case to the front-end side.
+func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) {
+	fields := opts.GetFields()
+	if len(fields) == 0 {
+		fields = CaseMetadata.GetDefaultFields()
+	}
+	util.NormalizeEtag(fields, &re.Etag, &re.Id, &re.Ver)
+}
+
+// endregion

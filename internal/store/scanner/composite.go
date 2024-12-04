@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-func GetCompositeTextScanFunction[T any](subScanPlan []func(*T) any, into *[]*T) TextDecoder {
+func GetCompositeTextScanFunction[T any](subScanPlan []func(*T) any, into *[]*T, callback func() error) TextDecoder {
 	return func(src []byte) error {
 
 		rows, err := pgtype.ParseUntypedTextArray(string(src))
@@ -26,6 +26,9 @@ func GetCompositeTextScanFunction[T any](subScanPlan []func(*T) any, into *[]*T)
 					raw.ScanValue(scanNode)
 				default:
 					scanFunc := TextDecoder(func(src []byte) error {
+						if len(src) == 0 {
+							return nil
+						}
 						switch val := scanNode.(type) {
 						case ScanFunc:
 							err = val.Scan(src)
@@ -55,6 +58,10 @@ func GetCompositeTextScanFunction[T any](subScanPlan []func(*T) any, into *[]*T)
 				return scanErr
 			}
 			*into = append(*into, &node)
+		}
+		err = callback()
+		if err != nil {
+			return err
 		}
 		return nil
 	}

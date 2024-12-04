@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	authmodel "github.com/webitel/cases/auth/model"
 	"strconv"
 	"strings"
 
@@ -26,7 +27,10 @@ type CaseCommentStore struct {
 type CommentScan func(comment *_go.CaseComment) any
 
 const (
-	caseCommentLeft = "cc"
+	caseCommentLeft           = "cc"
+	caseCommentAuthorAlias    = "au"
+	caseCommentCreatedByAlias = "cb"
+	caseCommentUpdatedByAlias = "cb"
 )
 
 // Publish implements store.CommentCaseStore for publishing a single comment.
@@ -100,7 +104,7 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 		selectBuilder,
 		caseCommentLeft,
 		rpc.Fields,
-		rpc.Session.GetUserId(),
+		rpc.Session,
 	)
 	if dbErr != nil {
 		return nil, nil, dbErr
@@ -240,7 +244,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 		queryBuilder,
 		caseCommentLeft,
 		rpc.Fields,
-		rpc.Session.GetUserId(),
+		rpc.Session,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -415,7 +419,7 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 		selectBuilder,
 		caseCommentLeft,
 		rpc.Fields,
-		rpc.Session.GetUserId(),
+		rpc.Session,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -434,11 +438,12 @@ func convertToScanArgs(plan []func(comment *_go.CaseComment) any, comment *_go.C
 }
 
 // Helper function to build the select columns and scan plan based on the fields requested.
+// Session required to get some columns
 func buildCommentSelectColumnsAndPlan(
 	base sq.SelectBuilder,
 	left string,
 	fields []string,
-	userID int64,
+	session *authmodel.Session,
 ) (sq.SelectBuilder, []func(comment *_go.CaseComment) any, *dberr.DBError) {
 	var plan []func(comment *_go.CaseComment) any
 
@@ -492,10 +497,13 @@ func buildCommentSelectColumnsAndPlan(
 				return &comment.Edited
 			})
 		case "can_edit":
-			base = base.Column(fmt.Sprintf(`(%s.created_by = %d) can_edit`, left, userID))
-			plan = append(plan, func(comment *_go.CaseComment) any {
-				return &comment.CanEdit
-			})
+			if session != nil {
+				base = base.Column(fmt.Sprintf(`(%s.created_by = %d) can_edit`, left, session.GetUserId()))
+				plan = append(plan, func(comment *_go.CaseComment) any {
+					return &comment.CanEdit
+				})
+			}
+
 		default:
 			return base, nil, dberr.NewDBError("postgres.case_comment.build_comment_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))
 		}
@@ -506,6 +514,71 @@ func buildCommentSelectColumnsAndPlan(
 	}
 
 	return base, plan, nil
+}
+
+func buildCommentsSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(link *_go.CaseComment) any, int, *dberr.DBError) {
+	alias := "comments"
+	if caseAlias == alias {
+		alias = "sub_" + alias
+	}
+	base := sq.
+		Select().
+		From("cases.case_comment " + alias).
+		Where(fmt.Sprintf("%s = %s", store.Ident(alias, "case_id"), store.Ident(caseAlias, "id")))
+
+	base, plan, dbErr := buildCommentSelectColumnsAndPlan(base, alias, opts.Fields, opts.Session)
+	if dbErr != nil {
+		return base, nil, 0, dbErr
+	}
+	base, applied, dbErr := applyCaseCommentFilters(opts, base, alias)
+	if dbErr != nil {
+		return base, nil, 0, dbErr
+	}
+	base = store.ApplyPaging(opts, base)
+	return base, plan, applied, nil
+}
+
+func applyCaseCommentFilters(opts *model.SearchOptions, base sq.SelectBuilder, alias string) (updatedBase sq.SelectBuilder, filtersApplied int, err *dberr.DBError) {
+	if opts == nil || len(opts.Filter) == 0 {
+		return base, 0, nil
+	}
+
+	for column, value := range opts.Filter {
+		if !util.ContainsStringIgnoreCase(opts.Fields, column) {
+			continue
+		}
+		switch column {
+		case "created_by":
+			switch v := value.(type) {
+			case int64, int, int32, *int64, *int, *int32:
+				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseCommentCreatedByAlias, "id")), v)
+			case string, *string:
+				// apply search
+				//base = store.AddSearchTerm(base, )
+			}
+		case "author":
+			switch v := value.(type) {
+			case int64, int, int32, *int64, *int, *int32:
+				//
+				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseCommentAuthorAlias, "id")), v)
+			case string, *string:
+				// apply search
+				//base = store.AddSearchTerm(base, )
+			}
+		case "updated_by":
+			switch v := value.(type) {
+			case int64, int, int32, *int64, *int, *int32:
+				//
+				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseCommentUpdatedByAlias, "id")), v)
+			case string, *string:
+				// apply search
+				//base = store.AddSearchTerm(base, )
+			}
+			filtersApplied++
+		}
+
+	}
+	return
 }
 
 func NewCaseCommentStore(store store.Store) (store.CaseCommentStore, error) {

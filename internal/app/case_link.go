@@ -20,6 +20,8 @@ type CaseLinkService struct {
 var CaseLinkMetadata = model.NewObjectMetadata(
 	[]*model.Field{
 		{"etag", true},
+		{"id", false},
+		{"ver", false},
 		{"created_by", true},
 		{"created_at", true},
 		{"updated_by", false},
@@ -48,12 +50,14 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 	if err != nil {
 		return nil, cerror.NewInternalError("app.case_link.locate.get_list.error", err.Error())
 	}
+	if len(links.Items) == 0 {
+		return nil, cerror.NewNotFoundError("app.case_link.locate.check_items.error", "not found")
+	}
 	res := links.Items[0]
 	// hide etag if needed
 	NormalizeResponseLink(res, req)
 
-	//Return the located comment
-	return links.Items[0], nil
+	return res, nil
 }
 
 func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkRequest) (*cases.CaseLink, error) {
@@ -64,7 +68,7 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 	} else if req.Input.GetUrl() == "" {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.check_args.url", "Url is required for each link")
 	}
-	caseTID, err := etag.EtagOrId(etag.EtagCaseLink, req.CaseEtag)
+	caseTID, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
@@ -155,7 +159,7 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 	return &CaseLinkService{app: app}, nil
 }
 
-func NormalizeResponseLink(res *cases.CaseLink, opts model.Locator) {
+func NormalizeResponseLink(res *cases.CaseLink, opts model.Fielder) {
 	fields := opts.GetFields()
 	if len(opts.GetFields()) == 0 {
 		fields = CaseLinkMetadata.GetDefaultFields()
@@ -173,7 +177,7 @@ func NormalizeResponseLink(res *cases.CaseLink, opts model.Locator) {
 	}
 }
 
-func NormalizeResponseLinks(res *cases.CaseLinkList, opts model.Locator) {
+func NormalizeResponseLinks(res *cases.CaseLinkList, opts model.Fielder) {
 	fields := opts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseLinkMetadata.GetDefaultFields()

@@ -26,18 +26,30 @@ type SearchOptions struct {
 	UnknownFields []string
 }
 
-type Searcher interface {
-	Locator
+type Lister interface {
+	Fielder
+	Pager
+	Searcher
+}
+
+type Sorter interface {
+	GetSort() []string
+}
+
+type Pager interface {
 	GetPage() int32
 	GetSize() int32
+}
+
+type Searcher interface {
 	GetQ() string
 }
 
-type Locator interface {
+type Fielder interface {
 	GetFields() []string
 }
 
-func NewSearchOptions(ctx context.Context, searcher Searcher, objMetadata ObjectMetadatter) *SearchOptions {
+func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMetadatter) *SearchOptions {
 	opts := &SearchOptions{
 		Context: ctx,
 		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
@@ -63,7 +75,7 @@ func NewSearchOptions(ctx context.Context, searcher Searcher, objMetadata Object
 	return opts
 }
 
-func NewLocateOptions(ctx context.Context, locator Locator, objMetadata ObjectMetadatter) *SearchOptions {
+func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMetadatter) *SearchOptions {
 	opts := &SearchOptions{
 		Context: ctx,
 		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
@@ -124,6 +136,10 @@ func (rpc *SearchOptions) GetPage() int32 {
 	}
 	// <nop> -or- <nolimit>
 	return 0
+}
+
+func (rpc *SearchOptions) GetSort() []string {
+	return rpc.Sort
 }
 
 func (rpc *SearchOptions) CurrentTime() time.Time {

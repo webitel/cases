@@ -2,9 +2,9 @@ package store
 
 import (
 	"fmt"
-	"strings"
-
 	"github.com/Masterminds/squirrel"
+	"github.com/webitel/cases/model"
+	"strings"
 )
 
 const (
@@ -41,6 +41,7 @@ func ParseSearchTerm(q string) (s string, operator string) {
 	} else {
 		return "%" + q + "%", ComparisonILike
 	}
+
 }
 
 func AddSearchTerm(base squirrel.SelectBuilder, q string, columns ...string) squirrel.SelectBuilder {
@@ -48,5 +49,36 @@ func AddSearchTerm(base squirrel.SelectBuilder, q string, columns ...string) squ
 	for _, column := range columns {
 		base = base.Where(fmt.Sprintf("%s %s ?", column, operator), search)
 	}
+	return base
+}
+
+func ApplyPaging(opts model.Pager, base squirrel.SelectBuilder) squirrel.SelectBuilder {
+	if opts.GetSize() > 0 {
+		base = base.Limit(uint64(opts.GetSize() + 1))
+		if opts.GetPage() > 1 {
+			base = base.Offset(uint64((opts.GetPage() - 1) * opts.GetSize()))
+		}
+	}
+
+	return base
+}
+
+func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder) squirrel.SelectBuilder {
+	if len(opts.GetSort()) != 0 {
+		for _, s := range opts.GetSort() {
+			desc := strings.HasPrefix(s, "-")
+			if desc {
+				s = strings.TrimPrefix(s, "-")
+			}
+
+			if desc {
+				s += " DESC"
+			} else {
+				s += " ASC"
+			}
+			base = base.OrderBy(s)
+		}
+	}
+
 	return base
 }
