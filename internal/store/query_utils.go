@@ -23,8 +23,35 @@ func FormAsCTE(in squirrel.Sqlizer, alias string) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	query = fmt.Sprintf("%s AS (%s)", alias, query)
+	query = fmt.Sprintf("WITH %s AS (%s)", alias, query)
 	return query, args, nil
+}
+
+func FormAsCTEs(in map[string]squirrel.Sqlizer) (string, []any, error) {
+
+	var (
+		i              int
+		resultingQuery string
+		resultingArgs  []any
+	)
+	for alias, sqlizer := range in {
+		query, args, _ := sqlizer.ToSql()
+		if i == 0 {
+			// init
+			resultingQuery = fmt.Sprintf("WITH %s AS (%s)", alias, query)
+			resultingArgs = args
+		} else {
+			resultingQuery += fmt.Sprintf("%s AS (%s)", alias, query)
+			resultingArgs = append(resultingArgs, args...)
+		}
+
+		if len(in)-1 != i {
+			resultingQuery += ","
+		}
+		i++
+	}
+
+	return resultingQuery, resultingArgs, nil
 }
 
 // ParseSearchTerm delimit searches for the regexp search indicators and if found returns string without indicators and indicator that regexp search found.

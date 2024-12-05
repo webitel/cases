@@ -286,17 +286,17 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 }
 
 func buildCreateLinkQuery(rpc *model.CreateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []func(link *_go.CaseLink) any, *dberr.DBError) {
-	// insert
-	base := squirrel.SelectBuilder{}.Prefix(`WITH i AS (INSERT INTO cases.case_link (created_by, updated_by, name, url, case_id, dc) VALUES (?, ?,
-	                                                                                           NULLIF(?, ''),
-	                                                                                           ?,
-	                                                                                           ?, ?) RETURNING *)`,
-		rpc.Session.GetUserId(), rpc.Session.GetUserId(), add.GetName(), add.GetUrl(), rpc.ParentID, rpc.Session.GetDomainId())
-
+	insertAlias := "i"
+	insert := squirrel.
+		Insert("cases.case_link").
+		Columns("created_by", "updated_by", "name", "url", "case_id", "dc").
+		Values(rpc.Session.GetUserId(), rpc.Session.GetUserId(), add.GetName(), add.GetUrl(), rpc.ParentID, rpc.Session.GetDomainId()).
+		Suffix("RETURNING *")
 	// select
-	base = base.From("i").PlaceholderFormat(squirrel.Dollar)
+	query, args, _ := store.FormAsCTE(insert, insertAlias)
+	base := squirrel.Select().From(insertAlias).Prefix(query, args...).PlaceholderFormat(squirrel.Dollar).Where("i.created_by = ?", 10454)
 	// build plan from columns
-	return buildLinkSelectColumnsAndPlan(base, "i", rpc.Fields)
+	return buildLinkSelectColumnsAndPlan(base, insertAlias, rpc.Fields)
 }
 
 func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []func(link *_go.CaseLink) any, *dberr.DBError) {
@@ -428,9 +428,8 @@ func applyCaseLinkFilters(opts *model.SearchOptions, base squirrel.SelectBuilder
 				// apply search
 				//base = store.AddSearchTerm(base, )
 			}
-			filtersApplied++
 		}
-
+		filtersApplied++
 	}
 	return base, filtersApplied, nil
 }
