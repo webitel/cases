@@ -45,7 +45,7 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "service", Default: true},
 		{Name: "status_condition", Default: true},
 		{Name: "sla", Default: true},
-		{Name: "comments", Default: true},
+		{Name: "comments", Default: false},
 		{Name: "links", Default: false},
 		{Name: "files", Default: false},
 		{Name: "related_cases", Default: false},

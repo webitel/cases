@@ -305,6 +305,7 @@ WITH inserted_sla AS (
                   (SELECT unnest(ARRAY [`
 
 	// Add placeholders for each priorityId to build the unnest array dynamically
+	//TODO REMOVE %d
 	for i, priorityId := range rpc.Ids {
 		if i > 0 {
 			query += ", "

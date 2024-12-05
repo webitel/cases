@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	authmodel "github.com/webitel/cases/auth/model"
 	"time"
+
+	authmodel "github.com/webitel/cases/auth/model"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx"
@@ -193,64 +195,39 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	sla int,
 	slaCondition int,
 ) (sq.SelectBuilder, []CaseScan, error) {
-	// Combined parameters map
-	// This map consolidates all necessary parameters for the SQL query.
-	// It includes case data, links, and related case information.
+	// Parameters for the main case and nested JSON arrays
 	params := map[string]interface{}{
 		// Case-level parameters
-		"date":                rpc.CurrentTime(),                          // Current timestamp
-		"user":                rpc.Session.GetUserId(),                    // ID of the user creating the case
-		"dc":                  rpc.Session.GetDomainId(),                  // Domain context for the case
-		"sla":                 sla,                                        // SLA ID
-		"sla_condition":       slaCondition,                               // SLA condition ID
-		"status":              caseItem.Status.GetId(),                    // Case status
-		"service":             caseItem.Service.GetId(),                   // Associated service
-		"rating":              caseItem.Rate.GetRating(),                  // Rating for the case
-		"close_result":        caseItem.Close.CloseResult,                 // Closing result
-		"priority":            caseItem.Priority.GetId(),                  // Priority of the case
-		"source":              caseItem.Source.GetId(),                    // Source of the case
-		"close_reason":        caseItem.Close.CloseReason.GetId(),         // Reason for closure
-		"contact_group":       caseItem.Group.GetId(),                     // Associated contact group
-		"close_reason_group":  caseItem.CloseReasonGroup.GetId(),          // Close reason group
-		"subject":             caseItem.Subject,                           // Subject of the case
-		"planned_reaction_at": util.LocalTime(caseItem.PlannedReactionAt), // Planned reaction time
-		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),  // Planned resolution time
-		"reporter":            caseItem.Reporter.GetId(),                  // Reporter ID
-		"impacted":            caseItem.Impacted.GetId(),                  // Impacted contact ID
-		"description":         caseItem.Description,                       // Case description
-		"assignee":            caseItem.Assignee.GetId(),                  // Assigned user ID
-
-		// Links parameters
-		"link_names": pq.Array(func() []string {
-			if caseItem.Links != nil && len(caseItem.Links.Items) > 0 {
-				return extractLinkNames(caseItem.Links)
-			}
-			return []string{}
-		}()), // Extract names of associated links
-		"link_urls": pq.Array(func() []string {
-			if caseItem.Links != nil && len(caseItem.Links.Items) > 0 {
-				return extractLinkUrls(caseItem.Links)
-			}
-			return []string{}
-		}()), // Extract URLs of associated links
-
-		// Related cases parameters
-		"related_ids": pq.Array(func() []int64 {
-			if caseItem.Related != nil && len(caseItem.Related.Items) > 0 {
-				return extractRelatedIds(caseItem.Related)
-			}
-			return []int64{}
-		}()), // Extract related case IDs
-		"related_types": pq.Array(func() []int {
-			if caseItem.Related != nil && len(caseItem.Related.Items) > 0 {
-				return extractRelatedTypes(caseItem.Related)
-			}
-			return []int{}
-		}()), // Extract related case types
+		"date":                rpc.CurrentTime(),
+		"user":                rpc.Session.GetUserId(),
+		"dc":                  rpc.Session.GetDomainId(),
+		"sla":                 sla,
+		"sla_condition":       slaCondition,
+		"status":              caseItem.Status.GetId(),
+		"service":             caseItem.Service.GetId(),
+		"rating":              caseItem.Rate.GetRating(),
+		"close_result":        caseItem.Close.CloseResult,
+		"priority":            caseItem.Priority.GetId(),
+		"source":              caseItem.Source.GetId(),
+		"close_reason":        caseItem.Close.CloseReason.GetId(),
+		"contact_group":       caseItem.Group.GetId(),
+		"close_reason_group":  caseItem.CloseReasonGroup.GetId(),
+		"subject":             caseItem.Subject,
+		"planned_reaction_at": util.LocalTime(caseItem.PlannedReactionAt),
+		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),
+		"reporter":            caseItem.Reporter.GetId(),
+		"impacted":            caseItem.Impacted.GetId(),
+		"description":         caseItem.Description,
+		"assignee":            caseItem.Assignee.GetId(),
+		//-------------------------------------------------//
+		//------ CASE One-to-Many ( 1 : n ) Attributes ----//
+		//-------------------------------------------------//
+		// Links and related cases as JSON arrays
+		"links":   extractLinksJSON(caseItem.Links),
+		"related": extractRelatedJSON(caseItem.Related),
 	}
 
-	// Define CTEs
-	// These CTEs help build the SQL query for creating a case and managing related data.
+	// Define CTEs for the main case
 	statusConditionCTE := `
 		status_condition_cte AS (
 			SELECT sc.id AS status_condition_id
@@ -268,49 +245,53 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			SELECT nextval('cases.case_id'::regclass) AS id
 		)`
 
-	// Consolidated query
-	// The main SQL query with common table expressions (CTEs) for inserting the case, links, and related cases.
+	// Consolidated query for inserting the case, links, and related cases
 	query := `
-WITH ` + statusConditionCTE + `, ` + prefixCTE + `, ` + caseLeft + ` AS (
-    INSERT INTO cases.case (
-        id, name, rating, dc, created_at, created_by, updated_at, updated_by, close_result,
-        priority, source, close_reason, status, contact_group, close_reason_group,
-        subject, planned_reaction_at, planned_resolve_at, reporter, impacted,
-        service, description, assignee, sla, sla_condition_id, status_condition
-    ) VALUES (
-	    (SELECT id FROM id_cte),
-	     CONCAT(
-            (SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)
-        ),
-        :rating, :dc, :date, :user, :date, :user, :close_result,
-        :priority, :source, :close_reason, :status, :contact_group, :close_reason_group,
-        :subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
-        :service, :description, :assignee, :sla, :sla_condition,
-        (SELECT status_condition_id FROM status_condition_cte)
-    ) RETURNING *
-),
-` + linksAlias + ` AS (
-    INSERT INTO cases.case_link (
-        name, url, dc, created_by, created_at, updated_by, updated_at, case_id
-    ) SELECT
-        link_name, link_url, :dc, :user, :date, :user, :date, c.id
-    FROM UNNEST(ARRAY[:link_names]::text[]) AS link_name,
-         UNNEST(ARRAY[:link_urls]::text[]) AS link_url,
-         (SELECT id FROM ` + caseLeft + `) AS c
-),
-` + relatedAlias + ` AS (
-    INSERT INTO cases.related_case (
-        parent_case_id, child_case_id, relation_type, dc, created_by, created_at, updated_by, updated_at
-    ) SELECT
-        c.id, related_id, related_type, :dc, :user, :date, :user, :date
-    FROM UNNEST(:related_ids::bigint[], :related_types::int[])
-    AS related(related_id, related_type),
-    (SELECT id FROM ` + caseLeft + `) AS c
-)
+	WITH
+		` + statusConditionCTE + `,
+		` + prefixCTE + `,
+		` + caseLeft + ` AS (
+			INSERT INTO cases.case (
+				id, name, rating, dc, created_at, created_by, updated_at, updated_by, close_result,
+				priority, source, close_reason, status, contact_group, close_reason_group,
+				subject, planned_reaction_at, planned_resolve_at, reporter, impacted,
+				service, description, assignee, sla, sla_condition_id, status_condition
+			) VALUES (
+				(SELECT id FROM id_cte),
+				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
+				:rating, :dc, :date, :user, :date, :user, :close_result,
+				:priority, :source, :close_reason, :status, :contact_group, :close_reason_group,
+				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
+				:service, :description, :assignee, :sla, :sla_condition,
+				(SELECT status_condition_id FROM status_condition_cte)
+			)
+			RETURNING *
+		),
+		` + linksAlias + ` AS (
+			INSERT INTO cases.case_link (
+				name, url, dc, created_by, created_at, updated_by, updated_at, case_id
+			)
+			SELECT
+				item ->> 'name',
+				item ->> 'url',
+				:dc, :user, :date, :user, :date, (SELECT id FROM ` + caseLeft + `)
+			FROM jsonb_array_elements(:links) AS item
+		),
+		` + relatedAlias + ` AS (
+			INSERT INTO cases.related_case (
+				parent_case_id, child_case_id, relation_type, dc, created_by, created_at, updated_by, updated_at
+			)
+			SELECT
+				(SELECT id FROM ` + caseLeft + `),
+				(item ->> 'id')::bigint,
+				(item ->> 'type')::int,
+				:dc, :user, :date, :user, :date
+			FROM jsonb_array_elements(:related) AS item
+		)
 	`
 
 	// **Bind named query and parameters**
-	// **This binds the named parameters in the query to the provided `params` map, converting it into a positional query with arguments.**
+	// **This binds the named parameters in the query to the provided params map, converting it into a positional query with arguments.**
 	// **Example:**
 	// **  Query: "INSERT INTO cases.case (name, subject) VALUES (:name, :subject)"**
 	// **  Params: map[string]interface{}{"name": "test_name", "subject": "test_subject"}**
@@ -321,7 +302,6 @@ WITH ` + statusConditionCTE + `, ` + prefixCTE + `, ` + caseLeft + ` AS (
 	}
 
 	// Construct SELECT query to return case data
-	// This builds the final SELECT query with all necessary columns and associated scan plan.
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
 		rpc.Session,
 		sq.Select().PrefixExpr(sq.Expr(boundQuery, args...)),
@@ -331,58 +311,40 @@ WITH ` + statusConditionCTE + `, ` + prefixCTE + `, ` + caseLeft + ` AS (
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.case.create.build_select_query_error", err)
 	}
 
-	// Add FROM clause at the end
 	selectBuilder = selectBuilder.From(caseLeft)
 
 	return selectBuilder, plan, nil
 }
 
-// extractLinkNames extracts the names of links from the given links list.
-func extractLinkNames(links *_go.CaseLinkList) []string {
+// Helper functions to generate JSON arrays for links and related cases
+func extractLinksJSON(links *_go.CaseLinkList) []byte {
 	if links == nil || len(links.Items) == 0 {
-		return []string{}
+		return []byte("[]")
 	}
-	var names []string
+	var jsonArray []map[string]interface{}
 	for _, link := range links.Items {
-		names = append(names, link.Name)
+		jsonArray = append(jsonArray, map[string]interface{}{
+			"name": link.Name,
+			"url":  link.Url,
+		})
 	}
-	return names
+	jsonData, _ := json.Marshal(jsonArray)
+	return jsonData
 }
 
-// extractLinkUrls extracts the URLs of links from the given links list.
-func extractLinkUrls(links *_go.CaseLinkList) []string {
-	if links == nil || len(links.Items) == 0 {
-		return []string{}
-	}
-	var urls []string
-	for _, link := range links.Items {
-		urls = append(urls, link.Url)
-	}
-	return urls
-}
-
-// extractRelatedIds extracts the child case IDs of related cases from the given related cases list.
-func extractRelatedIds(related *_go.RelatedCaseList) []int64 {
+func extractRelatedJSON(related *_go.RelatedCaseList) []byte {
 	if related == nil || len(related.Items) == 0 {
-		return []int64{}
+		return []byte("[]")
 	}
-	ids := make([]int64, len(related.Items))
-	for i, item := range related.Items {
-		ids[i] = item.GetId()
+	var jsonArray []map[string]interface{}
+	for _, item := range related.Items {
+		jsonArray = append(jsonArray, map[string]interface{}{
+			"id":   item.GetId(),
+			"type": item.GetRelationType(),
+		})
 	}
-	return ids
-}
-
-// extractRelatedTypes extracts the relation types of related cases.
-func extractRelatedTypes(related *_go.RelatedCaseList) []int {
-	if related == nil || len(related.Items) == 0 {
-		return []int{}
-	}
-	types := make([]int, len(related.Items))
-	for i, item := range related.Items {
-		types[i] = int(item.GetRelationType())
-	}
-	return types
+	jsonData, _ := json.Marshal(jsonArray)
+	return jsonData
 }
 
 // ConvertRelationType validates the cases.RelationType and returns its integer representation.

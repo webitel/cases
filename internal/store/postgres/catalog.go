@@ -1245,6 +1245,7 @@ func (s *CatalogStore) buildUpdateCatalogQuery(
 	//
 	// If ROOT is NOT NULL ---- user try to update service
 	// Status / Prefix / Close reason could not be set for service
+	//TODO REMOVE %d
 	checkRoot := fmt.Sprintf(`
 WITH root_check AS (
     SELECT root_id
