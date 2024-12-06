@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	authmodel "github.com/webitel/cases/auth/model"
 	"strconv"
 	"strings"
+
+	authmodel "github.com/webitel/cases/auth/model"
 
 	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
@@ -445,7 +446,34 @@ func buildCommentSelectColumnsAndPlan(
 	fields []string,
 	session *authmodel.Session,
 ) (sq.SelectBuilder, []func(comment *_go.CaseComment) any, *dberr.DBError) {
-	var plan []func(comment *_go.CaseComment) any
+	var (
+		plan           []func(link *_go.CaseComment) any
+		createdByAlias string
+		joinCreatedBy  = func() {
+			if createdByAlias != "" {
+				return
+			}
+			createdByAlias = caseLinkCreatedByAlias
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.created_by", caseCommentCreatedByAlias, left))
+		}
+		updatedByAlias string
+		joinUpdatedBy  = func() {
+			if updatedByAlias != "" {
+				return
+			}
+			updatedByAlias = caseLinkUpdatedByAlias
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.updated_by", caseCommentUpdatedByAlias, left))
+		}
+		authorAlias string
+		joinAuthor  = func() {
+			if authorAlias != "" {
+				return
+			}
+			joinCreatedBy()
+			authorAlias = caseLinkAuthorAlias
+			base = base.LeftJoin(fmt.Sprintf("contacts.contact %s ON %[1]s.id = %s.contact_id", authorAlias, createdByAlias))
+		}
+	)
 
 	for _, field := range fields {
 		switch field {
@@ -460,7 +488,8 @@ func buildCommentSelectColumnsAndPlan(
 				return &comment.Ver
 			})
 		case "created_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.created_by) created_by", left))
+			joinCreatedBy()
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text created_by", caseCommentCreatedByAlias))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanRowLookup(&comment.CreatedBy)
 			})
@@ -470,7 +499,8 @@ func buildCommentSelectColumnsAndPlan(
 				return scanner.ScanTimestamp(&comment.CreatedAt)
 			})
 		case "updated_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by", left))
+			joinUpdatedBy()
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text updated_by", caseCommentUpdatedByAlias))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanRowLookup(&comment.UpdatedBy)
 			})
@@ -485,9 +515,8 @@ func buildCommentSelectColumnsAndPlan(
 				return &comment.Text
 			})
 		case "author":
-			base = base.Column(fmt.Sprintf(`(SELECT ROW(ct.id, ct.common_name)::text
-					FROM contacts.contact ct
-					WHERE id = (SELECT contact_id FROM directory.wbt_user WHERE id = %s.created_by)) author`, left))
+			joinAuthor()
+			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, %[1]s.common_name)::text author`, caseCommentAuthorAlias))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanRowLookup(&comment.Author)
 			})
@@ -538,7 +567,11 @@ func buildCommentsSelectAsSubquery(opts *model.SearchOptions, caseAlias string) 
 	return base, plan, applied, nil
 }
 
-func applyCaseCommentFilters(opts *model.SearchOptions, base sq.SelectBuilder, alias string) (updatedBase sq.SelectBuilder, filtersApplied int, err *dberr.DBError) {
+func applyCaseCommentFilters(
+	opts *model.SearchOptions,
+	base sq.SelectBuilder,
+	alias string,
+) (updatedBase sq.SelectBuilder, filtersApplied int, err *dberr.DBError) {
 	if opts == nil || len(opts.Filter) == 0 {
 		return base, 0, nil
 	}
@@ -554,7 +587,7 @@ func applyCaseCommentFilters(opts *model.SearchOptions, base sq.SelectBuilder, a
 				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseCommentCreatedByAlias, "id")), v)
 			case string, *string:
 				// apply search
-				//base = store.AddSearchTerm(base, )
+				// base = store.AddSearchTerm(base, )
 			}
 		case "author":
 			switch v := value.(type) {
@@ -563,7 +596,7 @@ func applyCaseCommentFilters(opts *model.SearchOptions, base sq.SelectBuilder, a
 				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseCommentAuthorAlias, "id")), v)
 			case string, *string:
 				// apply search
-				//base = store.AddSearchTerm(base, )
+				// base = store.AddSearchTerm(base, )
 			}
 		case "updated_by":
 			switch v := value.(type) {
@@ -572,7 +605,7 @@ func applyCaseCommentFilters(opts *model.SearchOptions, base sq.SelectBuilder, a
 				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseCommentUpdatedByAlias, "id")), v)
 			case string, *string:
 				// apply search
-				//base = store.AddSearchTerm(base, )
+				// base = store.AddSearchTerm(base, )
 			}
 			filtersApplied++
 		}

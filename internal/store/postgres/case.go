@@ -406,7 +406,13 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 			Special        bool
 			Disabled       bool
 		}
-		if err = rows.Scan(&entry.Day, &entry.StartTimeOfDay, &entry.EndTimeOfDay, &entry.Special, &entry.Disabled); err != nil {
+		if err = rows.Scan(
+			&entry.Day,
+			&entry.StartTimeOfDay,
+			&entry.EndTimeOfDay,
+			&entry.Special,
+			&entry.Disabled,
+		); err != nil {
 			return fmt.Errorf("failed to scan calendar entry: %w", err)
 		}
 		if !entry.Disabled {
