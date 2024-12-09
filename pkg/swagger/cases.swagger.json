@@ -73,7 +73,7 @@
   "paths": {
     "/cases": {
       "get": {
-        "operationId": "SearchCases",
+        "operationId": "Cases_SearchCases",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -134,6 +134,13 @@
               "type": "string"
             },
             "collectionFormat": "multi"
+          },
+          {
+            "name": "filters",
+            "description": "This is a request variable of the map type. The query format is \"map_name[key]=value\", e.g. If the map name is Age, the key type is string, and the value type is integer, the query parameter is expressed as Age[\"bob\"]=18",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -142,7 +149,7 @@
       },
       "post": {
         "summary": "on create, we should accept service and all parameters that correspond to it,\npriority have the fields that were directly set from the front-end and if they are empty we should\nfill them from service (we can't change the SLA and SLA conditions)\netag doesn't play any role on this API",
-        "operationId": "CreateCase",
+        "operationId": "Cases_CreateCase",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -186,7 +193,7 @@
     "/cases/catalogs": {
       "get": {
         "summary": "Retrieve a list of catalogs or search catalogs",
-        "operationId": "ListCatalogs",
+        "operationId": "Catalogs_ListCatalogs",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -260,7 +267,7 @@
             "type": "string"
           },
           {
-            "name": "q.fetch_type",
+            "name": "q.fetchType",
             "description": "The type of data fetching for catalog services\n\n - PARTIAL: Only essential fields like [ Id, Name, Description, Created/Updated at ].\n\nPartial info includes only essential fields.\n - FULL: The fetch type indicates whether to retrieve\nall available data for the catalog ( FULL ) or only essential fields ( PARTIAL ).\n\nFull info includes all fields of the catalog.",
             "in": "query",
             "required": false,
@@ -293,7 +300,7 @@
       },
       "post": {
         "summary": "Create a new catalog",
-        "operationId": "CreateCatalog",
+        "operationId": "Catalogs_CreateCatalog",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -326,7 +333,7 @@
     "/cases/catalogs/{id}": {
       "get": {
         "summary": "Locate a catalog by ID",
-        "operationId": "LocateCatalog",
+        "operationId": "Catalogs_LocateCatalog",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -357,7 +364,7 @@
       },
       "delete": {
         "summary": "Delete a catalog",
-        "operationId": "DeleteCatalog",
+        "operationId": "Catalogs_DeleteCatalog",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -393,7 +400,7 @@
       },
       "put": {
         "summary": "Update an existing catalog",
-        "operationId": "UpdateCatalog",
+        "operationId": "Catalogs_UpdateCatalog",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -433,7 +440,7 @@
       },
       "patch": {
         "summary": "Update an existing catalog",
-        "operationId": "UpdateCatalog2",
+        "operationId": "Catalogs_UpdateCatalog2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -475,7 +482,7 @@
     "/cases/close_reason_groups": {
       "get": {
         "summary": "Retrieve a list of close reason groups or search close reason groups",
-        "operationId": "ListCloseReasonGroups",
+        "operationId": "CloseReasonGroups_ListCloseReasonGroups",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -549,7 +556,7 @@
       },
       "post": {
         "summary": "Create a new close reason group",
-        "operationId": "CreateCloseReasonGroup",
+        "operationId": "CloseReasonGroups_CreateCloseReasonGroup",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -582,7 +589,7 @@
     "/cases/close_reason_groups/{id}": {
       "get": {
         "summary": "Locate a close reason group by ID",
-        "operationId": "LocateCloseReasonGroup",
+        "operationId": "CloseReasonGroups_LocateCloseReasonGroup",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -622,7 +629,7 @@
       },
       "delete": {
         "summary": "Delete a close reason group",
-        "operationId": "DeleteCloseReasonGroup",
+        "operationId": "CloseReasonGroups_DeleteCloseReasonGroup",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -652,7 +659,7 @@
       },
       "put": {
         "summary": "Update an existing close reason group",
-        "operationId": "UpdateCloseReasonGroup",
+        "operationId": "CloseReasonGroups_UpdateCloseReasonGroup",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -690,7 +697,7 @@
       },
       "patch": {
         "summary": "Update an existing close reason group",
-        "operationId": "UpdateCloseReasonGroup2",
+        "operationId": "CloseReasonGroups_UpdateCloseReasonGroup2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -730,7 +737,7 @@
     "/cases/comments/{etag}": {
       "get": {
         "summary": "Retrieve a specific comment by its etag",
-        "operationId": "LocateComment",
+        "operationId": "CaseComments_LocateComment",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -771,7 +778,7 @@
       },
       "delete": {
         "summary": "Delete a specific comment by its etag",
-        "operationId": "DeleteComment",
+        "operationId": "CaseComments_DeleteComment",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -814,7 +821,7 @@
     "/cases/comments/{input.etag}": {
       "put": {
         "summary": "Update a specific comment by its etag",
-        "operationId": "UpdateComment",
+        "operationId": "CaseComments_UpdateComment",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -874,7 +881,7 @@
       },
       "patch": {
         "summary": "Update a specific comment by its etag",
-        "operationId": "UpdateComment2",
+        "operationId": "CaseComments_UpdateComment2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -933,9 +940,9 @@
         ]
       }
     },
-    "/cases/links/{case_etag}": {
+    "/cases/links/{caseEtag}": {
       "post": {
-        "operationId": "CreateLink",
+        "operationId": "CaseLinks_CreateLink",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -952,7 +959,7 @@
         },
         "parameters": [
           {
-            "name": "case_etag",
+            "name": "caseEtag",
             "description": "new comment link",
             "in": "path",
             "required": true,
@@ -995,7 +1002,7 @@
     },
     "/cases/links/{etag}": {
       "get": {
-        "operationId": "LocateLink",
+        "operationId": "CaseLinks_LocateLink",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1034,7 +1041,7 @@
         ]
       },
       "delete": {
-        "operationId": "DeleteLink",
+        "operationId": "CaseLinks_DeleteLink",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1064,7 +1071,7 @@
     },
     "/cases/links/{input.etag}": {
       "put": {
-        "operationId": "UpdateLink",
+        "operationId": "CaseLinks_UpdateLink",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1125,7 +1132,7 @@
         ]
       },
       "patch": {
-        "operationId": "UpdateLink2",
+        "operationId": "CaseLinks_UpdateLink2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1189,7 +1196,7 @@
     "/cases/priorities": {
       "get": {
         "summary": "Retrieve a list of priorities or search priorities",
-        "operationId": "ListPriorities",
+        "operationId": "Priorities_ListPriorities",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1269,7 +1276,7 @@
       },
       "post": {
         "summary": "Create a new priority",
-        "operationId": "CreatePriority",
+        "operationId": "Priorities_CreatePriority",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1313,7 +1320,7 @@
     "/cases/priorities/{id}": {
       "get": {
         "summary": "Locate a priority by ID",
-        "operationId": "LocatePriority",
+        "operationId": "Priorities_LocatePriority",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1355,7 +1362,7 @@
       },
       "delete": {
         "summary": "Delete a priority",
-        "operationId": "DeletePriority",
+        "operationId": "Priorities_DeletePriority",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1385,7 +1392,7 @@
       },
       "put": {
         "summary": "Update an existing priority",
-        "operationId": "UpdatePriority",
+        "operationId": "Priorities_UpdatePriority",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1434,7 +1441,7 @@
       },
       "patch": {
         "summary": "Update an existing priority",
-        "operationId": "UpdatePriority2",
+        "operationId": "Priorities_UpdatePriority2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1482,9 +1489,9 @@
         ]
       }
     },
-    "/cases/related/{case_etag}": {
+    "/cases/related/{caseEtag}": {
       "post": {
-        "operationId": "CreateRelatedCase",
+        "operationId": "RelatedCases_CreateRelatedCase",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1501,7 +1508,7 @@
         },
         "parameters": [
           {
-            "name": "case_etag",
+            "name": "caseEtag",
             "description": "new/existing comments belong to (id accepted)",
             "in": "path",
             "required": true,
@@ -1525,7 +1532,7 @@
             "type": "string"
           },
           {
-            "name": "input.relation_type",
+            "name": "input.relationType",
             "description": " - Blocks: inversed\n - DuplicatedBy: inversed\n - CausedBy: inversed\n - IsParentOf: inversed\n - RelatesTo: bidirectional",
             "in": "query",
             "required": false,
@@ -1544,7 +1551,7 @@
             "default": "BlockedBy"
           },
           {
-            "name": "input.related_to.id",
+            "name": "input.relatedTo.id",
             "description": "default, readonly system fields",
             "in": "query",
             "required": false,
@@ -1552,34 +1559,34 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.ver",
+            "name": "input.relatedTo.ver",
             "in": "query",
             "required": false,
             "type": "integer",
             "format": "int32"
           },
           {
-            "name": "input.related_to.etag",
+            "name": "input.relatedTo.etag",
             "description": "main field required for read, update and delete",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.created_by.id",
+            "name": "input.relatedTo.createdBy.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.created_by.name",
+            "name": "input.relatedTo.createdBy.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.created_at",
+            "name": "input.relatedTo.createdAt",
             "description": "unixmilli",
             "in": "query",
             "required": false,
@@ -1587,20 +1594,20 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.updated_by.id",
+            "name": "input.relatedTo.updatedBy.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.updated_by.name",
+            "name": "input.relatedTo.updatedBy.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.updated_at",
+            "name": "input.relatedTo.updatedAt",
             "description": "unixmilli",
             "in": "query",
             "required": false,
@@ -1608,34 +1615,34 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.name",
+            "name": "input.relatedTo.name",
             "description": "name of the case, formed by the prefix defined in Catalog and int, in docs uses as id",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.subject",
+            "name": "input.relatedTo.subject",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.description",
+            "name": "input.relatedTo.description",
             "description": "free-form text to describe case",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.contact_info",
+            "name": "input.relatedTo.contactInfo",
             "description": "free-form text to describe contact information",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.planned_reaction_at",
+            "name": "input.relatedTo.plannedReactionAt",
             "description": "planned reaction time calculated by sla and conditions, taking into account the calendar (unixmilli)",
             "in": "query",
             "required": false,
@@ -1643,7 +1650,7 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.planned_resolve_at",
+            "name": "input.relatedTo.plannedResolveAt",
             "description": "planned resolve time calculated on-flight by sla and conditions, taking into account the calendar (unixmilli)",
             "in": "query",
             "required": false,
@@ -1651,157 +1658,157 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.status.id",
+            "name": "input.relatedTo.status.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.status.name",
+            "name": "input.relatedTo.status.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.close_reason_group.id",
+            "name": "input.relatedTo.closeReasonGroup.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.close_reason_group.name",
+            "name": "input.relatedTo.closeReasonGroup.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.author.id",
+            "name": "input.relatedTo.author.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.author.name",
+            "name": "input.relatedTo.author.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.assignee.id",
+            "name": "input.relatedTo.assignee.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.assignee.name",
+            "name": "input.relatedTo.assignee.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.reporter.id",
+            "name": "input.relatedTo.reporter.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.reporter.name",
+            "name": "input.relatedTo.reporter.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.impacted.id",
+            "name": "input.relatedTo.impacted.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.impacted.name",
+            "name": "input.relatedTo.impacted.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.group.id",
+            "name": "input.relatedTo.group.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.group.name",
+            "name": "input.relatedTo.group.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.priority.id",
+            "name": "input.relatedTo.priority.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.priority.name",
+            "name": "input.relatedTo.priority.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.source.id",
+            "name": "input.relatedTo.source.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.source.name",
+            "name": "input.relatedTo.source.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.status_condition.id",
+            "name": "input.relatedTo.statusCondition.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.status_condition.name",
+            "name": "input.relatedTo.statusCondition.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.close.close_result",
+            "name": "input.relatedTo.close.closeResult",
             "description": "rich text with comment on resulting case",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.close.close_reason.id",
+            "name": "input.relatedTo.close.closeReason.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.close.close_reason.name",
+            "name": "input.relatedTo.close.closeReason.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.rate.rating",
+            "name": "input.relatedTo.rate.rating",
             "description": "rating, formed from api calls",
             "in": "query",
             "required": false,
@@ -1809,14 +1816,14 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.rate.rating_comment",
+            "name": "input.relatedTo.rate.ratingComment",
             "description": "(optional)",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.timing.resolved_at",
+            "name": "input.relatedTo.timing.resolvedAt",
             "description": "actual time when this case was resolved",
             "in": "query",
             "required": false,
@@ -1824,7 +1831,7 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.timing.reacted_at",
+            "name": "input.relatedTo.timing.reactedAt",
             "description": "actual time when this case changed it's status from initial",
             "in": "query",
             "required": false,
@@ -1832,7 +1839,7 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.timing.difference_in_reaction",
+            "name": "input.relatedTo.timing.differenceInReaction",
             "description": "difference between actual and planned reaction time, taking into account the calendar",
             "in": "query",
             "required": false,
@@ -1840,7 +1847,7 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.timing.difference_in_resolve",
+            "name": "input.relatedTo.timing.differenceInResolve",
             "description": "difference between actual and planned resolve time, taking into account the calendar",
             "in": "query",
             "required": false,
@@ -1848,20 +1855,20 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.service.id",
+            "name": "input.relatedTo.service.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.service.name",
+            "name": "input.relatedTo.service.name",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
-            "name": "input.related_to.comments.page",
+            "name": "input.relatedTo.comments.page",
             "description": "Current page number.",
             "in": "query",
             "required": false,
@@ -1869,40 +1876,40 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.comments.next",
+            "name": "input.relatedTo.comments.next",
             "description": "Flag to indicate if more pages are available.",
             "in": "query",
             "required": false,
             "type": "boolean"
           },
           {
-            "name": "input.related_to.related.page",
+            "name": "input.relatedTo.related.page",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.related.next",
+            "name": "input.relatedTo.related.next",
             "in": "query",
             "required": false,
             "type": "boolean"
           },
           {
-            "name": "input.related_to.links.page",
+            "name": "input.relatedTo.links.page",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.links.next",
+            "name": "input.relatedTo.links.next",
             "in": "query",
             "required": false,
             "type": "boolean"
           },
           {
-            "name": "input.related_to.files.page",
+            "name": "input.relatedTo.files.page",
             "description": "Current page number.",
             "in": "query",
             "required": false,
@@ -1910,21 +1917,21 @@
             "format": "int64"
           },
           {
-            "name": "input.related_to.files.next",
+            "name": "input.relatedTo.files.next",
             "description": "Indicator if there is a next page.",
             "in": "query",
             "required": false,
             "type": "boolean"
           },
           {
-            "name": "input.related_to.sla.id",
+            "name": "input.relatedTo.sla.id",
             "in": "query",
             "required": false,
             "type": "string",
             "format": "int64"
           },
           {
-            "name": "input.related_to.sla.name",
+            "name": "input.relatedTo.sla.name",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1937,7 +1944,7 @@
     },
     "/cases/related/{etag}": {
       "get": {
-        "operationId": "LocateRelatedCase",
+        "operationId": "RelatedCases_LocateRelatedCase",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1976,7 +1983,7 @@
         ]
       },
       "delete": {
-        "operationId": "DeleteRelatedCase",
+        "operationId": "RelatedCases_DeleteRelatedCase",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2018,7 +2025,7 @@
     },
     "/cases/related/{input.etag}": {
       "put": {
-        "operationId": "UpdateRelatedCase",
+        "operationId": "RelatedCases_UpdateRelatedCase",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2047,10 +2054,10 @@
             "schema": {
               "type": "object",
               "properties": {
-                "relation_type": {
+                "relationType": {
                   "$ref": "#/definitions/casesRelationType"
                 },
-                "related_to": {
+                "relatedTo": {
                   "$ref": "#/definitions/casesCase",
                   "title": "child"
                 }
@@ -2074,7 +2081,7 @@
         ]
       },
       "patch": {
-        "operationId": "UpdateRelatedCase2",
+        "operationId": "RelatedCases_UpdateRelatedCase2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2103,10 +2110,10 @@
             "schema": {
               "type": "object",
               "properties": {
-                "relation_type": {
+                "relationType": {
                   "$ref": "#/definitions/casesRelationType"
                 },
-                "related_to": {
+                "relatedTo": {
                   "$ref": "#/definitions/casesCase",
                   "title": "child"
                 }
@@ -2133,7 +2140,7 @@
     "/cases/services": {
       "get": {
         "summary": "Retrieve a list of services or search services within a catalog",
-        "operationId": "ListServices",
+        "operationId": "Services_ListServices",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2196,7 +2203,7 @@
             "type": "string"
           },
           {
-            "name": "root_id",
+            "name": "rootId",
             "description": "Filter services by catalog ID (required)",
             "in": "query",
             "required": false,
@@ -2217,7 +2224,7 @@
       },
       "post": {
         "summary": "Create a new service within a catalog",
-        "operationId": "CreateService",
+        "operationId": "Services_CreateService",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2250,7 +2257,7 @@
     "/cases/services/{id}": {
       "get": {
         "summary": "Locate a service by ID",
-        "operationId": "LocateService",
+        "operationId": "Services_LocateService",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2281,7 +2288,7 @@
       },
       "delete": {
         "summary": "Delete a service",
-        "operationId": "DeleteService",
+        "operationId": "Services_DeleteService",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2317,7 +2324,7 @@
       },
       "put": {
         "summary": "Update an existing service",
-        "operationId": "UpdateService",
+        "operationId": "Services_UpdateService",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2357,7 +2364,7 @@
       },
       "patch": {
         "summary": "Update an existing service",
-        "operationId": "UpdateService2",
+        "operationId": "Services_UpdateService2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2399,7 +2406,7 @@
     "/cases/slas": {
       "get": {
         "summary": "Retrieve a list of SLAs or search SLA conditions",
-        "operationId": "ListSLAs",
+        "operationId": "SLAs_ListSLAs",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2479,7 +2486,7 @@
       },
       "post": {
         "summary": "Create a new SLA",
-        "operationId": "CreateSLA",
+        "operationId": "SLAs_CreateSLA",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2512,7 +2519,7 @@
     "/cases/slas/{id}": {
       "get": {
         "summary": "Locate an SLA by ID",
-        "operationId": "LocateSLA",
+        "operationId": "SLAs_LocateSLA",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2552,7 +2559,7 @@
       },
       "delete": {
         "summary": "Delete an SLA",
-        "operationId": "DeleteSLA",
+        "operationId": "SLAs_DeleteSLA",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2574,13 +2581,6 @@
             "required": true,
             "type": "string",
             "format": "int64"
-          },
-          {
-            "name": "sla_id",
-            "in": "query",
-            "required": true,
-            "type": "string",
-            "format": "int64"
           }
         ],
         "tags": [
@@ -2589,7 +2589,7 @@
       },
       "put": {
         "summary": "Update an existing SLA",
-        "operationId": "UpdateSLA",
+        "operationId": "SLAs_UpdateSLA",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2627,7 +2627,7 @@
       },
       "patch": {
         "summary": "Update an existing SLA",
-        "operationId": "UpdateSLA2",
+        "operationId": "SLAs_UpdateSLA2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2667,7 +2667,7 @@
     "/cases/sources": {
       "get": {
         "summary": "Retrieve a list of sources or search sources",
-        "operationId": "ListSources",
+        "operationId": "Sources_ListSources",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2767,7 +2767,7 @@
       },
       "post": {
         "summary": "Create a new source",
-        "operationId": "CreateSource",
+        "operationId": "Sources_CreateSource",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2801,7 +2801,7 @@
     "/cases/sources/{id}": {
       "get": {
         "summary": "Locate a source by ID",
-        "operationId": "LocateSource",
+        "operationId": "Sources_LocateSource",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2843,7 +2843,7 @@
       },
       "delete": {
         "summary": "Delete a source",
-        "operationId": "DeleteSource",
+        "operationId": "Sources_DeleteSource",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2874,7 +2874,7 @@
       },
       "put": {
         "summary": "Update an existing source",
-        "operationId": "UpdateSource",
+        "operationId": "Sources_UpdateSource",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2912,7 +2912,7 @@
       },
       "patch": {
         "summary": "Update an existing source",
-        "operationId": "UpdateSource2",
+        "operationId": "Sources_UpdateSource2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -2952,7 +2952,7 @@
     "/cases/statuses": {
       "get": {
         "summary": "Retrieve a list of statuses or search statuses",
-        "operationId": "ListStatuses",
+        "operationId": "Statuses_ListStatuses",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3032,7 +3032,7 @@
       },
       "post": {
         "summary": "Create a new status",
-        "operationId": "CreateStatus",
+        "operationId": "Statuses_CreateStatus",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3065,7 +3065,7 @@
     "/cases/statuses/{id}": {
       "get": {
         "summary": "Locate a status by ID",
-        "operationId": "LocateStatus",
+        "operationId": "Statuses_LocateStatus",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3105,7 +3105,7 @@
       },
       "delete": {
         "summary": "Delete a status",
-        "operationId": "DeleteStatus",
+        "operationId": "Statuses_DeleteStatus",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3135,7 +3135,7 @@
       },
       "put": {
         "summary": "Update an existing status",
-        "operationId": "UpdateStatus",
+        "operationId": "Statuses_UpdateStatus",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3173,7 +3173,7 @@
       },
       "patch": {
         "summary": "Update an existing status",
-        "operationId": "UpdateStatus2",
+        "operationId": "Statuses_UpdateStatus2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3210,10 +3210,10 @@
         ]
       }
     },
-    "/cases/{case_etag}/comments": {
+    "/cases/{caseEtag}/comments": {
       "get": {
         "summary": "Retrieve a list of comments associated with a specific case",
-        "operationId": "ListComments",
+        "operationId": "CaseComments_ListComments",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3230,7 +3230,7 @@
         },
         "parameters": [
           {
-            "name": "case_etag",
+            "name": "caseEtag",
             "description": "Etag or ID of the case for which comments are requested.",
             "in": "path",
             "required": true,
@@ -3295,7 +3295,7 @@
       },
       "post": {
         "summary": "Publish comment into a specific case",
-        "operationId": "PublishComment",
+        "operationId": "CaseComments_PublishComment",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3312,7 +3312,7 @@
         },
         "parameters": [
           {
-            "name": "case_etag",
+            "name": "caseEtag",
             "description": "Etag or ID of the case to which comments belong.",
             "in": "path",
             "required": true,
@@ -3344,10 +3344,10 @@
         ]
       }
     },
-    "/cases/{case_etag}/files": {
+    "/cases/{caseEtag}/files": {
       "get": {
         "summary": "Retrieve a list of files associated with a case",
-        "operationId": "ListFiles",
+        "operationId": "CaseFiles_ListFiles",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3364,7 +3364,7 @@
         },
         "parameters": [
           {
-            "name": "case_etag",
+            "name": "caseEtag",
             "description": "ID of the case to fetch files for (required).",
             "in": "path",
             "required": true,
@@ -3421,10 +3421,10 @@
         ]
       }
     },
-    "/cases/{case_etag}/links": {
+    "/cases/{caseEtag}/links": {
       "get": {
         "summary": "With Case",
-        "operationId": "ListLinks",
+        "operationId": "CaseLinks_ListLinks",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3441,7 +3441,7 @@
         },
         "parameters": [
           {
-            "name": "case_etag",
+            "name": "caseEtag",
             "in": "path",
             "required": true,
             "type": "string"
@@ -3498,10 +3498,10 @@
         ]
       }
     },
-    "/cases/{case_etag}/related": {
+    "/cases/{caseEtag}/related": {
       "get": {
         "summary": "The related cases can be obtained bidirectionally as child or parent, but we should consider them from the perspective of the requested case, by inverting their connection type\nRequested case always a parent and related cases a children",
-        "operationId": "ListRelatedCases",
+        "operationId": "RelatedCases_ListRelatedCases",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3518,7 +3518,7 @@
         },
         "parameters": [
           {
-            "name": "case_etag",
+            "name": "caseEtag",
             "in": "path",
             "required": true,
             "type": "string"
@@ -3577,7 +3577,7 @@
     },
     "/cases/{etag}": {
       "get": {
-        "operationId": "LocateCase",
+        "operationId": "Cases_LocateCase",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3616,7 +3616,7 @@
       },
       "delete": {
         "summary": "on delete, we should require etag, to understand if user has right version of the case\nalso will be deleted all objects connected to the case, such as comments, related cases, links and files",
-        "operationId": "DeleteCase",
+        "operationId": "Cases_DeleteCase",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3659,7 +3659,7 @@
     "/cases/{input.etag}": {
       "put": {
         "summary": "on update, we should be able to accept service and all parameters that correspond to it,\nif service and corresponding to it fields were changed simultaneously then priority have\nservice and dependent fields set from the service automatically (we can't change the SLA, SLA conditions )\netag is required to update the true version of the case",
-        "operationId": "UpdateCase",
+        "operationId": "Cases_UpdateCase",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3701,7 +3701,7 @@
                   "type": "string",
                   "title": "create: not required;"
                 },
-                "contact_info": {
+                "contactInfo": {
                   "type": "string",
                   "title": "create: not required;"
                 },
@@ -3725,7 +3725,7 @@
                   "$ref": "#/definitions/generalLookup",
                   "title": "create: not required, default initial value from status lookup or ui;"
                 },
-                "close_reason": {
+                "closeReason": {
                   "$ref": "#/definitions/generalLookup",
                   "title": "create: not required;"
                 },
@@ -3793,7 +3793,7 @@
       },
       "patch": {
         "summary": "on update, we should be able to accept service and all parameters that correspond to it,\nif service and corresponding to it fields were changed simultaneously then priority have\nservice and dependent fields set from the service automatically (we can't change the SLA, SLA conditions )\netag is required to update the true version of the case",
-        "operationId": "UpdateCase2",
+        "operationId": "Cases_UpdateCase2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3835,7 +3835,7 @@
                   "type": "string",
                   "title": "create: not required;"
                 },
-                "contact_info": {
+                "contactInfo": {
                   "type": "string",
                   "title": "create: not required;"
                 },
@@ -3859,7 +3859,7 @@
                   "$ref": "#/definitions/generalLookup",
                   "title": "create: not required, default initial value from status lookup or ui;"
                 },
-                "close_reason": {
+                "closeReason": {
                   "$ref": "#/definitions/generalLookup",
                   "title": "create: not required;"
                 },
@@ -3926,10 +3926,10 @@
         ]
       }
     },
-    "/close_reason_groups/{close_reason_group_id}/close_reasons": {
+    "/close_reason_groups/{closeReasonGroupId}/close_reasons": {
       "get": {
         "summary": "Retrieve a list of close reasons or search close reasons",
-        "operationId": "ListCloseReasons",
+        "operationId": "CloseReasons_ListCloseReasons",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -3946,7 +3946,7 @@
         },
         "parameters": [
           {
-            "name": "close_reason_group_id",
+            "name": "closeReasonGroupId",
             "description": "Close reason group ID filter",
             "in": "path",
             "required": true,
@@ -4016,7 +4016,7 @@
       },
       "post": {
         "summary": "Create a new close reason",
-        "operationId": "CreateCloseReason",
+        "operationId": "CloseReasons_CreateCloseReason",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4033,7 +4033,7 @@
         },
         "parameters": [
           {
-            "name": "close_reason_group_id",
+            "name": "closeReasonGroupId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4044,20 +4044,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "description": {
-                  "type": "string"
-                }
-              },
-              "title": "CreateCloseReasonRequest message for creating a new close reason",
-              "required": [
-                "name",
-                "lookup_id"
-              ]
+              "$ref": "#/definitions/CloseReasonsCreateCloseReasonBody"
             }
           }
         ],
@@ -4066,10 +4053,10 @@
         ]
       }
     },
-    "/close_reason_groups/{close_reason_group_id}/close_reasons/{id}": {
+    "/close_reason_groups/{closeReasonGroupId}/close_reasons/{id}": {
       "get": {
         "summary": "Locate a close reason by ID",
-        "operationId": "LocateCloseReason",
+        "operationId": "CloseReasons_LocateCloseReason",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4086,7 +4073,7 @@
         },
         "parameters": [
           {
-            "name": "close_reason_group_id",
+            "name": "closeReasonGroupId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4116,7 +4103,7 @@
       },
       "delete": {
         "summary": "Delete a close reason",
-        "operationId": "DeleteCloseReason",
+        "operationId": "CloseReasons_DeleteCloseReason",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4133,7 +4120,7 @@
         },
         "parameters": [
           {
-            "name": "close_reason_group_id",
+            "name": "closeReasonGroupId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4153,7 +4140,7 @@
       },
       "put": {
         "summary": "Update an existing close reason",
-        "operationId": "UpdateCloseReason",
+        "operationId": "CloseReasons_UpdateCloseReason",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4170,7 +4157,7 @@
         },
         "parameters": [
           {
-            "name": "close_reason_group_id",
+            "name": "closeReasonGroupId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4198,7 +4185,7 @@
       },
       "patch": {
         "summary": "Update an existing close reason",
-        "operationId": "UpdateCloseReason2",
+        "operationId": "CloseReasons_UpdateCloseReason2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4215,7 +4202,7 @@
         },
         "parameters": [
           {
-            "name": "close_reason_group_id",
+            "name": "closeReasonGroupId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4242,10 +4229,10 @@
         ]
       }
     },
-    "/slas/{sla_id}/sla_condition": {
+    "/slas/{slaId}/sla_condition": {
       "post": {
         "summary": "Create a new SLACondition",
-        "operationId": "CreateSLACondition",
+        "operationId": "SLAConditions_CreateSLACondition",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4262,7 +4249,7 @@
         },
         "parameters": [
           {
-            "name": "sla_id",
+            "name": "slaId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4273,35 +4260,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "priorities": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "format": "int64"
-                  },
-                  "title": "List of priority IDs for creation [FROM Priority Dictionary]"
-                },
-                "reaction_time": {
-                  "type": "string",
-                  "format": "int64"
-                },
-                "resolution_time": {
-                  "type": "string",
-                  "format": "int64"
-                }
-              },
-              "title": "CreateSLAConditionRequest message for creating a new SLACondition",
-              "required": [
-                "name",
-                "priorities",
-                "reaction_time",
-                "resolution_time"
-              ]
+              "$ref": "#/definitions/SLAConditionsCreateSLAConditionBody"
             }
           }
         ],
@@ -4310,10 +4269,10 @@
         ]
       }
     },
-    "/slas/{sla_id}/sla_condition/{id}": {
+    "/slas/{slaId}/sla_condition/{id}": {
       "get": {
         "summary": "Locate an SLACondition by ID",
-        "operationId": "LocateSLACondition",
+        "operationId": "SLAConditions_LocateSLACondition",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4330,7 +4289,7 @@
         },
         "parameters": [
           {
-            "name": "sla_id",
+            "name": "slaId",
             "description": "Unique identifier of the SLACondition",
             "in": "path",
             "required": true,
@@ -4363,7 +4322,7 @@
       },
       "delete": {
         "summary": "Delete an SLACondition",
-        "operationId": "DeleteSLACondition",
+        "operationId": "SLAConditions_DeleteSLACondition",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4380,7 +4339,7 @@
         },
         "parameters": [
           {
-            "name": "sla_id",
+            "name": "slaId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4400,7 +4359,7 @@
       },
       "put": {
         "summary": "Update an existing SLACondition",
-        "operationId": "UpdateSLACondition",
+        "operationId": "SLAConditions_UpdateSLACondition",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4417,7 +4376,7 @@
         },
         "parameters": [
           {
-            "name": "sla_id",
+            "name": "slaId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4445,7 +4404,7 @@
       },
       "patch": {
         "summary": "Update an existing SLACondition",
-        "operationId": "UpdateSLACondition2",
+        "operationId": "SLAConditions_UpdateSLACondition2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4462,7 +4421,7 @@
         },
         "parameters": [
           {
-            "name": "sla_id",
+            "name": "slaId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4489,10 +4448,10 @@
         ]
       }
     },
-    "/slas/{sla_id}/sla_conditions": {
+    "/slas/{slaId}/sla_conditions": {
       "get": {
         "summary": "Retrieve a list of SLAConditions or search SLACondition conditions",
-        "operationId": "ListSLAConditions",
+        "operationId": "SLAConditions_ListSLAConditions",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4509,7 +4468,7 @@
         },
         "parameters": [
           {
-            "name": "sla_id",
+            "name": "slaId",
             "description": "Filter by SLA Id",
             "in": "path",
             "required": true,
@@ -4574,7 +4533,7 @@
             "type": "string"
           },
           {
-            "name": "sla_condition_id",
+            "name": "slaConditionId",
             "description": "Filter by SLACondition Id.",
             "in": "query",
             "required": false,
@@ -4587,10 +4546,10 @@
         ]
       }
     },
-    "/statuses/{status_id}/status": {
+    "/statuses/{statusId}/status": {
       "get": {
         "summary": "Retrieve a list of statuses or search status conditions",
-        "operationId": "ListStatusConditions",
+        "operationId": "StatusConditions_ListStatusConditions",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4607,7 +4566,7 @@
         },
         "parameters": [
           {
-            "name": "status_id",
+            "name": "statusId",
             "description": "Filter by Status Id.",
             "in": "path",
             "required": true,
@@ -4678,7 +4637,7 @@
       },
       "post": {
         "summary": "Create a new status condition",
-        "operationId": "CreateStatusCondition",
+        "operationId": "StatusConditions_CreateStatusCondition",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4695,7 +4654,7 @@
         },
         "parameters": [
           {
-            "name": "status_id",
+            "name": "statusId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4706,20 +4665,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "description": {
-                  "type": "string"
-                }
-              },
-              "title": "CreateStatusConditionRequest message for creating a new status",
-              "required": [
-                "name",
-                "lookup_id"
-              ]
+              "$ref": "#/definitions/StatusConditionsCreateStatusConditionBody"
             }
           }
         ],
@@ -4728,10 +4674,10 @@
         ]
       }
     },
-    "/statuses/{status_id}/status/{id}": {
+    "/statuses/{statusId}/status/{id}": {
       "get": {
         "summary": "Locate a status condition by ID",
-        "operationId": "LocateStatusCondition",
+        "operationId": "StatusConditions_LocateStatusCondition",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4748,7 +4694,7 @@
         },
         "parameters": [
           {
-            "name": "status_id",
+            "name": "statusId",
             "description": "ID of the status to be located",
             "in": "path",
             "required": true,
@@ -4781,7 +4727,7 @@
       },
       "delete": {
         "summary": "Delete a status condition",
-        "operationId": "DeleteStatusCondition",
+        "operationId": "StatusConditions_DeleteStatusCondition",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4798,7 +4744,7 @@
         },
         "parameters": [
           {
-            "name": "status_id",
+            "name": "statusId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4818,7 +4764,7 @@
       },
       "put": {
         "summary": "Update an existing status condition",
-        "operationId": "UpdateStatusCondition",
+        "operationId": "StatusConditions_UpdateStatusCondition",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4835,7 +4781,7 @@
         },
         "parameters": [
           {
-            "name": "status_id",
+            "name": "statusId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4863,7 +4809,7 @@
       },
       "patch": {
         "summary": "Update an existing status condition",
-        "operationId": "UpdateStatusCondition2",
+        "operationId": "StatusConditions_UpdateStatusCondition2",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4880,7 +4826,7 @@
         },
         "parameters": [
           {
-            "name": "status_id",
+            "name": "statusId",
             "in": "path",
             "required": true,
             "type": "string",
@@ -4909,6 +4855,69 @@
     }
   },
   "definitions": {
+    "CloseReasonsCreateCloseReasonBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "title": "CreateCloseReasonRequest message for creating a new close reason",
+      "required": [
+        "name",
+        "lookup_id"
+      ]
+    },
+    "SLAConditionsCreateSLAConditionBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "priorities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          },
+          "title": "List of priority IDs for creation [FROM Priority Dictionary]"
+        },
+        "reactionTime": {
+          "type": "string",
+          "format": "int64"
+        },
+        "resolutionTime": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "title": "CreateSLAConditionRequest message for creating a new SLACondition",
+      "required": [
+        "name",
+        "priorities",
+        "reactionTime",
+        "resolutionTime"
+      ]
+    },
+    "StatusConditionsCreateStatusConditionBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "title": "CreateStatusConditionRequest message for creating a new status",
+      "required": [
+        "name",
+        "lookup_id"
+      ]
+    },
     "casesCase": {
       "type": "object",
       "properties": {
@@ -4925,18 +4934,18 @@
           "type": "string",
           "title": "main field required for read, update and delete"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "unixmilli"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "unixmilli"
@@ -4952,16 +4961,16 @@
           "type": "string",
           "title": "free-form text to describe case"
         },
-        "contact_info": {
+        "contactInfo": {
           "type": "string",
           "title": "free-form text to describe contact information"
         },
-        "planned_reaction_at": {
+        "plannedReactionAt": {
           "type": "string",
           "format": "int64",
           "title": "planned reaction time calculated by sla and conditions, taking into account the calendar (unixmilli)"
         },
-        "planned_resolve_at": {
+        "plannedResolveAt": {
           "type": "string",
           "format": "int64",
           "title": "planned resolve time calculated on-flight by sla and conditions, taking into account the calendar (unixmilli)"
@@ -4970,7 +4979,7 @@
           "$ref": "#/definitions/generalLookup",
           "title": "initialized from service/subservice of the catalog, should not be changed when service changed"
         },
-        "close_reason_group": {
+        "closeReasonGroup": {
           "$ref": "#/definitions/generalLookup",
           "title": "defines what close reason lookup we should use for this case, should not be changed when service changed"
         },
@@ -5002,7 +5011,7 @@
           "$ref": "#/definitions/generalLookup",
           "title": "source of the case"
         },
-        "status_condition": {
+        "statusCondition": {
           "$ref": "#/definitions/generalLookup",
           "title": "case state value from the status_lookup"
         },
@@ -5018,7 +5027,7 @@
           "$ref": "#/definitions/casesTimingInfo",
           "title": "planned timings calculated on-flight by the SLA and it's conditions"
         },
-        "sla_condition": {
+        "slaCondition": {
           "type": "array",
           "items": {
             "type": "object",
@@ -5062,20 +5071,20 @@
           "format": "int32",
           "description": "Version number of the comment, used for concurrency control."
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "description": "User who created the comment."
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "description": "Timestamp (in milliseconds) of when the comment was created."
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "description": "User who last updated the comment."
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "description": "Timestamp (in milliseconds) of the last update."
@@ -5088,7 +5097,7 @@
           "type": "boolean",
           "description": "Indicates if the comment was edited; true if created_at \u003c updated_at."
         },
-        "can_edit": {
+        "canEdit": {
           "type": "boolean",
           "description": "Indicates if the comment can be edited by current user."
         },
@@ -5096,7 +5105,7 @@
           "$ref": "#/definitions/generalLookup",
           "description": "Contact-author of the comment."
         },
-        "case_id": {
+        "caseId": {
           "type": "string",
           "format": "int64",
           "description": "Optional relation to the associated case."
@@ -5165,18 +5174,18 @@
           "type": "string",
           "title": "main field required for read, update and delete"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "unixmilli"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64"
         },
@@ -5268,7 +5277,7 @@
           "$ref": "#/definitions/generalLookup",
           "title": "Status associated with the catalog"
         },
-        "close_reason": {
+        "closeReason": {
           "$ref": "#/definitions/generalLookup",
           "title": "Close reason associated with the catalog"
         },
@@ -5288,21 +5297,21 @@
           },
           "title": "Skills associated with the catalog"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "Timestamp when the catalog was created"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "Timestamp when the catalog was last updated"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "User who created the catalog"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "User who last updated the catalog"
         },
@@ -5343,11 +5352,11 @@
     "casesCloseInfo": {
       "type": "object",
       "properties": {
-        "close_result": {
+        "closeResult": {
           "type": "string",
           "title": "rich text with comment on resulting case"
         },
-        "close_reason": {
+        "closeReason": {
           "$ref": "#/definitions/generalLookup",
           "title": "actual close reason value from the close_reason lookup"
         }
@@ -5369,26 +5378,26 @@
           "type": "string",
           "title": "Description of the close reason"
         },
-        "close_reason_group_id": {
+        "closeReasonGroupId": {
           "type": "string",
           "format": "int64",
           "title": "Close Reason Group ID of the close reason"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "CreatedAt timestamp of the close reason"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "UpdatedAt timestamp of the close reason"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "CreatedBy user of the close reason"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "UpdatedBy user of the close reason"
         }
@@ -5411,21 +5420,21 @@
           "type": "string",
           "title": "Description of the close reason group"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "CreatedAt timestamp of the close reason group"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "UpdatedAt timestamp of the close reason group"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "CreatedBy user of the close reason group"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "UpdatedBy user of the close reason group"
         }
@@ -5475,11 +5484,11 @@
     "casesCreateCaseCloseInput": {
       "type": "object",
       "properties": {
-        "close_result": {
+        "closeResult": {
           "type": "string",
           "title": "rich text with comment on resulting case"
         },
-        "close_reason": {
+        "closeReason": {
           "type": "string",
           "format": "int64",
           "title": "actual close reason value from the close_reason lookup"
@@ -5492,10 +5501,10 @@
         "etag": {
           "type": "string"
         },
-        "relation_type": {
+        "relationType": {
           "$ref": "#/definitions/casesRelationType"
         },
-        "related_to": {
+        "relatedTo": {
           "type": "string",
           "format": "int64"
         }
@@ -5524,22 +5533,22 @@
           "type": "boolean",
           "title": "State of the catalog (true for active, false for inactive)"
         },
-        "sla_id": {
+        "slaId": {
           "type": "string",
           "format": "int64",
           "title": "SLA ID associated with the catalog"
         },
-        "status_id": {
+        "statusId": {
           "type": "string",
           "format": "int64",
           "title": "Status ID associated with the catalog"
         },
-        "close_reason_id": {
+        "closeReasonId": {
           "type": "string",
           "format": "int64",
           "title": "Close reason ID associated with the catalog"
         },
-        "team_ids": {
+        "teamIds": {
           "type": "array",
           "items": {
             "type": "string",
@@ -5547,7 +5556,7 @@
           },
           "title": "List of team IDs associated with the catalog"
         },
-        "skill_ids": {
+        "skillIds": {
           "type": "array",
           "items": {
             "type": "string",
@@ -5584,26 +5593,26 @@
           "type": "string",
           "title": "Description of the SLA"
         },
-        "valid_from": {
+        "validFrom": {
           "type": "string",
           "format": "int64",
           "title": "Validity period for the SLA"
         },
-        "valid_to": {
+        "validTo": {
           "type": "string",
           "format": "int64"
         },
-        "calendar_id": {
+        "calendarId": {
           "type": "string",
           "format": "int64",
           "title": "Calendar ID from the \"Calendars\" dictionary"
         },
-        "reaction_time": {
+        "reactionTime": {
           "type": "string",
           "format": "int64",
           "title": "Reaction time"
         },
-        "resolution_time": {
+        "resolutionTime": {
           "type": "string",
           "format": "int64",
           "title": "Resolution time"
@@ -5612,9 +5621,9 @@
       "title": "CreateSLARequest message for creating a new SLA",
       "required": [
         "name",
-        "calendar_id",
-        "reaction_time",
-        "resolution_time"
+        "calendarId",
+        "reactionTime",
+        "resolutionTime"
       ]
     },
     "casesCreateServiceRequest": {
@@ -5624,7 +5633,7 @@
           "type": "string",
           "title": "Name of the service (required)"
         },
-        "root_id": {
+        "rootId": {
           "type": "string",
           "format": "int64",
           "title": "Parent catalog ID (required)"
@@ -5641,22 +5650,22 @@
           "type": "boolean",
           "title": "State of the service (true for active, false for inactive)"
         },
-        "sla_id": {
+        "slaId": {
           "type": "string",
           "format": "int64",
           "title": "SLA ID associated with the service"
         },
-        "group_id": {
+        "groupId": {
           "type": "string",
           "format": "int64",
           "title": "Group ID responsible for the service"
         },
-        "assignee_id": {
+        "assigneeId": {
           "type": "string",
           "format": "int64",
           "title": "Assignee ID responsible for the service"
         },
-        "catalog_id": {
+        "catalogId": {
           "type": "string",
           "format": "int64",
           "title": "ID of the root catalog"
@@ -5718,11 +5727,11 @@
           "format": "int64",
           "description": "Storage file ID."
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "description": "Creator of the file."
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "description": "Creation timestamp in Unix milliseconds."
@@ -5761,7 +5770,7 @@
           "type": "string",
           "title": "create: not required;"
         },
-        "contact_info": {
+        "contactInfo": {
           "type": "string",
           "title": "create: not required;"
         },
@@ -5785,7 +5794,7 @@
           "$ref": "#/definitions/generalLookup",
           "title": "create: not required, default initial value from status lookup or ui;"
         },
-        "close_reason": {
+        "closeReason": {
           "$ref": "#/definitions/generalLookup",
           "title": "create: not required;"
         },
@@ -5887,22 +5896,22 @@
           "type": "boolean",
           "title": "State of the catalog (true for active, false for inactive)"
         },
-        "sla_id": {
+        "slaId": {
           "type": "string",
           "format": "int64",
           "title": "SLA ID associated with the catalog"
         },
-        "status_id": {
+        "statusId": {
           "type": "string",
           "format": "int64",
           "title": "Status ID associated with the catalog"
         },
-        "close_reason_id": {
+        "closeReasonId": {
           "type": "string",
           "format": "int64",
           "title": "Close reason ID associated with the catalog"
         },
-        "team_ids": {
+        "teamIds": {
           "type": "array",
           "items": {
             "type": "string",
@@ -5910,7 +5919,7 @@
           },
           "title": "List of team IDs associated with the catalog"
         },
-        "skill_ids": {
+        "skillIds": {
           "type": "array",
           "items": {
             "type": "string",
@@ -5957,7 +5966,7 @@
           "type": "string",
           "title": "create: not required;"
         },
-        "contact_info": {
+        "contactInfo": {
           "type": "string",
           "title": "create: not required;"
         },
@@ -5986,7 +5995,7 @@
           "format": "int64",
           "title": "create: not required, default initial value from status lookup or ui;"
         },
-        "close_reason": {
+        "closeReason": {
           "type": "string",
           "format": "int64",
           "title": "create: not required;"
@@ -6054,10 +6063,10 @@
         "etag": {
           "type": "string"
         },
-        "relation_type": {
+        "relationType": {
           "$ref": "#/definitions/casesRelationType"
         },
-        "related_to": {
+        "relatedTo": {
           "$ref": "#/definitions/casesCase",
           "title": "child"
         }
@@ -6074,26 +6083,26 @@
           "type": "string",
           "title": "Description of the SLA"
         },
-        "valid_from": {
+        "validFrom": {
           "type": "string",
           "format": "int64",
           "title": "Validity period for the SLA"
         },
-        "valid_to": {
+        "validTo": {
           "type": "string",
           "format": "int64"
         },
-        "calendar_id": {
+        "calendarId": {
           "type": "string",
           "format": "int64",
           "title": "Calendar ID from the \"Calendars\" dictionary"
         },
-        "reaction_time": {
+        "reactionTime": {
           "type": "string",
           "format": "int64",
           "title": "Reaction time"
         },
-        "resolution_time": {
+        "resolutionTime": {
           "type": "string",
           "format": "int64",
           "title": "Resolution time"
@@ -6115,15 +6124,15 @@
           },
           "title": "List of priority IDs for creation"
         },
-        "reaction_time": {
+        "reactionTime": {
           "type": "string",
           "format": "int64"
         },
-        "resolution_time": {
+        "resolutionTime": {
           "type": "string",
           "format": "int64"
         },
-        "sla_id": {
+        "slaId": {
           "type": "string",
           "format": "int64"
         }
@@ -6137,7 +6146,7 @@
           "type": "string",
           "title": "Name of the service (required)"
         },
-        "catalog_id": {
+        "catalogId": {
           "type": "string",
           "format": "int64",
           "title": "The parent catalog (required)"
@@ -6154,22 +6163,22 @@
           "type": "boolean",
           "title": "State of the service (true for active, false for inactive)"
         },
-        "sla_id": {
+        "slaId": {
           "type": "string",
           "format": "int64",
           "title": "SLA ID associated with the service"
         },
-        "group_id": {
+        "groupId": {
           "type": "string",
           "format": "int64",
           "title": "Group ID responsible for the service"
         },
-        "assignee_id": {
+        "assigneeId": {
           "type": "string",
           "format": "int64",
           "title": "Assignee ID responsible for the service"
         },
-        "root_id": {
+        "rootId": {
           "type": "string",
           "format": "int64",
           "title": "ID of the root catalog"
@@ -6240,7 +6249,7 @@
     "casesLocateCloseReasonGroupResponse": {
       "type": "object",
       "properties": {
-        "close_reason_group": {
+        "closeReasonGroup": {
           "$ref": "#/definitions/casesCloseReasonGroup"
         }
       },
@@ -6249,7 +6258,7 @@
     "casesLocateCloseReasonResponse": {
       "type": "object",
       "properties": {
-        "close_reason": {
+        "closeReason": {
           "$ref": "#/definitions/casesCloseReason"
         }
       },
@@ -6267,7 +6276,7 @@
     "casesLocateSLAConditionResponse": {
       "type": "object",
       "properties": {
-        "sla_condition": {
+        "slaCondition": {
           "$ref": "#/definitions/casesSLACondition"
         }
       },
@@ -6336,21 +6345,21 @@
           "type": "string",
           "title": "Description of the priority"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "CreatedAt timestamp of the priority"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "UpdatedAt timestamp of the priority"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "CreatedBy user of the priority"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "UpdatedBy user of the priority"
         },
@@ -6389,7 +6398,7 @@
           "format": "int64",
           "title": "rating, formed from api calls"
         },
-        "rating_comment": {
+        "ratingComment": {
           "type": "string",
           "title": "(optional)"
         }
@@ -6410,18 +6419,18 @@
           "type": "string",
           "title": "main field required for read, update and delete"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "unixmilli"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "unixmilli"
@@ -6429,7 +6438,7 @@
         "child": {
           "$ref": "#/definitions/casesCase"
         },
-        "relation_type": {
+        "relationType": {
           "$ref": "#/definitions/casesRelationType",
           "title": "Case parent = 9; // (optional, always a case that requested)"
         }
@@ -6486,12 +6495,12 @@
           "type": "string",
           "title": "Description of the SLA - optional"
         },
-        "valid_from": {
+        "validFrom": {
           "type": "string",
           "format": "int64",
           "title": "Validity period for the SLA - optional"
         },
-        "valid_to": {
+        "validTo": {
           "type": "string",
           "format": "int64"
         },
@@ -6499,31 +6508,31 @@
           "$ref": "#/definitions/generalLookup",
           "title": "Calendar ID from the \"Calendars\" dictionary - required"
         },
-        "reaction_time": {
+        "reactionTime": {
           "type": "string",
           "format": "int64",
           "title": "Reaction time - required"
         },
-        "resolution_time": {
+        "resolutionTime": {
           "type": "string",
           "format": "int64",
           "title": "Resolution time - required"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "CreatedAt timestamp of the SLA"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "UpdatedAt timestamp of the SLA"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "CreatedBy user of the SLA"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "UpdatedBy user of the SLA"
         }
@@ -6550,36 +6559,36 @@
           },
           "title": "Priorities associated with the SLACondition - fetched as Lookup entities [ Priority name + ID ]"
         },
-        "reaction_time": {
+        "reactionTime": {
           "type": "string",
           "format": "int64",
           "title": "Reaction time - required"
         },
-        "resolution_time": {
+        "resolutionTime": {
           "type": "string",
           "format": "int64",
           "title": "Resolution time - required"
         },
-        "sla_id": {
+        "slaId": {
           "type": "string",
           "format": "int64",
           "title": "SLA ID associated with the SLACondition"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "CreatedAt timestamp of the SLACondition"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "UpdatedAt timestamp of the SLACondition"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "CreatedBy user of the SLACondition"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "UpdatedBy user of the SLACondition"
         }
@@ -6633,7 +6642,7 @@
           "type": "string",
           "title": "Search query string for filtering by name. Supports:\n- Wildcards (*) for substring matching\n- Placeholder (?) for single character substitution\n- Exact match for full names"
         },
-        "fetch_type": {
+        "fetchType": {
           "$ref": "#/definitions/casesFetchType",
           "title": "The type of data fetching for catalog services"
         }
@@ -6651,7 +6660,7 @@
           "type": "string",
           "title": "Name of the service"
         },
-        "root_id": {
+        "rootId": {
           "type": "string",
           "format": "int64",
           "title": "ID of the parent catalog"
@@ -6680,25 +6689,25 @@
           "$ref": "#/definitions/generalLookup",
           "title": "Assignee responsible for the service"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "Timestamp when the service was created"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "Timestamp when the service was last updated"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "User who created the service"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "User who last updated the service"
         },
-        "catalog_id": {
+        "catalogId": {
           "type": "string",
           "format": "int64",
           "title": "Catalogs associated with the service"
@@ -6757,21 +6766,21 @@
           "$ref": "#/definitions/webitelcasesType",
           "title": "Source type of the source"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "CreatedAt timestamp of the source"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "UpdatedAt timestamp of the source"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "CreatedBy user of the source"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "UpdatedBy user of the source"
         }
@@ -6825,26 +6834,26 @@
           "type": "boolean",
           "title": "Final status condition"
         },
-        "status_id": {
+        "statusId": {
           "type": "string",
           "format": "int64",
           "title": "Status ID of the status condition"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "CreatedAt timestamp of the status condition"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "UpdatedAt timestamp of the status condition"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "CreatedBy user of the status condition"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "UpdatedBy user of the status condition"
         }
@@ -6894,22 +6903,22 @@
     "casesTimingInfo": {
       "type": "object",
       "properties": {
-        "resolved_at": {
+        "resolvedAt": {
           "type": "string",
           "format": "int64",
           "title": "actual time when this case was resolved"
         },
-        "reacted_at": {
+        "reactedAt": {
           "type": "string",
           "format": "int64",
           "title": "actual time when this case changed it's status from initial"
         },
-        "difference_in_reaction": {
+        "differenceInReaction": {
           "type": "string",
           "format": "int64",
           "title": "difference between actual and planned reaction time, taking into account the calendar"
         },
-        "difference_in_resolve": {
+        "differenceInResolve": {
           "type": "string",
           "format": "int64",
           "title": "difference between actual and planned resolve time, taking into account the calendar"
@@ -6972,21 +6981,21 @@
           "type": "string",
           "title": "Description of the close reason"
         },
-        "created_at": {
+        "createdAt": {
           "type": "string",
           "format": "int64",
           "title": "CreatedAt timestamp of the close reason"
         },
-        "updated_at": {
+        "updatedAt": {
           "type": "string",
           "format": "int64",
           "title": "UpdatedAt timestamp of the close reason"
         },
-        "created_by": {
+        "createdBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "CreatedBy user of the close reason"
         },
-        "updated_by": {
+        "updatedBy": {
           "$ref": "#/definitions/generalLookup",
           "title": "UpdatedBy user of the close reason"
         }
