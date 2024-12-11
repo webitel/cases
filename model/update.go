@@ -15,12 +15,16 @@ import (
 type UpdateOptions struct {
 	Time time.Time
 	context.Context
-	Session       *session.Session
-	Fields        []string
-	UnknownFields []string
-	Mask          []string
-	IDs           []int64
-	Etags         []*etag.Tid
+	Session *session.Session
+	// output
+	Fields            []string
+	UnknownFields     []string
+	DerivedSearchOpts map[string]*SearchOptions
+	// update
+	Mask []string
+	// filters
+	IDs   []int64
+	Etags []*etag.Tid
 	// ID      int64
 }
 

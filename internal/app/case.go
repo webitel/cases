@@ -60,10 +60,9 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata)
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
 	for column, value := range req.GetFilters() {
-		if column == "" || value == "" {
-			continue
+		if column != "" {
+			searchOpts.Filter[column] = value
 		}
-		searchOpts.Filter[column] = value
 	}
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
@@ -73,7 +72,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	if err != nil {
 		return nil, err
 	}
-	c.NormalizeResponseCases(list, req)
+	c.NormalizeResponseCases(list, req, nil)
 	return list, nil
 }
 
@@ -88,7 +87,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	c.NormalizeResponseCases(list, req)
+	c.NormalizeResponseCases(list, req, nil)
 	return list.Items[0], nil
 }
 
@@ -165,18 +164,10 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Group:            &cases.Lookup{Id: req.Input.Group},
 		Status:           &cases.Lookup{Id: req.Input.Status},
 		CloseReasonGroup: &cases.Lookup{Id: req.Input.CloseReason},
-		Close: &cases.CloseInfo{
-			CloseResult: req.Input.Close.CloseResult,
-			CloseReason: &cases.Lookup{Id: req.Input.Close.CloseReason},
-		},
-		Priority: &cases.Lookup{Id: req.Input.Priority},
-		Service:  &cases.Lookup{Id: req.Input.Service},
-		Links:    links,
-		Related:  related,
-		Rate: &cases.RateInfo{
-			Rating:        req.Input.Rate.GetRating(),
-			RatingComment: req.Input.Rate.GetRatingComment(),
-		},
+		Priority:         &cases.Lookup{Id: req.Input.Priority},
+		Service:          &cases.Lookup{Id: req.Input.Service},
+		Links:            links,
+		Related:          related,
 	}
 
 	createOpts := model.NewCreateOptions(ctx, req, CaseMetadata)
@@ -363,10 +354,6 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 		return cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
 	}
 
-	if input.Reporter == 0 {
-		return cerror.NewBadRequestError("app.case.create_case.reporter_required", "Reporter is required")
-	}
-
 	if input.Impacted == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.impacted_required", "Impacted contact is required")
 	}
@@ -383,14 +370,47 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 }
 
 // NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.
-func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, opts model.Fielder) {
-	fields := opts.GetFields()
+func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) {
+	fields := mainOpts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
 	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
 	for _, item := range res.Items {
-		util.NormalizeEtags(hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
+		util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
+		if item.Reporter == nil {
+			item.Reporter = &cases.Lookup{
+				Name: "Anonymous",
+			}
+		}
+	}
+	for _, field := range fields {
+		switch field {
+		case "comments":
+			//for _, item := range res.Items {
+			//	for _, comment := range item.Comments.Items {
+			//		util.NormalizeEtags(etag.EtagCaseComment, true, true, true, &comment.Id, &comment.Id, &comment.Ver)
+			//	}
+			//
+			//}
+		case "links":
+			for _, item := range res.Items {
+				if item.Links != nil {
+					for _, link := range item.Links.Items {
+						util.NormalizeEtags(etag.EtagCaseLink, true, false, false, &link.Etag, &link.Id, &link.Ver)
+					}
+				}
+			}
+		case "related_cases":
+			for _, item := range res.Items {
+				if item.Related != nil {
+					for _, related := range item.Related.Items {
+						util.NormalizeEtags(etag.EtagRelatedCase, true, false, false, &related.Etag, &related.Id, &related.Ver)
+					}
+				}
+			}
+		}
+
 	}
 }
 
@@ -401,6 +421,12 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 		fields = CaseMetadata.GetDefaultFields()
 	}
 	util.NormalizeEtag(fields, &re.Etag, &re.Id, &re.Ver)
+
+	if re.Reporter == nil {
+		re.Reporter = &cases.Lookup{
+			Name: "Anonymous",
+		}
+	}
 }
 
 // endregion

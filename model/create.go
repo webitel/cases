@@ -15,9 +15,12 @@ type CreateOptions struct {
 	Session         *session.Session
 	context.Context // binding
 	Time            time.Time
-	Fields          []string
-	UnknownFields   []string
-	Ids             []int64
+	// output
+	Fields            []string
+	DerivedSearchOpts map[string]*SearchOptions
+	UnknownFields     []string
+	// filters
+	Ids []int64
 	// ParentID is the attribute to represent parent object, that creation process connected to
 	ParentID int64
 }
