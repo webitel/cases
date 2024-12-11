@@ -226,7 +226,7 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 	deleteOpts := model.DeleteOptions{
 		Session: session,
 		Context: ctx,
-		IDs:     []int64{req.Id},
+		ID:      req.Id,
 		Time:    t,
 	}
 
