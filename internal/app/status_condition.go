@@ -19,7 +19,7 @@ type StatusConditionService struct {
 
 const (
 	ErrStatusNameReq    = "Status name is required"
-	defaultFieldsStatus = "id, name, description, is_initial, is_final"
+	defaultFieldsStatus = "id, name, description, initial, final"
 )
 
 // CreateStatusCondition implements api.StatusConditionsServer.
