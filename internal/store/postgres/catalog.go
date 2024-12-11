@@ -760,6 +760,8 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		searchStr = combinedLike
 		selectFlags["search"] = true
 	}
+	// -------- Apply [Sorting by Name] --------
+	queryBuilder = queryBuilder.OrderBy("catalog.name ASC")
 
 	// -------- Apply [Search] --------
 	// filter by catalog_id if search is enabled

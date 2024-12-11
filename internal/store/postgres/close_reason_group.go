@@ -244,6 +244,9 @@ func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOpti
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
+	// -------- Apply [Sorting by Name] --------
+	queryBuilder = queryBuilder.OrderBy("g.name ASC")
+
 	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 	var sortFields []string
 

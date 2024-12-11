@@ -268,6 +268,9 @@ func (s Status) buildSearchStatusQuery(rpc *model.SearchOptions) (string, []inte
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
+	// -------- Apply [Sorting by Name] --------
+	queryBuilder = queryBuilder.OrderBy("g.name ASC")
+
 	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 
 	var sortFields []string

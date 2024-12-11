@@ -281,6 +281,9 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
+	// -------- Apply [Sorting by Name] --------
+	queryBuilder = queryBuilder.OrderBy("g.name ASC")
+
 	if types, ok := rpc.Filter["type"].([]_go.Type); ok && len(types) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.type": types})
 	}

@@ -347,6 +347,9 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 		queryBuilder = queryBuilder.Where(sq.ILike{"service.name": combinedLike})
 	}
 
+	// -------- Apply [Sorting by Name] --------
+	queryBuilder = queryBuilder.OrderBy("service.name ASC")
+
 	// Apply filtering by state
 	if state, ok := rpc.Filter["state"]; ok {
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.state": state})

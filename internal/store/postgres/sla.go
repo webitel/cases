@@ -286,6 +286,9 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
+	// -------- Apply [Sorting by Name] --------
+	queryBuilder = queryBuilder.OrderBy("g.name ASC")
+
 	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 
 	var sortFields []string

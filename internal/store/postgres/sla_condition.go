@@ -305,7 +305,7 @@ WITH inserted_sla AS (
                   (SELECT unnest(ARRAY [`
 
 	// Add placeholders for each priorityId to build the unnest array dynamically
-	//TODO REMOVE %d
+	// TODO REMOVE %d
 	for i, priorityId := range rpc.Ids {
 		if i > 0 {
 			query += ", "
@@ -411,6 +411,9 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 		combinedLike := strings.Join(substrs, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
+
+	// -------- Apply [Sorting by Name] --------
+	queryBuilder = queryBuilder.OrderBy("g.name ASC")
 
 	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 

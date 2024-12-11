@@ -251,6 +251,9 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
 	}
 
+	// -------- Apply [Sorting by Name] --------
+	queryBuilder = queryBuilder.OrderBy("s.name ASC")
+
 	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 	var sortFields []string
 

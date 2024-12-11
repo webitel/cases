@@ -14,6 +14,7 @@ import (
 	cerror "github.com/webitel/cases/internal/error"
 )
 
+
 var CaseMetadata = model.NewObjectMetadata(
 	[]*model.Field{
 		{Name: "etag", Default: true},
