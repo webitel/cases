@@ -41,6 +41,13 @@ CREATE TABLE cases."case" (
 );
 CREATE INDEX case_dc ON cases."case" USING btree (dc);
 
+-- Table Triggers
+
+create trigger tg_case_rbac after
+insert
+    on
+    cases."case" for each row execute function directory.tg_obj_default_rbac('cases');
+
 
 -- cases.case_acl definition
 
@@ -82,6 +89,13 @@ CREATE TABLE cases.case_comment (
 );
 CREATE INDEX comment_case_dc ON cases.case_comment USING btree (dc);
 CREATE INDEX idx_link_case_id ON cases.case_comment USING btree (case_id);
+
+-- Table Triggers
+
+create trigger tg_case_comment_rbac after
+insert
+    on
+    cases.case_comment for each row execute function directory.tg_obj_default_rbac('case_comments');
 
 
 -- cases.case_comment_acl definition
@@ -398,7 +412,7 @@ CREATE INDEX status_dc ON cases.status USING btree (dc);
 CREATE TABLE cases.status_condition (
 	id int8 DEFAULT nextval('cases.status_condition_id'::regclass) NOT NULL,
 	"name" text NOT NULL,
-	description text NOT NULL,
+	description text NULL,
 	created_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL,
 	updated_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL,
 	created_by int8 NULL,
@@ -593,7 +607,6 @@ ALTER TABLE cases."source" ADD CONSTRAINT source_updated_id_fk FOREIGN KEY (upda
 
 -- cases.status foreign keys
 
-ALTER TABLE cases.status ADD CONSTRAINT status_created_dc_fk FOREIGN KEY (created_by,dc) REFERENCES directory.wbt_user(id,dc) DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.status ADD CONSTRAINT status_created_id_fk FOREIGN KEY (created_by) REFERENCES directory.wbt_user(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.status ADD CONSTRAINT status_domain_fk FOREIGN KEY (dc) REFERENCES directory.wbt_domain(dc) ON DELETE CASCADE;
 ALTER TABLE cases.status ADD CONSTRAINT status_updated_dc_fk FOREIGN KEY (updated_by,dc) REFERENCES directory.wbt_user(id,dc) DEFERRABLE INITIALLY DEFERRED;
