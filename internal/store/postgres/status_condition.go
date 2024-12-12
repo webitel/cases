@@ -251,41 +251,44 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
 	}
 
-	// -------- Apply [Sorting by Name] --------
-	queryBuilder = queryBuilder.OrderBy("s.name ASC")
+	if len(rpc.Sort) > 0 {
+		parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 
-	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
-	var sortFields []string
+		var sortFields []string
 
-	for _, sortField := range parsedFields {
-		desc := false
-		if strings.HasPrefix(sortField, "!") {
-			desc = true
-			sortField = strings.TrimPrefix(sortField, "!")
+		for _, sortField := range parsedFields {
+			desc := false
+			if strings.HasPrefix(sortField, "!") {
+				desc = true
+				sortField = strings.TrimPrefix(sortField, "!")
+			}
+
+			var column string
+			switch sortField {
+			case "name", "description":
+				column = "s." + sortField
+			default:
+				continue
+			}
+
+			if desc {
+				column += " DESC"
+			} else {
+				column += " ASC"
+			}
+
+			sortFields = append(sortFields, column)
 		}
 
-		var column string
-		switch sortField {
-		case "name", "description":
-			column = "s." + sortField
-		default:
-			continue
-		}
-
-		if desc {
-			column += " DESC"
-		} else {
-			column += " ASC"
-		}
-
-		sortFields = append(sortFields, column)
+		// Apply sorting
+		queryBuilder = queryBuilder.OrderBy(sortFields...)
+	} else {
+		// -------- Apply [Sorting by Name] --------
+		queryBuilder = queryBuilder.OrderBy("s.name ASC")
 	}
 
 	page := rpc.GetPage()
 	size := rpc.GetSize()
-
-	// Apply sorting
-	queryBuilder = queryBuilder.OrderBy(sortFields...)
 
 	// Apply offset only if page > 1
 	if page > 1 {
