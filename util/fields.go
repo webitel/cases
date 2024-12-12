@@ -318,9 +318,9 @@ func NormalizeEtag(fields []string, etg *string, id *int64, ver *int32) {
 // Before usage you should call FindEtagFields on requested fields to find hasEtag, hasId, hasVer args.
 // Optimization consists in reduced number of cycles running through requested fields. If you are going to use
 // NormalizeEtag for each item in slice of your elements, FindEtagFields will be executed for each slice element.
-func NormalizeEtags(hasEtag bool, hasId bool, hasVer bool, etg *string, id *int64, ver *int32) {
+func NormalizeEtags(t etag.EtagType, hasEtag bool, hasId bool, hasVer bool, etg *string, id *int64, ver *int32) {
 	if hasEtag {
-		*etg = etag.EncodeEtag(etag.EtagCase, *id, *ver)
+		*etg = etag.EncodeEtag(t, *id, *ver)
 		// hide
 		if !hasId {
 			*id = 0

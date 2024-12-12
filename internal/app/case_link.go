@@ -146,7 +146,7 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		return nil, cerror.NewInternalError("case_comment_service.locate_comment.fetch_error", err.Error())
 	}
 
-	NormalizeResponseLinks(links, req)
+	NormalizeResponseLinks(links, req.GetFields())
 
 	//Return the located comment
 	return links, nil
@@ -177,8 +177,9 @@ func NormalizeResponseLink(res *cases.CaseLink, opts model.Fielder) {
 	}
 }
 
-func NormalizeResponseLinks(res *cases.CaseLinkList, opts model.Fielder) {
-	fields := opts.GetFields()
+func NormalizeResponseLinks(res *cases.CaseLinkList, requestedFields []string) {
+	fields := make([]string, len(requestedFields))
+	copy(fields, requestedFields)
 	if len(fields) == 0 {
 		fields = CaseLinkMetadata.GetDefaultFields()
 	}

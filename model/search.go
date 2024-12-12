@@ -14,16 +14,29 @@ import (
 type SearchOptions struct {
 	Time time.Time
 	context.Context
-	Session       *session.Session
-	Filter        map[string]interface{}
-	Search        string
-	IDs           []int64
-	Sort          []string
-	Fields        []string
-	ParentId      int64
-	Page          int32
-	Size          int32
-	UnknownFields []string
+	Session *session.Session
+	// filters
+	Filter   map[string]interface{}
+	Search   string
+	IDs      []int64
+	ParentId int64
+	// output
+	Fields            []string
+	UnknownFields     []string
+	DerivedSearchOpts map[string]*SearchOptions
+	// paging
+	Page int32
+	Size int32
+	Sort []string
+}
+
+func (s *SearchOptions) SearchDerivedOptionByField(field string) *SearchOptions {
+	for s2, options := range s.DerivedSearchOpts {
+		if s2 == field {
+			return options
+		}
+	}
+	return nil
 }
 
 type Lister interface {
@@ -56,6 +69,7 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 		Page:    searcher.GetPage(),
 		Size:    searcher.GetSize(),
 		Search:  searcher.GetQ(),
+		Filter:  make(map[string]interface{}),
 	}
 	// set current time
 	opts.CurrentTime()

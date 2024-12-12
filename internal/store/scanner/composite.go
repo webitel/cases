@@ -59,9 +59,11 @@ func GetCompositeTextScanFunction[T any](subScanPlan []func(*T) any, into *[]*T,
 			}
 			*into = append(*into, &node)
 		}
-		err = callback()
-		if err != nil {
-			return err
+		if callback != nil {
+			err = callback()
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	}
