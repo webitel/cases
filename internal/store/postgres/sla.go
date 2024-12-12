@@ -286,39 +286,41 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	// -------- Apply [Sorting by Name] --------
-	queryBuilder = queryBuilder.OrderBy("g.name ASC")
+	if len(rpc.Sort) > 0 {
+		parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
 
-	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
+		var sortFields []string
 
-	var sortFields []string
+		for _, sortField := range parsedFields {
+			desc := false
+			if strings.HasPrefix(sortField, "!") {
+				desc = true
+				sortField = strings.TrimPrefix(sortField, "!")
+			}
 
-	for _, sortField := range parsedFields {
-		desc := false
-		if strings.HasPrefix(sortField, "!") {
-			desc = true
-			sortField = strings.TrimPrefix(sortField, "!")
+			var column string
+			switch sortField {
+			case "name", "description", "valid_from", "valid_to":
+				column = "g." + sortField
+			default:
+				continue
+			}
+
+			if desc {
+				column += " DESC"
+			} else {
+				column += " ASC"
+			}
+
+			sortFields = append(sortFields, column)
 		}
 
-		var column string
-		switch sortField {
-		case "name", "description", "valid_from", "valid_to":
-			column = "g." + sortField
-		default:
-			continue
-		}
-
-		if desc {
-			column += " DESC"
-		} else {
-			column += " ASC"
-		}
-
-		sortFields = append(sortFields, column)
+		// Apply sorting
+		queryBuilder = queryBuilder.OrderBy(sortFields...)
+	} else {
+		// -------- Apply [Sorting by Name] --------
+		queryBuilder = queryBuilder.OrderBy("g.name ASC")
 	}
-
-	// Apply sorting
-	queryBuilder = queryBuilder.OrderBy(sortFields...)
 
 	size := rpc.GetSize()
 	page := rpc.GetPage()
