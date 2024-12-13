@@ -2,9 +2,10 @@ package store
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/model"
-	"strings"
 )
 
 const (
@@ -28,7 +29,6 @@ func FormAsCTE(in squirrel.Sqlizer, alias string) (string, []any, error) {
 }
 
 func FormAsCTEs(in map[string]squirrel.Sqlizer) (string, []any, error) {
-
 	var (
 		i              int
 		resultingQuery string
@@ -68,7 +68,6 @@ func ParseSearchTerm(q string) (s string, operator string) {
 	} else {
 		return "%" + q + "%", ComparisonILike
 	}
-
 }
 
 func AddSearchTerm(base squirrel.SelectBuilder, q string, columns ...string) squirrel.SelectBuilder {
@@ -108,4 +107,45 @@ func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder) squirre
 	}
 
 	return base
+}
+
+// AddSorting adds sorting to the query builder based on the provided sort fields and their mappings.
+func Sort(
+	builder squirrel.SelectBuilder,
+	sortFields []string,
+	alias map[string]string,
+	defaultSort string,
+) squirrel.SelectBuilder {
+	var sortClauses []string
+
+	for _, sortField := range sortFields {
+		desc := false
+
+		// Determine the sort direction
+		if strings.HasPrefix(sortField, "-") {
+			desc = true
+			sortField = strings.TrimPrefix(sortField, "-")
+		} else if strings.HasPrefix(sortField, "+") {
+			sortField = strings.TrimPrefix(sortField, "+")
+		}
+
+		// Map the field name to the corresponding alias
+		if column, ok := alias[sortField]; ok {
+			if desc {
+				column += " DESC"
+			} else {
+				column += " ASC"
+			}
+			sortClauses = append(sortClauses, column)
+		}
+	}
+
+	// Apply sorting or fallback to the default sort
+	if len(sortClauses) > 0 {
+		builder = builder.OrderBy(sortClauses...)
+	} else if defaultSort != "" {
+		builder = builder.OrderBy(defaultSort)
+	}
+
+	return builder
 }

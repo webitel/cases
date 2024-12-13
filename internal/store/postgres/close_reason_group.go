@@ -9,14 +9,15 @@ import (
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
-	db "github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store"
+
 	"github.com/webitel/cases/model"
 
 	util "github.com/webitel/cases/util"
 )
 
 type CloseReasonGroup struct {
-	storage db.Store
+	storage store.Store
 }
 
 func (s CloseReasonGroup) Create(rpc *model.CreateOptions, add *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error) {
@@ -244,29 +245,12 @@ func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOpti
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	// -------- Apply [Sorting by Name] --------
-	queryBuilder = queryBuilder.OrderBy("g.name ASC")
-
-	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
-	var sortFields []string
-
-	for _, sortField := range parsedFields {
-		desc := false
-		if strings.HasPrefix(sortField, "!") {
-			desc = true
-			sortField = strings.TrimPrefix(sortField, "!")
-		}
-
-		column := "g." + sortField
-		if desc {
-			column += " DESC"
-		} else {
-			column += " ASC"
-		}
-		sortFields = append(sortFields, column)
+	// Define sortable fields and apply sorting
+	sortableFields := map[string]string{
+		"name":        "g.name",
+		"description": "g.description",
 	}
-
-	queryBuilder = queryBuilder.OrderBy(sortFields...)
+	queryBuilder = store.Sort(queryBuilder, rpc.Sort, sortableFields, "g.name ASC")
 
 	size := rpc.GetSize()
 	page := rpc.Page
@@ -284,7 +268,7 @@ func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOpti
 		return "", nil, dberr.NewDBInternalError("postgres.cases.close_reason_group.query_build.sql_generation_error", err)
 	}
 
-	return db.CompactSQL(query), args, nil
+	return store.CompactSQL(query), args, nil
 }
 
 func (s CloseReasonGroup) buildDeleteCloseReasonGroupQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
@@ -340,11 +324,11 @@ LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
 LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
 `, sql)
 
-	return db.CompactSQL(q), args, nil
+	return store.CompactSQL(q), args, nil
 }
 
 var (
-	createCloseReasonGroupQuery = db.CompactSQL(`
+	createCloseReasonGroupQuery = store.CompactSQL(`
 	WITH ins AS (
 		INSERT INTO cases.close_reason_group (name, dc, created_at, description, created_by, updated_at, updated_by)
 		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $3, $5)
@@ -364,13 +348,13 @@ var (
 	LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
 	`)
 
-	deleteCloseReasonGroupQuery = db.CompactSQL(`
+	deleteCloseReasonGroupQuery = store.CompactSQL(`
 	DELETE FROM cases.close_reason_group
 	WHERE id = ANY($1) AND dc = $2
 `)
 )
 
-func NewCloseReasonGroupStore(store db.Store) (db.CloseReasonGroupStore, error) {
+func NewCloseReasonGroupStore(store store.Store) (store.CloseReasonGroupStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.config.new_close_reason_group.check.bad_arguments",
 			"error creating config interface to the close_reason_group table, main store is nil")

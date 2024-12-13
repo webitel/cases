@@ -210,27 +210,12 @@ func (p *Priority) buildListPriorityQuery(
 		queryBuilder = queryBuilder.Where(sq.ILike{"cp.name": combinedLike})
 	}
 
-	// -------- Apply [Sorting by Name] --------
-	queryBuilder = queryBuilder.OrderBy("cp.name ASC")
-
-	// Handle sorting
-	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
-	var sortFields []string
-	for _, sortField := range parsedFields {
-		desc := strings.HasPrefix(sortField, "!")
-		if desc {
-			sortField = strings.TrimPrefix(sortField, "!")
-		}
-
-		column := "cp." + sortField
-		if desc {
-			column += " DESC"
-		} else {
-			column += " ASC"
-		}
-		sortFields = append(sortFields, column)
+	// Define sortable fields and apply sorting
+	sortableFields := map[string]string{
+		"name":        "cp.name",
+		"description": "cp.description",
 	}
-	queryBuilder = queryBuilder.OrderBy(sortFields...)
+	queryBuilder = store.Sort(queryBuilder, rpc.Sort, sortableFields, "cp.name ASC")
 
 	// Handle pagination
 	size := rpc.GetSize()

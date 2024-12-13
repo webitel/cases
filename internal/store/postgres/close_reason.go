@@ -224,37 +224,12 @@ func (s CloseReason) buildSearchCloseReasonQuery(rpc *model.SearchOptions, close
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	// -------- Apply [Sorting by Name] --------
-	queryBuilder = queryBuilder.OrderBy("g.name ASC")
-
-	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
-	var sortFields []string
-
-	for _, sortField := range parsedFields {
-		desc := false
-		if strings.HasPrefix(sortField, "!") {
-			desc = true
-			sortField = strings.TrimPrefix(sortField, "!")
-		}
-
-		var column string
-		switch sortField {
-		case "name", "description":
-			column = "g." + sortField
-		default:
-			continue
-		}
-
-		if desc {
-			column += " DESC"
-		} else {
-			column += " ASC"
-		}
-
-		sortFields = append(sortFields, column)
+	// Define sortable fields and apply sorting
+	sortableFields := map[string]string{
+		"name":        "g.name",
+		"description": "g.description",
 	}
-
-	queryBuilder = queryBuilder.OrderBy(sortFields...)
+	queryBuilder = store.Sort(queryBuilder, rpc.Sort, sortableFields, "g.name ASC")
 
 	size := rpc.GetSize()
 	page := rpc.Page

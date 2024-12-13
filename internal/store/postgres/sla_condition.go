@@ -412,41 +412,15 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	if len(rpc.Sort) > 0 {
-		parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
-
-		var sortFields []string
-
-		for _, sortField := range parsedFields {
-			desc := false
-			if strings.HasPrefix(sortField, "!") {
-				desc = true
-				sortField = strings.TrimPrefix(sortField, "!")
-			}
-
-			var column string
-			switch sortField {
-			case "name", "reaction_time", "resolution_time", "created_at", "updated_at":
-				column = "g." + sortField
-			default:
-				continue
-			}
-
-			if desc {
-				column += " DESC"
-			} else {
-				column += " ASC"
-			}
-
-			sortFields = append(sortFields, column)
-		}
-
-		// Apply sorting
-		queryBuilder = queryBuilder.OrderBy(sortFields...)
-	} else {
-		// -------- Apply [Sorting by Name] --------
-		queryBuilder = queryBuilder.OrderBy("g.name ASC")
+	// Apply sorting using the AddSorting utility function
+	sortableFields := map[string]string{
+		"name":            "g.name",
+		"reaction_time":   "g.reaction_time",
+		"resolution_time": "g.resolution_time",
+		"created_at":      "g.created_at",
+		"updated_at":      "g.updated_at",
 	}
+	queryBuilder = store.Sort(queryBuilder, rpc.Sort, sortableFields, "g.name ASC")
 
 	size := rpc.GetSize()
 	page := rpc.GetPage()
