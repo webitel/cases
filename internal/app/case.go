@@ -14,42 +14,44 @@ import (
 	cerror "github.com/webitel/cases/internal/error"
 )
 
-var CaseMetadata = model.NewObjectMetadata(
-	[]*model.Field{
-		{Name: "etag", Default: true},
-		{Name: "id", Default: false},
-		{Name: "ver", Default: false},
-		{Name: "created_by", Default: true},
-		{Name: "created_at", Default: true},
-		{Name: "updated_by", Default: false},
-		{Name: "updated_at", Default: false},
-		{Name: "assignee", Default: true},
-		{Name: "reporter", Default: true},
-		{Name: "name", Default: true},
-		{Name: "subject", Default: true},
-		{Name: "description", Default: true},
-		{Name: "source", Default: true},
-		{Name: "priority", Default: true},
-		{Name: "impacted", Default: true},
-		{Name: "author", Default: true},
-		{Name: "planned_reaction_at", Default: true},
-		{Name: "planned_resolve_at", Default: true},
-		{Name: "status", Default: true},
-		{Name: "close_reason_group", Default: true},
-		{Name: "contact_group", Default: true},
-		{Name: "close_result", Default: false},
-		{Name: "close_reason", Default: false},
-		{Name: "rating", Default: false},
-		{Name: "rating_comment", Default: false},
-		{Name: "sla_conditions", Default: true},
-		{Name: "service", Default: true},
-		{Name: "status_condition", Default: true},
-		{Name: "sla", Default: true},
-		{Name: "comments", Default: false},
-		{Name: "links", Default: false},
-		{Name: "files", Default: false},
-		{Name: "related_cases", Default: false},
-	})
+var (
+	CaseMetadata = model.NewObjectMetadata(
+		[]*model.Field{
+			{Name: "etag", Default: true},
+			{Name: "id", Default: false},
+			{Name: "ver", Default: false},
+			{Name: "created_by", Default: true},
+			{Name: "created_at", Default: true},
+			{Name: "updated_by", Default: false},
+			{Name: "updated_at", Default: false},
+			{Name: "assignee", Default: true},
+			{Name: "reporter", Default: true},
+			{Name: "name", Default: true},
+			{Name: "subject", Default: true},
+			{Name: "description", Default: true},
+			{Name: "source", Default: true},
+			{Name: "priority", Default: true},
+			{Name: "impacted", Default: true},
+			{Name: "author", Default: true},
+			{Name: "planned_reaction_at", Default: true},
+			{Name: "planned_resolve_at", Default: true},
+			{Name: "status", Default: true},
+			{Name: "close_reason_group", Default: true},
+			{Name: "contact_group", Default: true},
+			{Name: "close_result", Default: false},
+			{Name: "close_reason", Default: false},
+			{Name: "rating", Default: false},
+			{Name: "rating_comment", Default: false},
+			{Name: "sla_conditions", Default: true},
+			{Name: "service", Default: true},
+			{Name: "status_condition", Default: true},
+			{Name: "sla", Default: true},
+			{Name: "comments", Default: false},
+			{Name: "links", Default: false},
+			{Name: "files", Default: false},
+			{Name: "related_cases", Default: false},
+		})
+)
 
 type CaseService struct {
 	app *App
@@ -378,11 +380,12 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
 	for _, item := range res.Items {
 		util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
-		if item.Reporter == nil {
+		if item.Reporter == nil && util.ContainsField(fields, "reporter") {
 			item.Reporter = &cases.Lookup{
-				Name: "Anonymous",
+				Name: AnonymousName,
 			}
 		}
+
 	}
 	for _, field := range fields {
 		switch field {
@@ -391,7 +394,6 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 			//	for _, comment := range item.Comments.Items {
 			//		util.NormalizeEtags(etag.EtagCaseComment, true, true, true, &comment.Id, &comment.Id, &comment.Ver)
 			//	}
-			//
 			//}
 		case "links":
 			for _, item := range res.Items {
@@ -422,9 +424,9 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 	}
 	util.NormalizeEtag(fields, &re.Etag, &re.Id, &re.Ver)
 
-	if re.Reporter == nil {
+	if re.Reporter == nil && util.ContainsField(fields, "reporter") {
 		re.Reporter = &cases.Lookup{
-			Name: "Anonymous",
+			Name: AnonymousName,
 		}
 	}
 }

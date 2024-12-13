@@ -544,7 +544,7 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 		res _go.CaseList
 	)
 	res.Items, err = c.scanCases(rows, plan)
-	res.Next = store.ResolvePaging(opts, res.Items)
+	res.Items, res.Next = store.ResolvePaging(opts, res.Items)
 	res.Page = int64(opts.GetPage())
 	return &res, nil
 }
@@ -1029,8 +1029,8 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 					if len(items) == 0 {
 						return nil
 					}
-					res := &_go.CaseCommentList{Items: items}
-					res.Next = store.ResolvePaging(opts, items)
+					res := &_go.CaseCommentList{}
+					res.Items, res.Next = store.ResolvePaging(opts, items)
 					res.Page = int64(opts.GetPage())
 					value.Comments = res
 					return nil
@@ -1060,8 +1060,8 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 					if len(items) == 0 {
 						return nil
 					}
-					res := &_go.CaseLinkList{Items: items}
-					res.Next = store.ResolvePaging(opts, items)
+					res := &_go.CaseLinkList{}
+					res.Items, res.Next = store.ResolvePaging(opts, items)
 					res.Page = int64(opts.GetPage())
 					value.Links = res
 					return nil

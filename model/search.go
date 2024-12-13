@@ -16,7 +16,7 @@ type SearchOptions struct {
 	context.Context
 	Session *session.Session
 	// filters
-	Filter   map[string]interface{}
+	Filter   map[string]any
 	Search   string
 	IDs      []int64
 	ParentId int64
@@ -69,7 +69,7 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 		Page:    searcher.GetPage(),
 		Size:    searcher.GetSize(),
 		Search:  searcher.GetQ(),
-		Filter:  make(map[string]interface{}),
+		Filter:  make(map[string]any),
 	}
 	// set current time
 	opts.CurrentTime()

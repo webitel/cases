@@ -90,10 +90,13 @@ func ApplyPaging(opts model.Pager, base squirrel.SelectBuilder) squirrel.SelectB
 	return base
 }
 
-func ResolvePaging[T any](opts model.Pager, items []*T) (next bool) {
-	if opts.GetSize() > 0 {
-		if len(items) > int(opts.GetSize()-1) {
-			items = items[:opts.GetSize()-1]
+func ResolvePaging[T any](opts model.Pager, items []*T) (updatedItems []*T, next bool) {
+	updatedItems = make([]*T, len(items))
+	copy(updatedItems, items)
+	size := opts.GetSize()
+	if size > 0 {
+		if len(updatedItems) > int(size) {
+			updatedItems = updatedItems[:size]
 			next = true
 		}
 	}
@@ -123,11 +126,11 @@ func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder) squirre
 // PrepareSearchNumber reverses the first string
 func PrepareSearchNumber(number string) string {
 	if number != "" {
-		var searchNumber string
-		for i := len(number) - 1; i >= 0; i-- {
-			searchNumber += string(number[i])
+		r := []rune(number)
+		for i, j := 0, len(r)-1; i < len(r)/2; i, j = i+1, j-1 {
+			r[i], r[j] = r[j], r[i]
 		}
-		return searchNumber
+		return string(r)
 
 	}
 	return number

@@ -19,6 +19,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+const (
+	AnonymousName = "Anonymous"
+)
+
 type App struct {
 	config         *conf.AppConfig
 	Store          store.Store
