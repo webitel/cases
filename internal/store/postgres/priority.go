@@ -215,7 +215,7 @@ func (p *Priority) buildListPriorityQuery(
 	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, priorityDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, plan, err := buildPrioritySelectColumnsAndPlan(queryBuilder, rpc.Fields)

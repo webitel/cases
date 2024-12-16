@@ -14,43 +14,44 @@ import (
 	cerror "github.com/webitel/cases/internal/error"
 )
 
-
-var CaseMetadata = model.NewObjectMetadata(
-	[]*model.Field{
-		{Name: "etag", Default: true},
-		{Name: "id", Default: false},
-		{Name: "ver", Default: false},
-		{Name: "created_by", Default: true},
-		{Name: "created_at", Default: true},
-		{Name: "updated_by", Default: false},
-		{Name: "updated_at", Default: false},
-		{Name: "assignee", Default: true},
-		{Name: "reporter", Default: true},
-		{Name: "name", Default: true},
-		{Name: "subject", Default: true},
-		{Name: "description", Default: true},
-		{Name: "source", Default: true},
-		{Name: "priority", Default: true},
-		{Name: "impacted", Default: true},
-		{Name: "author", Default: true},
-		{Name: "planned_reaction_at", Default: true},
-		{Name: "planned_resolve_at", Default: true},
-		{Name: "status", Default: true},
-		{Name: "close_reason_group", Default: true},
-		{Name: "contact_group", Default: true},
-		{Name: "close_result", Default: false},
-		{Name: "close_reason", Default: false},
-		{Name: "rating", Default: false},
-		{Name: "rating_comment", Default: false},
-		{Name: "sla_conditions", Default: true},
-		{Name: "service", Default: true},
-		{Name: "status_condition", Default: true},
-		{Name: "sla", Default: true},
-		{Name: "comments", Default: true},
-		{Name: "links", Default: false},
-		{Name: "files", Default: false},
-		{Name: "related_cases", Default: false},
-	})
+var (
+	CaseMetadata = model.NewObjectMetadata(
+		[]*model.Field{
+			{Name: "etag", Default: true},
+			{Name: "id", Default: false},
+			{Name: "ver", Default: false},
+			{Name: "created_by", Default: true},
+			{Name: "created_at", Default: true},
+			{Name: "updated_by", Default: false},
+			{Name: "updated_at", Default: false},
+			{Name: "assignee", Default: true},
+			{Name: "reporter", Default: true},
+			{Name: "name", Default: true},
+			{Name: "subject", Default: true},
+			{Name: "description", Default: true},
+			{Name: "source", Default: true},
+			{Name: "priority", Default: true},
+			{Name: "impacted", Default: true},
+			{Name: "author", Default: true},
+			{Name: "planned_reaction_at", Default: true},
+			{Name: "planned_resolve_at", Default: true},
+			{Name: "status", Default: true},
+			{Name: "close_reason_group", Default: true},
+			{Name: "contact_group", Default: true},
+			{Name: "close_result", Default: false},
+			{Name: "close_reason", Default: false},
+			{Name: "rating", Default: false},
+			{Name: "rating_comment", Default: false},
+			{Name: "sla_conditions", Default: true},
+			{Name: "service", Default: true},
+			{Name: "status_condition", Default: true},
+			{Name: "sla", Default: true},
+			{Name: "comments", Default: false},
+			{Name: "links", Default: false},
+			{Name: "files", Default: false},
+			{Name: "related_cases", Default: false},
+		})
+)
 
 type CaseService struct {
 	app *App
@@ -61,10 +62,9 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata)
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
 	for column, value := range req.GetFilters() {
-		if column == "" || value == "" {
-			continue
+		if column != "" {
+			searchOpts.Filter[column] = value
 		}
-		searchOpts.Filter[column] = value
 	}
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
@@ -74,7 +74,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	if err != nil {
 		return nil, err
 	}
-	c.NormalizeResponseCases(list, req)
+	c.NormalizeResponseCases(list, req, nil)
 	return list, nil
 }
 
@@ -89,7 +89,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	c.NormalizeResponseCases(list, req)
+	c.NormalizeResponseCases(list, req, nil)
 	return list.Items[0], nil
 }
 
@@ -166,18 +166,10 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Group:            &cases.Lookup{Id: req.Input.Group},
 		Status:           &cases.Lookup{Id: req.Input.Status},
 		CloseReasonGroup: &cases.Lookup{Id: req.Input.CloseReason},
-		Close: &cases.CloseInfo{
-			CloseResult: req.Input.Close.CloseResult,
-			CloseReason: &cases.Lookup{Id: req.Input.Close.CloseReason},
-		},
-		Priority: &cases.Lookup{Id: req.Input.Priority},
-		Service:  &cases.Lookup{Id: req.Input.Service},
-		Links:    links,
-		Related:  related,
-		Rate: &cases.RateInfo{
-			Rating:        req.Input.Rate.GetRating(),
-			RatingComment: req.Input.Rate.GetRatingComment(),
-		},
+		Priority:         &cases.Lookup{Id: req.Input.Priority},
+		Service:          &cases.Lookup{Id: req.Input.Service},
+		Links:            links,
+		Related:          related,
 	}
 
 	createOpts := model.NewCreateOptions(ctx, req, CaseMetadata)
@@ -364,10 +356,6 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 		return cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
 	}
 
-	if input.Reporter == 0 {
-		return cerror.NewBadRequestError("app.case.create_case.reporter_required", "Reporter is required")
-	}
-
 	if input.Impacted == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.impacted_required", "Impacted contact is required")
 	}
@@ -384,14 +372,47 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 }
 
 // NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.
-func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, opts model.Fielder) {
-	fields := opts.GetFields()
+func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) {
+	fields := mainOpts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
 	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
 	for _, item := range res.Items {
-		util.NormalizeEtags(hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
+		util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
+		if item.Reporter == nil && util.ContainsField(fields, "reporter") {
+			item.Reporter = &cases.Lookup{
+				Name: AnonymousName,
+			}
+		}
+
+	}
+	for _, field := range fields {
+		switch field {
+		case "comments":
+			//for _, item := range res.Items {
+			//	for _, comment := range item.Comments.Items {
+			//		util.NormalizeEtags(etag.EtagCaseComment, true, true, true, &comment.Id, &comment.Id, &comment.Ver)
+			//	}
+			//}
+		case "links":
+			for _, item := range res.Items {
+				if item.Links != nil {
+					for _, link := range item.Links.Items {
+						util.NormalizeEtags(etag.EtagCaseLink, true, false, false, &link.Etag, &link.Id, &link.Ver)
+					}
+				}
+			}
+		case "related_cases":
+			for _, item := range res.Items {
+				if item.Related != nil {
+					for _, related := range item.Related.Items {
+						util.NormalizeEtags(etag.EtagRelatedCase, true, false, false, &related.Etag, &related.Id, &related.Ver)
+					}
+				}
+			}
+		}
+
 	}
 }
 
@@ -402,6 +423,12 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 		fields = CaseMetadata.GetDefaultFields()
 	}
 	util.NormalizeEtag(fields, &re.Etag, &re.Id, &re.Ver)
+
+	if re.Reporter == nil && util.ContainsField(fields, "reporter") {
+		re.Reporter = &cases.Lookup{
+			Name: AnonymousName,
+		}
+	}
 }
 
 // endregion

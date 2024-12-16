@@ -4,14 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
-	authmodel "github.com/webitel/cases/auth/model"
-
 	sq "github.com/Masterminds/squirrel"
-	"github.com/jackc/pgx"
-	"github.com/lib/pq"
-
+	"github.com/jackc/pgx/v5"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
@@ -24,8 +22,6 @@ type CaseStore struct {
 	storage   store.Store
 	mainTable string
 }
-
-type CaseScan func(caseItem *_go.Case) any
 
 const (
 	caseLeft        = "c"
@@ -195,8 +191,12 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	caseItem *_go.Case,
 	sla int,
 	slaCondition int,
-) (sq.SelectBuilder, []CaseScan, error) {
+) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	// Parameters for the main case and nested JSON arrays
+	var reporter *int64
+	if caseItem.Reporter.GetId() != 0 {
+		reporter = &caseItem.Reporter.Id
+	}
 	params := map[string]interface{}{
 		// Case-level parameters
 		"date":                rpc.CurrentTime(),
@@ -206,17 +206,14 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"sla_condition":       slaCondition,
 		"status":              caseItem.Status.GetId(),
 		"service":             caseItem.Service.GetId(),
-		"rating":              caseItem.Rate.GetRating(),
-		"close_result":        caseItem.Close.CloseResult,
 		"priority":            caseItem.Priority.GetId(),
 		"source":              caseItem.Source.GetId(),
-		"close_reason":        caseItem.Close.CloseReason.GetId(),
 		"contact_group":       caseItem.Group.GetId(),
 		"close_reason_group":  caseItem.CloseReasonGroup.GetId(),
 		"subject":             caseItem.Subject,
 		"planned_reaction_at": util.LocalTime(caseItem.PlannedReactionAt),
 		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),
-		"reporter":            caseItem.Reporter.GetId(),
+		"reporter":            reporter,
 		"impacted":            caseItem.Impacted.GetId(),
 		"description":         caseItem.Description,
 		"assignee":            caseItem.Assignee.GetId(),
@@ -253,15 +250,15 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		` + prefixCTE + `,
 		` + caseLeft + ` AS (
 			INSERT INTO cases.case (
-				id, name, rating, dc, created_at, created_by, updated_at, updated_by, close_result,
-				priority, source, close_reason, status, contact_group, close_reason_group,
+				id, name, dc, created_at, created_by, updated_at, updated_by,
+				priority, source, status, contact_group, close_reason_group,
 				subject, planned_reaction_at, planned_resolve_at, reporter, impacted,
 				service, description, assignee, sla, sla_condition_id, status_condition
 			) VALUES (
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
-				:rating, :dc, :date, :user, :date, :user, :close_result,
-				:priority, :source, :close_reason, :status, :contact_group, :close_reason_group,
+				:dc, :date, :user, :date, :user,
+				:priority, :source, :status, :contact_group, :close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee, :sla, :sla_condition,
 				(SELECT status_condition_id FROM status_condition_cte)
@@ -304,9 +301,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 
 	// Construct SELECT query to return case data
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		rpc.Session,
+		&model.SearchOptions{Context: rpc.Context, Fields: rpc.Fields},
 		sq.Select().PrefixExpr(sq.Expr(boundQuery, args...)),
-		rpc.Fields,
 	)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.case.create.build_select_query_error", err)
@@ -517,7 +513,7 @@ func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []int
 
 	query := deleteCaseQuery
 	args := []interface{}{
-		pq.Array(ids),
+		ids,
 		rpc.Session.GetDomainId(),
 	}
 	return query, args, nil
@@ -551,39 +547,107 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 	}
 	var (
 		res _go.CaseList
-		i   int
 	)
-	for ; rows.Next(); i++ {
-		if i > int(opts.GetSize())-1 {
-			res.Next = true
-			res.Page = int64(opts.GetPage())
-			break
-		}
-		var node _go.Case
-		scanArgs := convertToCaseScanArgs(plan, &node)
-		err = rows.Scan(scanArgs...)
-		if err != nil {
-			return nil, dberr.NewDBError("postgres.case.list.scan.error", err.Error())
-		}
-		res.Items = append(res.Items, &node)
-	}
+	res.Items, err = c.scanCases(rows, plan)
+	res.Items, res.Next = store.ResolvePaging(opts.GetSize(), res.Items)
+	res.Page = int64(opts.GetPage())
 	return &res, nil
 }
 
-func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []CaseScan, error) {
+func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
-	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts.Session, base, opts.Fields)
+	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
+	if search := opts.Search; search != "" {
+		searchTerm, operator := store.ParseSearchTerm(search)
+		searchNumber := store.PrepareSearchNumber(search)
+		where := sq.Or{
+			sq.Expr(fmt.Sprintf(`%s.reporter = ANY (SELECT contact_id
+                        FROM contacts.contact_phone ct_ph
+                        WHERE ct_ph.reverse like 
+						'%%' || 
+							overlay(? placing '' from coalesce(
+								(select value::int from call_center.system_settings s where s.domain_id = ? and s.name = 'search_number_length'),
+								 ?)+1 for ?)
+						 || '%%' )`, caseLeft),
+				searchNumber, opts.Session.GetDomainId(), len(searchNumber), len(searchNumber)),
+			sq.Expr(fmt.Sprintf(`%s.reporter = ANY (SELECT contact_id
+                        FROM contacts.contact_email ct_em
+                        WHERE ct_em.email %s ?)`, caseLeft, operator),
+				searchTerm),
+			sq.Expr(fmt.Sprintf(`%s.reporter = ANY (SELECT contact_id
+                        FROM contacts.contact_imclient ct_im
+                        WHERE ct_im.user_id IN (SELECT id FROM chat.client WHERE name %s ?))`, caseLeft, operator),
+				searchTerm),
+			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "subject"), operator), searchTerm),
+			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "name"), operator), searchTerm),
+			//sq.Expr(fmt.Sprintf("%s = ?", store.Ident(caseLeft, "contact_info")), search),
+		}
+		base = base.Where(where)
+
+	}
+	for column, value := range opts.Filter {
+		switch column {
+		case "created_by",
+			"updated_by",
+			"assignee",         // +
+			"reporter",         // +
+			"source",           // +
+			"priority",         // +
+			"impacted",         // +
+			"author",           // +
+			"close_reason",     // +
+			"contact_group",    // +
+			"service",          // +
+			"status_condition", // +
+			"sla":              // +
+			if value == "" {
+				base = base.Where(fmt.Sprintf("%s ISNULL", store.Ident(caseLeft, column)))
+				continue
+			}
+			switch typedValue := value.(type) {
+			case string:
+				values := strings.Split(typedValue, ",")
+				var valuesInt []int64
+				for _, s := range values {
+					converted, err := strconv.ParseInt(s, 10, 64)
+					if err != nil {
+						return base, nil, dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
+					}
+					valuesInt = append(valuesInt, converted)
+				}
+				base = base.Where(fmt.Sprintf("%s =  ANY(?::int[])", store.Ident(caseLeft, column)), valuesInt)
+			}
+
+		case "rating.from":
+			cutted, _ := strings.CutSuffix(column, ".from")
+			base = base.Where(fmt.Sprintf("%s > ?::INT", store.Ident(caseLeft, cutted)), value)
+		case "rating.to":
+			cutted, _ := strings.CutSuffix(column, ".to")
+			base = base.Where(fmt.Sprintf("%s < ?::INT", store.Ident(caseLeft, cutted)), value)
+		case "sla_condition":
+			base = base.Where(fmt.Sprintf("? = ANY(%s)", store.Ident(caseLeft, column)), value)
+		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolved_at.from":
+			cutted, _ := strings.CutSuffix(column, ".from")
+			base = base.Where(fmt.Sprintf("extract(epoch from %s)::INT > ?::INT", store.Ident(caseLeft, cutted)), value)
+		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolved_at.to":
+			cutted, _ := strings.CutSuffix(column, ".to")
+			base = base.Where(fmt.Sprintf("extract(epoch from %s)::INT < ?::INT", store.Ident(caseLeft, cutted)), value)
+		case "attachments":
+			var operator string
+			if value != "true" {
+				operator = "NOT "
+			}
+			base = base.Where(sq.Expr(fmt.Sprintf(operator+"EXISTS (SELECT id FROM storage.files WHERE uuid = %s::varchar UNION SELECT id FROM cases.case_link WHERE case_link.case_id = %[1]s)", store.Ident(caseLeft, "id"))))
+
+		}
+	}
 	if err != nil {
 		return base, nil, err
 	}
 
 	base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.Session.GetDomainId())
-	if opts.Search != "" {
-		base = store.AddSearchTerm(base, store.Ident(caseLeft, "name"), store.Ident(caseLeft, "subject"), store.Ident(caseLeft, "contact_info"))
-	}
 	// pagination
-	base = store.ApplyPaging(opts, base)
-
+	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	// sort
 	base = store.ApplyDefaultSorting(opts, base, caseDefaultSort)
 
@@ -669,7 +733,7 @@ func (c *CaseStore) ScanVer(
 func (c *CaseStore) buildUpdateCaseSqlizer(
 	req *model.UpdateOptions,
 	upd *_go.Case,
-) (sq.Sqlizer, []CaseScan, error) {
+) (sq.Sqlizer, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included
 	req.Fields = util.EnsureIdAndVerField(req.Fields)
 
@@ -732,9 +796,8 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 
 	// Define SELECT query for returning updated fields
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		req.Session,
+		&model.SearchOptions{Size: -1, Fields: req.Fields, Session: req.Session, Time: req.Time},
 		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
-		req.Fields,
 	)
 	if err != nil {
 		return nil, nil, dberr.NewDBError("postgres.case.update.select_query_build_error", err.Error())
@@ -746,13 +809,14 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 }
 
 // session required to get some columns
-func (c *CaseStore) buildCaseSelectColumnsAndPlan(session *authmodel.Session,
+func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 	base sq.SelectBuilder,
-	fields []string,
-) (sq.SelectBuilder, []CaseScan, error) {
-	var plan []CaseScan
+) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
+	var (
+		plan []func(caseItem *_go.Case) any
+	)
 
-	for _, field := range fields {
+	for _, field := range opts.Fields {
 		switch field {
 		case "id":
 			base = base.Column(store.Ident(caseLeft, "id AS case_id"))
@@ -926,15 +990,19 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(session *authmodel.Session,
 				return scanner.ScanJSONToStructList(&caseItem.SlaCondition)
 			})
 		case "comments":
-			opts := &model.SearchOptions{Session: session, Page: 1, Size: 10, Fields: []string{
-				"id",
-				"ver",
-				"text",
-				"created_by",
-				"updated_by",
-				"updated_at",
-			}}
-			subquery, scanPlan, filtersApplied, dbErr := buildCommentsSelectAsSubquery(opts, caseLeft)
+			derivedOpts := opts.SearchDerivedOptionByField(field)
+			if derivedOpts == nil {
+				// default
+				derivedOpts = &model.SearchOptions{
+					Context: opts.Context,
+					Fields:  []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"},
+					Size:    10,
+					Page:    1,
+					Sort:    []string{"-created_at"},
+				}
+			}
+
+			subquery, scanPlan, filtersApplied, dbErr := buildCommentsSelectAsSubquery(derivedOpts, caseLeft)
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
@@ -945,11 +1013,8 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(session *authmodel.Session,
 					if len(items) == 0 {
 						return nil
 					}
-					res := &_go.CaseCommentList{Items: items}
-					if len(items) > int(opts.GetSize()) {
-						res.Items = res.Items[:len(res.Items)-1]
-						res.Next = true
-					}
+					res := &_go.CaseCommentList{}
+					res.Items, res.Next = store.ResolvePaging(opts.GetSize(), items)
 					res.Page = int64(opts.GetPage())
 					value.Comments = res
 					return nil
@@ -957,30 +1022,30 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(session *authmodel.Session,
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
 		case "links":
-			opts := &model.SearchOptions{Page: 1, Size: 10, Fields: []string{
-				"id",
-				"ver",
-				"url",
-				"name",
-				"author",
-				"created_by",
-			}}
-			subquery, scanPlan, filtersApplied, dbErr := buildLinkSelectAsSubquery(opts, caseLeft)
+			derivedOpts := opts.SearchDerivedOptionByField(field)
+			if derivedOpts == nil {
+				// default
+				derivedOpts = &model.SearchOptions{
+					Context: opts.Context,
+					Fields:  []string{"id", "ver", "name", "url", "created_by", "author", "created_at"},
+					Size:    10,
+					Page:    1,
+					Sort:    []string{"-created_at"},
+				}
+			}
+			subquery, scanPlan, filtersApplied, dbErr := buildLinkSelectAsSubquery(derivedOpts, caseLeft)
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
-			base = AddSubqueryAsColumn(base, subquery, "links", filtersApplied > 0)
+			base = AddSubqueryAsColumn(base, subquery, field, filtersApplied > 0)
 			plan = append(plan, func(value *_go.Case) any {
 				var items []*_go.CaseLink
 				postProcessing := func() error {
 					if len(items) == 0 {
 						return nil
 					}
-					res := &_go.CaseLinkList{Items: items}
-					if len(items) > int(opts.GetSize()) {
-						res.Items = res.Items[:len(res.Items)-1]
-						res.Next = true
-					}
+					res := &_go.CaseLinkList{}
+					res.Items, res.Next = store.ResolvePaging(opts.GetSize(), items)
 					res.Page = int64(opts.GetPage())
 					value.Links = res
 					return nil
@@ -988,22 +1053,25 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(session *authmodel.Session,
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
 		case "files":
-			opts := &model.SearchOptions{Page: 1, Size: 10, Fields: []string{
-				"id",
-				"size",
-				"mime",
-				"name",
-				"created_at",
-			}}
-			subquery, scanPlan, dbErr := buildFilesSelectAsSubquery(opts, caseLeft)
+			derivedOpts := opts.SearchDerivedOptionByField(field)
+			if derivedOpts == nil {
+				derivedOpts = &model.SearchOptions{
+					Page: 1,
+					Size: 10,
+					Sort: []string{"-created_at"},
+					Fields: []string{
+						"id",
+						"size",
+						"mime",
+						"name",
+						"created_at",
+					}}
+			}
+			subquery, scanPlan, filtersApplied, dbErr := buildFilesSelectAsSubquery(derivedOpts, caseLeft)
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
-			var filtersApplied bool
-			if len(opts.Filter) > 0 {
-				filtersApplied = true
-			}
-			base = AddSubqueryAsColumn(base, subquery, "files", filtersApplied)
+			base = AddSubqueryAsColumn(base, subquery, field, filtersApplied > 0)
 			plan = append(plan, func(value *_go.Case) any {
 				var items []*_go.File
 				postProcessing := func() error {
@@ -1079,7 +1147,7 @@ func AddSubqueryAsColumn(mainQuery sq.SelectBuilder, subquery sq.SelectBuilder, 
 }
 
 // Helper function to convert the scan plan to arguments for scanning.
-func convertToCaseScanArgs(plan []CaseScan, caseItem *_go.Case) []any {
+func convertToCaseScanArgs(plan []func(caseItem *_go.Case) any, caseItem *_go.Case) []any {
 	var scanArgs []any
 	for _, scan := range plan {
 		scanArgs = append(scanArgs, scan(caseItem))
@@ -1093,4 +1161,31 @@ func NewCaseStore(store store.Store) (store.CaseStore, error) {
 			"error creating case interface to the case table, main store is nil")
 	}
 	return &CaseStore{storage: store, mainTable: "cases.case"}, nil
+}
+
+func (l *CaseStore) scanCases(rows pgx.Rows, plan []func(link *_go.Case) any) ([]*_go.Case, error) {
+	var res []*_go.Case
+
+	for rows.Next() {
+		link, err := l.scanCase(pgx.Row(rows), plan)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, link)
+	}
+	return res, nil
+}
+
+func (l *CaseStore) scanCase(row pgx.Row, plan []func(link *_go.Case) any) (*_go.Case, error) {
+	var link _go.Case
+	var scanPlan []any
+	for _, scan := range plan {
+		scanPlan = append(scanPlan, scan(&link))
+	}
+	err := row.Scan(scanPlan...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &link, nil
 }

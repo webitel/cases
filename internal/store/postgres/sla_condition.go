@@ -420,7 +420,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Apply GROUP BY clause
 	queryBuilder = queryBuilder.GroupBy(groupByFields...)

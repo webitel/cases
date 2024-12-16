@@ -128,7 +128,7 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, plan, nil
 }
@@ -216,18 +216,24 @@ func buildFilesSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(file *cases.File) any, *dberr.DBError) {
-	alias := "s"
+func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(file *cases.File) any, int, *dberr.DBError) {
+	alias := "files"
 	if caseAlias == alias {
-		alias = "q"
+		alias = "sub_" + alias
 	}
 	base := sq.
 		Select().
 		From("storage.files "+alias).
-		Where(fmt.Sprintf("%s::text = %s", store.Ident(alias, "uuid"), store.Ident(caseAlias, "id"))).
+		Where(fmt.Sprintf("%s = %s::text", store.Ident(alias, "uuid"), store.Ident(caseAlias, "id"))).
 		Where(fmt.Sprintf("%s = ?", store.Ident(alias, "channel")), channel)
+	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 
-	return buildFilesSelectColumnsAndPlan(store.ApplyPaging(opts, base), alias, opts.Fields)
+	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, opts.Fields)
+	if dbErr != nil {
+		return base, nil, 0, dbErr
+	}
+
+	return base, scanPlan, 0, nil
 }
 
 // NewCaseFileStore initializes a new CaseFileStore.

@@ -14,16 +14,29 @@ import (
 type SearchOptions struct {
 	Time time.Time
 	context.Context
-	Session       *session.Session
-	Filter        map[string]interface{}
-	Search        string
-	IDs           []int64
-	Sort          []string
-	Fields        []string
-	ParentId      int64
-	Page          int32
-	Size          int32
-	UnknownFields []string
+	Session *session.Session
+	// filters
+	Filter   map[string]any
+	Search   string
+	IDs      []int64
+	ParentId int64
+	// output
+	Fields            []string
+	UnknownFields     []string
+	DerivedSearchOpts map[string]*SearchOptions
+	// paging
+	Page int
+	Size int
+	Sort []string
+}
+
+func (s *SearchOptions) SearchDerivedOptionByField(field string) *SearchOptions {
+	for s2, options := range s.DerivedSearchOpts {
+		if s2 == field {
+			return options
+		}
+	}
+	return nil
 }
 
 type Lister interface {
@@ -53,9 +66,10 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 	opts := &SearchOptions{
 		Context: ctx,
 		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
-		Page:    searcher.GetPage(),
-		Size:    searcher.GetSize(),
+		Page:    int(searcher.GetPage()),
+		Size:    int(searcher.GetSize()),
 		Search:  searcher.GetQ(),
+		Filter:  make(map[string]any),
 	}
 	// set current time
 	opts.CurrentTime()
@@ -106,7 +120,7 @@ const (
 	DefaultSearchSize = 10
 )
 
-func (rpc *SearchOptions) GetSize() int32 {
+func (rpc *SearchOptions) GetSize() int {
 	if rpc == nil {
 		return DefaultSearchSize
 	}
@@ -122,7 +136,7 @@ func (rpc *SearchOptions) GetSize() int32 {
 	panic("unreachable code")
 }
 
-func (rpc *SearchOptions) GetPage() int32 {
+func (rpc *SearchOptions) GetPage() int {
 	if rpc != nil {
 		// Limited ? either: manual -or- default !
 		if rpc.GetSize() > 0 {

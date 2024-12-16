@@ -294,7 +294,7 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Generate SQL and arguments
 	query, args, err := queryBuilder.ToSql()

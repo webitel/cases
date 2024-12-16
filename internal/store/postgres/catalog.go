@@ -799,7 +799,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	}
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Assuming fetchType is a FetchType and not a pointer
 	var fullFetch bool

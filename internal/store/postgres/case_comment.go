@@ -276,7 +276,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 	queryBuilder = queryBuilder.OrderBy("created_at ASC")
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, planBuilder, nil
 }
@@ -546,7 +546,7 @@ func buildCommentsSelectAsSubquery(opts *model.SearchOptions, caseAlias string) 
 	if dbErr != nil {
 		return base, nil, 0, dbErr
 	}
-	base = store.ApplyPaging(opts, base)
+	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	return base, plan, applied, nil
 }
 
