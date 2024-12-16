@@ -4,6 +4,7 @@ buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20240725111140-8ade8003e454.1
 buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20240725111140-8ade8003e454.1/go.mod h1:+hPe2SWUrmIXF8syT8Gs0u5Fj3848w78nc+pnYoZV+s=
 buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240725111140-8ade8003e454.2 h1:bJoBKyzpwXp2TvPlkxN3K7dj5qmSC3ZUcay//bWkDd0=
 buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240725111140-8ade8003e454.2/go.mod h1:DR7vaTDZ+/xU2UXbEd9xx2MH1YU8VKDWejzXU/9tCi0=
+filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/toml v1.4.0 h1:kuoIxZQy2WRRk1pttg9asf+WVv6tWQuBNVmK8+nqPr0=
@@ -65,6 +66,7 @@ github.com/go-logr/stdr v1.2.2 h1:hSWxHoqTgW2S2qGc0LTAI563KZ5YKYRhT3MFKZMbjag=
 github.com/go-logr/stdr v1.2.2/go.mod h1:mMo/vtBO5dYbehREoey6XUKy/eSumjCCveDpRre4VKE=
 github.com/go-playground/form v3.1.4+incompatible h1:lvKiHVxE2WvzDIoyMnWcjyiBxKt2+uFJyZcPYWsLnjI=
 github.com/go-playground/form v3.1.4+incompatible/go.mod h1:lhcKXfTuhRtIZCIKUeJ0b5F207aeQCPbZU09ScKjwWg=
+github.com/go-sql-driver/mysql v1.8.1 h1:LedoTUt/eveggdHS9qUFC1EFSa8bU2+1pZjSRpvNJ1Y=
 github.com/go-sql-driver/mysql v1.8.1/go.mod h1:wEBSXgmK//2ZFJyE+qWnIsVGmvmEKlqwuVSjsCm7DZg=
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
 github.com/gofrs/uuid v4.0.0+incompatible h1:1SD/1F5pU8p29ybwgQSwpQk+mwdRrXCYuPhW6m+TnJw=
@@ -245,6 +247,7 @@ github.com/mattn/go-isatty v0.0.14/go.mod h1:7GGIvUiUoEMVVmxf/4nioHXj79iQHKdU27k
 github.com/mattn/go-isatty v0.0.16/go.mod h1:kYGgaQfpe5nmfYZH+SKPsOc2e4SrIfOl2e/yFXSvRLM=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
+github.com/mattn/go-sqlite3 v1.14.22 h1:2gZY6PC6kBnID23Tichd1K+Z0oS6nE/XwU+Vz/5o4kU=
 github.com/mattn/go-sqlite3 v1.14.22/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/mbobakov/grpc-consul-resolver v1.5.3 h1:xL7nJm8qCvxgHMqlnF4naXruBUoHqfUWORl3UmwKByU=
@@ -330,8 +333,6 @@ github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXl
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
-github.com/webitel/webitel-go-kit v0.0.21-0.20241118101555-437697d2abb3 h1:jGFgTQi7GtwDhj7nZZwsgESKpOVEm8Of8YAyYF/6FQ8=
-github.com/webitel/webitel-go-kit v0.0.21-0.20241118101555-437697d2abb3/go.mod h1:CMnTRWZ9NoMAPdDyj9d19O3tC/kYJmub6qEDVPV59FM=
 github.com/webitel/webitel-go-kit v0.0.21-0.20241119150027-e518fa947331 h1:cERYDYS0Hjn4X3DiF1TKZMcILhS1bLr7RBnM59lUHe0=
 github.com/webitel/webitel-go-kit v0.0.21-0.20241119150027-e518fa947331/go.mod h1:CMnTRWZ9NoMAPdDyj9d19O3tC/kYJmub6qEDVPV59FM=
 github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218 h1:5Jn9KhUMjqAUdVMi7EvFJrJlJGrwndhKFbz7FZ7woL0=

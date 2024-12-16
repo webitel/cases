@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"strconv"
 
 	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
@@ -13,7 +12,9 @@ import (
 
 var CaseCommentMetadata = model.NewObjectMetadata(
 	[]*model.Field{
+		{Name: "id", Default: true},
 		{Name: "etag", Default: true},
+		{Name: "ver", Default: false},
 		{Name: "created_at", Default: true},
 		{Name: "created_by", Default: true},
 		{Name: "updated_at", Default: true},
@@ -56,6 +57,8 @@ func (c *CaseCommentService) LocateComment(
 		return nil, cerror.NewInternalError("app.case_comment.locate_comment.multiple_found", "Multiple comments found")
 	}
 
+	NormalizeCommentsResponse(commentList.Items[0], req)
+
 	return commentList.Items[0], nil
 }
 
@@ -79,7 +82,7 @@ func (c *CaseCommentService) UpdateComment(
 	updateOpts.IDs = []int64{tag.GetOid()}
 
 	comment := &cases.CaseComment{
-		Id:   strconv.Itoa(int(tag.GetOid())),
+		Id:   tag.GetOid(),
 		Text: req.Input.Text,
 		Ver:  tag.GetVer(),
 	}
@@ -89,15 +92,7 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewInternalError("app.case_comment.update_comment.store_update_failed", err.Error())
 	}
 
-	commId, err := strconv.Atoi(updatedComment.Id)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case_comment.update_comment.parse.comment_id", err.Error())
-	}
-
-	// Encode etag from the comment ID and version
-	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), updatedComment.Ver)
-	updatedComment.Id = e
-
+	NormalizeCommentsResponse(updatedComment, req)
 	return updatedComment, nil
 }
 
@@ -150,17 +145,7 @@ func (c *CaseCommentService) ListComments(
 		return nil, cerror.NewInternalError("app.case_comment.list_comments.fetch_error", err.Error())
 	}
 
-	// Iterate through each comment to parse and encode the `Id` field as etag
-	for _, comment := range comments.Items {
-		// Parse the `Id` field to an integer for etag encoding
-		commId, err := strconv.Atoi(comment.Id)
-		if err != nil {
-			return nil, cerror.NewInternalError("app.case_comment.list_comments.id_conversion_error", err.Error())
-		}
-
-		// Encode the `id` and `ver` fields into an etag and assign it back to `Id`
-		comment.Id = etag.EncodeEtag(etag.EtagCaseComment, int64(commId), comment.Ver)
-	}
+	NormalizeCommentsResponse(comments, req)
 
 	return comments, nil
 }
@@ -177,7 +162,7 @@ func (c *CaseCommentService) PublishComment(
 
 	createOpts := model.NewCreateOptions(ctx, req, CaseCommentMetadata)
 
-	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
+	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.CaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.invalid_etag", "Invalid etag")
 	}
@@ -188,16 +173,38 @@ func (c *CaseCommentService) PublishComment(
 		return nil, err
 	}
 
-	commId, err := strconv.Atoi(comment.Id)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case_comment.publish_comment.parse.comment_id", err.Error())
+	NormalizeCommentsResponse(comment, req)
+	return comment, nil
+}
+
+func NormalizeCommentsResponse(res interface{}, opts model.Fielder) {
+	fields := util.FieldsFunc(opts.GetFields(), util.InlineFields)
+	if len(fields) == 0 {
+		fields = CaseCommentMetadata.GetDefaultFields()
+	}
+	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
+
+	processComment := func(comment *cases.CaseComment) {
+		if hasEtag {
+			comment.Etag = etag.EncodeEtag(etag.EtagCaseComment, comment.Id, comment.Ver)
+			// if NOT provided in requested fields - hide them in response
+			if !hasId {
+				comment.Id = 0
+			}
+			if !hasVer {
+				comment.Ver = 0
+			}
+		}
 	}
 
-	// Encode etag from the comment ID and version
-	e := etag.EncodeEtag(etag.EtagCaseComment, int64(commId), comment.Ver)
-	comment.Id = e
-
-	return comment, nil
+	switch v := res.(type) {
+	case *cases.CaseComment:
+		processComment(v)
+	case *cases.CaseCommentList:
+		for _, comment := range v.Items {
+			processComment(comment)
+		}
+	}
 }
 
 func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
