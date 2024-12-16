@@ -5753,6 +5753,12 @@
         "name": {
           "type": "string",
           "description": "File name."
+        },
+        "author": {
+          "$ref": "#/definitions/generalLookup"
+        },
+        "url": {
+          "type": "string"
         }
       },
       "description": "Metadata for a file associated with a case."
