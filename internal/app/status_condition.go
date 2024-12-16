@@ -19,7 +19,7 @@ type StatusConditionService struct {
 
 const (
 	ErrStatusNameReq    = "Status name is required"
-	defaultFieldsStatus = "id, name, description, is_initial, is_final"
+	defaultFieldsStatus = "id, name, description, initial, final"
 )
 
 // CreateStatusCondition implements api.StatusConditionsServer.
@@ -226,7 +226,7 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 	deleteOpts := model.DeleteOptions{
 		Session: session,
 		Context: ctx,
-		IDs:     []int64{req.Id},
+		ID:      req.Id,
 		Time:    t,
 	}
 

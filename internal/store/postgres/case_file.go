@@ -3,7 +3,6 @@ package postgres
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/api/cases"
@@ -20,8 +19,9 @@ type CaseFileStore struct {
 
 const (
 	// Alias for the storage.files table
-	fileAlias = "cf"
-	channel   = "case"
+	fileAlias       = "cf"
+	channel         = "case"
+	fileDefaultSort = "created_at"
 )
 
 // List implements store.CaseFileStore for listing case files.
@@ -117,35 +117,16 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 		queryBuilder = queryBuilder.Where(sq.Eq{"cf.id": rpc.IDs})
 	}
 
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		queryBuilder = queryBuilder.Where(sq.ILike{"cf.name": "%" + strings.ToLower(name) + "%"})
+	// ----------Apply search by name -----------------
+	if rpc.Search != "" {
+		queryBuilder = store.AddSearchTerm(queryBuilder, store.Ident(caseLeft, "name"))
 	}
 
-	var sortFields []string
-	for _, sortField := range util.FieldsFunc(rpc.Sort, util.InlineFields) {
-		desc := strings.HasPrefix(sortField, "!")
-		if desc {
-			sortField = strings.TrimPrefix(sortField, "!")
-		}
+	// -------- Apply sorting ----------
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
 
-		column := fileAlias + "." + sortField
-		if desc {
-			column += " DESC"
-		} else {
-			column += " ASC"
-		}
-		sortFields = append(sortFields, column)
-	}
-
-	queryBuilder = queryBuilder.OrderBy(sortFields...)
-
-	// Pagination
-	if size := rpc.GetSize(); size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1))
-	}
-	if page := rpc.Page; page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * rpc.GetSize()))
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, plan, nil
 }

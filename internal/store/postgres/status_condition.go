@@ -10,12 +10,15 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
+)
+
+const (
+	statusConditionDefaultSort = "name"
 )
 
 type StatusConditionStore struct {
@@ -117,10 +120,9 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 }
 
 func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) error {
-	ids := []int64{statusId}
 	domainId := rpc.Session.GetDomainId()
 
-	query, args, err := s.buildDeleteStatusConditionQuery(ids, domainId, statusId)
+	query, args, err := s.buildDeleteStatusConditionQuery(rpc.ID, domainId, statusId)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.status_condition.delete.query_build_error", err)
 	}
@@ -253,48 +255,11 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
 	}
 
-	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
-	var sortFields []string
+	// -------- Apply sorting ----------
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, statusConditionDefaultSort)
 
-	for _, sortField := range parsedFields {
-		desc := false
-		if strings.HasPrefix(sortField, "!") {
-			desc = true
-			sortField = strings.TrimPrefix(sortField, "!")
-		}
-
-		var column string
-		switch sortField {
-		case "name", "description":
-			column = "s." + sortField
-		default:
-			continue
-		}
-
-		if desc {
-			column += " DESC"
-		} else {
-			column += " ASC"
-		}
-
-		sortFields = append(sortFields, column)
-	}
-
-	page := rpc.GetPage()
-	size := rpc.GetSize()
-
-	// Apply sorting
-	queryBuilder = queryBuilder.OrderBy(sortFields...)
-
-	// Apply offset only if page > 1
-	if page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
-	}
-
-	// Apply limit
-	if size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1))
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Convert the query to SQL and arguments
 	query, args, err := queryBuilder.ToSql()
@@ -305,13 +270,13 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 	return store.CompactSQL(query), args, nil
 }
 
-func (s StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domainId, statusId int64) (string, []interface{}, error) {
+func (s StatusConditionStore) buildDeleteStatusConditionQuery(id int64, domainId, statusId int64) (string, []interface{}, error) {
 	query := deleteStatusConditionQuery
 
 	args := []interface{}{
-		pq.Array(ids), // $1 ids
-		domainId,      // $2 dc
-		statusId,      // $3 status_id
+		id,       // $1 id
+		domainId, // $2 dc
+		statusId, // $3 status_id
 	}
 	return query, args, nil
 }
@@ -535,47 +500,39 @@ FROM ins
          LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
          LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;`)
 
-	deleteStatusConditionQuery = store.CompactSQL(`WITH to_check AS (SELECT id, initial, final
-                  FROM cases.status_condition
-                  WHERE id = ANY ($1)
-                    AND dc = $2
-                    AND status_id = $3),
-     initial_remaining AS (SELECT COUNT(*) AS count
-                           FROM cases.status_condition
-                           WHERE initial = TRUE
-                             AND id NOT IN (SELECT id FROM to_check)
-                             AND dc = $2
-                             AND status_id = $3),
-     final_remaining AS (SELECT COUNT(*) AS count
-                         FROM cases.status_condition
-                         WHERE final = TRUE
-                           AND id NOT IN (SELECT id FROM to_check)
-                           AND dc = $2
-                           AND status_id = $3),
-     initial_to_check AS (SELECT COUNT(*) AS count
-                          FROM to_check
-                          WHERE initial = TRUE),
-     final_to_check AS (SELECT COUNT(*) AS count
-                        FROM to_check
-                        WHERE final = TRUE),
-     delete_conditions AS (SELECT (SELECT count FROM initial_remaining) AS remaining_initial,
-                                  (SELECT count FROM final_remaining)   AS remaining_final,
-                                  (SELECT count FROM initial_to_check)  AS checking_initial,
-                                  (SELECT count FROM final_to_check)    AS checking_final
-                           FROM to_check
-                           LIMIT 1)
-DELETE
-FROM cases.status_condition
-WHERE id IN (SELECT id FROM to_check)
-  AND (
-    (SELECT remaining_initial FROM delete_conditions) > 0 OR
-    (SELECT checking_initial FROM delete_conditions) = 0
-    )
-  AND (
-    (SELECT remaining_final FROM delete_conditions) > 0 OR
-    (SELECT checking_final FROM delete_conditions) = 0
-    )
-RETURNING id;`)
+	deleteStatusConditionQuery = store.CompactSQL(`
+		 WITH
+			 to_check AS (
+				 SELECT id, initial, final
+				 FROM cases.status_condition
+				 WHERE id = $1 AND dc = $2 AND status_id = $3
+			 ),
+			 remaining_conditions AS (
+				 SELECT
+					 COUNT(*) FILTER (WHERE initial = TRUE AND id NOT IN (SELECT id FROM to_check)) AS remaining_initial,
+					 COUNT(*) FILTER (WHERE final = TRUE AND id NOT IN (SELECT id FROM to_check)) AS remaining_final
+				 FROM cases.status_condition
+				 WHERE dc = $2 AND status_id = $3
+			 ),
+			 to_check_conditions AS (
+				 SELECT
+					 COUNT(*) FILTER (WHERE initial = TRUE) AS checking_initial,
+					 COUNT(*) FILTER (WHERE final = TRUE) AS checking_final
+				 FROM to_check
+			 ),
+			 delete_allowed AS (
+				 SELECT
+					 (remaining_conditions.remaining_initial > 0 OR to_check_conditions.checking_initial = 0) AS can_delete_initial,
+					 (remaining_conditions.remaining_final > 0 OR to_check_conditions.checking_final = 0) AS can_delete_final
+				 FROM remaining_conditions, to_check_conditions
+			 )
+		 DELETE
+		 FROM cases.status_condition
+		 WHERE id IN (SELECT id FROM to_check)
+		   AND (SELECT can_delete_initial FROM delete_allowed)
+		   AND (SELECT can_delete_final FROM delete_allowed)
+		 RETURNING id;
+		 `)
 )
 
 func NewStatusConditionStore(store store.Store) (store.StatusConditionStore, error) {

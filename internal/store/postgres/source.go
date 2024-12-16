@@ -9,9 +9,14 @@ import (
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
+	"github.com/webitel/cases/internal/store"
 	db "github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
+)
+
+const (
+	sourceDefaultSort = "name"
 )
 
 type Source struct {
@@ -285,40 +290,11 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.type": types})
 	}
 
-	// Sorting logic
-	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
-	var sortFields []string
+	// -------- Apply sorting ----------
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)
 
-	for _, sortField := range parsedFields {
-		desc := false
-		if strings.HasPrefix(sortField, "!") {
-			desc = true
-			sortField = strings.TrimPrefix(sortField, "!")
-		}
-
-		column := "g." + sortField
-		if desc {
-			column += " DESC"
-		} else {
-			column += " ASC"
-		}
-		sortFields = append(sortFields, column)
-	}
-
-	// Applying sorting
-	queryBuilder = queryBuilder.OrderBy(sortFields...)
-
-	size := rpc.GetSize()
-	page := rpc.Page
-
-	// Applying pagination
-	if rpc.Page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
-	}
-
-	if rpc.GetSize() != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1))
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Generate SQL and arguments
 	query, args, err := queryBuilder.ToSql()

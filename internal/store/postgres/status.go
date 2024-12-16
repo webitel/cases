@@ -15,6 +15,10 @@ import (
 	"github.com/webitel/cases/util"
 )
 
+const (
+	statusDefaultSort = "name"
+)
+
 type Status struct {
 	storage store.Store
 }
@@ -268,49 +272,11 @@ func (s Status) buildSearchStatusQuery(rpc *model.SearchOptions) (string, []inte
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	parsedFields := util.FieldsFunc(rpc.Sort, util.InlineFields)
+	// -------- Apply sorting ----------
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
 
-	var sortFields []string
-
-	for _, sortField := range parsedFields {
-		desc := false
-		if strings.HasPrefix(sortField, "!") {
-			desc = true
-			sortField = strings.TrimPrefix(sortField, "!")
-		}
-
-		var column string
-		switch sortField {
-		case "name", "description":
-			column = "g." + sortField
-		default:
-			continue
-		}
-
-		if desc {
-			column += " DESC"
-		} else {
-			column += " ASC"
-		}
-
-		sortFields = append(sortFields, column)
-	}
-
-	// Apply sorting
-	queryBuilder = queryBuilder.OrderBy(sortFields...)
-
-	size := rpc.GetSize()
-	page := rpc.GetPage()
-
-	// Apply offset only if page > 1
-	if rpc.Page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
-	}
-
-	// Apply limit
-	if size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {

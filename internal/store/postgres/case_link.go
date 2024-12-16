@@ -3,6 +3,8 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"net/url"
+
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	_go "github.com/webitel/cases/api/cases"
@@ -11,13 +13,13 @@ import (
 	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
-	"net/url"
 )
 
 const (
 	caseLinkCreatedByAlias = "cb"
 	caseLinkUpdatedByAlias = "ub"
 	caseLinkAuthorAlias    = "au"
+	linkDefaultSort        = "created_at"
 )
 
 type CaseLinkStore struct {
@@ -25,11 +27,9 @@ type CaseLinkStore struct {
 	mainTable string
 }
 
-var (
-	CaseLinkFields = []string{
-		"created_by", "created_at", "updated_by", "updated_at", "id", "ver", "author", "name", "url",
-	}
-)
+var CaseLinkFields = []string{
+	"created_by", "created_at", "updated_by", "updated_at", "id", "ver", "author", "name", "url",
+}
 
 // Create implements store.CaseLinkStore.
 func (l *CaseLinkStore) Create(rpc *model.CreateOptions, add *_go.InputCaseLink) (*_go.CaseLink, error) {
@@ -93,7 +93,6 @@ func (l *CaseLinkStore) Delete(opts *model.DeleteOptions) error {
 		return dberr.NewDBError("postgres.case_link.delete.final_check.rows", "wrong filters for deleting")
 	}
 	return nil
-
 }
 
 // List implements store.CaseLinkStore.
@@ -122,7 +121,7 @@ func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, erro
 		base = base.Where(fmt.Sprintf("%s = any(?)", store.Ident(l.mainTable, "id")), opts.IDs)
 	}
 	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
-	base = store.ApplyDefaultSorting(opts, base)
+	base = store.ApplyDefaultSorting(opts, base, linkDefaultSort)
 	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, l.mainTable, opts.Fields)
 	if dbErr != nil {
 		return nil, dbErr
@@ -408,7 +407,7 @@ func applyCaseLinkFilters(opts *model.SearchOptions, base squirrel.SelectBuilder
 				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLinkCreatedByAlias, "id")), v)
 			case string, *string:
 				// apply search
-				//base = store.AddSearchTerm(base, )
+				// base = store.AddSearchTerm(base, )
 			}
 		case "author":
 			switch v := value.(type) {
@@ -417,7 +416,7 @@ func applyCaseLinkFilters(opts *model.SearchOptions, base squirrel.SelectBuilder
 				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLinkUpdatedByAlias, "id")), v)
 			case string, *string:
 				// apply search
-				//base = store.AddSearchTerm(base, )
+				// base = store.AddSearchTerm(base, )
 			}
 		case "updated_by":
 			switch v := value.(type) {
@@ -426,7 +425,7 @@ func applyCaseLinkFilters(opts *model.SearchOptions, base squirrel.SelectBuilder
 				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLinkAuthorAlias, "id")), v)
 			case string, *string:
 				// apply search
-				//base = store.AddSearchTerm(base, )
+				// base = store.AddSearchTerm(base, )
 			}
 		}
 		filtersApplied++

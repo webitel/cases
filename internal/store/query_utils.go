@@ -2,9 +2,10 @@ package store
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/model"
-	"strings"
 )
 
 const (
@@ -28,7 +29,6 @@ func FormAsCTE(in squirrel.Sqlizer, alias string) (string, []any, error) {
 }
 
 func FormAsCTEs(in map[string]squirrel.Sqlizer) (string, []any, error) {
-
 	var (
 		i              int
 		resultingQuery string
@@ -68,7 +68,6 @@ func ParseSearchTerm(q string) (s string, operator string) {
 	} else {
 		return "%" + q + "%", ComparisonILike
 	}
-
 }
 
 func AddSearchTerm(base squirrel.SelectBuilder, q string, columns ...string) squirrel.SelectBuilder {
@@ -102,7 +101,7 @@ func ResolvePaging[T any](size int, items []*T) (updatedItems []*T, next bool) {
 	return
 }
 
-func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder) squirrel.SelectBuilder {
+func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder, defaultSort string) squirrel.SelectBuilder {
 	if len(opts.GetSort()) != 0 {
 		for _, s := range opts.GetSort() {
 			desc := strings.HasPrefix(s, "-")
@@ -117,6 +116,8 @@ func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder) squirre
 			}
 			base = base.OrderBy(s)
 		}
+	} else {
+		base = base.OrderBy(fmt.Sprintf(`%s ASC`, defaultSort))
 	}
 
 	return base

@@ -24,9 +24,10 @@ type CaseStore struct {
 }
 
 const (
-	caseLeft     = "c"
-	relatedAlias = "related"
-	linksAlias   = "links"
+	caseLeft        = "c"
+	relatedAlias    = "related"
+	linksAlias      = "links"
+	caseDefaultSort = "created_at"
 )
 
 func (c *CaseStore) Create(
@@ -402,7 +403,13 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 			Special        bool
 			Disabled       bool
 		}
-		if err = rows.Scan(&entry.Day, &entry.StartTimeOfDay, &entry.EndTimeOfDay, &entry.Special, &entry.Disabled); err != nil {
+		if err = rows.Scan(
+			&entry.Day,
+			&entry.StartTimeOfDay,
+			&entry.EndTimeOfDay,
+			&entry.Special,
+			&entry.Disabled,
+		); err != nil {
 			return fmt.Errorf("failed to scan calendar entry: %w", err)
 		}
 		if !entry.Disabled {
@@ -642,7 +649,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 	// pagination
 	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	// sort
-	base = store.ApplyDefaultSorting(opts, base)
+	base = store.ApplyDefaultSorting(opts, base, caseDefaultSort)
 
 	return base, plan, nil
 }

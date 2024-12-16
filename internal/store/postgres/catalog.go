@@ -760,6 +760,8 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		searchStr = combinedLike
 		selectFlags["search"] = true
 	}
+	// -------- Apply [Sorting by Name] --------
+	queryBuilder = queryBuilder.OrderBy("catalog.name ASC")
 
 	// -------- Apply [Search] --------
 	// filter by catalog_id if search is enabled
@@ -796,15 +798,8 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		queryBuilder = queryBuilder.OrderBy(sort)
 	}
 
-	// -------- Apply [Pagination] --------
-	// Pagination: Apply limit and offset
-	size := rpc.GetSize()
-	if size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
-	}
-	if rpc.Page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((rpc.Page - 1) * size))
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Assuming fetchType is a FetchType and not a pointer
 	var fullFetch bool

@@ -178,6 +178,10 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		Filter:  make(map[string]interface{}),
 	}
 
+	if req.Q == nil {
+		req.Q = &cases.Search{}
+	}
+
 	if req.Q.Query != "" {
 		searchOptions.Filter["name"] = req.Q.Query
 	}
