@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 
 	authmodel "github.com/webitel/cases/auth/model"
 
@@ -286,11 +285,6 @@ func (c *CaseCommentStore) Update(
 	rpc *model.UpdateOptions,
 	upd *_go.CaseComment,
 ) (*_go.CaseComment, error) {
-	commId, err := strconv.Atoi(upd.Id)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.id_error", err)
-	}
-
 	// Get the database connection
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -306,7 +300,7 @@ func (c *CaseCommentStore) Update(
 	txManager := store.NewTxManager(tx)
 
 	// Scan the current version of the comment
-	ver, err := c.ScanVer(rpc.Context, int64(commId), txManager)
+	ver, err := c.ScanVer(rpc.Context, upd.Id, txManager)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +310,15 @@ func (c *CaseCommentStore) Update(
 	}
 
 	// Build the update query
-	queryBuilder, plan, err := c.BuildUpdateCaseCommentSqlizer(rpc, &_go.InputCaseComment{Text: upd.Text, Etag: upd.Id})
+	queryBuilder, plan, err := c.BuildUpdateCaseCommentSqlizer(
+		rpc,
+		struct {
+			Text string
+			Id   int64
+		}{
+			Text: upd.Text,
+			Id:   upd.Id,
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +367,10 @@ func (c *CaseCommentStore) ScanVer(
 
 func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 	rpc *model.UpdateOptions,
-	input *_go.InputCaseComment,
+	input struct {
+		Text string
+		Id   int64
+	},
 ) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
 	// Ensure "id" and "ver" are in the fields list
 	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
@@ -378,7 +383,7 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 		Set("ver", sq.Expr("ver + 1")). // Increment version
 		// input.Etag == input.ID
 		Where(sq.Eq{
-			"id":         input.Etag,
+			"id":         input.Id,
 			"dc":         rpc.Session.GetDomainId(),
 			"created_by": rpc.Session.GetUserId(), // Ensure only the creator can edit
 		})

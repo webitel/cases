@@ -114,11 +114,12 @@ func ParseFieldsForEtag(fields []string) []string {
 func FindEtagFields(fields []string) (hasEtag bool, hasId bool, hasVer bool) {
 	// Iterate through the fields and update the flags
 	for _, field := range fields {
-		if field == "etag" {
+		switch field {
+		case "etag":
 			hasEtag = true
-		} else if field == "id" {
+		case "id":
 			hasId = true
-		} else if field == "ver" {
+		case "ver":
 			hasVer = true
 		}
 	}

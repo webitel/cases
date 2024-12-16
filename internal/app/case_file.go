@@ -21,6 +21,9 @@ var CaseFileMetadata = model.NewObjectMetadata(
 		{Name: "mime", Default: true},
 		{Name: "name", Default: true},
 		{Name: "created_at", Default: true},
+		{Name: "created_by", Default: true},
+		{Name: "url", Default: true},
+		{Name: "author", Default: true},
 	})
 
 func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesRequest) (*cases.CaseFileList, error) {

@@ -5064,7 +5064,12 @@
       "properties": {
         "id": {
           "type": "string",
+          "format": "int64",
           "description": "Main identifier for read, update, and delete operations."
+        },
+        "etag": {
+          "type": "string",
+          "title": "entity tag representing id + ver"
         },
         "ver": {
           "type": "integer",
@@ -5748,6 +5753,12 @@
         "name": {
           "type": "string",
           "description": "File name."
+        },
+        "author": {
+          "$ref": "#/definitions/generalLookup"
+        },
+        "url": {
+          "type": "string"
         }
       },
       "description": "Metadata for a file associated with a case."

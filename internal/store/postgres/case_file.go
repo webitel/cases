@@ -19,9 +19,11 @@ type CaseFileStore struct {
 
 const (
 	// Alias for the storage.files table
-	fileAlias       = "cf"
-	channel         = "case"
-	fileDefaultSort = "created_at"
+	fileAlias              = "cf"
+	channel                = "case"
+	fileDefaultSort        = "created_at"
+	caseFileAuthorAlias    = "au"
+	caseFileCreatedByAlias = "cb"
 )
 
 // List implements store.CaseFileStore for listing case files.
@@ -90,7 +92,7 @@ func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, err
 
 func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 	rpc *model.SearchOptions,
-) (sq.Sqlizer, []func(link *cases.File) any, error) {
+) (sq.Sqlizer, []func(file *cases.File) any, error) {
 	// Begin building the base query with alias `cf`
 	queryBuilder := sq.Select().
 		From("storage.files AS cf").
@@ -136,8 +138,27 @@ func buildFilesSelectColumnsAndPlan(
 	base sq.SelectBuilder,
 	left string,
 	fields []string,
-) (sq.SelectBuilder, []func(link *cases.File) any, *dberr.DBError) {
-	var plan []func(link *cases.File) any
+) (sq.SelectBuilder, []func(file *cases.File) any, *dberr.DBError) {
+	var (
+		plan           []func(file *cases.File) any
+		createdByAlias string
+		joinCreatedBy  = func() {
+			if createdByAlias != "" {
+				return
+			}
+			createdByAlias = caseFileCreatedByAlias
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.created_by", caseFileCreatedByAlias, left))
+		}
+		authorAlias string
+		joinAuthor  = func() {
+			if authorAlias != "" {
+				return
+			}
+			joinCreatedBy()
+			authorAlias = caseFileAuthorAlias
+			base = base.LeftJoin(fmt.Sprintf("contacts.contact %s ON %[1]s.id = %s.contact_id", authorAlias, createdByAlias))
+		}
+	)
 
 	for _, field := range fields {
 		switch field {
@@ -147,7 +168,8 @@ func buildFilesSelectColumnsAndPlan(
 				return &file.Id
 			})
 		case "created_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.uploaded_by) created_by", left))
+			joinCreatedBy()
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text created_by", caseFileCreatedByAlias))
 			plan = append(plan, func(file *cases.File) any {
 				return scanner.ScanRowLookup(&file.CreatedBy)
 			})
@@ -171,6 +193,17 @@ func buildFilesSelectColumnsAndPlan(
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Name
 			})
+		case "url":
+			base = base.Column(store.Ident(left, "url"))
+			plan = append(plan, func(file *cases.File) any {
+				return &file.Url
+			})
+		case "author":
+			joinAuthor()
+			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, %[1]s.common_name)::text author`, caseFileAuthorAlias))
+			plan = append(plan, func(file *cases.File) any {
+				return scanner.ScanRowLookup(&file.Author)
+			})
 		default:
 			return base, nil, dberr.NewDBError("postgres.case_file.build_file_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))
 		}
@@ -183,7 +216,7 @@ func buildFilesSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(link *cases.File) any, int, *dberr.DBError) {
+func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(file *cases.File) any, int, *dberr.DBError) {
 	alias := "files"
 	if caseAlias == alias {
 		alias = "sub_" + alias
