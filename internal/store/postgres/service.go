@@ -360,24 +360,11 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.id": ids})
 	}
 
-	// Apply sorting based on context
-	for _, sort := range rpc.Sort {
-		queryBuilder = queryBuilder.OrderBy(sort)
-	}
+	// -------- Apply sorting ----------
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
 
-	// Get size and page for pagination
-	size := rpc.GetSize()
-	page := rpc.GetPage()
-
-	// Apply offset only if page > 1
-	if rpc.Page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
-	}
-
-	// Apply limit for pagination
-	if size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
 
 	// Build SQL query
 	query, args, err := queryBuilder.ToSql()

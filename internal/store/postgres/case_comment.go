@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	authmodel "github.com/webitel/cases/auth/model"
 
@@ -269,37 +268,16 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": caseID})
 	}
 
-	if text, ok := rpc.Filter["text"].(string); ok && len(text) > 0 {
-		substr := util.Substring(text)
-		combinedLike := strings.Join(substr, "%")
-		queryBuilder = queryBuilder.Where(sq.ILike{"cc.text": combinedLike})
+	// ----------Apply search by text -----------------
+	if rpc.Search != "" {
+		queryBuilder = store.AddSearchTerm(queryBuilder, store.Ident(caseLeft, "text"))
 	}
 
-	var sortFields []string
-	for _, sortField := range util.FieldsFunc(rpc.Sort, util.InlineFields) {
-		desc := strings.HasPrefix(sortField, "!")
-		if desc {
-			sortField = strings.TrimPrefix(sortField, "!")
-		}
+	// -------- Apply sorting by creation date ----------
+	queryBuilder = queryBuilder.OrderBy("created_at ASC")
 
-		column := caseCommentLeft + sortField
-		if desc {
-			column += " DESC"
-		} else {
-			column += " ASC"
-		}
-		sortFields = append(sortFields, column)
-	}
-
-	queryBuilder = queryBuilder.OrderBy(sortFields...)
-
-	// Pagination
-	if size := rpc.GetSize(); size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1))
-	}
-	if page := rpc.Page; page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * rpc.GetSize()))
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
 
 	return queryBuilder, planBuilder, nil
 }

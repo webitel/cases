@@ -412,28 +412,11 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	// Apply sorting using the AddSorting utility function
-	sortableFields := map[string]string{
-		"name":            "g.name",
-		"reaction_time":   "g.reaction_time",
-		"resolution_time": "g.resolution_time",
-		"created_at":      "g.created_at",
-		"updated_at":      "g.updated_at",
-	}
-	queryBuilder = store.Sort(queryBuilder, rpc.Sort, sortableFields, "g.name ASC")
+	// -------- Apply sorting ----------
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
 
-	size := rpc.GetSize()
-	page := rpc.GetPage()
-
-	// Apply offset only if page > 1
-	if rpc.Page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
-	}
-
-	// Apply limit
-	if size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1)) // Request one more record to check if there's a next page
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
 
 	// Apply GROUP BY clause
 	queryBuilder = queryBuilder.GroupBy(groupByFields...)

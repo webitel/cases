@@ -224,23 +224,11 @@ func (s CloseReason) buildSearchCloseReasonQuery(rpc *model.SearchOptions, close
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	// Define sortable fields and apply sorting
-	sortableFields := map[string]string{
-		"name":        "g.name",
-		"description": "g.description",
-	}
-	queryBuilder = store.Sort(queryBuilder, rpc.Sort, sortableFields, "g.name ASC")
+	// -------- Apply sorting ----------
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
 
-	size := rpc.GetSize()
-	page := rpc.Page
-
-	if rpc.Page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
-	}
-
-	if rpc.GetSize() != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1))
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {

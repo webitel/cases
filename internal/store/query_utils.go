@@ -104,48 +104,9 @@ func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder) squirre
 			}
 			base = base.OrderBy(s)
 		}
+	} else {
+		base = base.OrderBy("name ASC")
 	}
 
 	return base
-}
-
-// AddSorting adds sorting to the query builder based on the provided sort fields and their mappings.
-func Sort(
-	builder squirrel.SelectBuilder,
-	sortFields []string,
-	alias map[string]string,
-	defaultSort string,
-) squirrel.SelectBuilder {
-	var sortClauses []string
-
-	for _, sortField := range sortFields {
-		desc := false
-
-		// Determine the sort direction
-		if strings.HasPrefix(sortField, "-") {
-			desc = true
-			sortField = strings.TrimPrefix(sortField, "-")
-		} else if strings.HasPrefix(sortField, "+") {
-			sortField = strings.TrimPrefix(sortField, "+")
-		}
-
-		// Map the field name to the corresponding alias
-		if column, ok := alias[sortField]; ok {
-			if desc {
-				column += " DESC"
-			} else {
-				column += " ASC"
-			}
-			sortClauses = append(sortClauses, column)
-		}
-	}
-
-	// Apply sorting or fallback to the default sort
-	if len(sortClauses) > 0 {
-		builder = builder.OrderBy(sortClauses...)
-	} else if defaultSort != "" {
-		builder = builder.OrderBy(defaultSort)
-	}
-
-	return builder
 }

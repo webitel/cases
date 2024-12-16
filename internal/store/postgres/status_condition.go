@@ -251,25 +251,11 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
 	}
 
-	// Use generic sorting function
-	sortableFields := map[string]string{
-		"name":        "s.name",
-		"description": "s.description",
-	}
-	queryBuilder = store.Sort(queryBuilder, rpc.Sort, sortableFields, "s.name ASC")
+	// -------- Apply sorting ----------
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
 
-	page := rpc.GetPage()
-	size := rpc.GetSize()
-
-	// Apply offset only if page > 1
-	if page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
-	}
-
-	// Apply limit
-	if size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1))
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
 
 	// Convert the query to SQL and arguments
 	query, args, err := queryBuilder.ToSql()

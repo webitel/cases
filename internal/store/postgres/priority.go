@@ -210,21 +210,11 @@ func (p *Priority) buildListPriorityQuery(
 		queryBuilder = queryBuilder.Where(sq.ILike{"cp.name": combinedLike})
 	}
 
-	// Define sortable fields and apply sorting
-	sortableFields := map[string]string{
-		"name":        "cp.name",
-		"description": "cp.description",
-	}
-	queryBuilder = store.Sort(queryBuilder, rpc.Sort, sortableFields, "cp.name ASC")
+	// -------- Apply sorting ----------
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
 
-	// Handle pagination
-	size := rpc.GetSize()
-	if size != -1 {
-		queryBuilder = queryBuilder.Limit(uint64(size + 1))
-	}
-	if page := rpc.Page; page > 1 {
-		queryBuilder = queryBuilder.Offset(uint64((page - 1) * size))
-	}
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, plan, err := buildPrioritySelectColumnsAndPlan(queryBuilder, rpc.Fields)
