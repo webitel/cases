@@ -121,7 +121,7 @@ func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, erro
 	if len(opts.IDs) != 0 {
 		base = base.Where(fmt.Sprintf("%s = any(?)", store.Ident(l.mainTable, "id")), opts.IDs)
 	}
-	base = store.ApplyPaging(opts, base)
+	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	base = store.ApplyDefaultSorting(opts, base)
 	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, l.mainTable, opts.Fields)
 	if dbErr != nil {
@@ -387,7 +387,7 @@ func buildLinkSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (upd
 	if dbErr != nil {
 		return base, nil, 0, dbErr
 	}
-	base = store.ApplyPaging(opts, base)
+	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 
 	return base, plan, applied, nil
 }

@@ -162,8 +162,8 @@ func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
-		Page:    int32(page),
-		Size:    int32(req.Size),
+		Page:    int(page),
+		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
 	}

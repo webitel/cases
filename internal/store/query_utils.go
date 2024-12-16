@@ -79,23 +79,22 @@ func AddSearchTerm(base squirrel.SelectBuilder, q string, columns ...string) squ
 	return base
 }
 
-func ApplyPaging(opts model.Pager, base squirrel.SelectBuilder) squirrel.SelectBuilder {
-	if opts.GetSize() > 0 {
-		base = base.Limit(uint64(opts.GetSize() + 1))
-		if opts.GetPage() > 1 {
-			base = base.Offset(uint64((opts.GetPage() - 1) * opts.GetSize()))
+func ApplyPaging(page int, size int, base squirrel.SelectBuilder) squirrel.SelectBuilder {
+	if size > 0 {
+		base = base.Limit(uint64(size + 1))
+		if page > 1 {
+			base = base.Offset(uint64((page - 1) * size))
 		}
 	}
 
 	return base
 }
 
-func ResolvePaging[T any](opts model.Pager, items []*T) (updatedItems []*T, next bool) {
+func ResolvePaging[T any](size int, items []*T) (updatedItems []*T, next bool) {
 	updatedItems = make([]*T, len(items))
 	copy(updatedItems, items)
-	size := opts.GetSize()
 	if size > 0 {
-		if len(updatedItems) > int(size) {
+		if len(updatedItems) > size {
 			updatedItems = updatedItems[:size]
 			next = true
 		}
