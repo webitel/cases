@@ -534,7 +534,7 @@ func buildCommentsSelectAsSubquery(opts *model.SearchOptions, caseAlias string) 
 	if dbErr != nil {
 		return base, nil, 0, dbErr
 	}
-	base = store.ApplyPaging(opts, base)
+	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	return base, plan, applied, nil
 }
 

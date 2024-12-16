@@ -23,8 +23,6 @@ type CaseStore struct {
 	mainTable string
 }
 
-//type CaseScan func(caseItem *_go.Case) any
-
 const (
 	caseLeft     = "c"
 	relatedAlias = "related"
@@ -544,7 +542,7 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 		res _go.CaseList
 	)
 	res.Items, err = c.scanCases(rows, plan)
-	res.Items, res.Next = store.ResolvePaging(opts, res.Items)
+	res.Items, res.Next = store.ResolvePaging(opts.GetSize(), res.Items)
 	res.Page = int64(opts.GetPage())
 	return &res, nil
 }
@@ -571,7 +569,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 				searchTerm),
 			sq.Expr(fmt.Sprintf(`%s.reporter = ANY (SELECT contact_id
                         FROM contacts.contact_imclient ct_im
-                        WHERE ct_im.user IN (SELECT id FROM chat.client name %s ?))`, caseLeft, operator),
+                        WHERE ct_im.user_id IN (SELECT id FROM chat.client WHERE name %s ?))`, caseLeft, operator),
 				searchTerm),
 			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "subject"), operator), searchTerm),
 			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "name"), operator), searchTerm),
@@ -642,7 +640,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 
 	base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.Session.GetDomainId())
 	// pagination
-	base = store.ApplyPaging(opts, base)
+	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	// sort
 	base = store.ApplyDefaultSorting(opts, base)
 
@@ -809,27 +807,6 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	var (
 		plan []func(caseItem *_go.Case) any
-		//createdByAlias string
-		//joinCreatedBy  = func() string {
-		//	if createdByAlias != "" {
-		//		return createdByAlias
-		//	}
-		//	createdByAlias = "cr_by"
-		//	base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %s = %s", createdByAlias, store.Ident(caseLeft, "created_by"), store.Ident(createdByAlias, "id")))
-		//}
-		//joinUpdatedBy        func() string
-		//joinContactGroup     func() string
-		//joinSourceGroup      func() string
-		//joinCloseReasonGroup func() string
-		//joinAuthor           func() string
-		//joinCloseReason      func() string
-		//joinSLA              func() string
-		//joinStatusCondition  func() string
-		//joinPriority         func() string
-		//joinService          func() string
-		//joinAssignee         func() string
-		//joinReporter         func() string
-		//joinImpacted         func() string
 	)
 
 	for _, field := range opts.Fields {
@@ -1030,7 +1007,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 						return nil
 					}
 					res := &_go.CaseCommentList{}
-					res.Items, res.Next = store.ResolvePaging(opts, items)
+					res.Items, res.Next = store.ResolvePaging(opts.GetSize(), items)
 					res.Page = int64(opts.GetPage())
 					value.Comments = res
 					return nil
@@ -1061,7 +1038,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 						return nil
 					}
 					res := &_go.CaseLinkList{}
-					res.Items, res.Next = store.ResolvePaging(opts, items)
+					res.Items, res.Next = store.ResolvePaging(opts.GetSize(), items)
 					res.Page = int64(opts.GetPage())
 					value.Links = res
 					return nil

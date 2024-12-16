@@ -172,8 +172,8 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		Context: ctx,
 		Sort:    req.Sort,
 		Fields:  fields,
-		Page:    page,
-		Size:    req.Size,
+		Page:    int(page),
+		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
 	}

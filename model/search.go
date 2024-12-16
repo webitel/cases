@@ -25,8 +25,8 @@ type SearchOptions struct {
 	UnknownFields     []string
 	DerivedSearchOpts map[string]*SearchOptions
 	// paging
-	Page int32
-	Size int32
+	Page int
+	Size int
 	Sort []string
 }
 
@@ -66,8 +66,8 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 	opts := &SearchOptions{
 		Context: ctx,
 		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
-		Page:    searcher.GetPage(),
-		Size:    searcher.GetSize(),
+		Page:    int(searcher.GetPage()),
+		Size:    int(searcher.GetSize()),
 		Search:  searcher.GetQ(),
 		Filter:  make(map[string]any),
 	}
@@ -120,7 +120,7 @@ const (
 	DefaultSearchSize = 10
 )
 
-func (rpc *SearchOptions) GetSize() int32 {
+func (rpc *SearchOptions) GetSize() int {
 	if rpc == nil {
 		return DefaultSearchSize
 	}
@@ -136,7 +136,7 @@ func (rpc *SearchOptions) GetSize() int32 {
 	panic("unreachable code")
 }
 
-func (rpc *SearchOptions) GetPage() int32 {
+func (rpc *SearchOptions) GetPage() int {
 	if rpc != nil {
 		// Limited ? either: manual -or- default !
 		if rpc.GetSize() > 0 {

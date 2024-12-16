@@ -212,7 +212,7 @@ func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq
 		From("storage.files "+alias).
 		Where(fmt.Sprintf("%s = %s::text", store.Ident(alias, "uuid"), store.Ident(caseAlias, "id"))).
 		Where(fmt.Sprintf("%s = ?", store.Ident(alias, "channel")), channel)
-	base = store.ApplyPaging(opts, base)
+	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 
 	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, opts.Fields)
 	if dbErr != nil {
