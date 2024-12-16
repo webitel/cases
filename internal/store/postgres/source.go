@@ -15,6 +15,10 @@ import (
 	"github.com/webitel/cases/util"
 )
 
+const (
+	sourceDefaultSort = "name"
+)
+
 type Source struct {
 	storage db.Store
 }
@@ -287,7 +291,7 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
 	queryBuilder = store.ApplyPaging(rpc, queryBuilder)

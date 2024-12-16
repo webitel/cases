@@ -15,6 +15,10 @@ import (
 	"github.com/webitel/cases/util"
 )
 
+const (
+	slaConditionDefaultSort = "name"
+)
+
 type SLAConditionStore struct {
 	storage store.Store
 }
@@ -413,7 +417,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
 	queryBuilder = store.ApplyPaging(rpc, queryBuilder)

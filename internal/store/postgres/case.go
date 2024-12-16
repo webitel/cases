@@ -28,9 +28,10 @@ type CaseStore struct {
 type CaseScan func(caseItem *_go.Case) any
 
 const (
-	caseLeft     = "c"
-	relatedAlias = "related"
-	linksAlias   = "links"
+	caseLeft        = "c"
+	relatedAlias    = "related"
+	linksAlias      = "links"
+	caseDefaultSort = "created_at"
 )
 
 func (c *CaseStore) Create(
@@ -584,7 +585,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 	base = store.ApplyPaging(opts, base)
 
 	// sort
-	base = store.ApplyDefaultSorting(opts, base)
+	base = store.ApplyDefaultSorting(opts, base, caseDefaultSort)
 
 	return base, plan, nil
 }

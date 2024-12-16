@@ -15,6 +15,10 @@ import (
 	"github.com/webitel/cases/util"
 )
 
+const (
+	statusDefaultSort = "name"
+)
+
 type Status struct {
 	storage store.Store
 }
@@ -269,7 +273,7 @@ func (s Status) buildSearchStatusQuery(rpc *model.SearchOptions) (string, []inte
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
 	queryBuilder = store.ApplyPaging(rpc, queryBuilder)

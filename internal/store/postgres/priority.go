@@ -20,7 +20,8 @@ type Priority struct {
 type PriorityScan func(priority *api.Priority) any
 
 const (
-	prioLeft = "cp"
+	prioLeft            = "cp"
+	priorityDefaultSort = "name"
 )
 
 // Create implements store.PriorityStore.
@@ -211,7 +212,7 @@ func (p *Priority) buildListPriorityQuery(
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, priorityDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
 	queryBuilder = store.ApplyPaging(rpc, queryBuilder)

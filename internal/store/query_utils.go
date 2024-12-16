@@ -89,7 +89,7 @@ func ApplyPaging(opts model.Pager, base squirrel.SelectBuilder) squirrel.SelectB
 	return base
 }
 
-func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder) squirrel.SelectBuilder {
+func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder, defaultSort string) squirrel.SelectBuilder {
 	if len(opts.GetSort()) != 0 {
 		for _, s := range opts.GetSort() {
 			desc := strings.HasPrefix(s, "-")
@@ -105,7 +105,7 @@ func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder) squirre
 			base = base.OrderBy(s)
 		}
 	} else {
-		base = base.OrderBy("name ASC")
+		base = base.OrderBy(fmt.Sprintf(`%s ASC`, defaultSort))
 	}
 
 	return base

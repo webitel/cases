@@ -19,8 +19,9 @@ type CaseFileStore struct {
 
 const (
 	// Alias for the storage.files table
-	fileAlias = "cf"
-	channel   = "case"
+	fileAlias       = "cf"
+	channel         = "case"
+	fileDefaultSort = "created_at"
 )
 
 // List implements store.CaseFileStore for listing case files.
@@ -122,7 +123,7 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
 	queryBuilder = store.ApplyPaging(rpc, queryBuilder)

@@ -14,6 +14,10 @@ import (
 	"github.com/webitel/cases/util"
 )
 
+const (
+	slaDefaultSort = "name"
+)
+
 type SLAStore struct {
 	storage store.Store
 }
@@ -287,7 +291,7 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
 	queryBuilder = store.ApplyPaging(rpc, queryBuilder)

@@ -16,6 +16,10 @@ import (
 	util "github.com/webitel/cases/util"
 )
 
+const (
+	closeReasonGroupDefaultSort = "name"
+)
+
 type CloseReasonGroup struct {
 	storage store.Store
 }
@@ -246,7 +250,7 @@ func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOpti
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder)
+	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, closeReasonGroupDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
 	queryBuilder = store.ApplyPaging(rpc, queryBuilder)
