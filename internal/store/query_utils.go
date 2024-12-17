@@ -90,8 +90,7 @@ func ApplyPaging(page int, size int, base squirrel.SelectBuilder) squirrel.Selec
 }
 
 func ResolvePaging[T any](size int, items []*T) (updatedItems []*T, next bool) {
-	updatedItems = make([]*T, len(items))
-	copy(updatedItems, items)
+	updatedItems = items[:]
 	if size > 0 {
 		if len(updatedItems) > size {
 			updatedItems = updatedItems[:size]
