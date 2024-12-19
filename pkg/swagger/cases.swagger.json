@@ -20,6 +20,9 @@
       "name": "CaseComments"
     },
     {
+      "name": "RelatedCases"
+    },
+    {
       "name": "CaseFiles"
     },
     {
@@ -30,9 +33,6 @@
     },
     {
       "name": "Cases"
-    },
-    {
-      "name": "RelatedCases"
     },
     {
       "name": "Catalogs"
@@ -1489,461 +1489,9 @@
         ]
       }
     },
-    "/cases/related/{caseEtag}": {
-      "post": {
-        "operationId": "RelatedCases_CreateRelatedCase",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/casesRelatedCase"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "caseEtag",
-            "description": "new/existing comments belong to (id accepted)",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "fields",
-            "description": "result fields needed on the front-end for each comment",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "input.etag",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relationType",
-            "description": " - Blocks: inversed\n - DuplicatedBy: inversed\n - CausedBy: inversed\n - IsParentOf: inversed\n - RelatesTo: bidirectional",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "enum": [
-              "BlockedBy",
-              "Blocks",
-              "Duplicates",
-              "DuplicatedBy",
-              "Causes",
-              "CausedBy",
-              "IsChildOf",
-              "IsParentOf",
-              "RelatesTo"
-            ],
-            "default": "BlockedBy"
-          },
-          {
-            "name": "input.relatedTo.id",
-            "description": "default, readonly system fields",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.ver",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
-          },
-          {
-            "name": "input.relatedTo.etag",
-            "description": "main field required for read, update and delete",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.createdBy.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.createdBy.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.createdAt",
-            "description": "unixmilli",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.updatedBy.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.updatedBy.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.updatedAt",
-            "description": "unixmilli",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.name",
-            "description": "name of the case, formed by the prefix defined in Catalog and int, in docs uses as id",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.subject",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.description",
-            "description": "free-form text to describe case",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.contactInfo",
-            "description": "free-form text to describe contact information",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.plannedReactionAt",
-            "description": "planned reaction time calculated by sla and conditions, taking into account the calendar (unixmilli)",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.plannedResolveAt",
-            "description": "planned resolve time calculated on-flight by sla and conditions, taking into account the calendar (unixmilli)",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.status.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.status.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.closeReasonGroup.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.closeReasonGroup.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.author.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.author.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.assignee.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.assignee.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.reporter.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.reporter.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.impacted.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.impacted.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.group.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.group.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.priority.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.priority.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.source.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.source.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.statusCondition.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.statusCondition.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.close.closeResult",
-            "description": "rich text with comment on resulting case",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.close.closeReason.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.close.closeReason.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.rate.rating",
-            "description": "rating, formed from api calls",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.rate.ratingComment",
-            "description": "(optional)",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.timing.resolvedAt",
-            "description": "actual time when this case was resolved",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.timing.reactedAt",
-            "description": "actual time when this case changed it's status from initial",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.timing.differenceInReaction",
-            "description": "difference between actual and planned reaction time, taking into account the calendar",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.timing.differenceInResolve",
-            "description": "difference between actual and planned resolve time, taking into account the calendar",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.service.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.service.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "input.relatedTo.comments.page",
-            "description": "Current page number.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.comments.next",
-            "description": "Flag to indicate if more pages are available.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "input.relatedTo.related.page",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.related.next",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "input.relatedTo.links.page",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.links.next",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "input.relatedTo.files.page",
-            "description": "Current page number.",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.files.next",
-            "description": "Indicator if there is a next page.",
-            "in": "query",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "input.relatedTo.sla.id",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "input.relatedTo.sla.name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "RelatedCases"
-        ]
-      }
-    },
-    "/cases/related/{etag}": {
+    "/cases/related/{id}": {
       "get": {
+        "summary": "Retrieve a specific related case by ID",
         "operationId": "RelatedCases_LocateRelatedCase",
         "responses": {
           "200": {
@@ -1961,14 +1509,15 @@
         },
         "parameters": [
           {
-            "name": "etag",
-            "description": "(id allowed)",
+            "name": "id",
+            "description": "Identifier of the related case.",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "fields",
+            "description": "Fields to return in the response.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -1983,6 +1532,7 @@
         ]
       },
       "delete": {
+        "summary": "Delete a specific related case",
         "operationId": "RelatedCases_DeleteRelatedCase",
         "responses": {
           "200": {
@@ -2000,31 +1550,19 @@
         },
         "parameters": [
           {
-            "name": "etag",
-            "description": "(etag only)",
+            "name": "id",
+            "description": "Identifier of the related case to delete.",
             "in": "path",
             "required": true,
             "type": "string"
-          },
-          {
-            "name": "fields",
-            "description": "fields on return",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
           }
         ],
         "tags": [
           "RelatedCases"
         ]
-      }
-    },
-    "/cases/related/{input.etag}": {
+      },
       "put": {
+        "summary": "Update an existing related case",
         "operationId": "RelatedCases_UpdateRelatedCase",
         "responses": {
           "200": {
@@ -2042,31 +1580,24 @@
         },
         "parameters": [
           {
-            "name": "input.etag",
+            "name": "id",
+            "description": "Identifier of the related case to update.",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "input",
+            "description": "Input data for the related case update.",
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "relationType": {
-                  "$ref": "#/definitions/casesRelationType"
-                },
-                "relatedTo": {
-                  "$ref": "#/definitions/casesCase",
-                  "title": "child"
-                }
-              }
+              "$ref": "#/definitions/casesInputRelatedCase"
             }
           },
           {
             "name": "fields",
-            "description": "on return",
+            "description": "Fields to include in the response.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -2081,6 +1612,7 @@
         ]
       },
       "patch": {
+        "summary": "Update an existing related case",
         "operationId": "RelatedCases_UpdateRelatedCase2",
         "responses": {
           "200": {
@@ -2098,31 +1630,24 @@
         },
         "parameters": [
           {
-            "name": "input.etag",
+            "name": "id",
+            "description": "Identifier of the related case to update.",
             "in": "path",
             "required": true,
             "type": "string"
           },
           {
             "name": "input",
+            "description": "Input data for the related case update.",
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "relationType": {
-                  "$ref": "#/definitions/casesRelationType"
-                },
-                "relatedTo": {
-                  "$ref": "#/definitions/casesCase",
-                  "title": "child"
-                }
-              }
+              "$ref": "#/definitions/casesInputRelatedCase"
             }
           },
           {
             "name": "fields",
-            "description": "on return",
+            "description": "Fields to include in the response.",
             "in": "query",
             "required": false,
             "type": "array",
@@ -3498,83 +3023,6 @@
         ]
       }
     },
-    "/cases/{caseEtag}/related": {
-      "get": {
-        "summary": "The related cases can be obtained bidirectionally as child or parent, but we should consider them from the perspective of the requested case, by inverting their connection type\nRequested case always a parent and related cases a children",
-        "operationId": "RelatedCases_ListRelatedCases",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/casesRelatedCaseList"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "caseEtag",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "size",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "int64"
-          },
-          {
-            "name": "q",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "qin",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "fields",
-            "in": "query",
-            "required": false,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "collectionFormat": "multi"
-          }
-        ],
-        "tags": [
-          "RelatedCases"
-        ]
-      }
-    },
     "/cases/{etag}": {
       "get": {
         "operationId": "Cases_LocateCase",
@@ -3923,6 +3371,140 @@
         ],
         "tags": [
           "Cases"
+        ]
+      }
+    },
+    "/cases/{primaryCaseId}/related": {
+      "get": {
+        "summary": "List all related cases for a specific case",
+        "operationId": "RelatedCases_ListRelatedCases",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/casesRelatedCaseList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "primaryCaseId",
+            "description": "Primary Case ID for which related cases are requested.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "description": "Page number for pagination.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "size",
+            "description": "Number of related cases per page.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "q",
+            "description": "Query string for search.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sort",
+            "description": "Sorting order.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "fields",
+            "description": "Fields to return for each related case.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "ids",
+            "description": "Filter by ids",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "RelatedCases"
+        ]
+      },
+      "post": {
+        "summary": "Create a new related case",
+        "operationId": "RelatedCases_CreateRelatedCase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/casesRelatedCase"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "primaryCaseId",
+            "description": "Primary case details.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "input",
+            "description": "Input data for the related case.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/casesCreateInputRelatedCase"
+            }
+          },
+          {
+            "name": "fields",
+            "description": "Fields to include in the response.",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "RelatedCases"
         ]
       }
     },
@@ -5510,8 +5092,7 @@
           "$ref": "#/definitions/casesRelationType"
         },
         "relatedTo": {
-          "type": "string",
-          "format": "int64"
+          "type": "string"
         }
       }
     },
@@ -5586,6 +5167,20 @@
       "required": [
         "name"
       ]
+    },
+    "casesCreateInputRelatedCase": {
+      "type": "object",
+      "properties": {
+        "relatedCaseId": {
+          "type": "string",
+          "description": "Related case details."
+        },
+        "relationType": {
+          "$ref": "#/definitions/casesRelationType",
+          "description": "Relation type between the cases."
+        }
+      },
+      "description": "Input for creating a related case."
     },
     "casesCreateSLARequest": {
       "type": "object",
@@ -6071,17 +5666,20 @@
     "casesInputRelatedCase": {
       "type": "object",
       "properties": {
-        "etag": {
-          "type": "string"
-        },
         "relationType": {
-          "$ref": "#/definitions/casesRelationType"
+          "$ref": "#/definitions/casesRelationType",
+          "description": "Relation type."
         },
-        "relatedTo": {
-          "$ref": "#/definitions/casesCase",
-          "title": "child"
+        "primaryCaseId": {
+          "type": "string",
+          "description": "Primary case details."
+        },
+        "relatedCaseId": {
+          "type": "string",
+          "description": "Related case details."
         }
-      }
+      },
+      "description": "Input for creating or updating a related case."
     },
     "casesInputSLA": {
       "type": "object",
@@ -6420,75 +6018,101 @@
       "properties": {
         "id": {
           "type": "string",
-          "format": "int64"
+          "description": "Unique identifier for the related case."
         },
         "ver": {
           "type": "integer",
-          "format": "int32"
-        },
-        "etag": {
-          "type": "string",
-          "title": "main field required for read, update and delete"
+          "format": "int32",
+          "description": "Version number of the related case, used for concurrency control."
         },
         "createdBy": {
-          "$ref": "#/definitions/generalLookup"
+          "$ref": "#/definitions/generalLookup",
+          "description": "User who created the relation."
         },
         "createdAt": {
           "type": "string",
           "format": "int64",
-          "title": "unixmilli"
+          "description": "Timestamp (in milliseconds) of when the relation was created."
         },
         "updatedBy": {
-          "$ref": "#/definitions/generalLookup"
+          "$ref": "#/definitions/generalLookup",
+          "description": "User who last updated the relation."
         },
         "updatedAt": {
           "type": "string",
           "format": "int64",
-          "title": "unixmilli"
-        },
-        "child": {
-          "$ref": "#/definitions/casesCase"
+          "description": "Timestamp (in milliseconds) of the last update."
         },
         "relationType": {
           "$ref": "#/definitions/casesRelationType",
-          "title": "Case parent = 9; // (optional, always a case that requested)"
+          "description": "Relation type between cases."
+        },
+        "relatedCase": {
+          "$ref": "#/definitions/casesRelatedCaseLookup",
+          "description": "Related case details."
+        },
+        "primaryCase": {
+          "$ref": "#/definitions/casesRelatedCaseLookup",
+          "description": "Primary case details."
         }
-      }
+      },
+      "description": "Represents a related case with its relationship details."
     },
     "casesRelatedCaseList": {
       "type": "object",
       "properties": {
         "page": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "description": "Current page number."
         },
         "next": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Flag to indicate if more pages are available."
         },
-        "items": {
+        "data": {
           "type": "array",
           "items": {
             "type": "object",
             "$ref": "#/definitions/casesRelatedCase"
-          }
+          },
+          "description": "List of related cases on the current page."
         }
-      }
+      },
+      "description": "Paginated list of related cases."
+    },
+    "casesRelatedCaseLookup": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "description": "RelatedCaseLookup is created specifically to include the subject field."
     },
     "casesRelationType": {
       "type": "string",
       "enum": [
-        "BlockedBy",
-        "Blocks",
-        "Duplicates",
-        "DuplicatedBy",
-        "Causes",
-        "CausedBy",
-        "IsChildOf",
-        "IsParentOf",
-        "RelatesTo"
+        "RELATION_TYPE_UNSPECIFIED",
+        "DUPLICATES",
+        "IS_DUPLICATED_BY",
+        "BLOCKS",
+        "IS_BLOCKED_BY",
+        "CAUSES",
+        "IS_CAUSED_BY",
+        "IS_CHILD_OF",
+        "IS_PARENT_OF",
+        "RELATES_TO"
       ],
-      "default": "BlockedBy",
-      "title": "- Blocks: inversed\n - DuplicatedBy: inversed\n - CausedBy: inversed\n - IsParentOf: inversed\n - RelatesTo: bidirectional"
+      "default": "RELATION_TYPE_UNSPECIFIED",
+      "description": "Enum for relation types between cases."
     },
     "casesSLA": {
       "type": "object",
