@@ -89,15 +89,33 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		return nil, err
 	}
 
-	parsedId, err := strconv.Atoi(relatedCase.Id)
+	parsedID, err := strconv.Atoi(relatedCase.Id)
 	if err != nil {
 		return nil, cerror.NewInternalError(
 			"app.related_case.create_related_case.invalid_id",
-			"Failed to parse related case ID",
+			"Failed to parse relation ID",
 		)
 	}
 
-	relatedCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(parsedId), relatedCase.Ver)
+	relatedID, err := strconv.Atoi(relatedCase.RelatedCase.GetId())
+	if err != nil {
+		return nil, cerror.NewInternalError(
+			"app.related_case.create_related_case.invalid_id",
+			"Failed to parse related ID",
+		)
+	}
+
+	primaryID, err := strconv.Atoi(relatedCase.PrimaryCase.GetId())
+	if err != nil {
+		return nil, cerror.NewInternalError(
+			"app.related_case.create_related_case.invalid_id",
+			"Failed to parse related ID",
+		)
+	}
+
+	relatedCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(parsedID), relatedCase.Ver)
+	relatedCase.RelatedCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(relatedID), relatedCase.Ver)
+	relatedCase.PrimaryCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(primaryID), relatedCase.Ver)
 	return relatedCase, nil
 }
 
@@ -210,21 +228,42 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 	return output, nil
 }
 
-// Helper function to encode ETags for related cases
 func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 	for _, relatedCase := range relatedCases {
 		if relatedCase == nil {
 			continue
 		}
 
+		// Normalize related case ID
 		id, err := strconv.Atoi(relatedCase.Id)
 		if err != nil {
-			// Return the error if ID conversion fails
-			return cerror.NewInternalError("failed encoding id, error", err.Error())
+			return cerror.NewInternalError("failed encoding related_case id, error", err.Error())
+		}
+		relatedCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), relatedCase.Ver)
+
+		// Normalize primary case ID
+		if relatedCase.PrimaryCase != nil {
+			primaryCaseID, err := strconv.Atoi(relatedCase.PrimaryCase.GetId())
+			if err != nil {
+				return cerror.NewInternalError("failed encoding primary_case id, error", err.Error())
+			}
+			relatedCase.PrimaryCase.Id = etag.EncodeEtag(etag.EtagCase, int64(primaryCaseID), relatedCase.PrimaryCase.GetVer())
+
+			// Set PrimaryCase Ver to nil
+			relatedCase.PrimaryCase.Ver = 0
 		}
 
-		// Encode ETag using EtagRelatedCase and version
-		relatedCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), relatedCase.Ver)
+		// Normalize related case ID inside related case
+		if relatedCase.RelatedCase != nil {
+			relatedCaseID, err := strconv.Atoi(relatedCase.RelatedCase.Id)
+			if err != nil {
+				return cerror.NewInternalError("failed encoding related_case id, error", err.Error())
+			}
+			relatedCase.RelatedCase.Id = etag.EncodeEtag(etag.EtagCase, int64(relatedCaseID), relatedCase.RelatedCase.GetVer())
+
+			// Set RelatedCase Ver to nil
+			relatedCase.RelatedCase.Ver = 0
+		}
 	}
 
 	return nil

@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -202,6 +203,18 @@ func (r *RelatedCaseStore) List(
 			return nil, dberr.NewDBInternalError("store.related_case.list.row_scan_error", err)
 		}
 
+		// Parse and reverse relation type
+		parsedRelationType, parseErr := ParseRelationTypeWithReversion(
+			relatedCase.RelationType.String(),
+			rpc.ParentId,
+			relatedCase.PrimaryCase.GetId(),
+			relatedCase.RelatedCase.GetId(),
+		)
+		if parseErr != nil {
+			return nil, dberr.NewDBInternalError("store.related_case.list.relation_parse_error", parseErr)
+		}
+		relatedCase.RelationType = parsedRelationType
+
 		relatedCases = append(relatedCases, relatedCase)
 		count++
 	}
@@ -214,6 +227,58 @@ func (r *RelatedCaseStore) List(
 	}, nil
 }
 
+// ParseRelationTypeWithReversion determines the relation type based on parent-case matching.
+func ParseRelationTypeWithReversion(
+	rawType string,
+	parentID int64,
+	parentCase string,
+	relatedCase string,
+) (cases.RelationType, error) {
+	parentCaseID, err := strconv.Atoi(parentCase)
+	if err != nil {
+		return cases.RelationType_RELATION_TYPE_UNSPECIFIED, fmt.Errorf("failed to parse parent case id", err)
+	}
+	relatedCaseID, err := strconv.Atoi(relatedCase)
+	if err != nil {
+		return cases.RelationType_RELATION_TYPE_UNSPECIFIED, fmt.Errorf("failed to parse parent case id", err)
+	}
+	switch rawType {
+	case "DUPLICATES":
+		if parentID == int64(parentCaseID) {
+			return cases.RelationType_DUPLICATES, nil
+		}
+		if parentID == int64(relatedCaseID) {
+			return cases.RelationType_IS_DUPLICATED_BY, nil
+		}
+	case "BLOCKS":
+		if parentID == int64(parentCaseID) {
+			return cases.RelationType_BLOCKS, nil
+		}
+		if parentID == int64(relatedCaseID) {
+			return cases.RelationType_IS_BLOCKED_BY, nil
+		}
+	case "CAUSES":
+		if parentID == int64(parentCaseID) {
+			return cases.RelationType_CAUSES, nil
+		}
+		if parentID == int64(relatedCaseID) {
+			return cases.RelationType_IS_CAUSED_BY, nil
+		}
+	case "IS_CHILD_OF":
+		if parentID == int64(parentCaseID) {
+			return cases.RelationType_IS_CHILD_OF, nil
+		}
+		if parentID == int64(relatedCaseID) {
+			return cases.RelationType_IS_PARENT_OF, nil
+		}
+	case "RELATES_TO":
+		return cases.RelationType_RELATES_TO, nil
+	default:
+		return cases.RelationType_RELATION_TYPE_UNSPECIFIED, fmt.Errorf("invalid relation type: %s", rawType)
+	}
+	return cases.RelationType_RELATION_TYPE_UNSPECIFIED, fmt.Errorf("relation type mismatch")
+}
+
 // buildListRelatedCaseSqlizer dynamically builds the SELECT query for related cases.
 func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 	rpc *model.SearchOptions,
@@ -224,10 +289,12 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 		Where(sq.Eq{"rc.dc": rpc.Session.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	// Filter by parent case if provided
-	if rpc.ParentId != 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"rc.primary_case_id": rpc.ParentId})
-	}
+		// Filter by parent case if provided
+
+	queryBuilder = queryBuilder.Where(sq.Or{
+		sq.Eq{"rc.primary_case_id": rpc.ParentId},
+		sq.Eq{"rc.related_case_id": rpc.ParentId},
+	})
 
 	if len(rpc.IDs) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"rc.id": rpc.IDs})
@@ -401,13 +468,13 @@ func buildRelatedCasesSelectColumnsAndPlan(
 			})
 		case "related_case":
 			joinRelatedCase()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name, %[1]s.subject)::text related_case", relatedCaseAlias))
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name, %[1]s.subject, %[1]s.ver)::text related_case", relatedCaseAlias))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanRelatedCaseLookup(&rc.RelatedCase)
 			})
 		case "primary_case":
 			joinPrimaryCase()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name, %[1]s.subject)::text primary_case", primaryCaseAlias))
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name, %[1]s.subject, %[1]s.ver)::text primary_case", primaryCaseAlias))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanRelatedCaseLookup(&rc.PrimaryCase)
 			})

@@ -136,7 +136,7 @@ func ScanRowLookup(value **_go.Lookup) any {
 	})
 }
 
-// Make specificaly for related case as lookup includes [subject] in addition to name + id
+// ScanRelatedCaseLookup is specifically designed for scanning related cases with id, name, subject, and ver fields.
 func ScanRelatedCaseLookup(value **_go.RelatedCaseLookup) any {
 	return TextDecoder(func(src []byte) error {
 		res := *(value)
@@ -162,11 +162,7 @@ func ScanRelatedCaseLookup(value **_go.RelatedCaseLookup) any {
 					if err != nil {
 						return err
 					}
-					id, err := strconv.ParseInt(str.String, 10, 64)
-					if err != nil {
-						return err
-					}
-					res.Id = id
+					res.Id = str.String
 					return nil
 				}),
 				TextDecoder(func(src []byte) error {
@@ -191,6 +187,21 @@ func ScanRelatedCaseLookup(value **_go.RelatedCaseLookup) any {
 					}
 					res.Subject = str.String
 					ok = ok || (str.String != "" && str.String != "[deleted]")
+					return nil
+				}),
+				TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
+					err := str.DecodeText(nil, src)
+					if err != nil {
+						return err
+					}
+					ver, parseErr := strconv.Atoi(str.String)
+					if parseErr != nil {
+						return parseErr
+					}
+					res.Ver = int32(ver)
 					return nil
 				}),
 			}
