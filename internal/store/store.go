@@ -17,6 +17,7 @@ type Store interface {
 	CaseComment() CaseCommentStore
 	CaseLink() CaseLinkStore
 	CaseFile() CaseFileStore
+	CaseTimeline() CaseTimelineStore
 
 	// ------------ Dictionary Stores ------------ //
 	Source() SourceStore
@@ -81,6 +82,12 @@ type CaseCommentStore interface {
 	Update(req *model.UpdateOptions, upd *_go.CaseComment) (*_go.CaseComment, error)
 	// Delete comment
 	Delete(req *model.DeleteOptions) error
+}
+
+// Case timeline
+type CaseTimelineStore interface {
+	Get(rpc *model.SearchOptions) (*_go.GetTimelineResponse, error)
+	GetCounter(rpc *model.SearchOptions) ([]*model.TimelineCounter, error)
 }
 
 type CaseFileStore interface {
