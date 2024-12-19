@@ -290,6 +290,18 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
+	// Adjust sort if calendar is present
+	for i, sortField := range rpc.Sort {
+		if strings.TrimPrefix(sortField, "-") == "calendar" {
+			// Replace "calendar" with "cal.name" for sorting
+			if strings.HasPrefix(sortField, "-") {
+				rpc.Sort[i] = "-cal.name"
+			} else {
+				rpc.Sort[i] = "cal.name"
+			}
+		}
+	}
+
 	// -------- Apply sorting ----------
 	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
 
