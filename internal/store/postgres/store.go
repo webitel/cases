@@ -18,6 +18,7 @@ type Store struct {
 	linkCaseStore    store.CaseLinkStore
 	caseCommentStore store.CaseCommentStore
 	caseFileStore    store.CaseFileStore
+	relatedCaseStore store.RelatedCaseStore
 	//----------dictionary stores ------------ //
 	sourceStore           store.SourceStore
 	statusStore           store.StatusStore
@@ -84,6 +85,17 @@ func (s *Store) CaseFile() store.CaseFileStore {
 		s.caseFileStore = caseFile
 	}
 	return s.caseFileStore
+}
+
+func (s *Store) RelatedCase() store.RelatedCaseStore {
+	if s.relatedCaseStore == nil {
+		relatedCase, err := NewRelatedCaseStore(s)
+		if err != nil {
+			return nil
+		}
+		s.relatedCaseStore = relatedCase
+	}
+	return s.relatedCaseStore
 }
 
 // -------------Dictionary Stores ------------ //

@@ -158,6 +158,71 @@ var WebitelAPI = WebitelServicesInfo{
 			},
 		},
 	},
+	"RelatedCases": WebitelServices{
+		ObjClass:           "cases",
+		AdditionalLicenses: []string{},
+		WebitelMethods: map[string]WebitelMethod{
+			"LocateRelatedCase": WebitelMethod{
+				Access: 1,
+				Input:  "LocateRelatedCaseRequest",
+				Output: "RelatedCase",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/related/{id}",
+						Method: "GET",
+					},
+				},
+			},
+			"CreateRelatedCase": WebitelMethod{
+				Access: 0,
+				Input:  "CreateRelatedCaseRequest",
+				Output: "RelatedCase",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{primary_case_id}/related",
+						Method: "POST",
+					},
+				},
+			},
+			"UpdateRelatedCase": WebitelMethod{
+				Access: 2,
+				Input:  "UpdateRelatedCaseRequest",
+				Output: "RelatedCase",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/related/{id}",
+						Method: "PUT",
+					},
+					{
+						Path:   "/cases/related/{id}",
+						Method: "PATCH",
+					},
+				},
+			},
+			"DeleteRelatedCase": WebitelMethod{
+				Access: 3,
+				Input:  "DeleteRelatedCaseRequest",
+				Output: "RelatedCase",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/related/{id}",
+						Method: "DELETE",
+					},
+				},
+			},
+			"ListRelatedCases": WebitelMethod{
+				Access: 1,
+				Input:  "ListRelatedCasesRequest",
+				Output: "RelatedCaseList",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{primary_case_id}/related",
+						Method: "GET",
+					},
+				},
+			},
+		},
+	},
 	"CaseFiles": WebitelServices{
 		ObjClass:           "cases",
 		AdditionalLicenses: []string{},
@@ -365,71 +430,6 @@ var WebitelAPI = WebitelServicesInfo{
 					{
 						Path:   "/cases/{etag}",
 						Method: "DELETE",
-					},
-				},
-			},
-		},
-	},
-	"RelatedCases": WebitelServices{
-		ObjClass:           "cases",
-		AdditionalLicenses: []string{},
-		WebitelMethods: map[string]WebitelMethod{
-			"LocateRelatedCase": WebitelMethod{
-				Access: 1,
-				Input:  "LocateRelatedCaseRequest",
-				Output: "RelatedCase",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/related/{etag}",
-						Method: "GET",
-					},
-				},
-			},
-			"CreateRelatedCase": WebitelMethod{
-				Access: 1,
-				Input:  "CreateRelatedCaseRequest",
-				Output: "RelatedCase",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/related/{case_etag}",
-						Method: "POST",
-					},
-				},
-			},
-			"UpdateRelatedCase": WebitelMethod{
-				Access: 1,
-				Input:  "UpdateRelatedCaseRequest",
-				Output: "RelatedCase",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/related/{input.etag}",
-						Method: "PUT",
-					},
-					{
-						Path:   "/cases/related/{input.etag}",
-						Method: "PATCH",
-					},
-				},
-			},
-			"DeleteRelatedCase": WebitelMethod{
-				Access: 1,
-				Input:  "DeleteRelatedCaseRequest",
-				Output: "RelatedCase",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/related/{etag}",
-						Method: "DELETE",
-					},
-				},
-			},
-			"ListRelatedCases": WebitelMethod{
-				Access: 3,
-				Input:  "ListRelatedCasesRequest",
-				Output: "RelatedCaseList",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/{case_etag}/related",
-						Method: "GET",
 					},
 				},
 			},

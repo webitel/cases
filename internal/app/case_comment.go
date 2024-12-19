@@ -79,7 +79,7 @@ func (c *CaseCommentService) UpdateComment(
 	}
 
 	updateOpts := model.NewUpdateOptions(ctx, req, CaseCommentMetadata)
-	updateOpts.IDs = []int64{tag.GetOid()}
+	updateOpts.Etags = []*etag.Tid{&tag}
 
 	comment := &cases.CaseComment{
 		Id:   tag.GetOid(),

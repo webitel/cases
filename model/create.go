@@ -23,6 +23,8 @@ type CreateOptions struct {
 	Ids []int64
 	// ParentID is the attribute to represent parent object, that creation process connected to
 	ParentID int64
+	// ChildID is the attribute to represent child object, that creation process connect
+	ChildID int64
 }
 
 type Creator interface {
