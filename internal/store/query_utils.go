@@ -103,11 +103,16 @@ func ResolvePaging[T any](size int, items []*T) (updatedItems []*T, next bool) {
 func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder, defaultSort string) squirrel.SelectBuilder {
 	if len(opts.GetSort()) != 0 {
 		for _, s := range opts.GetSort() {
+			// Check for + or - prefix
 			desc := strings.HasPrefix(s, "-")
-			if desc {
-				s = strings.TrimPrefix(s, "-")
+			asc := strings.HasPrefix(s, "+")
+
+			// Trim prefix if it exists
+			if desc || asc {
+				s = strings.TrimPrefix(s, string(s[0]))
 			}
 
+			// Determine sort direction
 			if desc {
 				s += " DESC"
 			} else {

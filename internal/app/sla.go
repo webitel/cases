@@ -18,7 +18,7 @@ type SLAService struct {
 }
 
 const (
-	defaultFieldsSLA = "id, name, description"
+	defaultFieldsSLA = "id, name, description, calendar"
 )
 
 // CreateSLA implements cases.SLAsServer.
