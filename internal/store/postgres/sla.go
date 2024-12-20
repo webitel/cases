@@ -292,11 +292,15 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 
 	// Adjust sort if calendar is present
 	for i, sortField := range rpc.Sort {
-		if strings.TrimPrefix(sortField, "-") == "calendar" {
+		// Remove any leading "+" or "-" for comparison
+		field := strings.TrimPrefix(strings.TrimPrefix(sortField, "-"), "+")
+
+		if field == "calendar" {
 			// Replace "calendar" with "cal.name" for sorting
 			if strings.HasPrefix(sortField, "-") {
 				rpc.Sort[i] = "-cal.name"
 			} else {
+				// Covers both no prefix and "+" prefix
 				rpc.Sort[i] = "cal.name"
 			}
 		}
