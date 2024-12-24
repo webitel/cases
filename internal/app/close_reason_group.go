@@ -105,6 +105,7 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(ctx context.Context, req 
 		Sort:    req.Sort,
 		Size:    int(req.Size),
 		Time:    t,
+		Filter:  make(map[string]interface{}),
 	}
 
 	if req.Q != "" {

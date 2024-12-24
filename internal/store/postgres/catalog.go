@@ -1310,7 +1310,7 @@ SELECT catalog.id,
        COALESCE(catalog.status_id, 0) AS status_id,
        COALESCE(status.name, '') AS status_name,
        COALESCE(catalog.close_reason_id, 0) AS close_reason_id,
-       COALESCE(close_reason.name, '')                    AS close_reason_name,
+       COALESCE(close_reason_group.name, '')                    AS close_reason_name,
        catalog.created_by,
        COALESCE(created_by_user.name, '')                 AS created_by_name,
        catalog.updated_by,
@@ -1327,11 +1327,11 @@ SELECT catalog.id,
 FROM updated_catalog AS catalog
          LEFT JOIN cases.sla ON sla.id = catalog.sla_id
          LEFT JOIN cases.status ON status.id = catalog.status_id
-         LEFT JOIN cases.close_reason ON close_reason.id = catalog.close_reason_id
+         LEFT JOIN cases.close_reason_group ON close_reason_group.id = catalog.close_reason_id
          LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by
          LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by
 GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name, catalog.status_id,
-         status.name, catalog.close_reason_id, close_reason.name, catalog.created_by, created_by_user.name,
+         status.name, catalog.close_reason_id, close_reason_group.name, catalog.created_by, created_by_user.name,
          catalog.updated_by, updated_by_user.name, catalog.updated_at;
 	`, checkRoot, updateSQL)
 
