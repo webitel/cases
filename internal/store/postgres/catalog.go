@@ -1153,13 +1153,14 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 
 	// Flag to manage if we've added any CTEs
 	cteAdded := false
+	placeholderIndex := 5 // Start placeholder index after the initial args
 
 	// Check if "teams" is in rpc.Fields, even if teamIDs is empty
 	if util.FieldExists("teams", rpc.Fields) {
 		query += `
  updated_teams AS (
     INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, updated_at, dc)
-        SELECT $1, unnest(NULLIF($5::bigint[], '{}')), $2, $2, $4, $3 -- created_by and updated_by are both set to $2
+        SELECT $1, unnest(NULLIF($` + fmt.Sprintf("%d", placeholderIndex) + `::bigint[], '{}')), $2, $2, $4, $3
         ON CONFLICT (catalog_id, team_id)
             DO UPDATE SET updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
         RETURNING catalog_id
@@ -1168,12 +1169,13 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
      DELETE FROM cases.team_catalog
      WHERE catalog_id = $1
        AND (
-         array_length($5, 1) IS NULL -- If array is empty, delete all teams
-         OR team_id != ALL ($5) -- If array is not empty, delete teams not in the array
+         array_length($` + fmt.Sprintf("%d", placeholderIndex) + `, 1) IS NULL
+         OR team_id != ALL ($` + fmt.Sprintf("%d", placeholderIndex) + `)
        )
      RETURNING catalog_id
     )`
 		args = append(args, pq.Array(teamIDs)) // Append team IDs to args (even if empty)
+		placeholderIndex++                     // Increment placeholder index
 		cteAdded = true
 	}
 
@@ -1185,7 +1187,7 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 		query += `
  updated_skills AS (
     INSERT INTO cases.skill_catalog (catalog_id, skill_id, created_by, updated_by, updated_at, dc)
-        SELECT $1, unnest(NULLIF($6::bigint[], '{}')), $2, $2, $4, $3 -- created_by and updated_by are both set to $2
+        SELECT $1, unnest(NULLIF($` + fmt.Sprintf("%d", placeholderIndex) + `::bigint[], '{}')), $2, $2, $4, $3
         ON CONFLICT (catalog_id, skill_id)
             DO UPDATE SET updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
         RETURNING catalog_id
@@ -1194,12 +1196,13 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
      DELETE FROM cases.skill_catalog
      WHERE catalog_id = $1
        AND (
-         array_length($6, 1) IS NULL -- if array is empty, delete all skills
-         OR skill_id != ALL ($6) -- if array is not empty, delete skills not in the array
+         array_length($` + fmt.Sprintf("%d", placeholderIndex) + `, 1) IS NULL
+         OR skill_id != ALL ($` + fmt.Sprintf("%d", placeholderIndex) + `)
        )
      RETURNING catalog_id
     )`
 		args = append(args, pq.Array(skillIDs)) // Append skill IDs to args (even if empty)
+		placeholderIndex++                      // Increment placeholder index
 		cteAdded = true
 	}
 
