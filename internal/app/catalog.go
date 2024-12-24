@@ -286,12 +286,12 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 				return nil, cerror.NewBadRequestError("catalog.update_catalog.prefix.required", "Catalog prefix is required and cannot be empty")
 			}
 			fields = append(fields, "prefix")
-		case "sla_id":
+		case "slaId":
 			if req.Input.SlaId == 0 {
 				return nil, cerror.NewBadRequestError("catalog.update_catalog.sla.required", "Catalog SLA is required and cannot be empty")
 			}
 			fields = append(fields, "sla_id")
-		case "status_id":
+		case "statusId":
 			if req.Input.StatusId == 0 {
 				return nil, cerror.NewBadRequestError("catalog.update_catalog.status.required", "Catalog status is required and cannot be empty")
 			}
@@ -300,11 +300,11 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 			fields = append(fields, "description")
 		case "code":
 			fields = append(fields, "code")
-		case "close_reason_id":
+		case "closeReasonId":
 			fields = append(fields, "close_reason_id")
-		case "team_ids":
+		case "teamIds":
 			fields = append(fields, "teams")
-		case "skill_ids":
+		case "skillIds":
 			fields = append(fields, "skills")
 		}
 	}
