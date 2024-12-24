@@ -248,6 +248,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		Description: req.Input.Description,
 		Prefix:      req.Input.Prefix,
 		Code:        req.Input.Code,
+		State:       req.Input.State,
 		Sla:         &cases.Lookup{Id: req.Input.SlaId},
 		Status:      &cases.Lookup{Id: req.Input.StatusId},
 		CloseReason: &cases.Lookup{Id: req.Input.CloseReasonId},

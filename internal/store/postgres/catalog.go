@@ -1102,6 +1102,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 		&lookup.CloseReason.Id, &lookup.CloseReason.Name,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedByLookup.Id, &updatedByLookup.Name, &updatedAt,
+		&lookup.State,
 		&teamLookups, &skillLookups,
 	)
 	if err != nil {
@@ -1174,9 +1175,6 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
     )`
 		args = append(args, pq.Array(teamIDs)) // Append team IDs to args (even if empty)
 		cteAdded = true
-	} else {
-		// Pass an empty array if "teams" is not provided
-		args = append(args, pq.Array([]int64{}))
 	}
 
 	// Check if "skills" is in rpc.Fields, even if skillIDs are empty
@@ -1203,9 +1201,6 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
     )`
 		args = append(args, pq.Array(skillIDs)) // Append skill IDs to args (even if empty)
 		cteAdded = true
-	} else {
-		// Pass an empty array if "skills" is not provided
-		args = append(args, pq.Array([]int64{}))
 	}
 
 	// Construct the final SELECT query after the CTE block
@@ -1300,7 +1295,7 @@ WITH root_check AS (
 	query := fmt.Sprintf(`
 %s, updated_catalog AS (
     %s
-    RETURNING id, name, created_at, updated_at, sla_id, created_by, updated_by, status_id, close_reason_id
+    RETURNING *
 )
 SELECT catalog.id,
        catalog.name,
@@ -1316,6 +1311,7 @@ SELECT catalog.id,
        catalog.updated_by,
        COALESCE(updated_by_user.name, '')                               AS updated_by_name,
        catalog.updated_at,
+	   catalog.state,
        COALESCE((SELECT json_agg(json_build_object('id', team.id, 'name', team.name))
                  FROM cases.team_catalog ts
                           LEFT JOIN call_center.cc_team team ON team.id = ts.team_id
@@ -1332,7 +1328,7 @@ FROM updated_catalog AS catalog
          LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by
 GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name, catalog.status_id,
          status.name, catalog.close_reason_id, close_reason_group.name, catalog.created_by, created_by_user.name,
-         catalog.updated_by, updated_by_user.name, catalog.updated_at;
+         catalog.updated_by, updated_by_user.name, catalog.updated_at, catalog.state;
 	`, checkRoot, updateSQL)
 
 	// Return the final combined query and arguments
