@@ -330,11 +330,11 @@ func extractLinksJSON(links *_go.CaseLinkList) []byte {
 }
 
 func extractRelatedJSON(related *_go.RelatedCaseList) []byte {
-	if related == nil || len(related.Items) == 0 {
+	if related == nil || len(related.Data) == 0 {
 		return []byte("[]")
 	}
 	var jsonArray []map[string]interface{}
-	for _, item := range related.Items {
+	for _, item := range related.Data {
 		jsonArray = append(jsonArray, map[string]interface{}{
 			"id":   item.GetId(),
 			"type": item.GetRelationType(),
@@ -347,24 +347,26 @@ func extractRelatedJSON(related *_go.RelatedCaseList) []byte {
 // ConvertRelationType validates the cases.RelationType and returns its integer representation.
 func ConvertRelationType(relationType _go.RelationType) (int, error) {
 	switch relationType {
-	case _go.RelationType_BlockedBy:
+	case _go.RelationType_RELATION_TYPE_UNSPECIFIED:
 		return 0, nil
-	case _go.RelationType_Blocks:
+	case _go.RelationType_DUPLICATES:
 		return 1, nil
-	case _go.RelationType_Duplicates:
+	case _go.RelationType_IS_DUPLICATED_BY:
 		return 2, nil
-	case _go.RelationType_DuplicatedBy:
+	case _go.RelationType_BLOCKS:
 		return 3, nil
-	case _go.RelationType_Causes:
+	case _go.RelationType_IS_BLOCKED_BY:
 		return 4, nil
-	case _go.RelationType_CausedBy:
+	case _go.RelationType_CAUSES:
 		return 5, nil
-	case _go.RelationType_IsChildOf:
+	case _go.RelationType_IS_CAUSED_BY:
 		return 6, nil
-	case _go.RelationType_IsParentOf:
+	case _go.RelationType_IS_CHILD_OF:
 		return 7, nil
-	case _go.RelationType_RelatesTo:
+	case _go.RelationType_IS_PARENT_OF:
 		return 8, nil
+	case _go.RelationType_RELATES_TO:
+		return 9, nil
 	default:
 		return -1, fmt.Errorf("invalid relation type: %v", relationType)
 	}
@@ -545,9 +547,7 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case.list.exec.error", err.Error())
 	}
-	var (
-		res _go.CaseList
-	)
+	var res _go.CaseList
 	res.Items, err = c.scanCases(rows, plan)
 	res.Items, res.Next = store.ResolvePaging(opts.GetSize(), res.Items)
 	res.Page = int64(opts.GetPage())
@@ -563,8 +563,8 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		where := sq.Or{
 			sq.Expr(fmt.Sprintf(`%s.reporter = ANY (SELECT contact_id
                         FROM contacts.contact_phone ct_ph
-                        WHERE ct_ph.reverse like 
-						'%%' || 
+                        WHERE ct_ph.reverse like
+						'%%' ||
 							overlay(? placing '' from coalesce(
 								(select value::int from call_center.system_settings s where s.domain_id = ? and s.name = 'search_number_length'),
 								 ?)+1 for ?)
@@ -580,7 +580,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 				searchTerm),
 			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "subject"), operator), searchTerm),
 			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "name"), operator), searchTerm),
-			//sq.Expr(fmt.Sprintf("%s = ?", store.Ident(caseLeft, "contact_info")), search),
+			// sq.Expr(fmt.Sprintf("%s = ?", store.Ident(caseLeft, "contact_info")), search),
 		}
 		base = base.Where(where)
 
@@ -812,9 +812,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 	base sq.SelectBuilder,
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
-	var (
-		plan []func(caseItem *_go.Case) any
-	)
+	var plan []func(caseItem *_go.Case) any
 
 	for _, field := range opts.Fields {
 		switch field {
@@ -1065,7 +1063,8 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 						"mime",
 						"name",
 						"created_at",
-					}}
+					},
+				}
 			}
 			subquery, scanPlan, filtersApplied, dbErr := buildFilesSelectAsSubquery(derivedOpts, caseLeft)
 			if dbErr != nil {
@@ -1117,7 +1116,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				if caseItem.Related == nil {
 					caseItem.Related = &_go.RelatedCaseList{}
 				}
-				return scanner.ScanJSONToStructList(&caseItem.Related.Items)
+				return scanner.ScanJSONToStructList(&caseItem.Related.Data)
 			})
 		default:
 			return sq.SelectBuilder{}, nil, fmt.Errorf("unknown field: %s", field)

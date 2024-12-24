@@ -415,6 +415,13 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
+	if rpc.ID != 0 {
+		// Join cases.priority_sla_condition only if filtering by priority_id
+		queryBuilder = queryBuilder.
+			LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
+			Where(sq.Eq{"ps.priority_id": rpc.ID})
+	}
+
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
 		substrs := util.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
