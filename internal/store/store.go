@@ -18,6 +18,7 @@ type Store interface {
 	CaseLink() CaseLinkStore
 	CaseFile() CaseFileStore
 	CaseTimeline() CaseTimelineStore
+	CaseCommunication() CaseCommunicationStore
 
 	// ------------ Dictionary Stores ------------ //
 	Source() SourceStore
@@ -88,6 +89,13 @@ type CaseCommentStore interface {
 type CaseTimelineStore interface {
 	Get(rpc *model.SearchOptions) (*_go.GetTimelineResponse, error)
 	GetCounter(rpc *model.SearchOptions) ([]*model.TimelineCounter, error)
+}
+
+// Case connected communications (chats, calls etc.)
+type CaseCommunicationStore interface {
+	Link(*model.CreateOptions, []*_go.InputCaseCommunication) ([]*_go.CaseCommunication, error)
+	Unlink(*model.DeleteOptions) ([]*_go.CaseCommunication, error)
+	List(opts *model.SearchOptions) ([]*_go.CaseCommunication, error)
 }
 
 type CaseFileStore interface {

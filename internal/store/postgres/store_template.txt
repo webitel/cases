@@ -1,0 +1,23 @@
+package postgres
+
+import (
+	"github.com/webitel/cases/api/cases"
+	dberr "github.com/webitel/cases/internal/error"
+	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/model"
+)
+
+type [MAIN_OBJECT]Store struct {
+	storage   store.Store
+}
+
+var s store.[MAIN_OBJECT]Store = &[MAIN_OBJECT]Store{}
+
+var [MAIN_OBJECT]Fields = []string{}
+
+func New[MAIN_OBJECT]Store(store store.Store) (store.[MAIN_OBJECT]Store, error) {
+	if store == nil {
+		return nil, dberr.NewDBError()
+	}
+	return &[MAIN_OBJECT]Store{storage: store}, nil
+}

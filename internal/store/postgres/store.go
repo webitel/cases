@@ -14,11 +14,12 @@ import (
 // Store is the struct implementing the Store interface.
 type Store struct {
 	//------------cases stores ------------ ----//
-	caseStore         store.CaseStore
-	linkCaseStore     store.CaseLinkStore
-	caseCommentStore  store.CaseCommentStore
-	caseFileStore     store.CaseFileStore
-	caseTimelineStore store.CaseTimelineStore
+	caseStore              store.CaseStore
+	linkCaseStore          store.CaseLinkStore
+	caseCommentStore       store.CaseCommentStore
+	caseFileStore          store.CaseFileStore
+	caseTimelineStore      store.CaseTimelineStore
+	caseCommunicationStore store.CaseCommunicationStore
 	//----------dictionary stores ------------ //
 	sourceStore           store.SourceStore
 	statusStore           store.StatusStore
@@ -56,7 +57,7 @@ func (s *Store) Case() store.CaseStore {
 
 func (s *Store) CaseLink() store.CaseLinkStore {
 	if s.linkCaseStore == nil {
-		linkCase, err := NewLinkCaseStore(s)
+		linkCase, err := NewCaseLinkStore(s)
 		if err != nil {
 			return nil
 		}
@@ -96,6 +97,17 @@ func (s *Store) CaseTimeline() store.CaseTimelineStore {
 		s.caseTimelineStore = caseTimeline
 	}
 	return s.caseTimelineStore
+}
+
+func (s *Store) CaseCommunication() store.CaseCommunicationStore {
+	if s.caseCommunicationStore == nil {
+		caseCommunication, err := NewCaseCommunicationStore(s)
+		if err != nil {
+			return nil
+		}
+		s.caseCommunicationStore = caseCommunication
+	}
+	return s.caseCommunicationStore
 }
 
 // -------------Dictionary Stores ------------ //

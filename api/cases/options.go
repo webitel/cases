@@ -463,6 +463,34 @@ var WebitelAPI = WebitelServicesInfo{
 			},
 		},
 	},
+	"CaseCommunications": WebitelServices{
+		ObjClass:           "cases",
+		AdditionalLicenses: []string{},
+		WebitelMethods: map[string]WebitelMethod{
+			"LinkCommunication": WebitelMethod{
+				Access: 1,
+				Input:  "LinkCommunicationRequest",
+				Output: "LinkCommunicationResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_etag}/communication",
+						Method: "POST",
+					},
+				},
+			},
+			"UnlinkCommunication": WebitelMethod{
+				Access: 2,
+				Input:  "UnlinkCommunicationRequest",
+				Output: "UnlinkCommunicationResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_etag}/communication/{etag}",
+						Method: "DELETE",
+					},
+				},
+			},
+		},
+	},
 	"Catalogs": WebitelServices{
 		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},

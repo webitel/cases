@@ -46,16 +46,18 @@ func (c *CaseTimelineStore) Get(rpc *model.SearchOptions) (*cases.GetTimelineRes
 		}
 		err = rows.Scan(scanValue...)
 		if err != nil {
-			return nil, dberr.NewDBInternalError("postgres.case_timeline.get.exec.error", err)
+			return nil, dberr.NewDBInternalError("postgres.case_timeline.get.scan.error", err)
 		}
 		result.Days = append(result.Days, node)
 	}
+	result.Days, result.Next = store.ResolvePaging(rpc.GetSize(), result.Days)
+	result.Page = int32(rpc.GetPage())
 
 	return result, nil
 }
 
 // region Timeline Build Functions
-func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (query squirrel.Sqlizer, plan []func(timeline *cases.DayTimeline) any, dbError *dberr.DBError) {
+func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (squirrel.Sqlizer, []func(timeline *cases.DayTimeline) any, *dberr.DBError) {
 	if rpc == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.rpc", "search options required")
 	}
@@ -72,60 +74,58 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (query squirrel.Sqlizer,
 	}
 	var (
 		ctes       = make(map[string]squirrel.Sqlizer)
-		chatsPlan  []func(timeline *cases.Event) any
-		callsPlan  []func(timeline *cases.Event) any
-		emailsPlan []func(timeline *cases.Event) any
+		chatsPlan  []func(timeline **cases.Event) any
+		callsPlan  []func(timeline **cases.Event) any
+		emailsPlan []func(timeline **cases.Event) any
 		dayEvents  []string
 		from       = "( SELECT * FROM ("
+		plan       []func(timeline *cases.DayTimeline) any
 	)
 	for i, field := range fields {
 		var (
-			subplan []func(*cases.Event) any
-			err     *dberr.DBError
-			cte     squirrel.Sqlizer
+			err       *dberr.DBError
+			cte       squirrel.Sqlizer
+			eventType string
 		)
 		switch field {
 		case "chats":
-			cte, subplan, err = buildTimelineChatsColumn(caseId)
-			if err != nil {
-				return nil, nil, err
-			}
+			cte, chatsPlan, err = buildTimelineChatsColumn(caseId)
+			eventType = cases.CaseTimelineEventType_TIMELINE_CHAT.String()
 		case "calls":
-			cte, subplan, err = buildTimelineCallsColumn(caseId)
-			if err != nil {
-				return nil, nil, err
-			}
+			cte, callsPlan, err = buildTimelineCallsColumn(caseId)
+			eventType = cases.CaseTimelineEventType_TIMELINE_CALL.String()
 		case "emails":
-			cte, subplan, err = buildTimelineEmailsColumn(caseId)
-			if err != nil {
-				return nil, nil, err
-			}
+			cte, emailsPlan, err = buildTimelineEmailsColumn(caseId)
+			eventType = cases.CaseTimelineEventType_TIMELINE_EMAIL.String()
 		default:
 			return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.parse_fields.unknown", "unknown field "+field)
 		}
+		if err != nil {
+			return nil, nil, err
+		}
 		ctes[field] = cte
-		callsPlan = subplan
 		if i != 0 {
 			from += " union all "
 		}
 		from += fmt.Sprintf(`SELECT
 					  DATE_TRUNC('day', created_at) "day",
 					  created_at,
-					  'chat' "event",
-					  (%s) "data"
-					   from %[1]s
-						`, field)
+					  '%s' "event",
+					  (%s)::text "data"
+					   from %[2]s
+						`, eventType, field)
 	}
 	from += ") AS ec ORDER BY created_at DESC) e"
 	cteQuery, args, err := store.FormAsCTEs(ctes)
 	if err != nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.form_cte.error", err.Error())
 	}
-	query = squirrel.Select("day", "array_agg(e.event) \"events\"", "array_agg(e.data) \"data\"").
+	query := squirrel.Select("day", "array_agg(e.event)::text \"events\"", "array_agg(e.data)::text \"data\"").
 		GroupBy("e.day").
 		OrderBy("e.day desc").From(from).
 		Prefix(cteQuery, args...).
 		PlaceholderFormat(squirrel.Dollar)
+	query = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), query)
 
 	plan = []func(timeline *cases.DayTimeline) any{
 		func(rec *cases.DayTimeline) any {
@@ -221,31 +221,34 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (query squirrel.Sqlizer,
 					node = &cases.Event{} // NEW
 					var (
 						eventType string
-						scanPlan  []func(*cases.Event) any
+						scanPlan  []func(**cases.Event) any
 					)
 					// ALLOC
 					switch eventType = dayEvents[r]; eventType {
-					case cases.CaseTimelineEventType_email.String():
+					case cases.CaseTimelineEventType_TIMELINE_EMAIL.String():
 						actualEvent := &cases.EmailEvent{}
-						node.Type = cases.CaseTimelineEventType_email
+						node.Type = cases.CaseTimelineEventType_TIMELINE_EMAIL
 						node.Event = &cases.Event_Email{Email: actualEvent}
-						rec.EmailsCount++
+						count := &rec.EmailsCount
+						*count++
 
 						// scanning functions set
 						scanPlan = emailsPlan
-					case cases.CaseTimelineEventType_chat.String():
+					case cases.CaseTimelineEventType_TIMELINE_CHAT.String():
 						actualEvent := &cases.ChatEvent{}
-						node.Type = cases.CaseTimelineEventType_chat
+						node.Type = cases.CaseTimelineEventType_TIMELINE_CHAT
 						node.Event = &cases.Event_Chat{Chat: actualEvent}
-						rec.ChatsCount++
+						count := &rec.ChatsCount
+						*count++
 
 						// scanning functions set
 						scanPlan = chatsPlan
-					case cases.CaseTimelineEventType_call.String():
+					case cases.CaseTimelineEventType_TIMELINE_CALL.String():
 						actualEvent := &cases.CallEvent{}
-						node.Type = cases.CaseTimelineEventType_call
+						node.Type = cases.CaseTimelineEventType_TIMELINE_CALL
 						node.Event = &cases.Event_Call{Call: actualEvent}
-						rec.CallsCount++
+						count := &rec.CallsCount
+						*count++
 
 						// scanning functions set
 						scanPlan = callsPlan
@@ -253,7 +256,7 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (query squirrel.Sqlizer,
 					// DECODE
 					scan := pgtype.NewCompositeTextScanner(pgtype.NewConnInfo(), []byte(elem))
 					for _, bind := range scanPlan {
-						df := bind(node)
+						df := bind(&node)
 						if df == nil {
 							// omit; pseudo calc
 							continue
@@ -273,192 +276,349 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (query squirrel.Sqlizer,
 	return query, plan, nil
 
 }
-func buildTimelineChatsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline *cases.Event) any, dbError *dberr.DBError) {
+func buildTimelineChatsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline **cases.Event) any, dbError *dberr.DBError) {
 	if caseId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_chats_column.check_args.case_id.empty", "case id required")
 	}
-	base = squirrel.Expr(ChatsCTE, caseId)
+	base = squirrel.Expr(ChatsCTE, caseId, int32(cases.CaseCommunicationsTypes_COMMUNICATION_CHAT))
 	plan = append(plan,
-		func(node *cases.Event) any {
-			chat := node.GetChat()
+		func(node **cases.Event) any {
+			buf := *node
+			chat := buf.GetChat()
 			return scanner.ScanText(&chat.Id)
 		},
-		func(node *cases.Event) any {
-			return scanner.ScanTimestamp(&node.CreatedAt)
+		func(node **cases.Event) any {
+			buf := *node
+			return scanner.ScanTimestamp(&buf.CreatedAt)
 		},
-		func(node *cases.Event) any {
-			chat := node.GetChat()
+		func(node **cases.Event) any {
+			buf := *node
+			chat := buf.GetChat()
 			return scanner.ScanTimestamp(&chat.ClosedAt)
 		},
-		func(node *cases.Event) any {
-			chat := node.GetChat()
+		func(node **cases.Event) any {
+			buf := *node
+			chat := buf.GetChat()
 			return &chat.Duration
 		},
-		func(node *cases.Event) any {
-			chat := node.GetChat()
+		func(node **cases.Event) any {
+			buf := *node
+			chat := buf.GetChat()
 			return scanner.ScanLookupList(&chat.Participants)
 		},
-		func(node *cases.Event) any {
-			chat := node.GetChat()
+		func(node **cases.Event) any {
+			buf := *node
+			chat := buf.GetChat()
 			return scanner.ScanRowExtendedLookup(&chat.Gateway)
 		},
-		func(node *cases.Event) any {
-			return scanner.ScanTimestamp(&node.CreatedAt)
-		},
-		func(node *cases.Event) any {
-			chat := node.GetChat()
+		func(node **cases.Event) any {
+			buf := *node
+			chat := buf.GetChat()
 			return scanner.ScanRowLookup(&chat.FlowScheme)
 		},
-		func(node *cases.Event) any {
-			// TODO: type
-			return nil
-		},
-		func(node *cases.Event) any {
-			chat := node.GetChat()
+		func(node **cases.Event) any {
+			buf := *node
+			chat := buf.GetChat()
 			return &chat.IsInbound
 		},
-		func(node *cases.Event) any {
-			chat := node.GetChat()
+		func(node **cases.Event) any {
+			buf := *node
+			chat := buf.GetChat()
 			return &chat.IsMissed
 		},
-		func(node *cases.Event) any {
-			chat := node.GetChat()
+		func(node **cases.Event) any {
+			buf := *node
+			chat := buf.GetChat()
 			return scanner.ScanRowLookup(&chat.Queue)
 		},
-		func(node *cases.Event) any {
-			chat := node.GetChat()
+		func(node **cases.Event) any {
+			buf := *node
+			chat := buf.GetChat()
 			return &chat.IsDetailed
 		})
 	return
 }
-func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline *cases.Event) any, dbError *dberr.DBError) {
+func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline **cases.Event) any, dbError *dberr.DBError) {
 	if caseId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_calls_column.check_args.case_id.empty", "case id required")
 	}
-	base = squirrel.Expr(CallsCTE, caseId)
+	base = squirrel.Expr(CallsCTE, caseId, int32(cases.CaseCommunicationsTypes_COMMUNICATION_CALL))
 
 	plan = append(plan,
-		func(node *cases.Event) any {
-			call := node.GetCall()
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
 			return scanner.ScanText(&call.Id)
 		},
-		func(node *cases.Event) any {
-			return scanner.ScanTimestamp(&node.CreatedAt)
+		func(node **cases.Event) any {
+			buf := *node
+			return scanner.ScanTimestamp(&buf.CreatedAt)
 		},
-		func(node *cases.Event) any {
-			call := node.GetCall()
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
 			return scanner.ScanTimestamp(&call.ClosedAt)
 		},
-		func(node *cases.Event) any {
-			call := node.GetCall()
-			return &call.Duration
-		},
-		func(node *cases.Event) any {
-			call := node.GetCall()
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
 			return &call.TotalDuration
 		},
-		func(node *cases.Event) any {
-			call := node.GetCall()
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
 			return scanner.ScanLookupList(&call.Participants)
 		},
-		func(node *cases.Event) any {
-			call := node.GetCall()
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
 			return scanner.ScanRowLookup(&call.Gateway)
 		},
-		func(node *cases.Event) any {
-			call := node.GetCall()
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
 			return scanner.ScanRowLookup(&call.FlowScheme)
 		},
-		// type
-		func(node *cases.Event) any {
-			return nil
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
+			return scanner.ScanBool(&call.IsInbound)
 		},
-		func(node *cases.Event) any {
-			call := node.GetCall()
-			return &call.IsInbound
-		},
-		func(node *cases.Event) any {
-			call := node.GetCall()
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
 			return &call.IsMissed
 		},
-		func(node *cases.Event) any {
-			call := node.GetCall()
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
 			return scanner.ScanRowLookup(&call.Queue)
 		},
-		func(node *cases.Event) any {
-			call := node.GetCall()
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
 			return &call.IsDetailed
 		},
 		// files
-		func(node *cases.Event) any {
-			// TODO
-			return nil
+		func(node **cases.Event) any {
+			buf := *node
+			value := buf.GetCall()
+			return scanner.TextDecoder(func(src []byte) error {
+				if len(src) == 0 {
+					return nil // NULL
+				}
+				array, inErr := pgtype.ParseUntypedTextArray(string(src))
+				if inErr != nil {
+					return inErr
+				}
+
+				var (
+					scanPlan = []func(file *cases.CallFile) any{
+						// id
+						func(file *cases.CallFile) any {
+							return scanner.ScanInt64(&file.Id)
+						},
+						// size
+						func(file *cases.CallFile) any {
+							return scanner.ScanInt64(&file.Size)
+						},
+						// mime type
+						func(file *cases.CallFile) any {
+							return scanner.ScanText(&file.MimeType)
+						},
+						func(file *cases.CallFile) any {
+							return scanner.ScanText(&file.Name)
+						},
+						func(file *cases.CallFile) any {
+							return scanner.ScanInt64(&file.CreatedAt)
+						},
+					}
+				)
+
+				var err error
+				for _, element := range array.Elements {
+					var (
+						file cases.CallFile
+						raw  = pgtype.NewCompositeTextScanner(pgtype.NewConnInfo(), []byte(element))
+					)
+					for _, bind := range scanPlan {
+						raw.ScanValue(bind(&file))
+						err = raw.Err()
+						if err != nil {
+							return err
+						}
+					}
+					value.Files = append(value.Files, &file)
+				}
+				return nil
+			})
 		},
 		// transcripts
-		func(node *cases.Event) any {
-			// TODO
-			return nil
+		func(node **cases.Event) any {
+			buf := *node
+			value := buf.GetCall()
+			return scanner.TextDecoder(func(src []byte) error {
+				if len(src) == 0 {
+					return nil // NULL
+				}
+				array, inErr := pgtype.ParseUntypedTextArray(string(src))
+				if inErr != nil {
+					return inErr
+				}
+
+				var (
+					scanPlan = []func(*cases.TranscriptLookup) any{
+						// id
+						func(transcript *cases.TranscriptLookup) any {
+							return scanner.ScanInt64(&transcript.Id)
+						},
+						// size
+						func(transcript *cases.TranscriptLookup) any {
+							return scanner.ScanText(&transcript.Locale)
+						},
+						// file
+						func(transcript *cases.TranscriptLookup) any {
+							return scanner.ScanRowLookup(&transcript.File)
+						},
+					}
+				)
+
+				var err error
+				for _, element := range array.Elements {
+					var (
+						file cases.TranscriptLookup
+						raw  = pgtype.NewCompositeTextScanner(pgtype.NewConnInfo(), []byte(element))
+					)
+					for _, bind := range scanPlan {
+						raw.ScanValue(bind(&file))
+						err = raw.Err()
+						if err != nil {
+							return err
+						}
+					}
+					value.Transcripts = append(value.Transcripts, &file)
+				}
+				return nil
+			})
 		},
 	)
 	return
 }
-func buildTimelineEmailsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline *cases.Event) any, dbError *dberr.DBError) {
+func buildTimelineEmailsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline **cases.Event) any, dbError *dberr.DBError) {
 	if caseId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_emails_column.check_args.case_id.empty", "case id required")
 	}
-	base = squirrel.Expr(EmailsCTE, caseId)
+	base = squirrel.Expr(EmailsCTE, caseId, int32(cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL))
 
 	plan = append(plan,
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return scanner.ScanText(&email.Id)
 		},
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return &email.From
 		},
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return &email.To
 		},
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return scanner.ScanRowLookup(&email.Profile)
 		},
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return scanner.ScanText(&email.Subject)
 		},
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return &email.Cc
 		},
-		func(node *cases.Event) any {
-			return scanner.ScanTimestamp(&node.CreatedAt)
+		func(node **cases.Event) any {
+			buf := *node
+			return scanner.ScanTimestamp(&buf.CreatedAt)
 		},
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return &email.IsInbound
 		},
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return &email.Sender
 		},
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return scanner.ScanText(&email.Body)
 		},
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return scanner.ScanText(&email.Html)
 		},
 		// attachments
-		func(node *cases.Event) any {
-			// TODO
-			return nil
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
+			return scanner.TextDecoder(func(src []byte) error {
+				if len(src) == 0 {
+					return nil // NULL
+				}
+				array, inErr := pgtype.ParseUntypedTextArray(string(src))
+				if inErr != nil {
+					return inErr
+				}
+
+				var (
+					scanPlan = []func(file *cases.Attachment) any{
+						// id
+						func(file *cases.Attachment) any {
+							return scanner.ScanInt64(&file.Id)
+						},
+						// mime type
+						func(file *cases.Attachment) any {
+							return scanner.ScanText(&file.Mime)
+						},
+						func(file *cases.Attachment) any {
+							return scanner.ScanText(&file.Name)
+						},
+						// size
+						func(file *cases.Attachment) any {
+							return scanner.ScanInt64(&file.Size)
+						},
+					}
+				)
+
+				var err error
+				for _, element := range array.Elements {
+					var (
+						file cases.Attachment
+						raw  = pgtype.NewCompositeTextScanner(pgtype.NewConnInfo(), []byte(element))
+					)
+					for _, bind := range scanPlan {
+						raw.ScanValue(bind(&file))
+						err = raw.Err()
+						if err != nil {
+							return err
+						}
+					}
+					email.Attachments = append(email.Attachments, &file)
+				}
+				return nil
+			})
 		},
-		func(node *cases.Event) any {
-			email := node.GetEmail()
+		func(node **cases.Event) any {
+			buf := *node
+			email := buf.GetEmail()
 			return scanner.ScanRowLookup(&email.Owner)
 		})
 
@@ -569,16 +729,11 @@ func buildTimelineCounterSqlizer(rpc *model.SearchOptions) (query squirrel.Sqliz
 
 // endregion
 
-var (
+const (
 	CallsCTE = `select c.id::text,
        c.created_at,
        c.hangup_at                  AS                                        closed_at,
-       CASE
-           WHEN c.user_id NOTNULL THEN root.duration
-           ELSE parent.duration END AS                                        duration,
-       CASE
-           WHEN c.user_id NOTNULL THEN parent.duration
-           ELSE root.duration END   AS                                        total_duration,
+       root.duration                                        total_duration,
        (with recursive a as (select *
                              from call_center.cc_calls_history
                              where id in (with recursive a as (select d.id::uuid, d.user_id
@@ -600,7 +755,6 @@ var (
               order by a.created_at) as p)                                    participants,
        null::record                 as                                        gateway,
        ROW (scheme.id, scheme.name) as                                        flow_scheme,
-       'call'                                                                 type,
        (c.direction = 'inbound')                                              is_inbound,
        (case when c.bridged_id isnull then c.queue_id notnull else false end) is_missed,
        ROW (c.queue_id, a.name)                                               queue,
@@ -624,34 +778,29 @@ var (
               where a.parent_id != c.id
                  or coalesce(a.transfer_to::varchar, a.transfer_from::varchar,
                              a.blind_transfer::varchar) notnull)              is_detailed,
-       files                                                                  files,
-       transcripts                                                            transcripts
+       files.data                                                                  files,
+       transcripts.data                                                          transcripts
 from call_center.cc_calls_history c
          left join directory.sip_gateway g on g.id = c.gateway_id
          left join call_center.cc_queue a on a.id = c.queue_id
-    -- parent resuable columns
-         LEFT JOIN LATERAL (SELECT round(date_part('epoch'::TEXT, hangup_at - created_at)::BIGINT) duration
-                            FROM call_center.cc_calls_history
-                            WHERE parent_id = c.id
-                            LIMIT 1) parent ON true
     -- root reusable columns
          LEFT JOIN LATERAL (SELECT round(date_part('epoch'::text, c.hangup_at - c.created_at)::bigint) duration) root
                    ON true
     -- join flow_scheme
          LEFT JOIN flow.acr_routing_scheme scheme ON scheme.id = c.schema_ids[array_length(c.schema_ids, 1)]
     -- join files
-         LEFT jOIN LATERAL (SELECT ARRAY_AGG(ROW (f1.id, f1.size, f1.mime_type, f1.name, f1.created_at))
+         LEFT jOIN LATERAL (SELECT ARRAY_AGG(ROW (f1.id, f1.size, f1.mime_type, f1.name, f1.created_at)) data
                             FROM storage.files f1
                             WHERE f1.domain_id = c.domain_id
                               AND NOT f1.removed IS TRUE
                               AND f1.uuid = c.id::varchar) files ON true
     -- join transcripts
-         LEFT JOIN LATERAL (SELECT ARRAY_AGG(ROW (tr.id, tr.locale, tr.file_id, ROW (ff.id, ff.name))) AS data
+         LEFT JOIN LATERAL (SELECT ARRAY_AGG(ROW (tr.id, tr.locale, ROW (ff.id, ff.name))) AS data
                             FROM storage.file_transcript tr
                                      LEFT JOIN storage.files ff ON ff.id = tr.file_id
                             WHERE tr.uuid::text = c.id::text
     ) transcripts ON true
-where c.case_id = ?
+where c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication WHERE case_id = ? AND communication_type = ?)
   and c.transfer_from isnull`
 
 	EmailsCTE = `SELECT e.id::text,
@@ -678,23 +827,22 @@ FROM call_center.cc_email e
                             where f.id = any (e.attachment_ids)
 
     ) attachments ON true
-WHERE e.case_ids && array [?]::int8[]`
+WHERE e.id = ANY(SELECT communication_id::bigint FROM cases.case_communication WHERE case_id = ? AND communication_type =?)`
 
 	ChatsCTE = `SELECT conv.id::text,
-       conv.created_at,
        conv.closed_at,
+       conv.created_at,
        round(extract(EPOCH FROM (conv.closed_at - conv.created_at))) as duration,
-       participants                                                     participants,
-       gateway                                                          gateway,
+       participants.data                                                     participants,
+       gateway.data                                                          gateway,
        ROW (flow_scheme.id, flow_scheme.name)                        as flow_scheme,
-       'chat'                                                           type,
        true                                                             is_inbound,
        false                                                            is_missed,
        null::record                                                     queue,
        true                                                             is_detailed
 FROM chat.conversation conv
     -- join participants
-         LEFT JOIN LATERAL (SELECT ARRAY_AGG(ROW (usr.id, usr.name))
+         LEFT JOIN LATERAL (SELECT ARRAY_AGG(ROW (usr.id, usr.name)) data
                             FROM chat.channel c
                                      INNER JOIN directory.wbt_auth usr ON user_id = usr.id
                             WHERE conversation_id = conv.id
@@ -702,7 +850,7 @@ FROM chat.conversation conv
                               AND joined_at NOTNULL
                             GROUP BY usr.id) participants ON true
     -- join gateway
-         LEFT JOIN LATERAL (SELECT ROW (b.id, b.name, b.provider) gateway
+         LEFT JOIN LATERAL (SELECT ROW (b.id, b.name, b.provider) data
                             FROM chat.channel
                                      LEFT JOIN chat.bot b ON connection::bigint = b.id
                             WHERE NOT internal
@@ -710,33 +858,29 @@ FROM chat.conversation conv
     ) gateway ON true
     -- join flow scheme
          LEFT JOIN flow.acr_routing_scheme flow_scheme ON flow_scheme.id = (conv.props ->> 'flow')::bigint
-WHERE conv.id = ANY()`
+WHERE conv.id =  ANY(SELECT communication_id::uuid FROM cases.case_communication WHERE case_id = ? AND communication_type = ?)`
 
-	CallsCounterCTE = `select c.id::::text,
+	CallsCounterCTE = `SELECT c.id::text,
                       c.created_at,
-                      c.hangup_at                                             as      closed_at,
+                      c.hangup_at                                             AS      closed_at,
                       'call'                                                          type
 
-               from call_center.cc_calls_history c
-               where  c.contact_id = :ContactId`
+               FROM call_center.cc_calls_history c
+               WHERE c.id = ANY(SELECT communication_id FROM cases.case_communication WHERE case_id = ? AND communication_type = ?)`
 
-	ChatsCounterCTE = `select conv.id::::text,
+	ChatsCounterCTE = `select conv.id::text,
                       conv.created_at,
                       conv.closed_at,
                       'chat'                                                           type
                from chat.conversation conv
-               where conv.id = any (
-                   select conversation_id
-                   from chat.channel
-                   where user_id =
-                         any (select user_id from contacts.contact_imclient where contact_id = :ContactId) and not channel.internal)`
+               WHERE conv.id = ANY(SELECT communication_id FROM cases.case_communication WHERE case_id = ? AND communication_type = ?)`
 
-	EmailsCounterCTE = `select m.id::::text,
+	EmailsCounterCTE = `select m.id::text,
                       m.created_at,
                       m.created_at,
                       'email'                                                           type
                from call_center.cc_email m
-               where m.contact_ids && array[:ContactId]::::int8[]`
+               WHERE m.id = ANY(SELECT communication_id FROM cases.case_communication WHERE case_id = ? AND communication_type = ?)`
 )
 
 func NewCaseTimelineStore(store store.Store) (store.CaseTimelineStore, error) {
