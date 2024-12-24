@@ -159,7 +159,7 @@ SELECT inserted_catalog.id,
        COALESCE(inserted_catalog.status_id, 0)       AS status_id,         -- Return 0 if null
        COALESCE(status.name, '')                     AS status_name,       -- Return empty string if null
        COALESCE(inserted_catalog.close_reason_id, 0) AS close_reason_id,   -- Return 0 if null
-       COALESCE(close_reason.name, '')               AS close_reason_name, -- Return empty string if null
+       COALESCE(close_reason_group.name, '')               AS close_reason_name, -- Return empty string if null
        COALESCE(inserted_catalog.created_by, 0)      AS created_by,        -- Return 0 if null
        COALESCE(created_by_user.name, '')            AS created_by_name,   -- Return empty string if null
        COALESCE(inserted_catalog.updated_by, 0)      AS updated_by,        -- Return 0 if null
@@ -169,7 +169,7 @@ SELECT inserted_catalog.id,
 FROM inserted_catalog
          LEFT JOIN cases.sla ON sla.id = inserted_catalog.sla_id
          LEFT JOIN cases.status ON status.id = inserted_catalog.status_id
-         LEFT JOIN cases.close_reason ON close_reason.id = inserted_catalog.close_reason_id
+         LEFT JOIN cases.close_reason_group ON close_reason_group.id = inserted_catalog.close_reason_id
          LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_catalog.created_by
          LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_catalog.updated_by
          LEFT JOIN teams_agg ON teams_agg.catalog_id = inserted_catalog.id
@@ -713,7 +713,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 			case "description":
 				selectedFields = append(selectedFields, "COALESCE(catalog.description, '') AS description")
 			case "close_reason":
-				selectedFields = append(selectedFields, "COALESCE(catalog.close_reason_id, 0) AS close_reason_id", "COALESCE(close_reason.name, '') AS close_reason_name")
+				selectedFields = append(selectedFields, "COALESCE(catalog.close_reason_id, 0) AS close_reason_id", "COALESCE(close_reason_group.name, '') AS close_reason_name")
 			case "state":
 				selectedFields = append(selectedFields, "catalog.state AS state")
 			case "created_by":
@@ -746,7 +746,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		Where(sq.Eq{"catalog.dc": rpc.Session.GetDomainId()}).
 		LeftJoin("cases.sla ON sla.id = catalog.sla_id").
 		LeftJoin("cases.status ON status.id = catalog.status_id").
-		LeftJoin("cases.close_reason ON close_reason.id = catalog.close_reason_id").
+		LeftJoin("cases.close_reason_group ON close_reason_group.id = catalog.close_reason_id").
 		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
 		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by").
 		PlaceholderFormat(sq.Dollar)
