@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
 	errors "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -38,57 +37,6 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	}
 	createOpts := model.NewCreateOptions(ctx, request, CaseCommunicationMetadata)
 	createOpts.ParentID = tag.GetOid()
-
-	// TODO: how to check permissions on each object?
-	if session := createOpts.Session; session != nil {
-		checkRbacEnabled := func(scope string) bool {
-			s := session.GetScope(scope)
-			if s == nil {
-				return false
-			}
-			return s.Rbac
-		}
-		chatsRbac := checkRbacEnabled(chatsScopeName)
-		callsRbac := checkRbacEnabled(callsScopeName)
-		emailsRbac := checkRbacEnabled(emailsScopeName)
-		for _, communication := range request.Input {
-			var (
-				rbacEnabled  bool
-				scopeName    string
-				apiCheckFunc func() error
-			)
-			switch communication.CommunicationType {
-			case cases.CaseCommunicationsTypes_COMMUNICATION_CALL:
-				rbacEnabled = callsRbac
-				scopeName = callsScopeName
-				apiCheckFunc = func() error {
-					return nil
-				}
-			case cases.CaseCommunicationsTypes_COMMUNICATION_CHAT:
-				rbacEnabled = chatsRbac
-				scopeName = chatsScopeName
-				apiCheckFunc = func() error {
-					return nil
-				}
-			case cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL:
-				rbacEnabled = emailsRbac
-				scopeName = emailsScopeName
-				apiCheckFunc = func() error {
-					return nil
-				}
-			}
-			// check if rbac enabled
-			if rbacEnabled {
-				// call api to check access to the object
-				err := apiCheckFunc()
-				if err != nil {
-					return nil, errors.NewForbiddenError("app.case_communication.link_communication.permissions.check", err.Error())
-				}
-			} else if !session.HasObacAccess(scopeName, authmodel.Read) { // if rbac disabled just check access to object
-				return nil, errors.NewBadRequestError("app.case_communication.link_communication.invalid_etag", "Invalid case etag")
-			}
-		}
-	}
 
 	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, request.Input)
 	if dbErr != nil {
