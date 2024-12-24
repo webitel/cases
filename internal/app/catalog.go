@@ -306,6 +306,8 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 			fields = append(fields, "teams")
 		case "skill_ids":
 			fields = append(fields, "skills")
+		case "state":
+			fields = append(fields, "state")
 		}
 	}
 
