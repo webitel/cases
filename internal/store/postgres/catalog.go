@@ -1314,7 +1314,7 @@ SELECT catalog.id,
        catalog.created_by,
        COALESCE(created_by_user.name, '')                 AS created_by_name,
        catalog.updated_by,
-       updated_by_user.name                               AS updated_by_name,
+       COALESCE(updated_by_user.name, '')                               AS updated_by_name,
        catalog.updated_at,
        COALESCE((SELECT json_agg(json_build_object('id', team.id, 'name', team.name))
                  FROM cases.team_catalog ts
