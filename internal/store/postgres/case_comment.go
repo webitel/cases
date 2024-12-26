@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -291,24 +290,6 @@ func (c *CaseCommentStore) Update(
 		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.database_connection_error", dbErr)
 	}
 
-	// Begin a transaction
-	tx, err := d.Begin(rpc.Context)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.transaction_error", err)
-	}
-	defer tx.Rollback(rpc.Context)
-	txManager := store.NewTxManager(tx)
-
-	// Scan the current version of the comment
-	ver, err := c.ScanVer(rpc.Context, upd.Id, txManager)
-	if err != nil {
-		return nil, err
-	}
-
-	if upd.Ver != int32(ver) {
-		return nil, dberr.NewDBConflictError("postgres.cases.case_comment.update.version_mismatch", "Version mismatch, update failed")
-	}
-
 	// Build the update query
 	queryBuilder, plan, err := c.BuildUpdateCaseCommentSqlizer(
 		rpc,
@@ -331,38 +312,15 @@ func (c *CaseCommentStore) Update(
 	// Convert plan to scanArgs
 	scanArgs := convertToScanArgs(plan, upd)
 
-	if err := txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Explicitly indicate that the user is not the creator
-			return nil, dberr.NewDBForbiddenError("postgres.cases.case_comment.update.forbidden", "User is not the creator of this comment")
+			return nil, dberr.NewDBNotFoundError("postgres.case_comment.update.scan_ver.not_found", "Comment not found")
 		}
 		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.execution_error", err)
 	}
 
-	// Commit the transaction
-	if err := tx.Commit(rpc.Context); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.commit_error", err)
-	}
-
 	return upd, nil
-}
-
-func (c *CaseCommentStore) ScanVer(
-	ctx context.Context,
-	commentID int64,
-	txManager *store.TxManager,
-) (int64, error) {
-	// Retrieve the current version (`ver`) of the comment
-	var ver int64
-	err := txManager.QueryRow(ctx, "SELECT ver FROM cases.case_comment WHERE id = $1", commentID).Scan(&ver)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			// Return a specific error if no comment with the given ID is found
-			return 0, dberr.NewDBNotFoundError("postgres.cases.case_comment.scan_ver.not_found", "Comment not found")
-		}
-		return 0, dberr.NewDBInternalError("postgres.cases.case_comment.scan_ver.query_error", err)
-	}
-	return ver, nil
 }
 
 func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(

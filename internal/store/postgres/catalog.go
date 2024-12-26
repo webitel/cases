@@ -159,7 +159,7 @@ SELECT inserted_catalog.id,
        COALESCE(inserted_catalog.status_id, 0)       AS status_id,         -- Return 0 if null
        COALESCE(status.name, '')                     AS status_name,       -- Return empty string if null
        COALESCE(inserted_catalog.close_reason_id, 0) AS close_reason_id,   -- Return 0 if null
-       COALESCE(close_reason.name, '')               AS close_reason_name, -- Return empty string if null
+       COALESCE(close_reason_group.name, '')               AS close_reason_name, -- Return empty string if null
        COALESCE(inserted_catalog.created_by, 0)      AS created_by,        -- Return 0 if null
        COALESCE(created_by_user.name, '')            AS created_by_name,   -- Return empty string if null
        COALESCE(inserted_catalog.updated_by, 0)      AS updated_by,        -- Return 0 if null
@@ -169,7 +169,7 @@ SELECT inserted_catalog.id,
 FROM inserted_catalog
          LEFT JOIN cases.sla ON sla.id = inserted_catalog.sla_id
          LEFT JOIN cases.status ON status.id = inserted_catalog.status_id
-         LEFT JOIN cases.close_reason ON close_reason.id = inserted_catalog.close_reason_id
+         LEFT JOIN cases.close_reason_group ON close_reason_group.id = inserted_catalog.close_reason_id
          LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_catalog.created_by
          LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_catalog.updated_by
          LEFT JOIN teams_agg ON teams_agg.catalog_id = inserted_catalog.id
@@ -713,7 +713,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 			case "description":
 				selectedFields = append(selectedFields, "COALESCE(catalog.description, '') AS description")
 			case "close_reason":
-				selectedFields = append(selectedFields, "COALESCE(catalog.close_reason_id, 0) AS close_reason_id", "COALESCE(close_reason.name, '') AS close_reason_name")
+				selectedFields = append(selectedFields, "COALESCE(catalog.close_reason_id, 0) AS close_reason_id", "COALESCE(close_reason_group.name, '') AS close_reason_name")
 			case "state":
 				selectedFields = append(selectedFields, "catalog.state AS state")
 			case "created_by":
@@ -746,7 +746,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		Where(sq.Eq{"catalog.dc": rpc.Session.GetDomainId()}).
 		LeftJoin("cases.sla ON sla.id = catalog.sla_id").
 		LeftJoin("cases.status ON status.id = catalog.status_id").
-		LeftJoin("cases.close_reason ON close_reason.id = catalog.close_reason_id").
+		LeftJoin("cases.close_reason_group ON close_reason_group.id = catalog.close_reason_id").
 		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
 		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by").
 		PlaceholderFormat(sq.Dollar)
@@ -1102,6 +1102,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 		&lookup.CloseReason.Id, &lookup.CloseReason.Name,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedByLookup.Id, &updatedByLookup.Name, &updatedAt,
+		&lookup.State,
 		&teamLookups, &skillLookups,
 	)
 	if err != nil {
@@ -1152,13 +1153,14 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 
 	// Flag to manage if we've added any CTEs
 	cteAdded := false
+	placeholderIndex := 5 // Start placeholder index after the initial args
 
 	// Check if "teams" is in rpc.Fields, even if teamIDs is empty
 	if util.FieldExists("teams", rpc.Fields) {
 		query += `
  updated_teams AS (
     INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, updated_at, dc)
-        SELECT $1, unnest(NULLIF($5::bigint[], '{}')), $2, $2, $4, $3 -- created_by and updated_by are both set to $2
+        SELECT $1, unnest(NULLIF($` + fmt.Sprintf("%d", placeholderIndex) + `::bigint[], '{}')), $2, $2, $4, $3
         ON CONFLICT (catalog_id, team_id)
             DO UPDATE SET updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
         RETURNING catalog_id
@@ -1167,16 +1169,14 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
      DELETE FROM cases.team_catalog
      WHERE catalog_id = $1
        AND (
-         array_length($5, 1) IS NULL -- If array is empty, delete all teams
-         OR team_id != ALL ($5) -- If array is not empty, delete teams not in the array
+         array_length($` + fmt.Sprintf("%d", placeholderIndex) + `, 1) IS NULL
+         OR team_id != ALL ($` + fmt.Sprintf("%d", placeholderIndex) + `)
        )
      RETURNING catalog_id
     )`
 		args = append(args, pq.Array(teamIDs)) // Append team IDs to args (even if empty)
+		placeholderIndex++                     // Increment placeholder index
 		cteAdded = true
-	} else {
-		// Pass an empty array if "teams" is not provided
-		args = append(args, pq.Array([]int64{}))
 	}
 
 	// Check if "skills" is in rpc.Fields, even if skillIDs are empty
@@ -1187,7 +1187,7 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 		query += `
  updated_skills AS (
     INSERT INTO cases.skill_catalog (catalog_id, skill_id, created_by, updated_by, updated_at, dc)
-        SELECT $1, unnest(NULLIF($6::bigint[], '{}')), $2, $2, $4, $3 -- created_by and updated_by are both set to $2
+        SELECT $1, unnest(NULLIF($` + fmt.Sprintf("%d", placeholderIndex) + `::bigint[], '{}')), $2, $2, $4, $3
         ON CONFLICT (catalog_id, skill_id)
             DO UPDATE SET updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
         RETURNING catalog_id
@@ -1196,16 +1196,14 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
      DELETE FROM cases.skill_catalog
      WHERE catalog_id = $1
        AND (
-         array_length($6, 1) IS NULL -- if array is empty, delete all skills
-         OR skill_id != ALL ($6) -- if array is not empty, delete skills not in the array
+         array_length($` + fmt.Sprintf("%d", placeholderIndex) + `, 1) IS NULL
+         OR skill_id != ALL ($` + fmt.Sprintf("%d", placeholderIndex) + `)
        )
      RETURNING catalog_id
     )`
 		args = append(args, pq.Array(skillIDs)) // Append skill IDs to args (even if empty)
+		placeholderIndex++                      // Increment placeholder index
 		cteAdded = true
-	} else {
-		// Pass an empty array if "skills" is not provided
-		args = append(args, pq.Array([]int64{}))
 	}
 
 	// Construct the final SELECT query after the CTE block
@@ -1300,7 +1298,7 @@ WITH root_check AS (
 	query := fmt.Sprintf(`
 %s, updated_catalog AS (
     %s
-    RETURNING id, name, created_at, updated_at, sla_id, created_by, updated_by, status_id, close_reason_id
+    RETURNING *
 )
 SELECT catalog.id,
        catalog.name,
@@ -1310,12 +1308,13 @@ SELECT catalog.id,
        COALESCE(catalog.status_id, 0) AS status_id,
        COALESCE(status.name, '') AS status_name,
        COALESCE(catalog.close_reason_id, 0) AS close_reason_id,
-       COALESCE(close_reason.name, '')                    AS close_reason_name,
+       COALESCE(close_reason_group.name, '')                    AS close_reason_name,
        catalog.created_by,
        COALESCE(created_by_user.name, '')                 AS created_by_name,
        catalog.updated_by,
-       updated_by_user.name                               AS updated_by_name,
+       COALESCE(updated_by_user.name, '')                               AS updated_by_name,
        catalog.updated_at,
+	   catalog.state,
        COALESCE((SELECT json_agg(json_build_object('id', team.id, 'name', team.name))
                  FROM cases.team_catalog ts
                           LEFT JOIN call_center.cc_team team ON team.id = ts.team_id
@@ -1327,12 +1326,12 @@ SELECT catalog.id,
 FROM updated_catalog AS catalog
          LEFT JOIN cases.sla ON sla.id = catalog.sla_id
          LEFT JOIN cases.status ON status.id = catalog.status_id
-         LEFT JOIN cases.close_reason ON close_reason.id = catalog.close_reason_id
+         LEFT JOIN cases.close_reason_group ON close_reason_group.id = catalog.close_reason_id
          LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by
          LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by
 GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name, catalog.status_id,
-         status.name, catalog.close_reason_id, close_reason.name, catalog.created_by, created_by_user.name,
-         catalog.updated_by, updated_by_user.name, catalog.updated_at;
+         status.name, catalog.close_reason_id, close_reason_group.name, catalog.created_by, created_by_user.name,
+         catalog.updated_by, updated_by_user.name, catalog.updated_at, catalog.state;
 	`, checkRoot, updateSQL)
 
 	// Return the final combined query and arguments

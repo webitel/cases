@@ -2,7 +2,6 @@ package store
 
 import (
 	"github.com/Masterminds/squirrel"
-	"github.com/webitel/cases/model"
 	"reflect"
 	"testing"
 )
@@ -109,14 +108,14 @@ func TestPrepareSearchNumber(t *testing.T) {
 func TestResolvePaging(t *testing.T) {
 	tests := []struct {
 		name      string
-		opts      model.Pager
+		size      int
 		items     []int
 		wantItems []int
 		wantNext  bool
 	}{
 		{
 			name: "No paging, all items returned",
-			opts: &model.SearchOptions{Size: -1},
+			size: -1,
 			items: []int{
 				1, 2, 3, 4, 5,
 			},
@@ -127,7 +126,7 @@ func TestResolvePaging(t *testing.T) {
 		},
 		{
 			name: "Paging with size greater than items",
-			opts: &model.SearchOptions{Size: 10},
+			size: 10,
 			items: []int{
 				1, 2, 3,
 			},
@@ -138,7 +137,7 @@ func TestResolvePaging(t *testing.T) {
 		},
 		{
 			name: "Paging with size equal to items",
-			opts: &model.SearchOptions{Size: 4},
+			size: 4,
 			items: []int{
 				1, 2, 3, 4,
 			},
@@ -149,7 +148,7 @@ func TestResolvePaging(t *testing.T) {
 		},
 		{
 			name: "Paging with size less than items",
-			opts: &model.SearchOptions{Size: 4},
+			size: 4,
 			items: []int{
 				1, 2, 3, 4, 5, 6,
 			},
@@ -160,7 +159,7 @@ func TestResolvePaging(t *testing.T) {
 		},
 		{
 			name: "Paging with size 1",
-			opts: &model.SearchOptions{Size: 1},
+			size: 1,
 			items: []int{
 				1, 2, 3, 4, 5, 6,
 			},
@@ -171,7 +170,7 @@ func TestResolvePaging(t *testing.T) {
 		},
 		{
 			name:      "Empty items",
-			opts:      &model.SearchOptions{Size: 3},
+			size:      3,
 			items:     []int{},
 			wantItems: []int{},
 			wantNext:  false,
@@ -184,12 +183,20 @@ func TestResolvePaging(t *testing.T) {
 			for i := range tt.items {
 				items[i] = &tt.items[i]
 			}
-			gotItems, gotNext := ResolvePaging(tt.opts, items)
-
+			gotItems, gotNext := ResolvePaging(tt.size, items)
+			t.Logf("items slice: %p, array: %p\n", &items, items)
+			t.Logf("gotItems slice: %p, array: %p\n", &gotItems, gotItems)
+			if &items == &gotItems {
+				t.Errorf("ResolvePaging() results mutate input parameter, input - %p , output - %p", &items, &gotItems)
+			}
 			// Convert `gotItems` back to values for comparison.
 			gotValues := make([]int, len(gotItems))
 			for i := range gotItems {
 				gotValues[i] = *gotItems[i]
+			}
+
+			if !reflect.DeepEqual(gotValues, tt.wantItems) {
+				t.Errorf("ResolvePaging() gotItems = %v, want %v", gotValues, tt.wantItems)
 			}
 
 			if !reflect.DeepEqual(gotValues, tt.wantItems) {

@@ -167,6 +167,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 		Size:     int(req.Size),
 		Time:     t,
 		Filter:   make(map[string]interface{}),
+		ID:       req.PriorityId,
 	}
 
 	if req.Q != "" {

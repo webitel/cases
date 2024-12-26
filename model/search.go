@@ -28,6 +28,8 @@ type SearchOptions struct {
 	Page int
 	Size int
 	Sort []string
+	// filtering by single id
+	ID int64
 }
 
 func (s *SearchOptions) SearchDerivedOptionByField(field string) *SearchOptions {

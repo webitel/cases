@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -131,56 +132,58 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 	}
 	defer rows.Close()
 
+	// Map to group SLAConditions by ID
+	slaConditionMap := make(map[int64]*cases.SLACondition)
 	var slaConditionList []*cases.SLACondition
 	lCount := 0
 	next := false
-	// Check if we want to fetch all records
-	//
-	// If the size is -1, we want to fetch all records
 	fetchAll := rpc.GetSize() == -1
 
 	for rows.Next() {
-		// If not fetching all records, check the size limit
 		if !fetchAll && lCount >= int(rpc.GetSize()) {
 			next = true
 			break
 		}
 
 		slaCondition := &cases.SLACondition{}
-
 		var (
 			createdBy, updatedBy         cases.Lookup
 			tempCreatedAt, tempUpdatedAt time.Time
-			prioritiesJSON               []byte
+			priorityID                   sql.NullInt64
+			priorityName                 sql.NullString
 		)
-		// Build scan arguments dynamically based on the requested fields
+
+		// Build scan arguments dynamically
 		scanArgs := s.buildScanArgs(
-			rpc.Fields, slaCondition, &createdBy,
-			&updatedBy, &tempCreatedAt, &tempUpdatedAt,
-			&prioritiesJSON,
+			rpc.Fields, slaCondition, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt, &priorityID, &priorityName,
 		)
 
 		if err := rows.Scan(scanArgs...); err != nil {
 			return nil, dberr.NewDBInternalError("postgres.sla_condition.list.row_scan_error", err)
 		}
 
-		// Check if prioritiesJSON is not empty or NULL before unmarshalling
-		if len(prioritiesJSON) > 0 {
-			if err := json.Unmarshal(prioritiesJSON, &slaCondition.Priorities); err != nil {
-				return nil, dberr.NewDBInternalError("postgres.sla_condition.list.json_unmarshal_error", err)
-			}
-		} else {
-			// Handle NULL or empty JSON by initializing to an empty slice
+		// Find or create SLACondition in the map
+		existingCondition, exists := slaConditionMap[slaCondition.Id]
+		if !exists {
+			// Populate SLACondition fields
+			s.populateSLAConditionFields(
+				rpc.Fields, slaCondition, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt,
+			)
 			slaCondition.Priorities = []*cases.Lookup{}
+			slaConditionMap[slaCondition.Id] = slaCondition
+			slaConditionList = append(slaConditionList, slaCondition)
+		} else {
+			slaCondition = existingCondition
 		}
 
-		// Populate SLACondition fields
-		s.populateSLAConditionFields(
-			rpc.Fields, slaCondition, &createdBy,
-			&updatedBy, tempCreatedAt, tempUpdatedAt,
-		)
-		slaConditionList = append(slaConditionList, slaCondition)
+		// Populate priorities
+		s.populatePriorities(slaCondition, &priorityID, &priorityName)
+
 		lCount++
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, dberr.NewDBInternalError("postgres.sla_condition.list.rows_iteration_error", err)
 	}
 
 	return &cases.SLAConditionList{
@@ -398,22 +401,47 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
 			groupByFields = append(groupByFields, "updated_by.id", "updated_by.name")
 		case "priorities":
-			// Aggregate priorities as JSON array
+			// Include priority fields directly instead of JSON aggregation
 			queryBuilder = queryBuilder.
-				Column("json_agg(json_build_object('id', p.id, 'name', p.name)) AS priorities").
+				Column("p.id AS priority_id").
+				Column("p.name AS priority_name").
 				LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
 				LeftJoin("cases.priority AS p ON p.id = ps.priority_id")
-			// No need to add aggregated columns to GROUP BY
+			groupByFields = append(groupByFields, "p.id", "p.name") // Add priority fields to GROUP BY
+
 		}
 	}
 	if len(ids) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
+	if rpc.ID != 0 {
+		// Join cases.priority_sla_condition only if filtering by priority_id
+		queryBuilder = queryBuilder.
+			LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
+			Where(sq.Eq{"ps.priority_id": rpc.ID})
+	}
+
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
 		substrs := util.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
+	}
+
+	// Adjust sort if calendar is present
+	for i, sortField := range rpc.Sort {
+		// Remove any leading "+" or "-" for comparison
+		field := strings.TrimPrefix(strings.TrimPrefix(sortField, "-"), "+")
+
+		if field == "priorities" {
+			// Replace "calendar" with "cal.name" for sorting
+			if strings.HasPrefix(sortField, "-") {
+				rpc.Sort[i] = "-p.name"
+			} else {
+				// Covers both no prefix and "+" prefix
+				rpc.Sort[i] = "p.name"
+			}
+		}
 	}
 
 	// -------- Apply sorting ----------
@@ -523,13 +551,14 @@ GROUP BY usc.id, usc.name, usc.created_at, usc.updated_at,
 	return query, args, nil
 }
 
-// Helper function to build scan arguments based on fields
+// buildScanArgs dynamically constructs the scan arguments based on the requested fields.
 func (s *SLAConditionStore) buildScanArgs(
 	fields []string,
 	slaCondition *cases.SLACondition,
 	createdBy, updatedBy *cases.Lookup,
 	createdAt, updatedAt *time.Time,
-	prioritiesJSON *[]byte,
+	priorityID *sql.NullInt64,
+	priorityName *sql.NullString,
 ) []interface{} {
 	var scanArgs []interface{}
 
@@ -554,21 +583,19 @@ func (s *SLAConditionStore) buildScanArgs(
 		case "updated_by":
 			scanArgs = append(scanArgs, &updatedBy.Id, &updatedBy.Name)
 		case "priorities":
-			scanArgs = append(scanArgs, prioritiesJSON)
+			scanArgs = append(scanArgs, priorityID, priorityName)
 		}
 	}
 
 	return scanArgs
 }
 
-// Helper function to populate SLACondition fields after scanning
+// populateSLAConditionFields populates SLACondition fields after scanning.
 func (s *SLAConditionStore) populateSLAConditionFields(
 	fields []string,
 	slaCondition *cases.SLACondition,
-	createdBy,
-	updatedBy *cases.Lookup,
-	createdAt,
-	updatedAt time.Time,
+	createdBy, updatedBy *cases.Lookup,
+	createdAt, updatedAt time.Time,
 ) {
 	for _, field := range fields {
 		switch field {
@@ -581,6 +608,20 @@ func (s *SLAConditionStore) populateSLAConditionFields(
 		case "updated_at":
 			slaCondition.UpdatedAt = util.Timestamp(updatedAt)
 		}
+	}
+}
+
+// populatePriorities appends a priority to the SLACondition's Priorities slice.
+func (s *SLAConditionStore) populatePriorities(
+	slaCondition *cases.SLACondition,
+	priorityID *sql.NullInt64,
+	priorityName *sql.NullString,
+) {
+	if priorityID.Valid && priorityName.Valid {
+		slaCondition.Priorities = append(slaCondition.Priorities, &cases.Lookup{
+			Id:   priorityID.Int64,
+			Name: priorityName.String,
+		})
 	}
 }
 
