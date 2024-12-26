@@ -2,7 +2,7 @@ package model
 
 type TimelineCounter struct {
 	Count     int64
-	EventType string
+	EventType int64
 	DateFrom  int64
 	DateTo    int64
 }

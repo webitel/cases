@@ -38,7 +38,7 @@ func (c *CaseCommunicationStore) Link(options *model.CreateOptions, communicatio
 	if dbErr != nil {
 		return nil, dbErr
 	}
-	if len(res) < len(communications) && len(communications) == 1 {
+	if len(res) == 0 && len(communications) != 0 {
 		return nil, dberr.NewDBError("postgres.case_communication.result_processing.error", "wrong or duplicated communication_id or insufficient permissions")
 	}
 	return res, nil
@@ -71,9 +71,45 @@ func (c *CaseCommunicationStore) Unlink(options *model.DeleteOptions) ([]*cases.
 	return res, nil
 }
 
-func (c *CaseCommunicationStore) List(opts *model.SearchOptions) ([]*cases.CaseCommunication, error) {
-	//TODO implement me
-	panic("implement me")
+func (c *CaseCommunicationStore) List(opts *model.SearchOptions) (*cases.ListCommunicationsResponse, error) {
+	base, plan, dbErr := c.buildListCaseCommunicationSqlizer(opts)
+	if dbErr != nil {
+		return nil, dbErr
+	}
+	db, dbErr := c.storage.Database()
+	if dbErr != nil {
+		return nil, dbErr
+	}
+	sql, args, err := base.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBError("postgres.case_communication.link.convert_to_sql.err", err.Error())
+	}
+	rows, err := db.Query(opts, sql, args...)
+	if err != nil {
+		return nil, dberr.NewDBError("postgres.case_communication.exec.error", err.Error())
+	}
+	items, dbErr := c.scanCommunications(rows, plan)
+	if dbErr != nil {
+		return nil, dbErr
+	}
+	var res cases.ListCommunicationsResponse
+	res.Data, res.Next = store.ResolvePaging(opts.GetSize(), items)
+	res.Page = int32(opts.GetPage())
+	return &res, nil
+}
+
+func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(options *model.SearchOptions) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
+	if options == nil {
+		return nil, nil, dberr.NewDBError("postgres.case_communication.build_list_case_communication_sqlizer.check_args.options", "search options required")
+	}
+	if options.ParentId <= 0 {
+		return nil, nil, dberr.NewDBError("postgres.case_communication.build_list_case_communication_sqlizer.check_args.case_id", "case id required")
+	}
+	alias := "s"
+	base := squirrel.Select().From(fmt.Sprintf("%s %s", c.mainTable, alias)).PlaceholderFormat(squirrel.Dollar)
+	base = store.ApplyPaging(options.GetPage(), options.GetSize(), base)
+	return c.buildSelectColumnsAndPlan(base, alias, options.Fields)
+
 }
 
 func (c *CaseCommunicationStore) scanCommunications(rows pgx.Rows, plan []func(*cases.CaseCommunication) any) ([]*cases.CaseCommunication, *dberr.DBError) {
@@ -100,11 +136,12 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 	if options.ParentID <= 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_create_case_communication_sqlizer.check_args.case_id", "case id required")
 	}
-	insert := squirrel.Insert(c.mainTable).Columns("created_by", "created_at", "dc", "communication_type", "communication_id", "case_id").Suffix("RETURNING *")
+	insert := squirrel.Insert(c.mainTable).Columns("created_by", "created_at", "dc", "communication_type", "communication_id", "case_id").Suffix("ON CONFLICT DO NOTHING RETURNING *")
 	session := options.Session
 	dc := session.GetDomainId()
 	userId := session.GetUserId()
 	roles := session.GetAclRoles()
+	caseId := options.ParentID
 	callsRbac := session.GetScope("calls").IsRbacUsed()
 
 	for _, communication := range communications {
@@ -131,12 +168,16 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 					dc, userId, roles,
 					dc, authmodel.Read, roles,
 					roles), options.ParentID)
-				continue
+			} else {
+				insert = insert.Values(session.GetUserId(), options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`, communication.CommunicationId), caseId)
 			}
+		case cases.CaseCommunicationsTypes_COMMUNICATION_CHAT:
+			insert = insert.Values(session.GetUserId(), options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM chat.conversation WHERE id = ?)`, communication.CommunicationId), caseId)
+		case cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL:
+			insert = insert.Values(session.GetUserId(), options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_email WHERE id = ?)`, communication.CommunicationId), caseId)
 		default:
+			return nil, nil, dberr.NewDBError("postgres.case_communication.build.create_case_communication_sqlizer.switch_types.unknown", "unsupported communication type")
 		}
-
-		insert = insert.Values(session.GetUserId(), options.CurrentTime(), session.GetDomainId(), int32(communication.CommunicationType), communication.CommunicationId, options.ParentID)
 	}
 	insertAlias := "i"
 	insertCte, args, err := store.FormAsCTE(insert, insertAlias)

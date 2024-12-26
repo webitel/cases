@@ -667,10 +667,7 @@ func buildTimelineCounterSqlizer(rpc *model.SearchOptions) (query squirrel.Sqliz
 	if rpc == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.rpc", "search options required")
 	}
-	if len(rpc.IDs) == 0 {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id required")
-	}
-	caseId := rpc.IDs[0]
+	caseId := rpc.ParentId
 	if caseId <= 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id empty")
 	}
@@ -685,11 +682,14 @@ func buildTimelineCounterSqlizer(rpc *model.SearchOptions) (query squirrel.Sqliz
 	for i, field := range fields {
 		switch field {
 		case "calls":
-			ctes[field] = squirrel.Expr(CallsCounterCTE, caseId)
+			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_CALL)
+			ctes[field] = squirrel.Expr(CallsCounterCTE, communicationType, caseId, communicationType)
 		case "emails":
-			ctes[field] = squirrel.Expr(EmailsCounterCTE, caseId)
+			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL)
+			ctes[field] = squirrel.Expr(EmailsCounterCTE, communicationType, caseId, communicationType)
 		case "chats":
-			ctes[field] = squirrel.Expr(ChatsCounterCTE, caseId)
+			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_CHAT)
+			ctes[field] = squirrel.Expr(ChatsCounterCTE, communicationType, caseId, communicationType)
 		default:
 			return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_counter_sqlizer.parse_fields.unknown", "unknown field "+field)
 		}
@@ -705,18 +705,19 @@ func buildTimelineCounterSqlizer(rpc *model.SearchOptions) (query squirrel.Sqliz
 	}
 
 	query = squirrel.Select("count(*) count",
-		"type event",
+		"max(type) event",
 		"max(closed_at) date_to",
-		"min(created_at) date_from)").
+		"min(created_at) date_from").
 		From(from).
-		Prefix(cteQuery, args...)
+		Prefix(cteQuery, args...).
+		PlaceholderFormat(squirrel.Dollar)
 
 	// each row represents type of event
 	scanPlan = append(scanPlan,
 		func(node *model.TimelineCounter) any {
-			return &node.Count
+			return scanner.ScanInt64(&node.Count)
 		}, func(node *model.TimelineCounter) any {
-			return scanner.ScanText(&node.EventType)
+			return scanner.ScanInt64(&node.EventType)
 		}, func(node *model.TimelineCounter) any {
 			return scanner.ScanTimestamp(&node.DateTo)
 		}, func(node *model.TimelineCounter) any {
@@ -814,7 +815,7 @@ where c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication WHE
        e.sender,
        e.body,
        e.html,
-       attachments                  AS attachments,
+       attachments.data                  AS attachments,
        ROW (e."owner_id", u."name") AS "user"
 FROM call_center.cc_email e
     -- owner
@@ -822,7 +823,7 @@ FROM call_center.cc_email e
     -- email profile
          LEFT JOIN call_center.cc_email_profile p ON e.profile_id = p.id
     -- attachments
-         LEFT JOIN LATERAL (SELECT ARRAY_AGG(ROW (f.id, f.mime_type, f.view_name, f.size))
+         LEFT JOIN LATERAL (SELECT ARRAY_AGG(ROW (f.id, f.mime_type, f.view_name, f.size)) data
                             from storage.files f
                             where f.id = any (e.attachment_ids)
 
@@ -863,24 +864,24 @@ WHERE conv.id =  ANY(SELECT communication_id::uuid FROM cases.case_communication
 	CallsCounterCTE = `SELECT c.id::text,
                       c.created_at,
                       c.hangup_at                                             AS      closed_at,
-                      'call'                                                          type
+                      ?::int                                                          type
 
                FROM call_center.cc_calls_history c
-               WHERE c.id = ANY(SELECT communication_id FROM cases.case_communication WHERE case_id = ? AND communication_type = ?)`
+               WHERE c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication WHERE case_id = ? AND communication_type = ?::int)`
 
 	ChatsCounterCTE = `select conv.id::text,
                       conv.created_at,
                       conv.closed_at,
-                      'chat'                                                           type
+                      ?::int                                                           type
                from chat.conversation conv
-               WHERE conv.id = ANY(SELECT communication_id FROM cases.case_communication WHERE case_id = ? AND communication_type = ?)`
+               WHERE conv.id = ANY(SELECT communication_id::uuid FROM cases.case_communication WHERE case_id = ? AND communication_type = ?::int)`
 
 	EmailsCounterCTE = `select m.id::text,
                       m.created_at,
                       m.created_at,
-                      'email'                                                           type
+                      ?::int                                                           type
                from call_center.cc_email m
-               WHERE m.id = ANY(SELECT communication_id FROM cases.case_communication WHERE case_id = ? AND communication_type = ?)`
+               WHERE m.id = ANY(SELECT communication_id::bigint FROM cases.case_communication WHERE case_id = ? AND communication_type = ?::int)`
 )
 
 func NewCaseTimelineStore(store store.Store) (store.CaseTimelineStore, error) {

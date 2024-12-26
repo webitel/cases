@@ -9,12 +9,6 @@ import (
 	"github.com/webitel/webitel-go-kit/etag"
 )
 
-const (
-	chatsScopeName  = "chats"
-	callsScopeName  = "calls"
-	emailsScopeName = "emails"
-)
-
 var CaseCommunicationMetadata = model.NewObjectMetadata(
 	[]*model.Field{
 		{"etag", true},
@@ -27,7 +21,25 @@ type CaseCommunicationService struct {
 	cases.UnimplementedCaseCommunicationsServer
 }
 
+func (c *CaseCommunicationService) ListCommunications(ctx context.Context, request *cases.ListCommunicationsRequest) (*cases.ListCommunicationsResponse, error) {
+	// TODO: RBAC check by request.CaseEtag
+	tag, err := etag.EtagOrId(etag.EtagCase, request.CaseEtag)
+	if err != nil {
+		return nil, errors.NewBadRequestError("app.case_communication.list_communication.invalid_etag", "Invalid case etag")
+	}
+	searchOpts := model.NewSearchOptions(ctx, request, CaseCommunicationMetadata)
+	searchOpts.ParentId = tag.GetOid()
+
+	res, dbErr := c.app.Store.CaseCommunication().List(searchOpts)
+	if dbErr != nil {
+		return nil, dbErr
+	}
+	NormalizeResponseCommunications(res.Data, request.GetFields())
+	return res, nil
+}
+
 func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, request *cases.LinkCommunicationRequest) (*cases.LinkCommunicationResponse, error) {
+	// TODO: RBAC check by request.CaseEtag
 	if len(request.Input) == 0 {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.check_args.payload", "no payload")
 	}
@@ -47,6 +59,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 }
 
 func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, request *cases.UnlinkCommunicationRequest) (*cases.UnlinkCommunicationResponse, error) {
+	// TODO: RBAC check by request.CaseEtag
 	tag, err := etag.EtagOrId(etag.EtagCaseCommunication, request.Etag)
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.unlink_communication.invalid_etag", "Invalid case etag")

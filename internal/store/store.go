@@ -95,7 +95,7 @@ type CaseTimelineStore interface {
 type CaseCommunicationStore interface {
 	Link(*model.CreateOptions, []*_go.InputCaseCommunication) ([]*_go.CaseCommunication, error)
 	Unlink(*model.DeleteOptions) ([]*_go.CaseCommunication, error)
-	List(opts *model.SearchOptions) ([]*_go.CaseCommunication, error)
+	List(opts *model.SearchOptions) (*_go.ListCommunicationsResponse, error)
 }
 
 type CaseFileStore interface {

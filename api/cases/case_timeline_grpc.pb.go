@@ -26,8 +26,6 @@ const (
 // CaseTimelineClient is the client API for CaseTimeline service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// CloseReasons service definition with RPC methods for managing close reasons
 type CaseTimelineClient interface {
 	GetTimeline(ctx context.Context, in *GetTimelineRequest, opts ...grpc.CallOption) (*GetTimelineResponse, error)
 	GetTimelineCounter(ctx context.Context, in *GetTimelineCounterRequest, opts ...grpc.CallOption) (*GetTimelineCounterResponse, error)
@@ -64,8 +62,6 @@ func (c *caseTimelineClient) GetTimelineCounter(ctx context.Context, in *GetTime
 // CaseTimelineServer is the server API for CaseTimeline service.
 // All implementations must embed UnimplementedCaseTimelineServer
 // for forward compatibility.
-//
-// CloseReasons service definition with RPC methods for managing close reasons
 type CaseTimelineServer interface {
 	GetTimeline(context.Context, *GetTimelineRequest) (*GetTimelineResponse, error)
 	GetTimelineCounter(context.Context, *GetTimelineCounterRequest) (*GetTimelineCounterResponse, error)
