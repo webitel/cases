@@ -1565,8 +1565,11 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	args = append(args,
 		rpc.GetSize(), //$2
 		page,          //$3
-		searchN,       //$4
 	)
+
+	if searchN != "" {
+		args = append(args, searchN)
+	}
 
 	return store.CompactSQL(sqlQuery), args, nil
 }
