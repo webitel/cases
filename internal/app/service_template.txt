@@ -1,0 +1,29 @@
+// replace (CTRL + R) [MAIN_OBJECT] with your object name
+package app
+
+import (
+	"context"
+	"github.com/webitel/cases/api/cases"
+	errors "github.com/webitel/cases/internal/error"
+	"github.com/webitel/cases/model"
+	"github.com/webitel/webitel-go-kit/etag"
+)
+
+
+var (
+    s cases.[MAIN_OBJECT]sServer = &[MAIN_OBJECT]Service{}
+    )
+
+var [MAIN_OBJECT]Metadata = model.NewObjectMetadata(
+	[]*model.Field{
+	})
+
+type [MAIN_OBJECT]Service struct {
+	app *App
+	cases.Unimplemented[MAIN_OBJECT]sServer
+}
+
+func New[MAIN_OBJECT]Service(app *App) (*[MAIN_OBJECT]Service, errors.AppError) {
+	return &[MAIN_OBJECT]Service{app: app}, nil
+}
+

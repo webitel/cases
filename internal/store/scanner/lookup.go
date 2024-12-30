@@ -136,6 +136,85 @@ func ScanRowLookup(value **_go.Lookup) any {
 	})
 }
 
+func ScanRowExtendedLookup(value **_go.ExtendedLookup) any {
+	return TextDecoder(func(src []byte) error {
+		res := *(value)
+		*(value) = nil
+
+		if len(src) == 0 {
+			return nil // NULL
+		}
+
+		if res == nil {
+			res = new(_go.ExtendedLookup)
+		}
+
+		var (
+			ok  bool
+			str pgtype.Text
+			row = []pgtype.TextDecoder{
+				TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
+					err := str.DecodeText(nil, src)
+					if err != nil {
+						return err
+					}
+					id, err := strconv.ParseInt(str.String, 10, 64)
+					if err != nil {
+						return err
+					}
+					res.Id = id
+					return nil
+				}),
+				TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
+					err := str.DecodeText(nil, src)
+					if err != nil {
+						return err
+					}
+					res.Name = str.String
+					ok = ok || (str.String != "" && str.String != "[deleted]") // && str.Status == pgtype.Present
+					return nil
+				}),
+				TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
+					err := str.DecodeText(nil, src)
+					if err != nil {
+						return err
+					}
+					res.Type = str.String
+					ok = ok || (str.String != "" && str.String != "[deleted]") // && str.Status == pgtype.Present
+					return nil
+				}),
+			}
+			raw = pgtype.NewCompositeTextScanner(nil, src)
+		)
+
+		var err error
+		for _, col := range row {
+
+			raw.ScanDecoder(col)
+
+			err = raw.Err()
+			if err != nil {
+				return err
+			}
+		}
+
+		if ok {
+			*(value) = res
+		}
+
+		return nil
+	})
+}
+
 func ScanLookupList(value *[]*_go.Lookup) any {
 	return TextDecoder(func(src []byte) error {
 		if len(src) == 0 {
