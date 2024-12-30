@@ -1480,14 +1480,15 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	}
 
 	var searchQ string
+	var searchN string
 	// Search CTE
 	if selectFlags["search"] {
-		searchName := ""
+		searchN = ""
 		if name, ok := rpc.Filter["name"].(string); ok {
 			// Generate the search pattern by creating a substring pattern
-			searchName = "%" + strings.Join(util.Substring(name), "%") + "%"
+			searchN = "%" + strings.Join(util.Substring(name), "%") + "%"
 		}
-		searchQ = (fmt.Sprintf(`search_catalog AS (
+		searchQ = `search_catalog AS (
 		SELECT
 			catalog.id AS catalog_id,
 			catalog.catalog_id AS service_catalog_id,
@@ -1497,8 +1498,8 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 			END AS target_catalog_id,
 			catalog.id         AS searched_id -- Include searched IDs directly
 		FROM cases.service_catalog catalog
-		WHERE catalog.name ILIKE '%s'
-	),`, searchName))
+		WHERE catalog.name ILIKE $4
+	),`
 	}
 
 	// Add limited_catalogs CTE with conditional search condition
@@ -1520,9 +1521,9 @@ func (s *CatalogStore) buildSearchCatalogQuery(
         WHERE root_id IS NULL
         %s -- Conditionally include the search condition
         ORDER BY id ASC
-        LIMIT %d OFFSET %d
+        LIMIT $2 OFFSET $3
     ),
-`, searchCondition, rpc.GetSize()+1, page)
+`, searchCondition)
 
 	// Add the prefix query with or without search_catalog based on search condition
 	if selectFlags["search"] {
@@ -1560,6 +1561,12 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	if err != nil {
 		return "", nil, dberr.NewDBInternalError("postgres.catalog.query_build_error", err)
 	}
+
+	args = append(args,
+		rpc.GetSize(), //$2
+		page,          //$3
+		searchN,       //$4
+	)
 
 	return store.CompactSQL(sqlQuery), args, nil
 }
