@@ -9,6 +9,7 @@ import (
 	authmodel "github.com/webitel/cases/auth/model"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
 )
 
 type CatalogService struct {
@@ -17,7 +18,8 @@ type CatalogService struct {
 }
 
 const (
-	defaultCatalogFields = "id, root_id, name, description, prefix, code, state, sla, status, close_reason, teams, skills, created_at, created_by"
+	defaultCatalogFields = "id, root_id, name, description, prefix, code, state, sla, status, close_reason, teams, skills, created_at, created_by, updated_at, updated_by, services"
+	defaultSubfields     = "id, name, description, root_id"
 )
 
 // CreateCatalog implements cases.CatalogsServer.
@@ -160,9 +162,24 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		page = 1
 	}
 
-	fields := req.Fields
-	if len(fields) == 0 {
-		fields = strings.Split(defaultCatalogFields, ", ")
+	if len(req.Fields) == 0 {
+		req.Fields = strings.Split(defaultCatalogFields, ", ")
+	} else {
+		req.Fields = util.FieldsFunc(req.Fields, util.InlineFields)
+	}
+
+	if !util.ContainsField(req.Fields, "services") {
+		req.Fields = append(req.Fields, "services")
+	}
+
+	if req.Query != "" {
+		req.Fields = append(req.Fields, "searched")
+	}
+
+	if len(req.SubFields) > 0 {
+		req.SubFields = util.FieldsFunc(req.SubFields, util.InlineFields)
+	} else if len(req.SubFields) == 0 {
+		req.SubFields = strings.Split(defaultSubfields, ", ")
 	}
 
 	t := time.Now()
@@ -171,22 +188,19 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		Session: session,
 		Context: ctx,
 		Sort:    req.Sort,
-		Fields:  fields,
+		Fields:  req.Fields,
 		Page:    int(page),
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
 	}
 
-	if req.Q == nil {
-		req.Q = &cases.Search{}
+	if req.Query != "" {
+		searchOptions.Filter["name"] = req.Query
+		req.Fields = append(req.Fields, "searched")
 	}
 
-	if req.Q.Query != "" {
-		searchOptions.Filter["name"] = req.Q.Query
-	}
-
-	catalogs, e := s.app.Store.Catalog().List(&searchOptions, req.Depth, &req.Q.FetchType)
+	catalogs, e := s.app.Store.Catalog().List(&searchOptions, req.Depth, req.SubFields)
 	if e != nil {
 		return nil, cerror.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
 	}

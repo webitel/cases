@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -226,153 +227,669 @@ func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string
 	return store.CompactSQL(query), args
 }
 
+// // List implements store.CatalogStore.
+// func (s *CatalogStore) List(
+// 	rpc *model.SearchOptions,
+// 	depth int64,
+// 	fetchType *cases.FetchType,
+// ) (*cases.CatalogList, error) {
+// 	// Establish a connection to the database
+// 	db, dbErr := s.storage.Database()
+// 	if dbErr != nil {
+// 		return nil, dberr.NewDBInternalError("postgres.catalog.list.database_connection_error", dbErr)
+// 	}
+
+// 	// Build SQL query
+// 	query, args, err := s.buildSearchCatalogQuery(rpc, depth)
+// 	if err != nil {
+// 		return nil, dberr.NewDBInternalError("postgres.catalog.list.query_build_error", err)
+// 	}
+
+// 	// Execute the query
+// 	rows, err := db.Query(rpc.Context, query, args...)
+// 	if err != nil {
+// 		return nil, dberr.NewDBInternalError("postgres.catalog.list.query_execution_error", err)
+// 	}
+// 	defer rows.Close()
+
+// 	// Parse the result
+// 	var catalogs []*cases.Catalog
+// 	lCount := 0
+// 	next := false
+// 	fetchAll := rpc.GetSize() == -1
+
+// 	for rows.Next() {
+// 		// If not fetching all records, check the size limit
+// 		if !fetchAll && lCount >= int(rpc.GetSize()) {
+// 			next = true
+// 			break
+// 		}
+
+// 		// Initialize catalog and related fields
+// 		catalog := &cases.Catalog{
+// 			Sla:         &cases.Lookup{},
+// 			Status:      &cases.Lookup{},
+// 			CloseReason: &cases.Lookup{},
+// 		}
+
+// 		var (
+// 			createdBy, updatedBy                      cases.Lookup
+// 			createdAt, updatedAt                      time.Time
+// 			teamLookups, skillLookups, serviceLookups []byte
+// 			rootID                                    int64
+
+// 			// Services slice to hold the nested services
+// 			services []map[string]interface{}
+// 		)
+
+// 		// Build scan arguments to include services
+// 		scanArgs, err := s.buildCatalogScanArgs(
+// 			catalog,
+// 			&createdBy, &updatedBy,
+// 			&createdAt, &updatedAt,
+// 			&teamLookups, &skillLookups, &serviceLookups,
+// 			&rootID,
+// 			// ----- Fields to scan -----
+// 			rpc.Fields,
+// 		)
+// 		if err != nil {
+// 			return nil, dberr.NewDBInternalError("postgres.catalog.list.scan_args_error", err)
+// 		}
+
+// 		// Scan the result into the appropriate fields
+// 		err = rows.Scan(scanArgs...)
+// 		if err != nil {
+// 			return nil, dberr.NewDBInternalError("postgres.catalog.list.scan_error", err)
+// 		}
+
+// 		// If rootID is not 0, it's a subservice, so we skip it
+// 		if rootID != 0 {
+// 			continue
+// 		}
+
+// 		if rpc.Fields[0] == "-" {
+// 			// Handle services unmarshal
+// 			if len(serviceLookups) > 0 {
+// 				if err := json.Unmarshal(serviceLookups, &services); err != nil {
+// 					return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_services_error", err)
+// 				}
+
+// 				// Nest services by root_id
+// 				nestedServices, err := s.nestServicesByRootID(catalog.Id, services)
+// 				if err != nil {
+// 					return nil, dberr.NewDBInternalError("postgres.catalog.list.nesting_services_error", err)
+// 				}
+
+// 				// Add the nested services to the catalog
+// 				catalog.Service = nestedServices
+// 			}
+
+// 			// Unmarshal the JSON arrays into the Lookup slices -- teams and skills
+// 			if err := json.Unmarshal(teamLookups, &catalog.Teams); err != nil {
+// 				return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_teams_error", err)
+// 			}
+// 			if err := json.Unmarshal(skillLookups, &catalog.Skills); err != nil {
+// 				return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_skills_error", err)
+// 			}
+// 		} else {
+// 			for _, field := range rpc.Fields {
+// 				switch field {
+// 				case "services":
+
+// 					// Handle services unmarshal
+// 					if len(serviceLookups) > 0 {
+// 						if err := json.Unmarshal(serviceLookups, &services); err != nil {
+// 							return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_services_error", err)
+// 						}
+
+// 						// Nest services by root_id
+// 						nestedServices, err := s.nestServicesByRootID(catalog.Id, services)
+// 						if err != nil {
+// 							return nil, dberr.NewDBInternalError("postgres.catalog.list.nesting_services_error", err)
+// 						}
+
+// 						// Add the nested services to the catalog
+// 						catalog.Service = nestedServices
+// 					}
+// 					// Unmarshal the JSON arrays into the Lookup slices -- teams and skills
+// 				case "teams":
+// 					if err := json.Unmarshal(teamLookups, &catalog.Teams); err != nil {
+// 						return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_teams_error", err)
+// 					}
+// 				case "skills":
+// 					if err := json.Unmarshal(skillLookups, &catalog.Skills); err != nil {
+// 						return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_skills_error", err)
+// 					}
+// 				}
+// 			}
+// 		}
+
+// 		// Set timestamps and created/updated by fields for the catalog
+// 		catalog.CreatedAt = util.Timestamp(createdAt)
+// 		catalog.UpdatedAt = util.Timestamp(updatedAt)
+// 		catalog.CreatedBy = &createdBy
+// 		catalog.UpdatedBy = &updatedBy
+
+// 		catalogs = append(catalogs, catalog)
+// 		lCount++
+// 	}
+
+// 	return &cases.CatalogList{
+// 		Page:  int32(rpc.Page),
+// 		Next:  next,
+// 		Items: catalogs,
+// 	}, nil
+// }
+
+// // buildCatalogScanArgs prepares scan arguments based on rpc.Fields.
+// // If rpc.Fields contains only "-", all fields will be scanned. Otherwise, fields are selectively scanned.
+// func (s *CatalogStore) buildCatalogScanArgs(
+// 	catalog *cases.Catalog, // The catalog object to populate
+// 	createdBy, updatedBy *cases.Lookup, // Lookup objects for created_by and updated_by
+// 	createdAt, updatedAt *time.Time, // Temporary variables for created_at and updated_at
+// 	teamLookups, skillLookups, serviceLookups *[]byte, // Byte arrays for teams, skills, and services (as JSON or binary)
+// 	rootId *int64, // Root ID for hierarchy placement
+// 	rpcFields []string, // List of fields to scan based on the request
+// ) ([]interface{}, error) {
+// 	// ------ If rpc.Fields is "-", scan all fields ------
+// 	if rpcFields[0] == "-" {
+// 		return []interface{}{
+// 			// ------ Catalog Basic Information ------
+// 			&catalog.Id,     // Catalog ID
+// 			&catalog.Name,   // Catalog Name
+// 			&catalog.Prefix, // Catalog Prefix
+
+// 			// ------ SLA Fields ------
+// 			&catalog.Sla.Id,   // SLA ID
+// 			&catalog.Sla.Name, // SLA Name
+
+// 			// ------ Status Fields ------
+// 			&catalog.Status.Id,   // Status ID
+// 			&catalog.Status.Name, // Status Name
+
+// 			// ------ Catalog Metadata ------
+// 			&catalog.Code,        // Catalog Code
+// 			&catalog.Description, // Catalog Description
+
+// 			// ------ Close Reason Fields ------
+// 			&catalog.CloseReason.Id,   // Close Reason ID
+// 			&catalog.CloseReason.Name, // Close Reason Name
+
+// 			// ------ Catalog State ------
+// 			&catalog.State, // Catalog State (active/inactive)
+
+// 			// ------ Created By and Updated By Fields ------
+// 			&createdBy.Id,   // Created By User ID
+// 			&createdBy.Name, // Created By User Name
+// 			&updatedBy.Id,   // Updated By User ID
+// 			&updatedBy.Name, // Updated By User Name
+
+// 			// ------ Timestamps ------
+// 			createdAt, // Created At Timestamp
+// 			updatedAt, // Updated At Timestamp
+
+// 			// ------ Teams, Skills, and Services Lookups ------
+// 			teamLookups,    // Team Lookups (JSON/binary)
+// 			skillLookups,   // Skill Lookups (JSON/binary)
+// 			serviceLookups, // Service Lookups (JSON/binary)
+
+// 			// ------ Root ID and Hierarchy Info ------
+// 			rootId, // Root ID for hierarchy
+// 		}, nil
+// 	}
+
+// 	// ------ If rpc.Fields contains specific fields, scan accordingly ------
+// 	var scanArgs []interface{}
+
+// 	for _, field := range rpcFields {
+// 		switch field {
+
+// 		// ------ Catalog Basic Information ------
+// 		case "id":
+// 			scanArgs = append(scanArgs, &catalog.Id) // Catalog ID
+// 		case "name":
+// 			scanArgs = append(scanArgs, &catalog.Name) // Catalog Name
+// 		case "prefix":
+// 			scanArgs = append(scanArgs, &catalog.Prefix) // Catalog Prefix
+
+// 		// ------ SLA Fields ------
+// 		case "sla":
+// 			scanArgs = append(scanArgs, &catalog.Sla.Id, &catalog.Sla.Name) // SLA ID and Name
+
+// 		// ------ Status Fields ------
+// 		case "status":
+// 			scanArgs = append(scanArgs, &catalog.Status.Id, &catalog.Status.Name) // Status ID and Name
+
+// 		// ------ Catalog Metadata ------
+// 		case "code":
+// 			scanArgs = append(scanArgs, &catalog.Code) // Catalog Code
+// 		case "description":
+// 			scanArgs = append(scanArgs, &catalog.Description) // Catalog Description
+
+// 		// ------ Close Reason Fields ------
+// 		case "close_reason":
+// 			scanArgs = append(scanArgs, &catalog.CloseReason.Id, &catalog.CloseReason.Name) // Close Reason ID and Name
+
+// 		// ------ Catalog State ------
+// 		case "state":
+// 			scanArgs = append(scanArgs, &catalog.State) // Catalog State (active/inactive)
+
+// 		// ------ Created By and Updated By Fields ------
+// 		case "created_by":
+// 			scanArgs = append(scanArgs, &createdBy.Id, &createdBy.Name) // Created By User ID and Name
+// 		case "updated_by":
+// 			scanArgs = append(scanArgs, &updatedBy.Id, &updatedBy.Name) // Updated By User ID and Name
+
+// 		// ------ Timestamps ------
+// 		case "created_at":
+// 			scanArgs = append(scanArgs, createdAt) // Created At Timestamp
+// 		case "updated_at":
+// 			scanArgs = append(scanArgs, updatedAt) // Updated At Timestamp
+
+// 		// ------ Teams, Skills, and Services Lookups ------
+// 		case "teams":
+// 			scanArgs = append(scanArgs, teamLookups) // Team Lookups (JSON/binary)
+// 		case "skills":
+// 			scanArgs = append(scanArgs, skillLookups) // Skill Lookups (JSON/binary)
+// 		case "services":
+// 			scanArgs = append(scanArgs, serviceLookups) // Service Lookups (JSON/binary)
+
+// 		// ------ Root ID and Hierarchy Info ------
+// 		case "root_id":
+// 			scanArgs = append(scanArgs, rootId) // Root ID for hierarchy
+// 		}
+// 	}
+
+// 	return scanArgs, nil
+// }
+
+// func (s *CatalogStore) mapServiceData(
+// 	serviceData map[string]interface{},
+// ) (*cases.Service, error) {
+// 	// Extract necessary fields from the service data map
+// 	serviceSlaID := int64(serviceData["sla_id"].(float64))
+// 	serviceSlaName := serviceData["sla_name"].(string)
+// 	serviceGroupID := int64(serviceData["group_id"].(float64))
+// 	serviceGroupName := serviceData["group_name"].(string)
+// 	serviceAssigneeID := int64(serviceData["assignee_id"].(float64))
+// 	serviceAssigneeName := serviceData["assignee_name"].(string)
+
+// 	var createdAt, updatedAt int64
+// 	var err error
+
+// 	// Check if created_at is present and not nil, then convert it
+// 	if createdAtStr, ok := serviceData["created_at"].(string); ok && createdAtStr != "" {
+// 		createdAt, err = util.TimeStringToTimestamp(createdAtStr, time.RFC3339Nano)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("Error parsing created_at: %v", err)
+// 		}
+// 	} else {
+// 		// Handle the case when created_at is missing or nil
+// 		createdAt = 0 // or set it to a default value or nil depending on the case
+// 	}
+
+// 	// Check if updated_at is present and not nil, then convert it
+// 	if updatedAtStr, ok := serviceData["updated_at"].(string); ok && updatedAtStr != "" {
+// 		updatedAt, err = util.TimeStringToTimestamp(updatedAtStr, time.RFC3339Nano)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("Error parsing updated_at: %v", err)
+// 		}
+// 	} else {
+// 		// Handle the case when updated_at is missing or nil
+// 		updatedAt = 0 // or set it to a default value or nil depending on the case
+// 	}
+
+// 	createdByID := int64(serviceData["created_by_id"].(float64))
+// 	createdByName := serviceData["created_by"].(string)
+// 	updatedByID := int64(serviceData["updated_by_id"].(float64))
+// 	updatedByName := serviceData["updated_by"].(string)
+
+// 	// Construct the service object
+// 	service := &cases.Service{
+// 		Id:          int64(serviceData["id"].(float64)),
+// 		Name:        serviceData["name"].(string),
+// 		Description: serviceData["description"].(string),
+// 		Code:        serviceData["code"].(string),
+// 		State:       serviceData["state"].(bool),
+// 		RootId:      int64(serviceData["root_id"].(float64)),
+// 		CatalogId:   int64(serviceData["service_catalog_id"].(float64)),
+// 		Sla: &cases.Lookup{
+// 			Id:   serviceSlaID,
+// 			Name: serviceSlaName,
+// 		},
+// 		Group: &cases.Lookup{
+// 			Id:   serviceGroupID,
+// 			Name: serviceGroupName,
+// 		},
+// 		Assignee: &cases.Lookup{
+// 			Id:   serviceAssigneeID,
+// 			Name: serviceAssigneeName,
+// 		},
+// 		CreatedAt: createdAt,
+// 		UpdatedAt: updatedAt,
+// 		CreatedBy: &cases.Lookup{
+// 			Id:   createdByID,
+// 			Name: createdByName,
+// 		},
+
+// 		UpdatedBy: &cases.Lookup{
+// 			Id:   updatedByID,
+// 			Name: updatedByName,
+// 		},
+// 		Service: []*cases.Service{}, // Initialize empty slice for children services
+// 	}
+
+// 	return service, nil
+// }
+
+// func (s *CatalogStore) nestServicesByRootID(
+// 	catalogID int64,
+// 	services []map[string]interface{},
+// ) ([]*cases.Service, error) {
+// 	// Step 1: Group services by their root_id
+// 	serviceMap := make(map[int64][]map[string]interface{})
+// 	var topServices []map[string]interface{}
+
+// 	for _, serviceData := range services {
+
+// 		rootID := int64(serviceData["root_id"].(float64))
+
+// 		if rootID == catalogID {
+// 			// Top-level services (directly under the catalog)
+// 			topServices = append(topServices, serviceData)
+// 		} else {
+// 			// Group by root_id (services under other services)
+// 			serviceMap[rootID] = append(serviceMap[rootID], serviceData)
+// 		}
+// 	}
+
+// 	// Step 2: Recursively build the hierarchy
+// 	return s.buildServiceHierarchy(topServices, serviceMap)
+// }
+
+// func (s *CatalogStore) buildServiceHierarchy(
+// 	serviceDataList []map[string]interface{},
+// 	serviceMap map[int64][]map[string]interface{},
+// ) ([]*cases.Service, error) {
+// 	var services []*cases.Service
+
+// 	for _, serviceData := range serviceDataList {
+// 		// Map service data into a Service object
+// 		service, err := s.mapServiceData(serviceData)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+
+// 		// Recursively build children (sub-services)
+// 		if childrenData, exists := serviceMap[service.Id]; exists {
+// 			children, err := s.buildServiceHierarchy(childrenData, serviceMap)
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 			// Assign children to the service
+// 			service.Service = children
+// 		}
+
+// 		// Append the service to the list of services
+// 		services = append(services, service)
+// 	}
+
+// 	return services, nil
+// }
+
 // List implements store.CatalogStore.
 func (s *CatalogStore) List(
 	rpc *model.SearchOptions,
 	depth int64,
-	fetchType *cases.FetchType,
+	subfields []string,
 ) (*cases.CatalogList, error) {
-	// Establish a connection to the database
+	// 1. Connect to DB
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.list.database_connection_error", dbErr)
 	}
 
-	// Build SQL query
-	query, args, err := s.buildSearchCatalogQuery(rpc, depth, fetchType)
+	// 2. Remove duplicates from Fields
+	rpc.Fields = DeduplicateFields(rpc.Fields)
+
+	// 3. Build SQL query
+	query, args, err := s.buildSearchCatalogQuery(rpc, depth, subfields)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.list.query_build_error", err)
 	}
 
-	// Execute the query
+	// 4. Execute the query
 	rows, err := db.Query(rpc.Context, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.list.query_execution_error", err)
 	}
 	defer rows.Close()
 
-	// Parse the result
-	var catalogs []*cases.Catalog
-	lCount := 0
-	next := false
-	fetchAll := rpc.GetSize() == -1
+	print(query)
 
+	// 5. Prepare containers
+	var (
+		catalogs    []*cases.Catalog
+		rawServices []*cases.Service
+		lCount      int
+		next        bool
+		fetchAll    = (rpc.GetSize() == -1)
+	)
+
+	// 6. Single-pass read
 	for rows.Next() {
-		// If not fetching all records, check the size limit
+		// If not fetching all, check the size limit
 		if !fetchAll && lCount >= int(rpc.GetSize()) {
 			next = true
 			break
 		}
 
-		// Initialize catalog and related fields
-		catalog := &cases.Catalog{
-			Sla:         &cases.Lookup{},
-			Status:      &cases.Lookup{},
-			CloseReason: &cases.Lookup{},
+		// Prepare the top-level Catalog object
+		catalog := &cases.Catalog{}
+
+		// Initialize lookups if requested
+		if util.ContainsField(rpc.Fields, "sla") {
+			catalog.Sla = &cases.Lookup{}
+		}
+		if util.ContainsField(rpc.Fields, "status") {
+			catalog.Status = &cases.Lookup{}
+		}
+		if util.ContainsField(rpc.Fields, "close_reason") {
+			catalog.CloseReason = &cases.Lookup{}
+		}
+		if util.ContainsField(rpc.Fields, "teams") {
+			catalog.Teams = []*cases.Lookup{}
+		}
+		if util.ContainsField(rpc.Fields, "skills") {
+			catalog.Skills = []*cases.Lookup{}
+		}
+		if util.ContainsField(rpc.Fields, "services") {
+			catalog.Service = []*cases.Service{}
+		}
+		if util.ContainsField(rpc.Fields, "created_by") {
+			catalog.CreatedBy = &cases.Lookup{}
+		}
+		if util.ContainsField(rpc.Fields, "updated_by") {
+			catalog.UpdatedBy = &cases.Lookup{}
 		}
 
 		var (
-			createdBy, updatedBy                      cases.Lookup
-			createdAt, updatedAt                      time.Time
-			teamLookups, skillLookups, serviceLookups []byte
-			rootID                                    int64
-
-			// Services slice to hold the nested services
-			services []map[string]interface{}
+			createdAt, updatedAt              time.Time
+			rootID                            int64
+			teamData, skillData, servicesData string
 		)
 
-		// Build scan arguments to include services
+		// Build placeholders
 		scanArgs, err := s.buildCatalogScanArgs(
 			catalog,
-			&createdBy, &updatedBy,
 			&createdAt, &updatedAt,
-			&teamLookups, &skillLookups, &serviceLookups,
 			&rootID,
-			// ----- Fields to scan -----
 			rpc.Fields,
+			subfields,
+			&teamData,
+			&skillData,
+			&servicesData,
 		)
 		if err != nil {
 			return nil, dberr.NewDBInternalError("postgres.catalog.list.scan_args_error", err)
 		}
 
-		// Scan the result into the appropriate fields
-		err = rows.Scan(scanArgs...)
-		if err != nil {
+		// Single row scan
+		if err := rows.Scan(scanArgs...); err != nil {
 			return nil, dberr.NewDBInternalError("postgres.catalog.list.scan_error", err)
 		}
 
-		// If rootID is not 0, it's a subservice, so we skip it
-		if rootID != 0 {
-			continue
-		}
-
-		if rpc.Fields[0] == "-" {
-			// Handle services unmarshal
-			if len(serviceLookups) > 0 {
-				if err := json.Unmarshal(serviceLookups, &services); err != nil {
-					return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_services_error", err)
-				}
-
-				// Nest services by root_id
-				nestedServices, err := s.nestServicesByRootID(catalog.Id, services)
-				if err != nil {
-					return nil, dberr.NewDBInternalError("postgres.catalog.list.nesting_services_error", err)
-				}
-
-				// Add the nested services to the catalog
-				catalog.Service = nestedServices
-			}
-
-			// Unmarshal the JSON arrays into the Lookup slices -- teams and skills
-			if err := json.Unmarshal(teamLookups, &catalog.Teams); err != nil {
-				return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_teams_error", err)
-			}
-			if err := json.Unmarshal(skillLookups, &catalog.Skills); err != nil {
-				return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_skills_error", err)
-			}
-		} else {
-			for _, field := range rpc.Fields {
-				switch field {
-				case "services":
-
-					// Handle services unmarshal
-					if len(serviceLookups) > 0 {
-						if err := json.Unmarshal(serviceLookups, &services); err != nil {
-							return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_services_error", err)
-						}
-
-						// Nest services by root_id
-						nestedServices, err := s.nestServicesByRootID(catalog.Id, services)
-						if err != nil {
-							return nil, dberr.NewDBInternalError("postgres.catalog.list.nesting_services_error", err)
-						}
-
-						// Add the nested services to the catalog
-						catalog.Service = nestedServices
-					}
-					// Unmarshal the JSON arrays into the Lookup slices -- teams and skills
-				case "teams":
-					if err := json.Unmarshal(teamLookups, &catalog.Teams); err != nil {
-						return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_teams_error", err)
-					}
-				case "skills":
-					if err := json.Unmarshal(skillLookups, &catalog.Skills); err != nil {
-						return nil, dberr.NewDBInternalError("postgres.catalog.list.unmarshal_skills_error", err)
-					}
-				}
-			}
-		}
-
-		// Set timestamps and created/updated by fields for the catalog
 		catalog.CreatedAt = util.Timestamp(createdAt)
 		catalog.UpdatedAt = util.Timestamp(updatedAt)
-		catalog.CreatedBy = &createdBy
-		catalog.UpdatedBy = &updatedBy
 
-		catalogs = append(catalogs, catalog)
-		lCount++
+		if util.ContainsField(rpc.Fields, "teams") && teamData != "" {
+			var parsedTeams []*cases.Lookup
+			if err := json.Unmarshal([]byte(teamData), &parsedTeams); err != nil {
+				return nil, dberr.NewDBInternalError("postgres.catalog.list.teams_parse_error", err)
+			}
+			catalog.Teams = parsedTeams
+		} else {
+			catalog.Teams = []*cases.Lookup{}
+		}
+
+		if util.ContainsField(rpc.Fields, "skills") && skillData != "" {
+			var parsedSkills []*cases.Lookup
+			if err := json.Unmarshal([]byte(skillData), &parsedSkills); err != nil {
+				return nil, dberr.NewDBInternalError("postgres.catalog.list.skills_parse_error", err)
+			}
+			catalog.Skills = parsedSkills
+		} else {
+			catalog.Skills = []*cases.Lookup{}
+		}
+
+		// Handle servicesData: Trim "{}" to ""
+		if util.ContainsField(rpc.Fields, "services") && servicesData == "{}" {
+			servicesData = ""
+		}
+
+		if util.ContainsField(rpc.Fields, "services") && servicesData != "" {
+			// Parse JSON into a generic map
+			var rawServices []map[string]interface{}
+			if err := json.Unmarshal([]byte(servicesData), &rawServices); err != nil {
+				return nil, dberr.NewDBInternalError("postgres.catalog.list.services_parse_error", err)
+			}
+
+			var parsedServices []*cases.Service
+			for _, raw := range rawServices {
+				// Skip empty objects
+				if len(raw) == 0 {
+					continue
+				}
+
+				service := &cases.Service{}
+
+				// Directly assign simple fields
+				if id, ok := raw["id"].(float64); ok {
+					service.Id = int64(id)
+				}
+				if name, ok := raw["name"].(string); ok {
+					service.Name = name
+				}
+				if rootID, ok := raw["root_id"].(float64); ok {
+					service.RootId = int64(rootID)
+				}
+				if description, ok := raw["description"].(string); ok {
+					service.Description = description
+				}
+				// Parse created_at and updated_at from Unix milliseconds
+				if createdAt, ok := raw["created_at"].(float64); ok {
+					service.CreatedAt = int64(createdAt)
+				}
+				if updatedAt, ok := raw["updated_at"].(float64); ok {
+					service.UpdatedAt = int64(updatedAt)
+				}
+
+				// Map SLA to Lookup
+				if slaID, ok := raw["sla_id"].(float64); ok {
+					if slaName, ok := raw["sla_name"].(string); ok {
+						service.Sla = &cases.Lookup{
+							Id:   int64(slaID),
+							Name: slaName,
+						}
+					}
+				}
+
+				// Map Group to Lookup
+				if groupID, ok := raw["group_id"].(float64); ok {
+					if groupName, ok := raw["group_name"].(string); ok {
+						service.Group = &cases.Lookup{
+							Id:   int64(groupID),
+							Name: groupName,
+						}
+					}
+				}
+
+				// Map Assignee to Lookup
+				if assigneeID, ok := raw["assignee_id"].(float64); ok {
+					if assigneeName, ok := raw["assignee_name"].(string); ok {
+						service.Assignee = &cases.Lookup{
+							Id:   int64(assigneeID),
+							Name: assigneeName,
+						}
+					}
+				}
+
+				// Map CreatedBy to Lookup
+				if createdByID, ok := raw["created_by"].(float64); ok {
+					if createdByName, ok := raw["created_by_name"].(string); ok {
+						service.CreatedBy = &cases.Lookup{
+							Id:   int64(createdByID),
+							Name: createdByName,
+						}
+					}
+				}
+
+				// Map UpdatedBy to Lookup
+				if updatedByID, ok := raw["updated_by"].(float64); ok {
+					if updatedByName, ok := raw["updated_by_name"].(string); ok {
+						service.UpdatedBy = &cases.Lookup{
+							Id:   int64(updatedByID),
+							Name: updatedByName,
+						}
+					}
+				}
+
+				// Map searched field
+				if searched, ok := raw["searched"].(bool); ok {
+					service.Searched = searched
+				}
+
+				parsedServices = append(parsedServices, service)
+			}
+
+			catalog.Service = parsedServices
+		}
+
+		// Only add to the top-level list if rootID == 0
+		if rootID == 0 {
+			catalogs = append(catalogs, catalog)
+			lCount++
+		}
 	}
 
+	// 12. Check for row errors
+	if rows.Err() != nil {
+		return nil, dberr.NewDBInternalError("postgres.catalog.list.query_rows_error", rows.Err())
+	}
+
+	// 13. Build nested hierarchy if “services” is requested
+	if util.ContainsField(rpc.Fields, "services") && len(rawServices) > 0 {
+		// For each top-level catalog, nest subservices
+		for _, cat := range catalogs {
+			nested, err := s.nestServicesByRootID(cat.Id, rawServices)
+			if err != nil {
+				return nil, dberr.NewDBInternalError("postgres.catalog.list.nesting_services_error", err)
+			}
+			cat.Service = nested
+		}
+	}
+
+	// 14. Return the final result
 	return &cases.CatalogList{
 		Page:  int32(rpc.Page),
 		Next:  next,
@@ -380,628 +897,1661 @@ func (s *CatalogStore) List(
 	}, nil
 }
 
-// buildCatalogScanArgs prepares scan arguments based on rpc.Fields.
-// If rpc.Fields contains only "-", all fields will be scanned. Otherwise, fields are selectively scanned.
-func (s *CatalogStore) buildCatalogScanArgs(
-	catalog *cases.Catalog, // The catalog object to populate
-	createdBy, updatedBy *cases.Lookup, // Lookup objects for created_by and updated_by
-	createdAt, updatedAt *time.Time, // Temporary variables for created_at and updated_at
-	teamLookups, skillLookups, serviceLookups *[]byte, // Byte arrays for teams, skills, and services (as JSON or binary)
-	rootId *int64, // Root ID for hierarchy placement
-	rpcFields []string, // List of fields to scan based on the request
-) ([]interface{}, error) {
-	// ------ If rpc.Fields is "-", scan all fields ------
-	if rpcFields[0] == "-" {
-		return []interface{}{
-			// ------ Catalog Basic Information ------
-			&catalog.Id,     // Catalog ID
-			&catalog.Name,   // Catalog Name
-			&catalog.Prefix, // Catalog Prefix
+// DeduplicateFields removes duplicate fields from rpc.Fields while preserving order.
+func DeduplicateFields(fields []string) []string {
+	seen := make(map[string]struct{})
+	var result []string
 
-			// ------ SLA Fields ------
-			&catalog.Sla.Id,   // SLA ID
-			&catalog.Sla.Name, // SLA Name
-
-			// ------ Status Fields ------
-			&catalog.Status.Id,   // Status ID
-			&catalog.Status.Name, // Status Name
-
-			// ------ Catalog Metadata ------
-			&catalog.Code,        // Catalog Code
-			&catalog.Description, // Catalog Description
-
-			// ------ Close Reason Fields ------
-			&catalog.CloseReason.Id,   // Close Reason ID
-			&catalog.CloseReason.Name, // Close Reason Name
-
-			// ------ Catalog State ------
-			&catalog.State, // Catalog State (active/inactive)
-
-			// ------ Created By and Updated By Fields ------
-			&createdBy.Id,   // Created By User ID
-			&createdBy.Name, // Created By User Name
-			&updatedBy.Id,   // Updated By User ID
-			&updatedBy.Name, // Updated By User Name
-
-			// ------ Timestamps ------
-			createdAt, // Created At Timestamp
-			updatedAt, // Updated At Timestamp
-
-			// ------ Teams, Skills, and Services Lookups ------
-			teamLookups,    // Team Lookups (JSON/binary)
-			skillLookups,   // Skill Lookups (JSON/binary)
-			serviceLookups, // Service Lookups (JSON/binary)
-
-			// ------ Root ID and Hierarchy Info ------
-			rootId, // Root ID for hierarchy
-		}, nil
+	for _, field := range fields {
+		if _, exists := seen[field]; !exists {
+			seen[field] = struct{}{}
+			result = append(result, field)
+		}
 	}
+	return result
+}
 
-	// ------ If rpc.Fields contains specific fields, scan accordingly ------
-	var scanArgs []interface{}
-
+func (s *CatalogStore) buildCatalogScanArgs(
+	catalog *cases.Catalog,
+	createdAt, updatedAt *time.Time,
+	rootId *int64,
+	rpcFields, serviceFields []string,
+	teamData, skillData, serviceData *string,
+) (
+	scanArgs []interface{},
+	err error,
+) {
 	for _, field := range rpcFields {
 		switch field {
 
-		// ------ Catalog Basic Information ------
+		// ---------- Catalog Fields ----------
 		case "id":
-			scanArgs = append(scanArgs, &catalog.Id) // Catalog ID
+			scanArgs = append(scanArgs, &catalog.Id)
+
 		case "name":
-			scanArgs = append(scanArgs, &catalog.Name) // Catalog Name
-		case "prefix":
-			scanArgs = append(scanArgs, &catalog.Prefix) // Catalog Prefix
+			scanArgs = append(scanArgs, &catalog.Name)
 
-		// ------ SLA Fields ------
-		case "sla":
-			scanArgs = append(scanArgs, &catalog.Sla.Id, &catalog.Sla.Name) // SLA ID and Name
-
-		// ------ Status Fields ------
-		case "status":
-			scanArgs = append(scanArgs, &catalog.Status.Id, &catalog.Status.Name) // Status ID and Name
-
-		// ------ Catalog Metadata ------
-		case "code":
-			scanArgs = append(scanArgs, &catalog.Code) // Catalog Code
 		case "description":
-			scanArgs = append(scanArgs, &catalog.Description) // Catalog Description
+			scanArgs = append(scanArgs, &catalog.Description)
 
-		// ------ Close Reason Fields ------
-		case "close_reason":
-			scanArgs = append(scanArgs, &catalog.CloseReason.Id, &catalog.CloseReason.Name) // Close Reason ID and Name
-
-		// ------ Catalog State ------
-		case "state":
-			scanArgs = append(scanArgs, &catalog.State) // Catalog State (active/inactive)
-
-		// ------ Created By and Updated By Fields ------
-		case "created_by":
-			scanArgs = append(scanArgs, &createdBy.Id, &createdBy.Name) // Created By User ID and Name
-		case "updated_by":
-			scanArgs = append(scanArgs, &updatedBy.Id, &updatedBy.Name) // Updated By User ID and Name
-
-		// ------ Timestamps ------
-		case "created_at":
-			scanArgs = append(scanArgs, createdAt) // Created At Timestamp
-		case "updated_at":
-			scanArgs = append(scanArgs, updatedAt) // Updated At Timestamp
-
-		// ------ Teams, Skills, and Services Lookups ------
-		case "teams":
-			scanArgs = append(scanArgs, teamLookups) // Team Lookups (JSON/binary)
-		case "skills":
-			scanArgs = append(scanArgs, skillLookups) // Skill Lookups (JSON/binary)
-		case "services":
-			scanArgs = append(scanArgs, serviceLookups) // Service Lookups (JSON/binary)
-
-		// ------ Root ID and Hierarchy Info ------
 		case "root_id":
-			scanArgs = append(scanArgs, rootId) // Root ID for hierarchy
+			scanArgs = append(scanArgs, rootId)
+
+		case "prefix":
+			scanArgs = append(scanArgs, &catalog.Prefix)
+
+		case "code":
+			scanArgs = append(scanArgs, &catalog.Code)
+
+		case "state":
+			scanArgs = append(scanArgs, &catalog.State)
+
+		case "sla":
+			scanArgs = append(scanArgs, &catalog.Sla.Id, &catalog.Sla.Name)
+
+		case "status":
+			scanArgs = append(scanArgs, &catalog.Status.Id, &catalog.Status.Name)
+
+		case "close_reason":
+			scanArgs = append(scanArgs, &catalog.CloseReason.Id, &catalog.CloseReason.Name)
+
+		case "created_by":
+			scanArgs = append(scanArgs, &catalog.CreatedBy.Id, &catalog.CreatedBy.Name)
+
+		case "updated_by":
+			scanArgs = append(scanArgs, &catalog.UpdatedBy.Id, &catalog.UpdatedBy.Name)
+
+		case "created_at":
+			scanArgs = append(scanArgs, createdAt)
+
+		case "updated_at":
+			scanArgs = append(scanArgs, updatedAt)
+
+		case "teams":
+			scanArgs = append(scanArgs, teamData)
+
+		case "skills":
+			scanArgs = append(scanArgs, skillData)
+
+			// ---------- Searched Field ----------
+		case "searched":
+			scanArgs = append(scanArgs, &catalog.Searched)
+
+			// ---------- Service Fields ----------
+		case "services":
+			scanArgs = append(scanArgs, serviceData)
 		}
 	}
 
 	return scanArgs, nil
 }
 
-func (s *CatalogStore) mapServiceData(
-	serviceData map[string]interface{},
-) (*cases.Service, error) {
-	// Extract necessary fields from the service data map
-	serviceSlaID := int64(serviceData["sla_id"].(float64))
-	serviceSlaName := serviceData["sla_name"].(string)
-	serviceGroupID := int64(serviceData["group_id"].(float64))
-	serviceGroupName := serviceData["group_name"].(string)
-	serviceAssigneeID := int64(serviceData["assignee_id"].(float64))
-	serviceAssigneeName := serviceData["assignee_name"].(string)
+// func (s *CatalogStore) buildCatalogScanArgs(
+// 	catalog *cases.Catalog,
+// 	createdAt, updatedAt *time.Time,
+// 	rootId *int64,
+// 	rpcFields, serviceFields []string,
+// 	teamData, skillData *string,
+// ) (
+// 	scanArgs []interface{},
+// 	servicePlaceholders []interface{},
+// 	err error,
+// ) {
+// 	for _, field := range rpcFields {
+// 		switch field {
 
-	var createdAt, updatedAt int64
-	var err error
+// 		// ---------- Catalog Fields ----------
+// 		case "id":
+// 			scanArgs = append(scanArgs, &catalog.Id)
 
-	// Check if created_at is present and not nil, then convert it
-	if createdAtStr, ok := serviceData["created_at"].(string); ok && createdAtStr != "" {
-		createdAt, err = util.TimeStringToTimestamp(createdAtStr, time.RFC3339Nano)
-		if err != nil {
-			return nil, fmt.Errorf("Error parsing created_at: %v", err)
+// 		case "name":
+// 			scanArgs = append(scanArgs, &catalog.Name)
+
+// 		case "description":
+// 			scanArgs = append(scanArgs, &catalog.Description)
+
+// 		case "root_id":
+// 			scanArgs = append(scanArgs, rootId)
+
+// 		case "prefix":
+// 			scanArgs = append(scanArgs, &catalog.Prefix)
+
+// 		case "code":
+// 			scanArgs = append(scanArgs, &catalog.Code)
+
+// 		case "state":
+// 			scanArgs = append(scanArgs, &catalog.State)
+
+// 		case "sla":
+// 			scanArgs = append(scanArgs, &catalog.Sla.Id, &catalog.Sla.Name)
+
+// 		case "status":
+// 			scanArgs = append(scanArgs, &catalog.Status.Id, &catalog.Status.Name)
+
+// 		case "close_reason":
+// 			scanArgs = append(scanArgs, &catalog.CloseReason.Id, &catalog.CloseReason.Name)
+
+// 		case "created_by":
+// 			scanArgs = append(scanArgs, &catalog.CreatedBy.Id, &catalog.CreatedBy.Name)
+
+// 		case "updated_by":
+// 			scanArgs = append(scanArgs, &catalog.UpdatedBy.Id, &catalog.UpdatedBy.Name)
+
+// 		case "created_at":
+// 			scanArgs = append(scanArgs, createdAt)
+
+// 		case "updated_at":
+// 			scanArgs = append(scanArgs, updatedAt)
+
+// 		case "teams":
+// 			scanArgs = append(scanArgs, teamData)
+
+// 		case "skills":
+// 			scanArgs = append(scanArgs, skillData)
+
+// 			// ---------- Service Fields ----------
+// 		case "services":
+// 			// For each serviceField
+// 			for _, sf := range serviceFields {
+// 				switch sf {
+
+// 				case "id":
+// 					idHolder := new(sql.NullInt64) // Use NullInt64 for ID
+// 					scanArgs = append(scanArgs, idHolder)
+// 					servicePlaceholders = append(servicePlaceholders, idHolder)
+
+// 				case "name":
+// 					nameHolder := new(sql.NullString) // Use NullString for name
+// 					scanArgs = append(scanArgs, nameHolder)
+// 					servicePlaceholders = append(servicePlaceholders, nameHolder)
+
+// 				case "description":
+// 					descHolder := new(sql.NullString) // NULL-safe for description
+// 					scanArgs = append(scanArgs, descHolder)
+// 					servicePlaceholders = append(servicePlaceholders, descHolder)
+
+// 				case "root_id":
+// 					rootHolder := new(sql.NullInt64)
+// 					scanArgs = append(scanArgs, rootHolder)
+// 					servicePlaceholders = append(servicePlaceholders, rootHolder)
+
+// 				case "sla":
+// 					// We need 2 placeholders: ID + Name
+// 					slaID := new(sql.NullInt64)
+// 					slaName := new(sql.NullString)
+// 					scanArgs = append(scanArgs, slaID, slaName)
+// 					servicePlaceholders = append(servicePlaceholders, slaID, slaName)
+
+// 				case "group":
+// 					// 2 placeholders: ID + Name
+// 					gID := new(sql.NullInt64)
+// 					gName := new(sql.NullString)
+// 					scanArgs = append(scanArgs, gID, gName)
+// 					servicePlaceholders = append(servicePlaceholders, gID, gName)
+
+// 				case "assignee":
+// 					// 2 placeholders: ID + Name
+// 					aID := new(sql.NullInt64)
+// 					aName := new(sql.NullString)
+// 					scanArgs = append(scanArgs, aID, aName)
+// 					servicePlaceholders = append(servicePlaceholders, aID, aName)
+
+// 				case "created_by":
+// 					// Typically ID + Name for the user
+// 					cbyID := new(sql.NullInt64)
+// 					cbyName := new(sql.NullString)
+// 					scanArgs = append(scanArgs, cbyID, cbyName)
+// 					servicePlaceholders = append(servicePlaceholders, cbyID, cbyName)
+
+// 				case "updated_by":
+// 					// Typically ID + Name for the user
+// 					ubyID := new(sql.NullInt64)
+// 					ubyName := new(sql.NullString)
+// 					scanArgs = append(scanArgs, ubyID, ubyName)
+// 					servicePlaceholders = append(servicePlaceholders, ubyID, ubyName)
+
+// 				case "created_at":
+// 					// Typically a single time field
+// 					cAt := new(sql.NullTime)
+// 					scanArgs = append(scanArgs, cAt)
+// 					servicePlaceholders = append(servicePlaceholders, cAt)
+
+// 				case "updated_at":
+// 					// Another single time field
+// 					uAt := new(sql.NullTime)
+// 					scanArgs = append(scanArgs, uAt)
+// 					servicePlaceholders = append(servicePlaceholders, uAt)
+
+// 				case "code":
+// 					codeHolder := new(sql.NullString)
+// 					scanArgs = append(scanArgs, codeHolder)
+// 					servicePlaceholders = append(servicePlaceholders, codeHolder)
+
+// 				case "state":
+// 					stateHolder := new(sql.NullBool)
+// 					scanArgs = append(scanArgs, stateHolder)
+// 					servicePlaceholders = append(servicePlaceholders, stateHolder)
+// 				}
+// 			}
+// 		}
+// 	}
+
+// 	return scanArgs, servicePlaceholders, nil
+// }
+
+func (s *CatalogStore) parsePartialService(
+	serviceFields []string,
+	placeholders []interface{},
+) *cases.Service {
+	svc := &cases.Service{}
+
+	// Use an index to walk through placeholders;
+	// some fields (two-column lookups) consume two placeholders.
+	var idx int
+
+	for _, field := range serviceFields {
+		// Prevent out-of-bounds
+		if idx >= len(placeholders) {
+			break
 		}
-	} else {
-		// Handle the case when created_at is missing or nil
-		createdAt = 0 // or set it to a default value or nil depending on the case
-	}
 
-	// Check if updated_at is present and not nil, then convert it
-	if updatedAtStr, ok := serviceData["updated_at"].(string); ok && updatedAtStr != "" {
-		updatedAt, err = util.TimeStringToTimestamp(updatedAtStr, time.RFC3339Nano)
-		if err != nil {
-			return nil, fmt.Errorf("Error parsing updated_at: %v", err)
-		}
-	} else {
-		// Handle the case when updated_at is missing or nil
-		updatedAt = 0 // or set it to a default value or nil depending on the case
-	}
+		switch field {
 
-	createdByID := int64(serviceData["created_by_id"].(float64))
-	createdByName := serviceData["created_by"].(string)
-	updatedByID := int64(serviceData["updated_by_id"].(float64))
-	updatedByName := serviceData["updated_by"].(string)
-
-	// Construct the service object
-	service := &cases.Service{
-		Id:          int64(serviceData["id"].(float64)),
-		Name:        serviceData["name"].(string),
-		Description: serviceData["description"].(string),
-		Code:        serviceData["code"].(string),
-		State:       serviceData["state"].(bool),
-		RootId:      int64(serviceData["root_id"].(float64)),
-		CatalogId:   int64(serviceData["service_catalog_id"].(float64)),
-		Sla: &cases.Lookup{
-			Id:   serviceSlaID,
-			Name: serviceSlaName,
-		},
-		Group: &cases.Lookup{
-			Id:   serviceGroupID,
-			Name: serviceGroupName,
-		},
-		Assignee: &cases.Lookup{
-			Id:   serviceAssigneeID,
-			Name: serviceAssigneeName,
-		},
-		CreatedAt: createdAt,
-		UpdatedAt: updatedAt,
-		CreatedBy: &cases.Lookup{
-			Id:   createdByID,
-			Name: createdByName,
-		},
-
-		UpdatedBy: &cases.Lookup{
-			Id:   updatedByID,
-			Name: updatedByName,
-		},
-		Service: []*cases.Service{}, // Initialize empty slice for children services
-	}
-
-	return service, nil
-}
-
-func (s *CatalogStore) nestServicesByRootID(
-	catalogID int64,
-	services []map[string]interface{},
-) ([]*cases.Service, error) {
-	// Step 1: Group services by their root_id
-	serviceMap := make(map[int64][]map[string]interface{})
-	var topServices []map[string]interface{}
-
-	for _, serviceData := range services {
-
-		rootID := int64(serviceData["root_id"].(float64))
-
-		if rootID == catalogID {
-			// Top-level services (directly under the catalog)
-			topServices = append(topServices, serviceData)
-		} else {
-			// Group by root_id (services under other services)
-			serviceMap[rootID] = append(serviceMap[rootID], serviceData)
-		}
-	}
-
-	// Step 2: Recursively build the hierarchy
-	return s.buildServiceHierarchy(topServices, serviceMap)
-}
-
-func (s *CatalogStore) buildServiceHierarchy(
-	serviceDataList []map[string]interface{},
-	serviceMap map[int64][]map[string]interface{},
-) ([]*cases.Service, error) {
-	var services []*cases.Service
-
-	for _, serviceData := range serviceDataList {
-		// Map service data into a Service object
-		service, err := s.mapServiceData(serviceData)
-		if err != nil {
-			return nil, err
-		}
-
-		// Recursively build children (sub-services)
-		if childrenData, exists := serviceMap[service.Id]; exists {
-			children, err := s.buildServiceHierarchy(childrenData, serviceMap)
-			if err != nil {
-				return nil, err
+		//----------------------------------------------------------------------
+		// Single-placeholder fields (one sql.Null* per field)
+		//----------------------------------------------------------------------
+		case "id":
+			if ph, ok := placeholders[idx].(*sql.NullInt64); ok && ph != nil && ph.Valid {
+				svc.Id = ph.Int64
 			}
-			// Assign children to the service
-			service.Service = children
-		}
+			idx++
 
-		// Append the service to the list of services
-		services = append(services, service)
+		case "name":
+			if ph, ok := placeholders[idx].(*sql.NullString); ok && ph != nil && ph.Valid {
+				svc.Name = ph.String
+			}
+			idx++
+
+		case "description":
+			if ph, ok := placeholders[idx].(*sql.NullString); ok && ph != nil && ph.Valid {
+				svc.Description = ph.String
+			}
+			idx++
+
+		case "code":
+			if ph, ok := placeholders[idx].(*sql.NullString); ok && ph != nil && ph.Valid {
+				svc.Code = ph.String
+			}
+			idx++
+
+		case "state":
+			if ph, ok := placeholders[idx].(*sql.NullBool); ok && ph != nil && ph.Valid {
+				svc.State = ph.Bool
+			}
+			idx++
+
+		case "root_id":
+			if ph, ok := placeholders[idx].(*sql.NullInt64); ok && ph != nil && ph.Valid {
+				svc.RootId = ph.Int64
+			}
+			idx++
+
+		case "created_at":
+			if ph, ok := placeholders[idx].(*sql.NullTime); ok && ph != nil && ph.Valid {
+				svc.CreatedAt = util.Timestamp(ph.Time)
+			}
+			idx++
+
+		case "updated_at":
+			if ph, ok := placeholders[idx].(*sql.NullTime); ok && ph != nil && ph.Valid {
+				svc.UpdatedAt = util.Timestamp(ph.Time)
+			}
+			idx++
+
+		//----------------------------------------------------------------------
+		// Two-placeholder lookups: each consumes two sql.Null* placeholders
+		//----------------------------------------------------------------------
+		case "sla":
+			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
+			if idx+1 < len(placeholders) {
+				idPh, _ := placeholders[idx].(*sql.NullInt64)
+				namePh, _ := placeholders[idx+1].(*sql.NullString)
+
+				if idPh != nil && idPh.Valid {
+					svc.Sla = &cases.Lookup{Id: idPh.Int64}
+				}
+				if namePh != nil && namePh.Valid {
+					if svc.Sla == nil {
+						svc.Sla = &cases.Lookup{}
+					}
+					svc.Sla.Name = namePh.String
+				}
+				idx += 2
+			} else {
+				idx++
+			}
+
+		case "group":
+			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
+			if idx+1 < len(placeholders) {
+				idPh, _ := placeholders[idx].(*sql.NullInt64)
+				namePh, _ := placeholders[idx+1].(*sql.NullString)
+
+				if idPh != nil && idPh.Valid {
+					svc.Group = &cases.Lookup{Id: idPh.Int64}
+				}
+				if namePh != nil && namePh.Valid {
+					if svc.Group == nil {
+						svc.Group = &cases.Lookup{}
+					}
+					svc.Group.Name = namePh.String
+				}
+				idx += 2
+			} else {
+				idx++
+			}
+
+		case "assignee":
+			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
+			if idx+1 < len(placeholders) {
+				idPh, _ := placeholders[idx].(*sql.NullInt64)
+				namePh, _ := placeholders[idx+1].(*sql.NullString)
+
+				if idPh != nil && idPh.Valid {
+					svc.Assignee = &cases.Lookup{Id: idPh.Int64}
+				}
+				if namePh != nil && namePh.Valid {
+					if svc.Assignee == nil {
+						svc.Assignee = &cases.Lookup{}
+					}
+					svc.Assignee.Name = namePh.String
+				}
+				idx += 2
+			} else {
+				idx++
+			}
+
+		case "created_by":
+			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
+			if idx+1 < len(placeholders) {
+				idPh, _ := placeholders[idx].(*sql.NullInt64)
+				namePh, _ := placeholders[idx+1].(*sql.NullString)
+
+				if idPh != nil && idPh.Valid {
+					svc.CreatedBy = &cases.Lookup{Id: idPh.Int64}
+				}
+				if namePh != nil && namePh.Valid {
+					if svc.CreatedBy == nil {
+						svc.CreatedBy = &cases.Lookup{}
+					}
+					svc.CreatedBy.Name = namePh.String
+				}
+				idx += 2
+			} else {
+				idx++
+			}
+
+		case "updated_by":
+			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
+			if idx+1 < len(placeholders) {
+				idPh, _ := placeholders[idx].(*sql.NullInt64)
+				namePh, _ := placeholders[idx+1].(*sql.NullString)
+
+				if idPh != nil && idPh.Valid {
+					svc.UpdatedBy = &cases.Lookup{Id: idPh.Int64}
+				}
+				if namePh != nil && namePh.Valid {
+					if svc.UpdatedBy == nil {
+						svc.UpdatedBy = &cases.Lookup{}
+					}
+					svc.UpdatedBy.Name = namePh.String
+				}
+				idx += 2
+			} else {
+				idx++
+			}
+		}
 	}
 
-	return services, nil
+	return svc
+}
+
+// nestServicesByRootID nests the partial services by their RootId.
+func (s *CatalogStore) nestServicesByRootID(
+	rootCatalogID int64,
+	services []*cases.Service,
+) ([]*cases.Service, error) {
+	serviceMap := make(map[int64][]*cases.Service)
+	for _, svc := range services {
+		serviceMap[svc.RootId] = append(serviceMap[svc.RootId], svc)
+	}
+	return s.buildServiceHierarchy(rootCatalogID, serviceMap), nil
+}
+
+// buildServiceHierarchy recursively attaches child services
+func (s *CatalogStore) buildServiceHierarchy(
+	rootID int64,
+	serviceMap map[int64][]*cases.Service,
+) []*cases.Service {
+	children := serviceMap[rootID]
+	for _, child := range children {
+		child.Service = s.buildServiceHierarchy(child.Id, serviceMap)
+	}
+	return children
 }
 
 func (s *CatalogStore) buildSearchCatalogQuery(
 	rpc *model.SearchOptions,
 	depth int64,
-	fetchType *cases.FetchType,
+	subfields []string,
 ) (string, []interface{}, error) {
-	// FieldsFunc normalizes a selection list src of the attributes to be returned.
-	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
-
-	// -------- Apply [Essential Fields Inclusion] --------
-	// Always required fields that should be part of the query
-	rpc.Fields = append(fields, "id", "name", "description", "root_id")
-
-	allFields := []string{
-		"catalog.id",
-		"catalog.name",                                            // Mandatory
-		"COALESCE(catalog.prefix, '') AS prefix",                  // Use COALESCE for prefix to handle null values
-		"COALESCE(catalog.sla_id, 0) AS sla_id",                   // Use COALESCE for SLA ID to handle null values
-		"COALESCE(sla.name, '') AS sla_name",                      // Use COALESCE for SLA name to handle null values
-		"COALESCE(catalog.status_id, 0) AS status_id",             // Use COALESCE for status ID to handle null values
-		"COALESCE(status.name, '') AS status_name",                // Use COALESCE for status name to handle null values
-		"COALESCE(catalog.code, '') AS code",                      // Optional
-		"COALESCE(catalog.description, '') AS description",        // Optional
-		"COALESCE(catalog.close_reason_id, 0) AS close_reason_id", // Optional
-		"COALESCE(close_reason.name, '') AS close_reason_name",    // Optional
-		"catalog.state AS state",
-		"COALESCE(catalog.created_by, 0) AS created_by",         // Handle null with default 0 for ID
-		"COALESCE(created_by_user.name, '') AS created_by_name", // Handle null with default empty string for name
-		"COALESCE(catalog.updated_by, 0) AS updated_by",         // Handle null with default 0 for ID
-		"COALESCE(updated_by_user.name, '') AS updated_by_name", // Handle null with default empty string for name
-		"catalog.created_at AS created_at",
-		"catalog.updated_at AS updated_at",
-		"COALESCE(teams_agg.teams, '[]') AS teams",          // Aggregated teams from the CTE
-		"COALESCE(skills_agg.skills, '[]') AS skills",       // Aggregated skills from the CTE
-		"COALESCE(services_agg.services, '[]') AS services", // Aggregated services from the recursive CTE
-		"COALESCE(catalog.root_id, 0) AS root_id",           // Aggregated services from the recursive CTE
+	// Catalog-level field map (removed "services": "" entry)
+	fieldMap := map[string]string{
+		"id":           "catalog.id",
+		"name":         "catalog.name",
+		"prefix":       "COALESCE(catalog.prefix, '') AS prefix",
+		"sla":          "COALESCE(catalog.sla_id, 0) AS sla_id, COALESCE(sla.name, '') AS sla_name",
+		"group":        "COALESCE(catalog.group_id, 0) AS group_id, COALESCE(group_lookup.name, '') AS group_name",
+		"assignee":     "COALESCE(catalog.assignee_id, 0) AS assignee_id, COALESCE(assignee_user.name, '') AS assignee_name",
+		"status":       "COALESCE(catalog.status_id, 0) AS status_id, COALESCE(status.name, '') AS status_name",
+		"code":         "COALESCE(catalog.code, '') AS code",
+		"description":  "COALESCE(catalog.description, '') AS description",
+		"close_reason": "COALESCE(catalog.close_reason_id, 0) AS close_reason_id, COALESCE(close_reason.name, '') AS close_reason_name",
+		"state":        "catalog.state AS state",
+		"created_by":   "COALESCE(catalog.created_by, 0) AS created_by, COALESCE(created_by_user.name, '') AS created_by_name",
+		"updated_by":   "COALESCE(catalog.updated_by, 0) AS updated_by, COALESCE(updated_by_user.name, '') AS updated_by_name",
+		"created_at":   "catalog.created_at AS created_at",
+		"updated_at":   "catalog.updated_at AS updated_at",
+		"teams":        "COALESCE(JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', teams.team_id, 'name', teams.team_name)) FILTER (WHERE teams.team_id IS NOT NULL), '[]') AS team_data",
+		"skills":       "COALESCE(JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', skills.skill_id, 'name', skills.skill_name)) FILTER (WHERE skills.skill_id IS NOT NULL), '[]') AS skill_data",
+		"root_id":      "COALESCE(catalog.root_id, 0) AS root_id",
 	}
 
-	// -------- Apply [Select Flag Initialization] -------- //
-	// Initialize flags for recursion
-	// ONLY services are recursive
+	// Flags for applying CTEs or conditional joins
 	selectFlags := map[string]bool{
+		"teams":  false,
+		"skills": false,
+		"search": false,
+		// We’ll detect "services" based on whether it’s in rpc.Fields
 		"services": false,
-		"teams":    false,
-		"skills":   false,
-		"search":   false,
 	}
 
-	// -------- Apply [Field Selection] --------
-	// Selected fields handling
+	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+		selectFlags["search"] = true
+	}
+
 	var selectedFields []string
 
-	// If fields are set to "-", use defaultCatalogFields and enable recursion for all entities
-	if rpc.Fields[0] == "-" {
-		selectedFields = allFields
-		selectFlags["services"] = true
-		selectFlags["teams"] = true
-		selectFlags["skills"] = true
-	} else {
-		// Handle specific fields from rpc.Fields
-		for _, field := range rpc.Fields {
+	// 1) Build the catalog columns from rpc.Fields
+	for _, field := range rpc.Fields {
+		if mappedField, ok := fieldMap[field]; ok {
+			cols := strings.Split(mappedField, ", ")
+			selectedFields = append(selectedFields, cols...)
 			switch field {
-			case "id":
-				selectedFields = append(selectedFields, "catalog.id")
-			case "name":
-				selectedFields = append(selectedFields, "catalog.name")
 			case "prefix":
-				selectedFields = append(selectedFields, "COALESCE(catalog.prefix, '') AS prefix")
-				selectFlags["services"] = true // Enable services recursion if prefix is selected
-			case "sla":
-				selectedFields = append(selectedFields, "COALESCE(catalog.sla_id, 0) AS sla_id", "COALESCE(sla.name, '') AS sla_name")
-			case "status":
-				selectedFields = append(selectedFields, "COALESCE(catalog.status_id, 0) AS status_id", "COALESCE(status.name, '') AS status_name")
-			case "code":
-				selectedFields = append(selectedFields, "COALESCE(catalog.code, '') AS code")
-			case "description":
-				selectedFields = append(selectedFields, "COALESCE(catalog.description, '') AS description")
-			case "close_reason":
-				selectedFields = append(selectedFields, "COALESCE(catalog.close_reason_id, 0) AS close_reason_id", "COALESCE(close_reason_group.name, '') AS close_reason_name")
-			case "state":
-				selectedFields = append(selectedFields, "catalog.state AS state")
-			case "created_by":
-				selectedFields = append(selectedFields, "COALESCE(catalog.created_by, 0) AS created_by", "COALESCE(created_by_user.name, '') AS created_by_name")
-			case "updated_by":
-				selectedFields = append(selectedFields, "COALESCE(catalog.updated_by, 0) AS updated_by", "COALESCE(updated_by_user.name, '') AS updated_by_name")
-			case "created_at":
-				selectedFields = append(selectedFields, "catalog.created_at AS created_at")
-			case "updated_at":
-				selectedFields = append(selectedFields, "catalog.updated_at AS updated_at")
+				// If prefix => maybe you want something else?
 			case "teams":
-				selectedFields = append(selectedFields, "COALESCE(teams_agg.teams, '[]') AS teams")
 				selectFlags["teams"] = true
 			case "skills":
-				selectedFields = append(selectedFields, "COALESCE(skills_agg.skills, '[]') AS skills")
 				selectFlags["skills"] = true
-			case "services":
-				selectedFields = append(selectedFields, "COALESCE(services_agg.services, '[]') AS services")
-				selectFlags["services"] = true // Enable services recursion
-			case "root_id":
-				selectedFields = append(selectedFields, "COALESCE(catalog.root_id, 0) AS root_id")
 			}
 		}
 	}
 
-	// -------- Apply [Base Query Construction] --------
-	// Build the base query with the selected fields
-	queryBuilder := sq.Select(selectedFields...).
-		From("cases.service_catalog AS catalog").
-		Where(sq.Eq{"catalog.dc": rpc.Session.GetDomainId()}).
-		LeftJoin("cases.sla ON sla.id = catalog.sla_id").
-		LeftJoin("cases.status ON status.id = catalog.status_id").
-		LeftJoin("cases.close_reason_group ON close_reason_group.id = catalog.close_reason_id").
-		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
-		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by").
-		PlaceholderFormat(sq.Dollar)
+	// 2) Check if the user requested "services" in rpc.Fields.
+	// If so, we build columns from serviceFields
+	// Check if the user requested "services" in rpc.Fields.
+	if util.ContainsField(rpc.Fields, "services") {
+		selectFlags["services"] = true
 
-	var searchStr string
-
-	// -------- Apply [Filtering] --------
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		substrs := util.Substring(name)
-		combinedLike := strings.Join(substrs, "%")
-		searchStr = combinedLike
-		selectFlags["search"] = true
+		// Build dynamic JSONB_AGG for services
+		serviceAgg := buildServiceJSONBAgg(subfields, selectFlags["search"])
+		selectedFields = append(selectedFields, serviceAgg)
 	}
-	// -------- Apply [Sorting by Name] --------
-	queryBuilder = queryBuilder.OrderBy("catalog.name ASC")
 
-	// -------- Apply [Search] --------
-	// filter by catalog_id if search is enabled
 	if selectFlags["search"] {
-		// Final filter to only return relevant catalogs based on target_catalog_id
-		queryBuilder = queryBuilder.Where(sq.Expr("catalog.id IN (SELECT target_catalog_id FROM search_catalog)"))
+		// Add the "searched" field dynamically to the field map
+		fieldMap["searched"] = "CASE WHEN catalog.id IN (SELECT catalog_id FROM search_catalog) THEN true ELSE false END::boolean AS searched"
+		selectedFields = append(selectedFields, fieldMap["searched"])
 	}
 
-	// -------- Apply [Teams - Skills - Services ] fetching  --------
+	// 3) Build the base query
+	queryBuilder := sq.Select(strings.Join(selectedFields, ", ")). // Add DISTINCT here
+									From("limited_catalogs AS catalog").
+									Where(sq.Eq{"catalog.dc": rpc.Session.GetDomainId()}).
+									PlaceholderFormat(sq.Dollar)
+
+	// Add the standard joins for catalog fields
+	queryBuilder = queryBuilder.
+		LeftJoin("cases.sla AS sla ON sla.id = catalog.sla_id").
+		LeftJoin("contacts.group AS group_lookup ON group_lookup.id = catalog.group_id").
+		LeftJoin("directory.wbt_user AS assignee_user ON assignee_user.id = catalog.assignee_id").
+		LeftJoin("cases.status ON status.id = catalog.status_id").
+		LeftJoin("cases.close_reason ON close_reason.id = catalog.close_reason_id").
+		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
+		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by")
+
+	// 4) Add conditional WHERE clause for search
+	if selectFlags["search"] {
+		queryBuilder = queryBuilder.Where(
+			sq.Or{
+				sq.Expr("catalog.id IN (SELECT catalog_id FROM search_catalog)"),
+				sq.Expr("catalog.id IN (SELECT id FROM service_hierarchy)"),
+			},
+		)
+	}
+
+	// 5) Conditional joins for teams, skills
 	if selectFlags["teams"] {
-		queryBuilder = queryBuilder.LeftJoin("teams_agg ON teams_agg.catalog_id = catalog.id")
+		queryBuilder = queryBuilder.LeftJoin("teams ON teams.catalog_id = catalog.id")
 	}
-
 	if selectFlags["skills"] {
-		queryBuilder = queryBuilder.LeftJoin("skills_agg ON skills_agg.catalog_id = catalog.id")
+		queryBuilder = queryBuilder.LeftJoin("skills ON skills.catalog_id = catalog.id")
 	}
 
+	// 6) If "services" is requested, join services_hierarchy
 	if selectFlags["services"] {
-		queryBuilder = queryBuilder.LeftJoin("services_agg ON services_agg.service_catalog_id = catalog.id")
+		queryBuilder = queryBuilder.LeftJoin("service_hierarchy ON service_hierarchy.catalog_id = catalog.id")
+
+		// // Conditionally join service_sla, service_group, etc., if your schema references them
+		// if util.ContainsField(serviceFields, "sla") {
+		// 	queryBuilder = queryBuilder.LeftJoin("cases.sla AS service_sla ON service_sla.id = services_hierarchy.sla_id")
+		// }
+		// if util.ContainsField(serviceFields, "group") {
+		// 	queryBuilder = queryBuilder.LeftJoin("contacts.group AS service_group ON service_group.id = services_hierarchy.group_id")
+		// }
+		// if util.ContainsField(serviceFields, "assignee") {
+		// 	queryBuilder = queryBuilder.LeftJoin("directory.wbt_user AS service_assignee ON service_assignee.id = services_hierarchy.assignee_id")
+		// }
+		// if util.ContainsField(serviceFields, "created_by") {
+		// 	queryBuilder = queryBuilder.LeftJoin("directory.wbt_user AS service_created_by_user ON service_created_by_user.id = services_hierarchy.created_by")
+		// }
+		// if util.ContainsField(serviceFields, "updated_by") {
+		// 	queryBuilder = queryBuilder.LeftJoin("directory.wbt_user AS service_updated_by_user ON service_updated_by_user.id = services_hierarchy.updated_by")
+		// }
 	}
 
-	// Apply filtering by state
+	// 7) State + ID filters
 	if state, ok := rpc.Filter["state"]; ok {
 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
 	}
-
-	// Apply filtering by IDs if provided
 	if len(rpc.IDs) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.id": rpc.IDs})
 	}
 
-	// -------- Apply [Sorting] --------
-	for _, sort := range rpc.Sort {
-		queryBuilder = queryBuilder.OrderBy(sort)
+	var searchQ string
+	// Search CTE
+	if selectFlags["search"] {
+		searchName := ""
+		if name, ok := rpc.Filter["name"].(string); ok {
+			// Generate the search pattern by creating a substring pattern
+			searchName = "%" + strings.Join(util.Substring(name), "%") + "%"
+		}
+		searchQ = (fmt.Sprintf(`search_catalog AS (
+		SELECT
+			catalog.id AS catalog_id,
+			catalog.catalog_id AS service_catalog_id,
+			CASE
+				WHEN catalog.catalog_id IS NULL THEN catalog.id
+				ELSE catalog.catalog_id
+			END AS target_catalog_id,
+			catalog.id         AS searched_id -- Include searched IDs directly
+		FROM cases.service_catalog catalog
+		WHERE catalog.name ILIKE '%s'
+	),`, searchName))
 	}
 
-	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
-
-	// Assuming fetchType is a FetchType and not a pointer
-	var fullFetch bool
-
-	if fetchType != nil {
-		fullFetch = *fetchType == cases.FetchType_FULL
+	// Add limited_catalogs CTE with conditional search condition
+	var searchCondition string
+	if selectFlags["search"] {
+		searchCondition = "OR id IN (SELECT target_catalog_id FROM search_catalog)" // Add search condition if search is active
 	}
 
-	// -------- Apply [Recursive CTEs Based on Flags] --------
-	// ONLY service aggregation is recursive
-	// -------- Apply [Recursive CTEs Based on Flags] --------
+	var page int
+
+	if rpc.GetPage() > 1 {
+		page = (rpc.Page - 1) * rpc.Size
+	}
+
+	prefixQuery := fmt.Sprintf(`
+    limited_catalogs AS (
+        SELECT *
+        FROM cases.service_catalog
+        WHERE root_id IS NULL
+        %s -- Conditionally include the search condition
+        ORDER BY id ASC
+        LIMIT %d OFFSET %d
+    ),
+`, searchCondition, rpc.GetSize()+1, page)
+
+	// Add the prefix query with or without search_catalog based on search condition
+	if selectFlags["search"] {
+		queryBuilder = queryBuilder.Prefix(fmt.Sprintf(`WITH %s%s`, searchQ, prefixQuery))
+	} else {
+		queryBuilder = queryBuilder.Prefix(fmt.Sprintf(`WITH %s`, prefixQuery))
+	}
+
+	// Sorting logic
+	queryBuilder = applySorting(queryBuilder, rpc)
+
+	// 10) If we need CTE(s)
 	if selectFlags["teams"] || selectFlags["skills"] || selectFlags["services"] || selectFlags["search"] {
-		var prefixQuery string
-
-		// Add "WITH" only once
-		prefixQuery = "WITH "
-
-		// Check if the search flag is active to apply search on both catalogs and services
-		if selectFlags["search"] {
-			prefixQuery += fmt.Sprintf(`search_catalog AS (
-					SELECT catalog.id AS catalog_id,
-						   catalog.root_id AS root_service_id,
-						   CASE WHEN catalog.root_id IS NULL THEN catalog.id ELSE catalog.catalog_id END AS target_catalog_id
-					FROM cases.service_catalog catalog
-					WHERE catalog.name ILIKE '%s'
-				),`, searchStr)
-		}
-
-		// Teams logic with conditional search filtering
-		if selectFlags["teams"] {
-			if selectFlags["search"] {
-				prefixQuery += `
-					inserted_teams AS (SELECT catalog_id, team_id
-									   FROM cases.team_catalog
-									   WHERE catalog_id IN (SELECT target_catalog_id FROM search_catalog)),
-					teams_agg AS (SELECT inserted_teams.catalog_id,
-									  json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
-							   FROM inserted_teams
-							   LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
-							   GROUP BY inserted_teams.catalog_id),`
-			} else {
-				prefixQuery += `
-					inserted_teams AS (SELECT catalog_id, team_id
-									   FROM cases.team_catalog),
-					teams_agg AS (SELECT inserted_teams.catalog_id,
-									  json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
-							   FROM inserted_teams
-							   LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
-							   GROUP BY inserted_teams.catalog_id),`
-			}
-		}
-
-		// Skills logic with conditional search filtering
-		if selectFlags["skills"] {
-			if selectFlags["search"] {
-				prefixQuery += `
-					inserted_skills AS (SELECT catalog_id, skill_id
-										FROM cases.skill_catalog
-										WHERE catalog_id IN (SELECT target_catalog_id FROM search_catalog)),
-					skills_agg AS (SELECT inserted_skills.catalog_id,
-									  json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
-								FROM inserted_skills
-								LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
-								GROUP BY inserted_skills.catalog_id),`
-			} else {
-				prefixQuery += `
-					inserted_skills AS (SELECT catalog_id, skill_id
-										FROM cases.skill_catalog),
-					skills_agg AS (SELECT inserted_skills.catalog_id,
-									  json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
-								FROM inserted_skills
-								LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
-								GROUP BY inserted_skills.catalog_id),`
-			}
-		}
-
-		if selectFlags["services"] {
-			prefixQuery += fmt.Sprintf(`services_agg AS (WITH RECURSIVE service_hierarchy AS (
-			SELECT
-			  service.id,
-			  service.name,
-			  -- Conditionally fetch the description, created_at, updated_at, etc.
-			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.description ELSE '' END AS description,
-			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.created_at ELSE NULL END AS created_at,
-			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.updated_at ELSE NULL END AS updated_at,
-			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.created_by ELSE 0 END AS created_by,
-			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.updated_by ELSE 0 END AS updated_by,
-			  service.root_id AS root_id,
-			  catalog.id AS service_catalog_id,
-			  -- Fetch the code based on the search condition or default to an empty string
-			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.code ELSE '' END AS code,
-			  -- Fetch the state based on the search condition or default to false
-			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.state ELSE false END AS state,
-			  -- Fetch SLA, group, assignee, etc., conditionally
-			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN COALESCE(service.sla_id, 0) ELSE 0 END AS sla_id,
-			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN COALESCE(service.group_id, 0) ELSE 0 END AS group_id,
-			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN COALESCE(service.assignee_id, 0) ELSE 0 END AS assignee_id,
-			  1 AS level
-			FROM cases.service_catalog service
-			JOIN cases.service_catalog catalog ON service.root_id = catalog.id
-			`, depth, fullFetch, func() string {
-				if selectFlags["search"] {
-					return "search_catalog"
-				}
-				return "cases.service_catalog"
-			}())
-
-			if selectFlags["search"] {
-				prefixQuery += `
-			  WHERE catalog.id IN (SELECT target_catalog_id FROM search_catalog)
-			`
-			} else {
-				prefixQuery += `
-			  WHERE catalog.root_id IS NULL
-			`
-			}
-
-			prefixQuery += fmt.Sprintf(`
-			UNION ALL
-		SELECT subservice.id,
-       subservice.name,
-       -- Conditionally fetch the description, created_at, updated_at, etc.
-       CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM % s) THEN subservice.description ELSE '' END AS description,
-			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.created_at ELSE NULL
-END AS created_at,
-			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.updated_at ELSE NULL
-END AS updated_at,
-			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.created_by ELSE 0
-END AS created_by,
-			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.updated_by ELSE 0
-END AS updated_by,
-			  subservice.root_id AS root_id,
-			  parent.service_catalog_id,
-			  -- Fetch the code for subservices based on the search condition
-			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.code ELSE ''
-END AS code,
-			  -- Fetch the state for subservices based on the search condition
-			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.state ELSE false
-END AS state,
-			  -- Fetch SLA, group, assignee, etc., for subservices
-			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN COALESCE(subservice.sla_id, 0) ELSE 0
-END AS sla_id,
-			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN COALESCE(subservice.group_id, 0) ELSE 0
-END AS group_id,
-			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN COALESCE(subservice.assignee_id, 0) ELSE 0
-END AS assignee_id,
-			  parent.level + 1 AS level
-			FROM cases.service_catalog subservice
-			JOIN service_hierarchy parent ON subservice.root_id = parent.id
-			WHERE parent.level < CASE WHEN %[1]d > 0 THEN %[1]d ELSE 100
-END
-    )
-SELECT service_hierarchy.service_catalog_id,
-       json_agg(json_build_object(
-               'id', service_hierarchy.id,
-               'name', service_hierarchy.name,
-               'description', service_hierarchy.description,
-               'code', service_hierarchy.code,
-               'state', service_hierarchy.state,
-               'sla_id', COALESCE(service_hierarchy.sla_id, 0),
-               'sla_name', COALESCE(sla.name, ''),
-               'group_id', COALESCE(service_hierarchy.group_id, 0),
-               'group_name', COALESCE(grp.name, ''),
-               'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),
-               'assignee_name', COALESCE(assignee.given_name, ''),
-               'has_subservices',
-               EXISTS (SELECT 1 FROM cases.service_catalog sc WHERE sc.root_id = service_hierarchy.id),
-               'root_id', COALESCE(service_hierarchy.root_id, 0),
-               'created_at', service_hierarchy.created_at,
-               'updated_at', service_hierarchy.updated_at,
-               'created_by', COALESCE(created_by_user.name, ''),
-               'created_by_id', COALESCE(service_hierarchy.created_by, 0),
-               'updated_by', COALESCE(updated_by_user.name, ''),
-               'updated_by_id', COALESCE(service_hierarchy.updated_by, 0),
-               'service_catalog_id', service_hierarchy.service_catalog_id
-                )) AS services
-FROM service_hierarchy
-         LEFT JOIN cases.sla ON sla.id = service_hierarchy.sla_id
-         LEFT JOIN contacts.group AS grp ON grp.id = service_hierarchy.group_id
-         LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = service_hierarchy.created_by
-         LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = service_hierarchy.updated_by
-         LEFT JOIN contacts.contact AS assignee ON assignee.id = service_hierarchy.assignee_id
-GROUP BY service_hierarchy.service_catalog_id)`, depth, fullFetch, func() string {
-				if selectFlags["search"] {
-					return "search_catalog"
-				}
-				return "cases.service_catalog"
-			}())
-		}
-
-		// Apply the constructed query to the queryBuilder
-		queryBuilder = queryBuilder.Prefix(strings.TrimSuffix(prefixQuery, ","))
+		prefixQuery := buildCTEs(selectFlags, depth, rpc.Filter, subfields)
+		queryBuilder = queryBuilder.Prefix(prefixQuery)
 	}
+	// Add GROUP BY for catalog fields
+	groupByFields := buildCatalogGroupByFields(rpc.Fields)
 
-	// Build the final SQL query and return
-	query, args, err := queryBuilder.ToSql()
+	// // Add GROUP BY for service fields if "services" is requested
+	// if selectFlags["services"] {
+	// 	groupByFields = append(groupByFields, buildServiceGroupByFields(subfields)...)
+	// }
+	// queryBuilder = queryBuilder.GroupBy(strings.Join(groupByFields, ", "))
+
+	// // Include services_hierarchy fields in GROUP BY if "services" flag is true
+	// if selectFlags["services"] {
+	// 	groupByFields = append(groupByFields, "services_hierarchy.id", "services_hierarchy.name", "services_hierarchy.description")
+	// }
+
+	queryBuilder = queryBuilder.GroupBy(strings.Join(groupByFields, ", "))
+
+	// 11) Build final query
+	sqlQuery, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return "", nil, dberr.NewDBInternalError("postgres.catalog.query_build_error", err)
 	}
 
-	return store.CompactSQL(query), args, nil
+	return store.CompactSQL(sqlQuery), args, nil
 }
+
+func buildServiceJSONBAgg(subfields []string, searched bool) string {
+	var jsonFields strings.Builder
+
+	// Start building JSONB_AGG with JSONB_BUILD_OBJECT
+	jsonFields.WriteString(`
+COALESCE(
+    JSONB_AGG(
+        DISTINCT JSONB_BUILD_OBJECT(
+`)
+
+	// Conditionally append fields based on subfields
+	if util.ContainsField(subfields, "id") {
+		jsonFields.WriteString("'id', service_hierarchy.id,\n")
+	}
+	if util.ContainsField(subfields, "name") {
+		jsonFields.WriteString("'name', service_hierarchy.name,\n")
+	}
+	if util.ContainsField(subfields, "description") {
+		jsonFields.WriteString("'description', service_hierarchy.description,\n")
+	}
+	if util.ContainsField(subfields, "sla") {
+		jsonFields.WriteString("'sla_id', COALESCE(service_hierarchy.sla_id, 0),\n")
+		jsonFields.WriteString("'sla_name', COALESCE(service_hierarchy.sla_name, ''),\n")
+	}
+	if util.ContainsField(subfields, "group") {
+		jsonFields.WriteString("'group_id', COALESCE(service_hierarchy.group_id, 0),\n")
+		jsonFields.WriteString("'group_name', COALESCE(service_hierarchy.group_name, ''),\n")
+	}
+	if util.ContainsField(subfields, "assignee") {
+		jsonFields.WriteString("'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),\n")
+		jsonFields.WriteString("'assignee_name', COALESCE(service_hierarchy.assignee_name, ''),\n")
+	}
+	if util.ContainsField(subfields, "created_by") {
+		jsonFields.WriteString("'created_by', COALESCE(service_hierarchy.created_by, 0),\n")
+		jsonFields.WriteString("'created_by_name', COALESCE(service_hierarchy.created_by_name, ''),\n")
+	}
+	if util.ContainsField(subfields, "updated_by") {
+		jsonFields.WriteString("'updated_by', COALESCE(service_hierarchy.updated_by, 0),\n")
+		jsonFields.WriteString("'updated_by_name', COALESCE(service_hierarchy.updated_by_name, ''),\n")
+	}
+	if util.ContainsField(subfields, "created_at") {
+		// Convert created_at to milliseconds
+		jsonFields.WriteString("'created_at', FLOOR(EXTRACT(EPOCH FROM service_hierarchy.created_at) * 1000),\n")
+	}
+	if util.ContainsField(subfields, "updated_at") {
+		// Convert updated_at to milliseconds
+		jsonFields.WriteString("'updated_at', FLOOR(EXTRACT(EPOCH FROM service_hierarchy.updated_at) * 1000),\n")
+	}
+	if util.ContainsField(subfields, "root_id") {
+		jsonFields.WriteString("'root_id', service_hierarchy.root_id,\n")
+	}
+	// Add the searched field if search is active
+	if searched {
+		jsonFields.WriteString("'searched', service_hierarchy.searched,\n")
+	}
+
+	// Remove the trailing comma and close JSONB_BUILD_OBJECT
+	jsonAgg := strings.TrimSuffix(jsonFields.String(), ",\n")
+	jsonAgg += `
+        )
+    ) FILTER (WHERE service_hierarchy.root_id IS NOT NULL),
+    '{}'::jsonb
+) AS services
+`
+
+	return jsonAgg
+}
+
+// applySorting applies dynamic sorting based on rpc.Sort and defaults to sorting by name in ascending order.
+func applySorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.SelectBuilder {
+	sortableFields := map[string]string{
+		"name":         "catalog.name",
+		"prefix":       "catalog.prefix",
+		"sla":          "sla.name",
+		"code":         "catalog.code",
+		"status":       "status.name",
+		"close_reason": "close_reason.name",
+		"description":  "catalog.description",
+		"state":        "catalog.state",
+	}
+
+	sortApplied := false
+
+	for _, sortField := range rpc.Sort {
+		sortDirection := "ASC"
+		if len(sortField) > 0 {
+			switch sortField[0] {
+			case '-':
+				sortDirection = "DESC"
+				sortField = sortField[1:]
+			case '+':
+				sortField = sortField[1:]
+			}
+		}
+
+		if dbField, exists := sortableFields[sortField]; exists {
+			queryBuilder = queryBuilder.OrderBy(fmt.Sprintf("%s %s", dbField, sortDirection))
+			sortApplied = true
+		}
+	}
+
+	if !sortApplied {
+		queryBuilder = queryBuilder.OrderBy("catalog.name ASC")
+	}
+
+	return queryBuilder
+}
+
+// buildCatalogGroupByFields constructs the GROUP BY fields for catalog-level columns conditionally.
+func buildCatalogGroupByFields(requestedFields []string) []string {
+	fieldMap := map[string]string{
+		"id":           "catalog.id",
+		"name":         "catalog.name",
+		"prefix":       "catalog.prefix",
+		"sla":          "catalog.sla_id, sla.name",
+		"group":        "catalog.group_id, group_lookup.name",
+		"assignee":     "catalog.assignee_id, assignee_user.name",
+		"status":       "catalog.status_id, status.name",
+		"code":         "catalog.code",
+		"description":  "catalog.description",
+		"close_reason": "catalog.close_reason_id, close_reason.name",
+		"state":        "catalog.state",
+		"created_by":   "catalog.created_by, created_by_user.name",
+		"updated_by":   "catalog.updated_by, updated_by_user.name",
+		"created_at":   "catalog.created_at",
+		"updated_at":   "catalog.updated_at",
+		"root_id":      "catalog.root_id",
+	}
+
+	groupByFields := []string{}
+
+	for _, field := range requestedFields {
+		if groupField, ok := fieldMap[field]; ok {
+			cols := strings.Split(groupField, ", ")
+			groupByFields = append(groupByFields, cols...)
+		}
+	}
+
+	return groupByFields
+}
+
+// // buildServiceGroupByFields constructs the GROUP BY fields for service-level columns.
+// func buildServiceGroupByFields(subfields []string) []string {
+// 	groupByFields := []string{}
+// 	for _, sf := range subfields {
+// 		switch sf {
+// 		case "id":
+// 			groupByFields = append(groupByFields, "services_hierarchy.id")
+// 		case "name":
+// 			groupByFields = append(groupByFields, "services_hierarchy.name")
+// 		case "description":
+// 			groupByFields = append(groupByFields, "services_hierarchy.description")
+// 		case "root_id":
+// 			groupByFields = append(groupByFields, "services_hierarchy.root_id")
+// 		case "sla":
+// 			groupByFields = append(groupByFields, "services_hierarchy.sla_id", "services_hierarchy.sla_name")
+// 		case "group":
+// 			groupByFields = append(groupByFields, "services_hierarchy.group_id", "services_hierarchy.group_name")
+// 		case "assignee":
+// 			groupByFields = append(groupByFields, "services_hierarchy.assignee_id", "services_hierarchy.assignee_name")
+// 		case "created_by":
+// 			groupByFields = append(groupByFields, "services_hierarchy.created_by", "services_hierarchy.created_by_name")
+// 		case "updated_by":
+// 			groupByFields = append(groupByFields, "services_hierarchy.updated_by", "services_hierarchy.updated_by_name")
+// 		case "created_at":
+// 			groupByFields = append(groupByFields, "services_hierarchy.created_at")
+// 		case "updated_at":
+// 			groupByFields = append(groupByFields, "services_hierarchy.updated_at")
+// 		}
+// 	}
+// 	return groupByFields
+// }
+
+// buildServiceSelectCols dynamically constructs columns for 'services_hierarchy',
+// including lookups for sla, group, assignee, etc.
+// Only used if user actually requests "services".
+func buildServiceSelectCols(serviceFields []string) []string {
+	var cols []string
+	for _, sf := range serviceFields {
+		switch sf {
+		case "id":
+			cols = append(cols, "services_hierarchy.id AS service_id")
+		case "name":
+			cols = append(cols, "services_hierarchy.name AS service_name")
+		case "description":
+			cols = append(cols, "services_hierarchy.description AS service_description")
+		case "root_id":
+			cols = append(cols, "services_hierarchy.root_id AS service_root_id")
+		case "sla":
+			cols = append(cols,
+				"COALESCE(services_hierarchy.sla_id,0) AS service_sla_id",
+				"COALESCE(services_hierarchy.sla_name,'') AS service_sla_name")
+		case "group":
+			cols = append(cols,
+				"COALESCE(services_hierarchy.group_id,0) AS service_group_id",
+				"COALESCE(services_hierarchy.group_name,'') AS service_group_name")
+		case "assignee":
+			cols = append(cols,
+				"COALESCE(services_hierarchy.assignee_id,0) AS service_assignee_id",
+				"COALESCE(services_hierarchy.assignee_name,'') AS service_assignee_name")
+		case "created_by":
+			cols = append(cols,
+				"COALESCE(services_hierarchy.created_by,0) AS service_created_by_id",
+				"COALESCE(services_hierarchy.created_by_name,'') AS service_created_by_name")
+		case "updated_by":
+			cols = append(cols,
+				"COALESCE(services_hierarchy.updated_by,0) AS service_updated_by_id",
+				"COALESCE(services_hierarchy.updated_by_name,'') AS service_updated_by_name")
+		case "code":
+			cols = append(cols, "COALESCE(services_hierarchy.code,'') AS service_code")
+		case "state":
+			cols = append(cols, "services_hierarchy.state AS service_state")
+		case "created_at":
+			cols = append(cols, "services_hierarchy.created_at AS service_created_at")
+		case "updated_at":
+			cols = append(cols, "services_hierarchy.updated_at AS service_updated_at")
+		}
+	}
+	return cols
+}
+
+func buildCTEs(
+	selectFlags map[string]bool,
+	depth int64,
+	filter map[string]interface{},
+	subfields []string,
+) string {
+	var prefixQuery strings.Builder
+	// prefixQuery.WriteString("WITH ")
+
+	// Teams CTE
+	if selectFlags["teams"] {
+		if selectFlags["search"] {
+			prefixQuery.WriteString(`
+		teams AS (
+			SELECT
+				catalog_id,
+				COALESCE(team_id, 0) AS team_id,
+				COALESCE(team.name, '') AS team_name
+			FROM cases.team_catalog
+			JOIN call_center.cc_team team ON team.id = team_catalog.team_id
+			WHERE catalog_id IN (SELECT target_catalog_id FROM search_catalog)
+		),`)
+		} else {
+			prefixQuery.WriteString(`
+		teams AS (
+			SELECT
+				catalog_id,
+				COALESCE(team_id, 0) AS team_id,
+				COALESCE(team.name, '') AS team_name
+			FROM cases.team_catalog
+			JOIN call_center.cc_team team ON team.id = team_catalog.team_id
+		),`)
+		}
+	}
+
+	// Skills CTE
+	if selectFlags["skills"] {
+		if selectFlags["search"] {
+			prefixQuery.WriteString(`
+		skills AS (
+			SELECT
+				catalog_id,
+				COALESCE(skill_id, 0) AS skill_id,
+				COALESCE(skill.name, '') AS skill_name
+			FROM cases.skill_catalog
+			JOIN call_center.cc_skill skill ON skill.id = skill_catalog.skill_id
+			WHERE catalog_id IN (SELECT target_catalog_id FROM search_catalog)
+		),`)
+		} else {
+			prefixQuery.WriteString(`
+		skills AS (
+			SELECT
+				catalog_id,
+				COALESCE(skill_id, 0) AS skill_id,
+				COALESCE(skill.name, '') AS skill_name
+			FROM cases.skill_catalog
+			JOIN call_center.cc_skill skill ON skill.id = skill_catalog.skill_id
+		),`)
+		}
+	}
+
+	// Services Hierarchy CTE
+	if selectFlags["services"] {
+		anchorSQL := buildAnchorServiceSelect(subfields, selectFlags)
+		subserviceSQL := buildSubserviceSelect(subfields, depth, selectFlags)
+
+		prefixQuery.WriteString(fmt.Sprintf(`service_hierarchy AS (
+			WITH RECURSIVE recursive_hierarchy AS (
+				%s
+				UNION ALL
+				%s
+			)
+			SELECT *
+			FROM recursive_hierarchy
+		),`, anchorSQL, subserviceSQL))
+	}
+
+	return strings.TrimSuffix(prefixQuery.String(), ",")
+}
+
+func buildAnchorServiceSelect(
+	serviceFields []string,
+	selectFlags map[string]bool,
+) string {
+	var sb strings.Builder
+
+	sb.WriteString(`
+SELECT catalog.id,
+       catalog.name,
+       catalog.description,
+       catalog.root_id,
+       catalog.id AS catalog_id,
+       1 AS level
+`)
+
+	//----------------------------------------------------------------------
+	// Conditionally insert code/state columns in SELECT for anchor
+	//----------------------------------------------------------------------
+	if util.ContainsField(serviceFields, "code") {
+		sb.WriteString(`,
+       COALESCE(catalog.code, '') AS code
+`)
+	}
+	if util.ContainsField(serviceFields, "state") {
+		sb.WriteString(`,
+       catalog.state
+`)
+	}
+
+	if util.ContainsField(serviceFields, "created_at") {
+		sb.WriteString(`,
+       catalog.created_at
+`)
+	}
+
+	// If user wants "updated_at"
+	if util.ContainsField(serviceFields, "updated_at") {
+		sb.WriteString(`,
+       catalog.updated_at
+`)
+	}
+
+	// If user wants, say, "sla" in services, join SLA columns
+	if util.ContainsField(serviceFields, "sla") {
+		sb.WriteString(`,
+       COALESCE(catalog.sla_id, 0) AS sla_id,
+       COALESCE(service_sla.name, '') AS sla_name
+`)
+	}
+
+	// If user wants "group"
+	if util.ContainsField(serviceFields, "group") {
+		sb.WriteString(`,
+       COALESCE(catalog.group_id, 0) AS group_id,
+       COALESCE(service_group.name, '') AS group_name
+`)
+	}
+
+	// If user wants "assignee"
+	if util.ContainsField(serviceFields, "assignee") {
+		sb.WriteString(`,
+       COALESCE(catalog.assignee_id, 0) AS assignee_id,
+       COALESCE(service_assignee.name, '') AS assignee_name
+`)
+	}
+
+	// If user wants "created_by"
+	if util.ContainsField(serviceFields, "created_by") {
+		sb.WriteString(`,
+       COALESCE(catalog.created_by, 0) AS created_by,
+       COALESCE(service_created_by_user.name, '') AS created_by_name
+`)
+	}
+
+	// If user wants "updated_by"
+	if util.ContainsField(serviceFields, "updated_by") {
+		sb.WriteString(`,
+       COALESCE(catalog.updated_by, 0) AS updated_by,
+       COALESCE(service_updated_by_user.name, '') AS updated_by_name
+`)
+	}
+
+	sb.WriteString(`,
+	false AS searched
+`)
+
+	// etc. for code, state, etc. if you want them in anchor
+	sb.WriteString(`
+FROM limited_catalogs AS catalog
+`)
+
+	// Now add conditional left joins in the anchor part
+	if util.ContainsField(serviceFields, "sla") {
+		sb.WriteString(`
+LEFT JOIN cases.sla AS service_sla
+       ON service_sla.id = catalog.sla_id
+`)
+	}
+	if util.ContainsField(serviceFields, "group") {
+		sb.WriteString(`
+LEFT JOIN contacts.group AS service_group
+       ON service_group.id = catalog.group_id
+`)
+	}
+	if util.ContainsField(serviceFields, "assignee") {
+		sb.WriteString(`
+LEFT JOIN directory.wbt_user AS service_assignee
+       ON service_assignee.id = catalog.assignee_id
+`)
+	}
+	if util.ContainsField(serviceFields, "created_by") {
+		sb.WriteString(`
+LEFT JOIN directory.wbt_user AS service_created_by_user
+       ON service_created_by_user.id = catalog.created_by
+`)
+	}
+	if util.ContainsField(serviceFields, "updated_by") {
+		sb.WriteString(`
+LEFT JOIN directory.wbt_user AS service_updated_by_user
+       ON service_updated_by_user.id = catalog.updated_by
+`)
+	}
+
+	if selectFlags["search"] {
+		sb.WriteString(`WHERE catalog.id IN (SELECT target_catalog_id FROM search_catalog)`)
+	}
+
+	return sb.String()
+}
+
+func buildSubserviceSelect(
+	serviceFields []string,
+	depth int64,
+	selectFlags map[string]bool,
+) string {
+	var sb strings.Builder
+
+	sb.WriteString(`
+SELECT subservice.id,
+       subservice.name,
+       subservice.description,
+       subservice.root_id,
+	   parent.catalog_id,
+       parent.level + 1 AS level
+`)
+
+	//----------------------------------------------------------------------
+	// Conditionally insert code/state columns in SELECT for subservices
+	//----------------------------------------------------------------------
+	if util.ContainsField(serviceFields, "code") {
+		sb.WriteString(`,
+       COALESCE(subservice.code, '') AS code
+`)
+	}
+	if util.ContainsField(serviceFields, "state") {
+		sb.WriteString(`,
+       subservice.state
+`)
+	}
+
+	if util.ContainsField(serviceFields, "created_at") {
+		sb.WriteString(`,
+       subservice.created_at
+`)
+	}
+	if util.ContainsField(serviceFields, "updated_at") {
+		sb.WriteString(`,
+       subservice.updated_at
+`)
+	}
+
+	if util.ContainsField(serviceFields, "sla") {
+		sb.WriteString(`,
+       COALESCE(subservice.sla_id, 0) AS sla_id,
+       COALESCE(service_sla2.name, '') AS sla_name
+`)
+	}
+	if util.ContainsField(serviceFields, "group") {
+		sb.WriteString(`,
+       COALESCE(subservice.group_id, 0) AS group_id,
+       COALESCE(service_group2.name, '') AS group_name
+`)
+	}
+	if util.ContainsField(serviceFields, "assignee") {
+		sb.WriteString(`,
+       COALESCE(subservice.assignee_id, 0) AS assignee_id,
+       COALESCE(service_assignee2.name, '') AS assignee_name
+`)
+	}
+	if util.ContainsField(serviceFields, "created_by") {
+		sb.WriteString(`,
+       COALESCE(subservice.created_by, 0) AS created_by,
+       COALESCE(service_created_by_user2.name, '') AS created_by_name
+`)
+	}
+	if util.ContainsField(serviceFields, "updated_by") {
+		sb.WriteString(`,
+       COALESCE(subservice.updated_by, 0) AS updated_by,
+       COALESCE(service_updated_by_user2.name, '') AS updated_by_name
+`)
+	}
+
+	if selectFlags["search"] {
+		// etc. for code, state, etc. if you want them in anchor
+		sb.WriteString(`
+       ,CASE
+           WHEN subservice.id IN (SELECT searched_id FROM search_catalog)
+               THEN true
+           ELSE parent.searched
+       END AS searched
+	`)
+	} else {
+		// Add "searched" column for subservices
+		sb.WriteString(`,
+	false AS searched
+`)
+	}
+
+	sb.WriteString(`
+FROM cases.service_catalog AS subservice
+`)
+
+	// subservice-level left joins
+	if util.ContainsField(serviceFields, "sla") {
+		sb.WriteString(`
+LEFT JOIN cases.sla AS service_sla2
+       ON service_sla2.id = subservice.sla_id
+`)
+	}
+	if util.ContainsField(serviceFields, "group") {
+		sb.WriteString(`
+LEFT JOIN contacts.group AS service_group2
+       ON service_group2.id = subservice.group_id
+`)
+	}
+	if util.ContainsField(serviceFields, "assignee") {
+		sb.WriteString(`
+LEFT JOIN directory.wbt_user AS service_assignee2
+       ON service_assignee2.id = subservice.assignee_id
+`)
+	}
+	if util.ContainsField(serviceFields, "created_by") {
+		sb.WriteString(`
+LEFT JOIN directory.wbt_user AS service_created_by_user2
+       ON service_created_by_user2.id = subservice.created_by
+`)
+	}
+	if util.ContainsField(serviceFields, "updated_by") {
+		sb.WriteString(`
+LEFT JOIN directory.wbt_user AS service_updated_by_user2
+       ON service_updated_by_user2.id = subservice.updated_by
+`)
+	}
+
+	// Ensure depth is valid and set defaults
+	if depth == 0 {
+		depth = 3 // Default depth
+	} else if depth > 100 {
+		depth = 100 // Maximum depth
+	}
+
+	sb.WriteString(`
+JOIN recursive_hierarchy AS parent ON subservice.root_id = parent.id
+WHERE parent.level < CASE WHEN `)
+
+	// Automatically increase by +1 to include the requested level
+	sb.WriteString(fmt.Sprintf(`%[1]d > 0 THEN %[1]d ELSE 3 END`, depth+1))
+	sb.WriteString(`
+`)
+
+	return sb.String()
+}
+
+func buildSearchCondition(searchEnabled bool) string {
+	if searchEnabled {
+		// Reference the correct alias for the anchor query
+		return "WHERE service.id IN (SELECT target_catalog_id FROM search_catalog)"
+	}
+	// Use the correct alias for top-level services
+	return "WHERE service.root_id IS NULL"
+}
+
+func buildServiceFieldSelection(alias string, serviceFields []string) string {
+	if len(serviceFields) == 0 {
+		// Default fields if none are specified
+		return fmt.Sprintf("%[1]s.id, %[1]s.name, %[1]s.description, %[1]s.root_id", alias)
+	}
+
+	var selectedFields []string
+	for _, field := range serviceFields {
+		switch field {
+		case "id":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.id", alias))
+		case "name":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.name", alias))
+		case "description":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.description", alias))
+		case "created_at":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.created_at", alias))
+		case "updated_at":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.updated_at", alias))
+		case "code":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.code", alias))
+		case "state":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.state", alias))
+		case "sla_id":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.sla_id", alias))
+		case "group_id":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.group_id", alias))
+		case "assignee_id":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.assignee_id", alias))
+		case "created_by":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.created_by", alias), "service_created_by_user.name AS created_by_name")
+		case "updated_by":
+			selectedFields = append(selectedFields, fmt.Sprintf("%s.updated_by", alias), "service_updated_by_user.name AS updated_by_name")
+		}
+	}
+
+	return strings.Join(selectedFields, ", ")
+}
+
+// func (s *CatalogStore) buildSearchCatalogQuery(
+// 	rpc *model.SearchOptions,
+// 	depth int64,
+// 	fetchType *cases.FetchType,
+// ) (string, []interface{}, error) {
+// 	// FieldsFunc normalizes a selection list src of the attributes to be returned.
+// 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
+
+// 	// -------- Apply [Essential Fields Inclusion] --------
+// 	// Always required fields that should be part of the query
+// 	rpc.Fields = append(fields, "id", "name", "description", "root_id")
+
+// 	allFields := []string{
+// 		"catalog.id",
+// 		"catalog.name",                                            // Mandatory
+// 		"COALESCE(catalog.prefix, '') AS prefix",                  // Use COALESCE for prefix to handle null values
+// 		"COALESCE(catalog.sla_id, 0) AS sla_id",                   // Use COALESCE for SLA ID to handle null values
+// 		"COALESCE(sla.name, '') AS sla_name",                      // Use COALESCE for SLA name to handle null values
+// 		"COALESCE(catalog.status_id, 0) AS status_id",             // Use COALESCE for status ID to handle null values
+// 		"COALESCE(status.name, '') AS status_name",                // Use COALESCE for status name to handle null values
+// 		"COALESCE(catalog.code, '') AS code",                      // Optional
+// 		"COALESCE(catalog.description, '') AS description",        // Optional
+// 		"COALESCE(catalog.close_reason_id, 0) AS close_reason_id", // Optional
+// 		"COALESCE(close_reason.name, '') AS close_reason_name",    // Optional
+// 		"catalog.state AS state",
+// 		"COALESCE(catalog.created_by, 0) AS created_by",         // Handle null with default 0 for ID
+// 		"COALESCE(created_by_user.name, '') AS created_by_name", // Handle null with default empty string for name
+// 		"COALESCE(catalog.updated_by, 0) AS updated_by",         // Handle null with default 0 for ID
+// 		"COALESCE(updated_by_user.name, '') AS updated_by_name", // Handle null with default empty string for name
+// 		"catalog.created_at AS created_at",
+// 		"catalog.updated_at AS updated_at",
+// 		"COALESCE(teams_agg.teams, '[]') AS teams",          // Aggregated teams from the CTE
+// 		"COALESCE(skills_agg.skills, '[]') AS skills",       // Aggregated skills from the CTE
+// 		"COALESCE(services_agg.services, '[]') AS services", // Aggregated services from the recursive CTE
+// 		"COALESCE(catalog.root_id, 0) AS root_id",           // Aggregated services from the recursive CTE
+// 	}
+
+// 	// -------- Apply [Select Flag Initialization] -------- //
+// 	// Initialize flags for recursion
+// 	// ONLY services are recursive
+// 	selectFlags := map[string]bool{
+// 		"services": false,
+// 		"teams":    false,
+// 		"skills":   false,
+// 		"search":   false,
+// 	}
+
+// 	// -------- Apply [Field Selection] --------
+// 	// Selected fields handling
+// 	var selectedFields []string
+
+// 	// If fields are set to "-", use defaultCatalogFields and enable recursion for all entities
+// 	if rpc.Fields[0] == "-" {
+// 		selectedFields = allFields
+// 		selectFlags["services"] = true
+// 		selectFlags["teams"] = true
+// 		selectFlags["skills"] = true
+// 	} else {
+// 		// Handle specific fields from rpc.Fields
+// 		for _, field := range rpc.Fields {
+// 			switch field {
+// 			case "id":
+// 				selectedFields = append(selectedFields, "catalog.id")
+// 			case "name":
+// 				selectedFields = append(selectedFields, "catalog.name")
+// 			case "prefix":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.prefix, '') AS prefix")
+// 				selectFlags["services"] = true // Enable services recursion if prefix is selected
+// 			case "sla":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.sla_id, 0) AS sla_id", "COALESCE(sla.name, '') AS sla_name")
+// 			case "status":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.status_id, 0) AS status_id", "COALESCE(status.name, '') AS status_name")
+// 			case "code":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.code, '') AS code")
+// 			case "description":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.description, '') AS description")
+// 			case "close_reason":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.close_reason_id, 0) AS close_reason_id", "COALESCE(close_reason_group.name, '') AS close_reason_name")
+// 			case "state":
+// 				selectedFields = append(selectedFields, "catalog.state AS state")
+// 			case "created_by":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.created_by, 0) AS created_by", "COALESCE(created_by_user.name, '') AS created_by_name")
+// 			case "updated_by":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.updated_by, 0) AS updated_by", "COALESCE(updated_by_user.name, '') AS updated_by_name")
+// 			case "created_at":
+// 				selectedFields = append(selectedFields, "catalog.created_at AS created_at")
+// 			case "updated_at":
+// 				selectedFields = append(selectedFields, "catalog.updated_at AS updated_at")
+// 			case "teams":
+// 				selectedFields = append(selectedFields, "COALESCE(teams_agg.teams, '[]') AS teams")
+// 				selectFlags["teams"] = true
+// 			case "skills":
+// 				selectedFields = append(selectedFields, "COALESCE(skills_agg.skills, '[]') AS skills")
+// 				selectFlags["skills"] = true
+// 			case "services":
+// 				selectedFields = append(selectedFields, "COALESCE(services_agg.services, '[]') AS services")
+// 				selectFlags["services"] = true // Enable services recursion
+// 			case "root_id":
+// 				selectedFields = append(selectedFields, "COALESCE(catalog.root_id, 0) AS root_id")
+// 			}
+// 		}
+// 	}
+
+// 	// -------- Apply [Base Query Construction] --------
+// 	// Build the base query with the selected fields
+// 	queryBuilder := sq.Select(selectedFields...).
+// 		From("cases.service_catalog AS catalog").
+// 		Where(sq.Eq{"catalog.dc": rpc.Session.GetDomainId()}).
+// 		LeftJoin("cases.sla ON sla.id = catalog.sla_id").
+// 		LeftJoin("cases.status ON status.id = catalog.status_id").
+// 		LeftJoin("cases.close_reason_group ON close_reason_group.id = catalog.close_reason_id").
+// 		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
+// 		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by").
+// 		PlaceholderFormat(sq.Dollar)
+
+// 	var searchStr string
+
+// 	// -------- Apply [Filtering] --------
+// 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+// 		substrs := util.Substring(name)
+// 		combinedLike := strings.Join(substrs, "%")
+// 		searchStr = combinedLike
+// 		selectFlags["search"] = true
+// 	}
+// 	// -------- Apply [Sorting by Name] --------
+// 	queryBuilder = queryBuilder.OrderBy("catalog.name ASC")
+
+// 	// -------- Apply [Search] --------
+// 	// filter by catalog_id if search is enabled
+// 	if selectFlags["search"] {
+// 		// Final filter to only return relevant catalogs based on target_catalog_id
+// 		queryBuilder = queryBuilder.Where(sq.Expr("catalog.id IN (SELECT target_catalog_id FROM search_catalog)"))
+// 	}
+
+// 	// -------- Apply [Teams - Skills - Services ] fetching  --------
+// 	if selectFlags["teams"] {
+// 		queryBuilder = queryBuilder.LeftJoin("teams_agg ON teams_agg.catalog_id = catalog.id")
+// 	}
+
+// 	if selectFlags["skills"] {
+// 		queryBuilder = queryBuilder.LeftJoin("skills_agg ON skills_agg.catalog_id = catalog.id")
+// 	}
+
+// 	if selectFlags["services"] {
+// 		queryBuilder = queryBuilder.LeftJoin("services_agg ON services_agg.service_catalog_id = catalog.id")
+// 	}
+
+// 	// Apply filtering by state
+// 	if state, ok := rpc.Filter["state"]; ok {
+// 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
+// 	}
+
+// 	// Apply filtering by IDs if provided
+// 	if len(rpc.IDs) > 0 {
+// 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.id": rpc.IDs})
+// 	}
+
+// 	// -------- Apply [Sorting] --------
+// 	for _, sort := range rpc.Sort {
+// 		queryBuilder = queryBuilder.OrderBy(sort)
+// 	}
+
+// 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+// 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+
+// 	// Assuming fetchType is a FetchType and not a pointer
+// 	var fullFetch bool
+
+// 	if fetchType != nil {
+// 		fullFetch = *fetchType == cases.FetchType_FULL
+// 	}
+
+// 	// -------- Apply [Recursive CTEs Based on Flags] --------
+// 	// ONLY service aggregation is recursive
+// 	// -------- Apply [Recursive CTEs Based on Flags] --------
+// 	if selectFlags["teams"] || selectFlags["skills"] || selectFlags["services"] || selectFlags["search"] {
+// 		var prefixQuery string
+
+// 		// Add "WITH" only once
+// 		prefixQuery = "WITH "
+
+// 		// Check if the search flag is active to apply search on both catalogs and services
+// 		if selectFlags["search"] {
+// 			prefixQuery += fmt.Sprintf(`search_catalog AS (
+// 					SELECT catalog.id AS catalog_id,
+// 						   catalog.root_id AS root_service_id,
+// 						   CASE WHEN catalog.root_id IS NULL THEN catalog.id ELSE catalog.catalog_id END AS target_catalog_id
+// 					FROM cases.service_catalog catalog
+// 					WHERE catalog.name ILIKE '%s'
+// 				),`, searchStr)
+// 		}
+
+// 		// Teams logic with conditional search filtering
+// 		if selectFlags["teams"] {
+// 			if selectFlags["search"] {
+// 				prefixQuery += `
+// 					inserted_teams AS (SELECT catalog_id, team_id
+// 									   FROM cases.team_catalog
+// 									   WHERE catalog_id IN (SELECT target_catalog_id FROM search_catalog)),
+// 					teams_agg AS (SELECT inserted_teams.catalog_id,
+// 									  json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+// 							   FROM inserted_teams
+// 							   LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+// 							   GROUP BY inserted_teams.catalog_id),`
+// 			} else {
+// 				prefixQuery += `
+// 					inserted_teams AS (SELECT catalog_id, team_id
+// 									   FROM cases.team_catalog),
+// 					teams_agg AS (SELECT inserted_teams.catalog_id,
+// 									  json_agg(json_build_object('id', team.id, 'name', team.name)) AS teams
+// 							   FROM inserted_teams
+// 							   LEFT JOIN call_center.cc_team team ON team.id = inserted_teams.team_id
+// 							   GROUP BY inserted_teams.catalog_id),`
+// 			}
+// 		}
+
+// 		// Skills logic with conditional search filtering
+// 		if selectFlags["skills"] {
+// 			if selectFlags["search"] {
+// 				prefixQuery += `
+// 					inserted_skills AS (SELECT catalog_id, skill_id
+// 										FROM cases.skill_catalog
+// 										WHERE catalog_id IN (SELECT target_catalog_id FROM search_catalog)),
+// 					skills_agg AS (SELECT inserted_skills.catalog_id,
+// 									  json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+// 								FROM inserted_skills
+// 								LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+// 								GROUP BY inserted_skills.catalog_id),`
+// 			} else {
+// 				prefixQuery += `
+// 					inserted_skills AS (SELECT catalog_id, skill_id
+// 										FROM cases.skill_catalog),
+// 					skills_agg AS (SELECT inserted_skills.catalog_id,
+// 									  json_agg(json_build_object('id', skill.id, 'name', skill.name)) AS skills
+// 								FROM inserted_skills
+// 								LEFT JOIN call_center.cc_skill skill ON skill.id = inserted_skills.skill_id
+// 								GROUP BY inserted_skills.catalog_id),`
+// 			}
+// 		}
+
+// 		if selectFlags["services"] {
+// 			prefixQuery += fmt.Sprintf(`services_agg AS (WITH RECURSIVE service_hierarchy AS (
+// 			SELECT
+// 			  service.id,
+// 			  service.name,
+// 			  -- Conditionally fetch the description, created_at, updated_at, etc.
+// 			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.description ELSE '' END AS description,
+// 			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.created_at ELSE NULL END AS created_at,
+// 			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.updated_at ELSE NULL END AS updated_at,
+// 			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.created_by ELSE 0 END AS created_by,
+// 			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.updated_by ELSE 0 END AS updated_by,
+// 			  service.root_id AS root_id,
+// 			  catalog.id AS service_catalog_id,
+// 			  -- Fetch the code based on the search condition or default to an empty string
+// 			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.code ELSE '' END AS code,
+// 			  -- Fetch the state based on the search condition or default to false
+// 			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN service.state ELSE false END AS state,
+// 			  -- Fetch SLA, group, assignee, etc., conditionally
+// 			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN COALESCE(service.sla_id, 0) ELSE 0 END AS sla_id,
+// 			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN COALESCE(service.group_id, 0) ELSE 0 END AS group_id,
+// 			  CASE WHEN %[2]t OR service.id IN (SELECT catalog_id FROM %s) THEN COALESCE(service.assignee_id, 0) ELSE 0 END AS assignee_id,
+// 			  1 AS level
+// 			FROM cases.service_catalog service
+// 			JOIN cases.service_catalog catalog ON service.root_id = catalog.id
+// 			`, depth, fullFetch, func() string {
+// 				if selectFlags["search"] {
+// 					return "search_catalog"
+// 				}
+// 				return "cases.service_catalog"
+// 			}())
+
+// 			if selectFlags["search"] {
+// 				prefixQuery += `
+// 			  WHERE catalog.id IN (SELECT target_catalog_id FROM search_catalog)
+// 			`
+// 			} else {
+// 				prefixQuery += `
+// 			  WHERE catalog.root_id IS NULL
+// 			`
+// 			}
+
+// 			prefixQuery += fmt.Sprintf(`
+// 			UNION ALL
+// 		SELECT subservice.id,
+//        subservice.name,
+//        -- Conditionally fetch the description, created_at, updated_at, etc.
+//        CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM % s) THEN subservice.description ELSE '' END AS description,
+// 			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.created_at ELSE NULL
+// END AS created_at,
+// 			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.updated_at ELSE NULL
+// END AS updated_at,
+// 			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.created_by ELSE 0
+// END AS created_by,
+// 			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.updated_by ELSE 0
+// END AS updated_by,
+// 			  subservice.root_id AS root_id,
+// 			  parent.service_catalog_id,
+// 			  -- Fetch the code for subservices based on the search condition
+// 			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.code ELSE ''
+// END AS code,
+// 			  -- Fetch the state for subservices based on the search condition
+// 			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN subservice.state ELSE false
+// END AS state,
+// 			  -- Fetch SLA, group, assignee, etc., for subservices
+// 			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN COALESCE(subservice.sla_id, 0) ELSE 0
+// END AS sla_id,
+// 			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN COALESCE(subservice.group_id, 0) ELSE 0
+// END AS group_id,
+// 			  CASE WHEN %[2]t OR subservice.id IN (SELECT catalog_id FROM %s) THEN COALESCE(subservice.assignee_id, 0) ELSE 0
+// END AS assignee_id,
+// 			  parent.level + 1 AS level
+// 			FROM cases.service_catalog subservice
+// 			JOIN service_hierarchy parent ON subservice.root_id = parent.id
+// 			WHERE parent.level < CASE WHEN %[1]d > 0 THEN %[1]d ELSE 100
+// END
+//     )
+// SELECT service_hierarchy.service_catalog_id,
+//        json_agg(json_build_object(
+//                'id', service_hierarchy.id,
+//                'name', service_hierarchy.name,
+//                'description', service_hierarchy.description,
+//                'code', service_hierarchy.code,
+//                'state', service_hierarchy.state,
+//                'sla_id', COALESCE(service_hierarchy.sla_id, 0),
+//                'sla_name', COALESCE(sla.name, ''),
+//                'group_id', COALESCE(service_hierarchy.group_id, 0),
+//                'group_name', COALESCE(grp.name, ''),
+//                'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),
+//                'assignee_name', COALESCE(assignee.given_name, ''),
+//                'has_subservices',
+//                EXISTS (SELECT 1 FROM cases.service_catalog sc WHERE sc.root_id = service_hierarchy.id),
+//                'root_id', COALESCE(service_hierarchy.root_id, 0),
+//                'created_at', service_hierarchy.created_at,
+//                'updated_at', service_hierarchy.updated_at,
+//                'created_by', COALESCE(created_by_user.name, ''),
+//                'created_by_id', COALESCE(service_hierarchy.created_by, 0),
+//                'updated_by', COALESCE(updated_by_user.name, ''),
+//                'updated_by_id', COALESCE(service_hierarchy.updated_by, 0),
+//                'service_catalog_id', service_hierarchy.service_catalog_id
+//                 )) AS services
+// FROM service_hierarchy
+//          LEFT JOIN cases.sla ON sla.id = service_hierarchy.sla_id
+//          LEFT JOIN contacts.group AS grp ON grp.id = service_hierarchy.group_id
+//          LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = service_hierarchy.created_by
+//          LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = service_hierarchy.updated_by
+//          LEFT JOIN contacts.contact AS assignee ON assignee.id = service_hierarchy.assignee_id
+// GROUP BY service_hierarchy.service_catalog_id)`, depth, fullFetch, func() string {
+// 				if selectFlags["search"] {
+// 					return "search_catalog"
+// 				}
+// 				return "cases.service_catalog"
+// 			}())
+// 		}
+
+// 		// Apply the constructed query to the queryBuilder
+// 		queryBuilder = queryBuilder.Prefix(strings.TrimSuffix(prefixQuery, ","))
+// 	}
+
+// 	// Build the final SQL query and return
+// 	query, args, err := queryBuilder.ToSql()
+// 	if err != nil {
+// 		return "", nil, dberr.NewDBInternalError("postgres.catalog.query_build_error", err)
+// 	}
+
+// 	return store.CompactSQL(query), args, nil
+// }
 
 // Update implements store.CatalogStore.
 func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (*cases.Catalog, error) {

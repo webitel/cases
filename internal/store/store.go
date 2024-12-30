@@ -188,7 +188,7 @@ type CatalogStore interface {
 	// Create a new catalog
 	Create(rpc *model.CreateOptions, add *_go.Catalog) (*_go.Catalog, error)
 	// List catalogs
-	List(rpc *model.SearchOptions, depth int64, fetchType *_go.FetchType) (*_go.CatalogList, error)
+	List(rpc *model.SearchOptions, depth int64, subfields []string) (*_go.CatalogList, error)
 	// Delete catalog
 	Delete(rpc *model.DeleteOptions) error
 	// Update catalog
