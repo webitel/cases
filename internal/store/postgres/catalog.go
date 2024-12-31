@@ -669,11 +669,10 @@ func (s *CatalogStore) List(
 
 	// 5. Prepare containers
 	var (
-		catalogs    []*cases.Catalog
-		rawServices []*cases.Service
-		lCount      int
-		next        bool
-		fetchAll    = (rpc.GetSize() == -1)
+		catalogs []*cases.Catalog
+		lCount   int
+		next     bool
+		fetchAll = (rpc.GetSize() == -1)
 	)
 
 	// 6. Single-pass read
@@ -878,10 +877,10 @@ func (s *CatalogStore) List(
 	}
 
 	// 13. Build nested hierarchy if “services” is requested
-	if util.ContainsField(rpc.Fields, "services") && len(rawServices) > 0 {
+	if util.ContainsField(rpc.Fields, "services") {
 		// For each top-level catalog, nest subservices
 		for _, cat := range catalogs {
-			nested, err := s.nestServicesByRootID(cat.Id, rawServices)
+			nested, err := s.nestServicesByRootID(cat.Id, cat.Service)
 			if err != nil {
 				return nil, dberr.NewDBInternalError("postgres.catalog.list.nesting_services_error", err)
 			}
@@ -1316,25 +1315,30 @@ func (s *CatalogStore) parsePartialService(
 	return svc
 }
 
-// nestServicesByRootID nests the partial services by their RootId.
 func (s *CatalogStore) nestServicesByRootID(
 	rootCatalogID int64,
 	services []*cases.Service,
 ) ([]*cases.Service, error) {
+	// Map services by their RootId
 	serviceMap := make(map[int64][]*cases.Service)
 	for _, svc := range services {
+		// Group services by their RootId
 		serviceMap[svc.RootId] = append(serviceMap[svc.RootId], svc)
 	}
-	return s.buildServiceHierarchy(rootCatalogID, serviceMap), nil
+
+	// Start building the hierarchy from the rootCatalogID
+	hierarchy := s.buildServiceHierarchy(rootCatalogID, serviceMap)
+	return hierarchy, nil
 }
 
-// buildServiceHierarchy recursively attaches child services
 func (s *CatalogStore) buildServiceHierarchy(
 	rootID int64,
 	serviceMap map[int64][]*cases.Service,
 ) []*cases.Service {
+	// Retrieve all children of the current rootID
 	children := serviceMap[rootID]
 	for _, child := range children {
+		// Recursively attach sub-services to the current child
 		child.Service = s.buildServiceHierarchy(child.Id, serviceMap)
 	}
 	return children
@@ -1431,6 +1435,11 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
 		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by")
 
+		// Add condition for rpc.IDs if provided
+	if len(rpc.IDs) > 0 {
+		queryBuilder = queryBuilder.Where("catalog.id = ANY($2)")
+	}
+
 	// 4) Add conditional WHERE clause for search
 	if selectFlags["search"] {
 		queryBuilder = queryBuilder.Where(
@@ -1475,9 +1484,6 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	if state, ok := rpc.Filter["state"]; ok {
 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
 	}
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.id": rpc.IDs})
-	}
 
 	var searchQ string
 	var searchN string
@@ -1514,16 +1520,23 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		page = (rpc.Page - 1) * rpc.Size
 	}
 
+	var pagination string
+	if len(rpc.IDs) == 0 {
+		pagination = `
+			ORDER BY id ASC
+			LIMIT $2 OFFSET $3
+		`
+	}
+
 	prefixQuery := fmt.Sprintf(`
-    limited_catalogs AS (
-        SELECT *
-        FROM cases.service_catalog
-        WHERE root_id IS NULL
-        %s -- Conditionally include the search condition
-        ORDER BY id ASC
-        LIMIT $2 OFFSET $3
-    ),
-`, searchCondition)
+		limited_catalogs AS (
+			SELECT *
+			FROM cases.service_catalog
+			WHERE root_id IS NULL
+			%s -- Conditionally include the search condition
+			%s -- Conditionally include pagination
+		),
+	`, searchCondition, pagination)
 
 	// Add the prefix query with or without search_catalog based on search condition
 	if selectFlags["search"] {
@@ -1562,13 +1575,18 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		return "", nil, dberr.NewDBInternalError("postgres.catalog.query_build_error", err)
 	}
 
-	args = append(args,
-		rpc.GetSize(), //$2
-		page,          //$3
-	)
-
+	if len(rpc.IDs) == 0 {
+		args = append(args,
+			rpc.GetSize()+1, //$2
+			page,            //$3
+		)
+	}
 	if searchN != "" {
 		args = append(args, searchN)
+	}
+	if len(rpc.IDs) > 0 {
+		// $4 as if we sort by ids -- we could not add search ( q / query ) term
+		args = append(args, rpc.IDs) // Add IDs array as the second argument
 	}
 
 	return store.CompactSQL(sqlQuery), args, nil

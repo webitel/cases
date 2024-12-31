@@ -184,7 +184,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 
 	t := time.Now()
 	searchOptions := model.SearchOptions{
-		IDs:     req.Id,
+		IDs:     req.Id, // TODO check placholders in DB layer
 		Session: session,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -215,9 +215,11 @@ func (s *CatalogService) LocateCatalog(ctx context.Context, req *cases.LocateCat
 	}
 
 	listReq := &cases.ListCatalogRequest{
-		Id:   []int64{req.Id},
-		Page: 1,
-		Size: 1,
+		Id:        []int64{req.Id},
+		Page:      1,
+		Size:      1,
+		Fields:    req.Fields,
+		SubFields: req.SubFields,
 	}
 
 	listResp, err := s.ListCatalogs(ctx, listReq)
