@@ -62,6 +62,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		Description: req.Description,
 		Prefix:      req.Prefix,
 		Code:        req.Code,
+		State:       req.State,
 		Sla:         &cases.Lookup{Id: req.SlaId},
 		Status:      &cases.Lookup{Id: req.StatusId},
 		CloseReason: &cases.Lookup{Id: req.CloseReasonId},
