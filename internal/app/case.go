@@ -405,7 +405,8 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 			for _, item := range res.Items {
 				if item.Related != nil {
 					for _, related := range item.Related.Data {
-						util.NormalizeEtags(etag.EtagRelatedCase, true, false, false, &related.Id, nil, &related.Ver) // TODO nil for id -- should we use id or not ?
+						id, _ := strconv.Atoi(related.Id)
+						related.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), related.Ver)
 					}
 				}
 			}

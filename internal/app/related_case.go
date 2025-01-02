@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	cases "github.com/webitel/cases/api/cases"
@@ -237,7 +238,7 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 		// Normalize related case ID
 		id, err := strconv.Atoi(relatedCase.Id)
 		if err != nil {
-			return cerror.NewInternalError("failed encoding related_case id, error", err.Error())
+			return fmt.Errorf("failed encoding related_case id: %w", err)
 		}
 		relatedCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), relatedCase.Ver)
 
@@ -245,7 +246,7 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 		if relatedCase.PrimaryCase != nil {
 			primaryCaseID, err := strconv.Atoi(relatedCase.PrimaryCase.GetId())
 			if err != nil {
-				return cerror.NewInternalError("failed encoding primary_case id, error", err.Error())
+				return fmt.Errorf("failed encoding primary_case id: %w", err)
 			}
 			relatedCase.PrimaryCase.Id = etag.EncodeEtag(etag.EtagCase, int64(primaryCaseID), relatedCase.PrimaryCase.GetVer())
 
@@ -257,7 +258,7 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 		if relatedCase.RelatedCase != nil {
 			relatedCaseID, err := strconv.Atoi(relatedCase.RelatedCase.Id)
 			if err != nil {
-				return cerror.NewInternalError("failed encoding related_case id, error", err.Error())
+				return fmt.Errorf("failed encoding related_case id: %w", err)
 			}
 			relatedCase.RelatedCase.Id = etag.EncodeEtag(etag.EtagCase, int64(relatedCaseID), relatedCase.RelatedCase.GetVer())
 
@@ -268,6 +269,7 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 
 	return nil
 }
+
 
 func NewRelatedCaseService(app *App) (*RelatedCaseService, cerror.AppError) {
 	if app == nil {
