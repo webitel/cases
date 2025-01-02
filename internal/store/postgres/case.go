@@ -277,7 +277,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		),
 		` + relatedAlias + ` AS (
 			INSERT INTO cases.related_case (
-				parent_case_id, child_case_id, relation_type, dc, created_by, created_at, updated_by, updated_at
+				primary_case_id, related_case_id, relation_type, dc, created_by, created_at, updated_by, updated_at
 			)
 			SELECT
 				(SELECT id FROM ` + caseLeft + `),
@@ -1092,7 +1092,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			base = base.Column(fmt.Sprintf(`
 				(SELECT JSON_AGG(JSON_BUILD_OBJECT(
 					'id', rc.id, -- ID of the related_case record
-					'child', JSON_BUILD_OBJECT( -- Child case details
+					'related_case', JSON_BUILD_OBJECT( -- Child case details
 						'id', c_child.id,
 						'name', c_child.name,
 						'subject', c_child.subject,
@@ -1107,11 +1107,11 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				))
 				FROM %s rc
                 JOIN cases.case c_child
-                ON rc.child_case_id = c_child.id -- Fetch details for the child case
+                ON rc.related_case_id = c_child.id -- Fetch details for the child case
 				LEFT JOIN directory.wbt_user u ON rc.created_by = u.id
-                WHERE rc.parent_case_id = %s.id) AS related_cases`, relatedAlias, caseLeft))
-			// parent_case_id -- newly created case
-			// child_case_id -- attached case id
+                WHERE rc.primary_case_id = %s.id) AS related_cases`, relatedAlias, caseLeft))
+			// primary_case_id -- newly created case
+			// related_case_id -- attached case id
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Related == nil {
 					caseItem.Related = &_go.RelatedCaseList{}
