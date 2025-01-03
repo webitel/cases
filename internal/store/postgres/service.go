@@ -131,17 +131,37 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 			break
 		}
 
-		// Create service and related lookup objects
-		service := &cases.Service{
-			Sla:      &cases.Lookup{},
-			Group:    &cases.Lookup{},
-			Assignee: &cases.Lookup{},
+		// Initialize service and related lookup objects conditionally
+		service := &cases.Service{}
+
+		if util.ContainsField(rpc.Fields, "sla") {
+			service.Sla = &cases.Lookup{}
 		}
-		createdBy, updatedBy := &cases.Lookup{}, &cases.Lookup{}
+
+		if util.ContainsField(rpc.Fields, "group") {
+			service.Group = &cases.Lookup{}
+		}
+
+		if util.ContainsField(rpc.Fields, "assignee") {
+			service.Assignee = &cases.Lookup{}
+		}
+
+		if util.ContainsField(rpc.Fields, "created_by") {
+			service.CreatedBy = &cases.Lookup{}
+		}
+
+		if util.ContainsField(rpc.Fields, "updated_by") {
+			service.UpdatedBy = &cases.Lookup{}
+		}
+
 		var createdAt, updatedAt time.Time
 
 		// Build the scan arguments for the current row
-		scanArgs := s.buildServiceScanArgs(service, createdBy, updatedBy, &createdAt, &updatedAt, service.Group, service.Assignee)
+		scanArgs := s.buildServiceScanArgs(
+			service,
+			&createdAt, &updatedAt,
+			rpc.Fields,
+		)
 
 		// Scan the row into the service object
 		err = rows.Scan(scanArgs...)
@@ -300,77 +320,73 @@ func (s *ServiceStore) buildDeleteServiceQuery(rpc *model.DeleteOptions) (string
 	return store.CompactSQL(query), args
 }
 
-// Helper method to build the search query for Service
 func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
-	ids := util.FieldsFunc(convertedIds, util.InlineFields)
+	// Map of fields to their corresponding SQL expressions
+	fieldMap := map[string]string{
+		"id":          "service.id",
+		"name":        "service.name",
+		"description": "COALESCE(service.description, '') AS description",
+		"root_id":     "service.root_id",
+		"code":        "COALESCE(service.code, '') AS code",
+		"prefix":      "COALESCE(service.prefix, '') AS prefix",
+		"state":       "service.state",
+		"created_at":  "service.created_at",
+		"updated_at":  "service.updated_at",
+		"created_by":  "service.created_by",
+		"updated_by":  "service.updated_by",
+		"sla":         "COALESCE(service.sla_id, 0) AS sla_id, COALESCE(sla.name, '') AS sla_name",
+		"group":       "COALESCE(service.group_id, 0) AS group_id, COALESCE(grp.name, '') AS group_name",
+	}
 
-	// Initialize query builder with COALESCE for optional fields
-	queryBuilder := sq.Select(
-		"service.id",
-		"service.name", // Name can't be null
-		"COALESCE(service.description, '') AS description",      // Default to empty string if NULL
-		"COALESCE(service.code, '') AS code",                    // Default to empty string if NULL
-		"service.state",                                         // State can't be null
-		"COALESCE(service.sla_id, 0) AS sla_id",                 // Default to 0 if NULL
-		"COALESCE(sla.name, '') AS sla_name",                    // Default to empty string if NULL
-		"COALESCE(service.group_id, 0) AS group_id",             // Default to 0 if NULL
-		"COALESCE(grp.name, '') AS group_name",                  // Default to empty string if NULL
-		"COALESCE(service.assignee_id, 0) AS assignee_id",       // Default to 0 if NULL
-		"COALESCE(assignee.given_name, '') AS assignee_name",    // Default to empty string if NULL
-		"service.created_by",                                    // created_by can't be null
-		"COALESCE(created_by_user.name, '') AS created_by_name", // Default to empty string if NULL
-		"service.updated_by",                                    // updated_by can't be null
-		"COALESCE(updated_by_user.name, '') AS updated_by_name", // Default to empty string if NULL
-		"service.created_at",                                    // created_at can't be null
-		"service.updated_at",                                    // updated_at can't be null
-		"service.root_id AS root_id",
-		"service.catalog_id AS catalog_id",
-	).
-		From("cases.service_catalog AS service").
-		LeftJoin("cases.sla ON sla.id = service.sla_id").
-		LeftJoin("contacts.group AS grp ON grp.id = service.group_id").
-		LeftJoin("contacts.contact AS assignee ON assignee.id = service.assignee_id").
-		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by").
-		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = service.updated_by").
-		GroupBy(
-			"service.id", "sla.name", "grp.name", "assignee.given_name", "created_by_user.name", "updated_by_user.name", "service.root_id",
-		).
-		Where("service.root_id IS NOT NULL").
-		PlaceholderFormat(sq.Dollar)
+	// Initialize query builder
+	queryBuilder := sq.Select().From("cases.service_catalog AS service").
+		PlaceholderFormat(sq.Dollar).
+		Where("service.root_id IS NOT NULL")
 
-	// Apply filtering by root_id (using root_id from context)
+	// Include requested fields in the SELECT clause
+	for _, field := range rpc.Fields {
+		if column, ok := fieldMap[field]; ok {
+			queryBuilder = queryBuilder.Column(column)
+		}
+
+		// Add necessary JOINs for specific fields
+		switch field {
+		case "sla":
+			queryBuilder = queryBuilder.LeftJoin("cases.sla ON sla.id = service.sla_id")
+		case "group":
+			queryBuilder = queryBuilder.LeftJoin("contacts.group AS grp ON grp.id = service.group_id")
+		case "created_by":
+			queryBuilder = queryBuilder.LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by").
+				Column("COALESCE(created_by_user.name, '') AS created_by_name")
+		case "updated_by":
+			queryBuilder = queryBuilder.LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = service.updated_by").
+				Column("COALESCE(updated_by_user.name, '') AS updated_by_name")
+		}
+	}
+
+	// Apply filters
 	if rootID, ok := rpc.Filter["root_id"].(int64); ok && rootID > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.root_id": rootID})
 	}
 
-	// Apply filtering by name (using case-insensitive matching)
 	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
 		substr := util.Substring(name)
-		combinedLike := strings.Join(substr, "%")
-		queryBuilder = queryBuilder.Where(sq.ILike{"service.name": combinedLike})
+		queryBuilder = queryBuilder.Where(sq.ILike{"service.name": "%" + strings.Join(substr, "%") + "%"})
 	}
 
-	// -------- Apply [Sorting by Name] --------
-	queryBuilder = queryBuilder.OrderBy("service.name ASC")
-
-	// Apply filtering by state
 	if state, ok := rpc.Filter["state"]; ok {
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.state": state})
 	}
 
-	// Apply filtering by IDs if provided
-	if len(ids) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"service.id": ids})
+	if len(rpc.IDs) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"service.id": rpc.IDs})
 	}
 
-	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, serviceDefaultSort)
-
-	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	// Apply sorting and pagination
+	queryBuilder = queryBuilder.OrderBy("service.name ASC")
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
-	// Build SQL query
+	// Build the query
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return "", nil, dberr.NewDBInternalError("postgres.service.query_build_error", err)
@@ -455,46 +471,70 @@ FROM updated_service AS service
 	return store.CompactSQL(query), args, nil
 }
 
-// buildServiceScanArgs prepares scan arguments for populating a Service object.
 func (s *ServiceStore) buildServiceScanArgs(
 	service *cases.Service, // The service object to populate
-	createdBy, updatedBy *cases.Lookup, // Lookup objects for created_by and updated_by
 	createdAt, updatedAt *time.Time, // Temporary variables for created_at and updated_at
-	groupLookup, assigneeLookup *cases.Lookup, // Lookup objects for group and assignee
+	rpcFields []string, // Fields to scan dynamically
 ) []interface{} {
-	return []interface{}{
-		// Service fields
-		&service.Id,          // Service ID
-		&service.Name,        // Service name
-		&service.Description, // Service description
-		&service.Code,        // Service code
-		&service.State,       // Service state
+	scanArgs := []interface{}{}
 
-		// SLA fields
-		&service.Sla.Id,   // SLA ID
-		&service.Sla.Name, // SLA name
-
-		// Group fields
-		&groupLookup.Id,   // Group ID
-		&groupLookup.Name, // Group name
-
-		// Assignee fields
-		&assigneeLookup.Id,   // Assignee ID
-		&assigneeLookup.Name, // Assignee name
-
-		// Created and updated by fields
-		&createdBy.Id,   // Created by user ID
-		&createdBy.Name, // Created by user name
-		&updatedBy.Id,   // Updated by user ID
-		&updatedBy.Name, // Updated by user name
-
-		// Timestamps
-		createdAt, // Created at timestamp
-		updatedAt, // Updated at timestamp
-
-		&service.RootId,    // Root service ID
-		&service.CatalogId, // Catalog ID
+	// Field map for dynamic scanning
+	fieldMap := map[string][]any{
+		"id":          {&service.Id},
+		"name":        {&service.Name},
+		"description": {&service.Description},
+		"code":        {&service.Code},
+		"state":       {&service.State},
+		"created_at":  {createdAt},
+		"updated_at":  {updatedAt},
+		"root_id":     {&service.RootId},
+		"catalog_id":  {&service.CatalogId},
 	}
+
+	// Lookup fields that require initialization
+	lookupFields := map[string]func(){
+		"sla": func() {
+			if service.Sla == nil {
+				service.Sla = &cases.Lookup{}
+			}
+			scanArgs = append(scanArgs, &service.Sla.Id, &service.Sla.Name)
+		},
+		"group": func() {
+			if service.Group == nil {
+				service.Group = &cases.Lookup{}
+			}
+			scanArgs = append(scanArgs, &service.Group.Id, &service.Group.Name)
+		},
+		"assignee": func() {
+			if service.Assignee == nil {
+				service.Assignee = &cases.Lookup{}
+			}
+			scanArgs = append(scanArgs, &service.Assignee.Id, &service.Assignee.Name)
+		},
+		"created_by": func() {
+			if service.CreatedBy == nil {
+				service.CreatedBy = &cases.Lookup{}
+			}
+			scanArgs = append(scanArgs, &service.CreatedBy.Id, &service.CreatedBy.Name)
+		},
+		"updated_by": func() {
+			if service.UpdatedBy == nil {
+				service.UpdatedBy = &cases.Lookup{}
+			}
+			scanArgs = append(scanArgs, &service.UpdatedBy.Id, &service.UpdatedBy.Name)
+		},
+	}
+
+	// Add scan arguments for regular fields
+	for _, field := range rpcFields {
+		if args, exists := fieldMap[field]; exists {
+			scanArgs = append(scanArgs, args...)
+		} else if initFunc, exists := lookupFields[field]; exists {
+			initFunc()
+		}
+	}
+
+	return scanArgs
 }
 
 func NewServiceStore(store store.Store) (store.ServiceStore, error) {

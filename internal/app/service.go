@@ -2,12 +2,14 @@ package app
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	api "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
 )
 
 type ServiceService struct {
@@ -137,8 +139,19 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 		page = 1
 	}
 
+	if len(req.Fields) == 0 {
+		req.Fields = strings.Split(defaultSubfields, ", ")
+	} else {
+		req.Fields = util.FieldsFunc(req.Fields, util.InlineFields)
+	}
+
+	if !util.ContainsField(req.Fields, "id") {
+		req.Fields = append(req.Fields, "id")
+	}
+
 	t := time.Now()
 	searchOptions := model.SearchOptions{
+		Fields:  req.Fields,
 		IDs:     req.Id,
 		Session: session,
 		Context: ctx,
@@ -175,10 +188,21 @@ func (s *ServiceService) LocateService(ctx context.Context, req *api.LocateServi
 		return nil, cerror.NewBadRequestError("service.locate_service.id.required", "Service ID is required")
 	}
 
+	if len(req.Fields) == 0 {
+		req.Fields = strings.Split(defaultSubfields, ", ")
+	} else {
+		req.Fields = util.FieldsFunc(req.Fields, util.InlineFields)
+	}
+
+	if !util.ContainsField(req.Fields, "id") {
+		req.Fields = append(req.Fields, "id")
+	}
+
 	listReq := &api.ListServiceRequest{
-		Id:   []int64{req.Id},
-		Page: 1,
-		Size: 1,
+		Fields: req.Fields,
+		Id:     []int64{req.Id},
+		Page:   1,
+		Size:   1,
 	}
 
 	listResp, err := s.ListServices(ctx, listReq)
