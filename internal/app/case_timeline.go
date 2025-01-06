@@ -6,6 +6,7 @@ import (
 	errors "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/webitel-go-kit/etag"
+	"log/slog"
 	"time"
 )
 
@@ -26,29 +27,33 @@ func NewCaseTimelineService(app *App) (*CaseTimelineService, errors.AppError) {
 }
 
 func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.GetTimelineRequest) (*cases.GetTimelineResponse, error) {
+	// TODO: RBAC check
 	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
 	if err != nil {
-		return nil, err
+		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline.check_args.invalid_etag", "Invalid case etag")
 	}
 	searchOpts := model.NewSearchOptions(ctx, request, CaseTimelineMetadata)
 	searchOpts.IDs = []int64{tid.GetOid()}
 	res, err := c.app.Store.CaseTimeline().Get(searchOpts)
 	if err != nil {
-		return nil, err
+		slog.Debug(err.Error(), slog.Int64("id", tid.GetOid()))
+		return nil, errors.NewInternalError("app.case_timeline.get_timeline.database.error", "database error")
 	}
 	return res, nil
 
 }
 
 func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *cases.GetTimelineCounterRequest) (*cases.GetTimelineCounterResponse, error) {
+	// TODO: RBAC check
 	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
 	if err != nil {
-		return nil, err
+		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline_counter.check_args.invalid_etag", "Invalid case etag")
 	}
 	searchOpts := &model.SearchOptions{Context: ctx, Fields: CaseTimelineMetadata.GetDefaultFields(), ParentId: tid.GetOid()}
 	eventTypeCounters, err := c.app.Store.CaseTimeline().GetCounter(searchOpts)
 	if err != nil {
-		return nil, err
+		slog.Debug(err.Error(), slog.Int64("id", tid.GetOid()))
+		return nil, errors.NewInternalError("app.case_timeline.get_timeline_counter.database.error", "database error")
 	}
 	if len(eventTypeCounters) == 0 {
 		return nil, nil
@@ -70,12 +75,12 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 			res.EmailsCount = eventTypeCounter.Count
 		}
 
-		if v := eventTypeCounter.DateFrom; v < dateFrom {
-			dateFrom = v
+		if eventTypeCounter.DateFrom < dateFrom {
+			dateFrom = eventTypeCounter.DateFrom
 		}
 
-		if v := eventTypeCounter.DateTo; v > dateTo {
-			dateTo = v
+		if eventTypeCounter.DateTo > dateTo {
+			dateTo = eventTypeCounter.DateTo
 		}
 	}
 	res.DateFrom = dateFrom

@@ -18,6 +18,9 @@ type CaseCommunicationStore struct {
 }
 
 func (c *CaseCommunicationStore) Link(options *model.CreateOptions, communications []*cases.InputCaseCommunication) ([]*cases.CaseCommunication, error) {
+	if len(communications) == 0 {
+		return nil, dberr.NewDBError("postgres.case_communication.link.check_args.communications", "empty communications")
+	}
 	base, plan, dbErr := c.buildCreateCaseCommunicationSqlizer(options, communications)
 	if dbErr != nil {
 		return nil, dbErr
@@ -38,37 +41,27 @@ func (c *CaseCommunicationStore) Link(options *model.CreateOptions, communicatio
 	if dbErr != nil {
 		return nil, dbErr
 	}
-	if len(res) == 0 && len(communications) != 0 {
-		return nil, dberr.NewDBError("postgres.case_communication.result_processing.error", "wrong or duplicated communication_id or insufficient permissions")
-	}
 	return res, nil
 }
 
-func (c *CaseCommunicationStore) Unlink(options *model.DeleteOptions) ([]*cases.CaseCommunication, error) {
-	base, plan, dbErr := c.buildDeleteCaseCommunicationSqlizer(options)
+func (c *CaseCommunicationStore) Unlink(options *model.DeleteOptions) (int64, error) {
+	base, dbErr := c.buildDeleteCaseCommunicationSqlizer(options)
 	if dbErr != nil {
-		return nil, dbErr
+		return 0, dbErr
 	}
 	db, dbErr := c.storage.Database()
 	if dbErr != nil {
-		return nil, dbErr
+		return 0, dbErr
 	}
 	sql, args, err := base.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBError("postgres.case_communication.link.convert_to_sql.err", err.Error())
+		return 0, dberr.NewDBError("postgres.case_communication.link.convert_to_sql.err", err.Error())
 	}
-	rows, err := db.Query(options, sql, args...)
+	res, err := db.Exec(options, sql, args...)
 	if err != nil {
-		return nil, dberr.NewDBError("postgres.case_communication.exec.error", err.Error())
+		return 0, dberr.NewDBError("postgres.case_communication.exec.error", err.Error())
 	}
-	res, dbErr := c.scanCommunications(rows, plan)
-	if dbErr != nil {
-		return nil, dbErr
-	}
-	if len(res) == 0 {
-		return nil, dberr.NewDBError("postgres.case_communication.final_check.no_rows", "no rows were affected")
-	}
-	return res, nil
+	return res.RowsAffected(), nil
 }
 
 func (c *CaseCommunicationStore) List(opts *model.SearchOptions) (*cases.ListCommunicationsResponse, error) {
@@ -145,11 +138,6 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 	callsRbac := session.GetScope("calls").IsRbacUsed()
 
 	for _, communication := range communications {
-		dbErr := ValidateCaseCommunicationCreate(communication)
-		if dbErr != nil {
-			return nil, nil, dbErr
-		}
-
 		switch communication.CommunicationType {
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CALL:
 			if callsRbac {
@@ -222,22 +210,15 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(base squirrel.SelectB
 	return base, plan, nil
 }
 
-func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(options *model.DeleteOptions) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
+func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(options *model.DeleteOptions) (query squirrel.Sqlizer, dbError *dberr.DBError) {
 	if options == nil {
-		return nil, nil, dberr.NewDBError("postgres.case_communication.build_delete_case_communication_sqlizer.check_args.options", "delete options required")
+		return nil, dberr.NewDBError("postgres.case_communication.build_delete_case_communication_sqlizer.check_args.options", "delete options required")
 	}
 	if len(options.IDs) == 0 {
-		return nil, nil, dberr.NewDBError("postgres.case_communication.build_delete_case_communication_sqlizer.check_args.ids", "ids required to delete")
+		return nil, dberr.NewDBError("postgres.case_communication.build_delete_case_communication_sqlizer.check_args.ids", "ids required to delete")
 	}
-
-	delCte := squirrel.Delete(c.mainTable).Where("id = ANY(?)", options.IDs).Suffix("RETURNING *")
-	delAlias := "d"
-	insertCte, args, err := store.FormAsCTE(delCte, delAlias)
-	if err != nil {
-		return nil, nil, dberr.NewDBError("postgres.case_communication.build.create_case_communication_sqlizer.form_cte.error", err.Error())
-	}
-	base := squirrel.Select().From(delAlias).Prefix(insertCte, args...).PlaceholderFormat(squirrel.Dollar)
-	return c.buildSelectColumnsAndPlan(base, delAlias, CaseCommunicationFields)
+	del := squirrel.Delete(c.mainTable).Where("id = ANY(?)", options.IDs)
+	return del, nil
 
 }
 
@@ -251,23 +232,4 @@ func NewCaseCommunicationStore(store store.Store) (store.CaseCommunicationStore,
 			"error creating case communication store, main store is nil")
 	}
 	return &CaseCommunicationStore{storage: store, mainTable: "cases.case_communication"}, nil
-}
-
-func ValidateCaseCommunicationCreate(input *cases.InputCaseCommunication) *dberr.DBError {
-	if input.CommunicationId == "" {
-		return dberr.NewDBError("postgres.case_communication.validate_case_communication_create.validate.communication_id", "communication can't be empty")
-	}
-	if input.CommunicationType <= 0 {
-		return dberr.NewDBError("postgres.case_communication.validate_case_communication_create.validate.type", "communication type can't be empty")
-	}
-	var typeFound bool
-	for _, i := range cases.CaseCommunicationsTypes_value {
-		if i == int32(input.CommunicationType) {
-			typeFound = true
-		}
-	}
-	if !typeFound {
-		return dberr.NewDBError("postgres.case_communication.validate_case_communication_create.validate.type", "communication type not allowed")
-	}
-	return nil
 }
