@@ -448,6 +448,11 @@ func (s *CatalogStore) List(
 					service.Searched = searched
 				}
 
+				// Map state field
+				if state, ok := raw["state"].(bool); ok {
+					service.State = state
+				}
+
 				parsedServices = append(parsedServices, service)
 			}
 
@@ -1004,6 +1009,9 @@ COALESCE(
 	// Conditionally append fields based on subfields
 	if util.ContainsField(subfields, "id") {
 		jsonFields.WriteString("'id', service_hierarchy.id,\n")
+	}
+	if util.ContainsField(subfields, "state") {
+		jsonFields.WriteString("'state', service_hierarchy.state,\n")
 	}
 	if util.ContainsField(subfields, "name") {
 		jsonFields.WriteString("'name', service_hierarchy.name,\n")
