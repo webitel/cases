@@ -2,20 +2,23 @@ module github.com/webitel/cases
 
 go 1.23.0
 
-replace (
-	buf.build/gen/go/webitel/cases/grpc/go/_gogrpc v1.5.1-20241105122241-a1d959115d35.1 => ./api/cases
-)
+//replace buf.build/gen/go/webitel/cases/grpc/go/_gogrpc v1.5.1-20241105122241-a1d959115d35.1 => ./api/cases
 
 require (
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.34.2-20240725111140-8ade8003e454.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.23.0
 	github.com/jackc/pgtype v1.14.4
 	google.golang.org/genproto/googleapis/api v0.0.0-20241104194629-dd2ea8efbc28
-	google.golang.org/protobuf v1.35.2
+	google.golang.org/protobuf v1.36.1
 )
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 // indirect
+	buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.36.1-20240617172850-a48fcebcf8f1.1 // indirect
+	buf.build/gen/go/webitel/cases/grpc/go v1.5.1-20250107081847-f93be845c580.2 // indirect
+	buf.build/gen/go/webitel/cases/protocolbuffers/go v1.36.1-20250107081847-f93be845c580.1 // indirect
+	buf.build/gen/go/webitel/general/protocolbuffers/go v1.36.1-20241218155954-cfa0c73ff252.1 // indirect
+	buf.build/gen/go/webitel/protoc-gen-go-webitel/protocolbuffers/go v1.36.1-20240830062629-411a5fb2aec7.1 // indirect
 	cel.dev/expr v0.18.0 // indirect
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
