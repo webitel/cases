@@ -86,7 +86,7 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
 
-		// Convert insertBuilder to SQL to use it within a CTE
+	// Convert insertBuilder to SQL to use it within a CTE
 	insertSQL, insertArgs, err := insertBuilder.ToSql()
 	if err != nil {
 		return nil, nil, dberr.NewDBError("store.related_case.build_created_related_case_sqlizer.insert_query_error", err.Error())
@@ -286,10 +286,10 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 	// Start building the base query
 	queryBuilder := sq.Select().
 		From("cases.related_case AS rc").
-		Where(sq.Eq{"rc.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"rc.dc": rpc.Auth.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-		// Filter by parent case if provided
+	// Filter by parent case if provided
 
 	queryBuilder = queryBuilder.Where(sq.Or{
 		sq.Eq{"rc.primary_case_id": rpc.ParentId},

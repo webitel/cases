@@ -190,7 +190,7 @@ func (s CloseReason) buildCreateCloseReasonQuery(rpc *model.CreateOptions, looku
 func (s CloseReason) buildSearchCloseReasonQuery(rpc *model.SearchOptions, closeReasonId int64) (string, []interface{}, error) {
 	queryBuilder := sq.Select().
 		From("cases.close_reason AS g").
-		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId(), "g.close_reason_id": closeReasonId}).
+		Where(sq.Eq{"g.dc": rpc.Auth.GetDomainId(), "g.close_reason_id": closeReasonId}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)

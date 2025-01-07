@@ -185,8 +185,8 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 
 	t := time.Now()
 	searchOptions := model.SearchOptions{
-		IDs:     req.Id, // TODO check placholders in DB layer
-		Session: session,
+		IDs: req.Id, // TODO check placholders in DB layer
+		//Session: session,
 		Context: ctx,
 		Sort:    req.Sort,
 		Fields:  req.Fields,
@@ -194,6 +194,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Query != "" {

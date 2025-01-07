@@ -16,7 +16,7 @@ var defaultFieldsPriority = []string{
 	"id", "name", "description", "color",
 }
 
-var PriorityMetadata = model.NewObjectMetadata(
+var PriorityMetadata = model.NewObjectMetadata("dictionaries",
 	[]*model.Field{
 		{"id", true},
 		{"created_by", false},
@@ -100,8 +100,8 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 
 	t := time.Now()
 	searchOptions := model.SearchOptions{
-		IDs:     req.Id,
-		Session: session,
+		IDs: req.Id,
+		//Session: session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -109,6 +109,7 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Q != "" {

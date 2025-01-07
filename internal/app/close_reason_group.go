@@ -97,8 +97,8 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(ctx context.Context, req 
 	t := time.Now()
 
 	searchOptions := model.SearchOptions{
-		IDs:     req.Id,
-		Session: session,
+		IDs: req.Id,
+		//Session: session,
 		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
@@ -106,6 +106,7 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(ctx context.Context, req 
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Q != "" {

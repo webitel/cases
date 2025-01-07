@@ -151,15 +151,16 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 
 	t := time.Now()
 	searchOptions := model.SearchOptions{
-		Fields:  req.Fields,
-		IDs:     req.Id,
-		Session: session,
+		Fields: req.Fields,
+		IDs:    req.Id,
+		//Session: session,
 		Context: ctx,
 		Sort:    req.Sort,
 		Page:    int(page),
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Q != "" {

@@ -196,7 +196,7 @@ func (p *Priority) buildListPriorityQuery(
 
 	queryBuilder := sq.Select().
 		From("cases.priority AS cp").
-		Where(sq.Eq{"cp.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"cp.dc": rpc.Auth.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	// Add ID filter if provided

@@ -14,7 +14,7 @@ import (
 type SearchOptions struct {
 	Time time.Time
 	context.Context
-	Session *session.Session
+	//Session *session.Session
 	// filters
 	Filter   map[string]any
 	Search   string
@@ -30,6 +30,8 @@ type SearchOptions struct {
 	Sort []string
 	// filtering by single id
 	ID int64
+	// Auth opts
+	Auth Auther
 }
 
 func (s *SearchOptions) SearchDerivedOptionByField(field string) *SearchOptions {
@@ -67,11 +69,12 @@ type Fielder interface {
 func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMetadatter) *SearchOptions {
 	opts := &SearchOptions{
 		Context: ctx,
-		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
-		Page:    int(searcher.GetPage()),
-		Size:    int(searcher.GetSize()),
-		Search:  searcher.GetQ(),
-		Filter:  make(map[string]any),
+		//Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
+		Page:   int(searcher.GetPage()),
+		Size:   int(searcher.GetSize()),
+		Search: searcher.GetQ(),
+		Filter: make(map[string]any),
+		Auth:   NewDefaultAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), objMetadata.GetObjectName()),
 	}
 	// set current time
 	opts.CurrentTime()
@@ -94,10 +97,11 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMetadatter) *SearchOptions {
 	opts := &SearchOptions{
 		Context: ctx,
-		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
-		Time:    time.Now(),
-		Page:    1,
-		Size:    1,
+		//Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
+		Time: time.Now(),
+		Page: 1,
+		Size: 1,
+		Auth: NewDefaultAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), objMetadata.GetObjectName()),
 	}
 	// set current time
 	opts.CurrentTime()

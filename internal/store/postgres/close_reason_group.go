@@ -214,7 +214,7 @@ func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOpti
 
 	queryBuilder := sq.Select().
 		From("cases.close_reason_group AS g").
-		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"g.dc": rpc.Auth.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)

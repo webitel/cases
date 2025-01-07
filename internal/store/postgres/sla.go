@@ -236,7 +236,7 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 
 	queryBuilder := sq.Select().
 		From("cases.sla AS g").
-		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"g.dc": rpc.Auth.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)

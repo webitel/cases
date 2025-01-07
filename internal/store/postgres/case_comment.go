@@ -224,7 +224,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 	// Begin building the base query
 	queryBuilder := sq.Select().
 		From("cases.case_comment AS cc").
-		Where(sq.Eq{"cc.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"cc.dc": rpc.Auth.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	if rpc.ParentId != 0 {

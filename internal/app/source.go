@@ -101,14 +101,15 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 	}
 
 	searchOptions := model.SearchOptions{
-		IDs:     req.Id,
-		Session: session,
+		IDs: req.Id,
+		//Session: session,
 		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
 		Sort:    req.Sort,
 		Size:    int(req.Size),
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Q != "" {

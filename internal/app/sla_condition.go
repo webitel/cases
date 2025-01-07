@@ -159,15 +159,16 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 	searchOptions := model.SearchOptions{
 		ParentId: req.SlaId,
 		IDs:      req.Id,
-		Session:  session,
-		Fields:   fields,
-		Context:  ctx,
-		Sort:     req.Sort,
-		Page:     int(page),
-		Size:     int(req.Size),
-		Time:     t,
-		Filter:   make(map[string]interface{}),
-		ID:       req.PriorityId,
+		//Session:  session,
+		Fields:  fields,
+		Context: ctx,
+		Sort:    req.Sort,
+		Page:    int(page),
+		Size:    int(req.Size),
+		Time:    t,
+		Filter:  make(map[string]interface{}),
+		ID:      req.PriorityId,
+		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Q != "" {

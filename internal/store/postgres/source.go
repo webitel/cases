@@ -247,7 +247,7 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 
 	queryBuilder := sq.Select().
 		From("cases.source AS g").
-		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"g.dc": rpc.Auth.GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)

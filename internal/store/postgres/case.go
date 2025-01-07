@@ -569,7 +569,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 								(select value::int from call_center.system_settings s where s.domain_id = ? and s.name = 'search_number_length'),
 								 ?)+1 for ?)
 						 || '%%' )`, caseLeft),
-				searchNumber, opts.Session.GetDomainId(), len(searchNumber), len(searchNumber)),
+				searchNumber, opts.Auth.GetDomainId(), len(searchNumber), len(searchNumber)),
 			sq.Expr(fmt.Sprintf(`%s.reporter = ANY (SELECT contact_id
                         FROM contacts.contact_email ct_em
                         WHERE ct_em.email %s ?)`, caseLeft, operator),
@@ -645,7 +645,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		return base, nil, err
 	}
 
-	base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.Session.GetDomainId())
+	base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.Auth.GetDomainId())
 	// pagination
 	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	// sort
@@ -796,7 +796,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 
 	// Define SELECT query for returning updated fields
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		&model.SearchOptions{Size: -1, Fields: req.Fields, Session: req.Session, Time: req.Time},
+		&model.SearchOptions{Size: -1, Fields: req.Fields, Auth: model.NewDefaultAuthOptions(req.Session, "dictionaries"), Time: req.Time},
 		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
 	)
 	if err != nil {

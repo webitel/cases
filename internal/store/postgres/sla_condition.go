@@ -366,7 +366,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 
 	queryBuilder := sq.Select().
 		From("cases.sla_condition AS g").
-		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId(), "g.sla_id": rpc.ParentId}).
+		Where(sq.Eq{"g.dc": rpc.Auth.GetDomainId(), "g.sla_id": rpc.ParentId}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)

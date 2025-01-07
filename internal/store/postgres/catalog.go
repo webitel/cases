@@ -857,7 +857,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 
 	// Named parameters
 	params := map[string]interface{}{
-		"dc":     rpc.Session.GetDomainId(),
+		"dc":     rpc.Auth.GetDomainId(),
 		"limit":  rpc.GetSize() + 1,
 		"offset": (rpc.Page - 1) * rpc.Size,
 	}

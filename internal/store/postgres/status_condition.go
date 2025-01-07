@@ -214,7 +214,7 @@ func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc *model.CreateO
 func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOptions, statusId int64) (string, []interface{}, error) {
 	queryBuilder := sq.Select().
 		From("cases.status_condition AS s").
-		Where(sq.Eq{"s.dc": rpc.Session.GetDomainId(), "s.status_id": statusId}).
+		Where(sq.Eq{"s.dc": rpc.Auth.GetDomainId(), "s.status_id": statusId}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
