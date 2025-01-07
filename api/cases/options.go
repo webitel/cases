@@ -305,6 +305,71 @@ var WebitelAPI = WebitelServicesInfo{
 			},
 		},
 	},
+	"Sources": WebitelServices{
+		ObjClass:           "dictionaries",
+		AdditionalLicenses: []string{},
+		WebitelMethods: map[string]WebitelMethod{
+			"ListSources": WebitelMethod{
+				Access: 1,
+				Input:  "ListSourceRequest",
+				Output: "SourceList",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/sources",
+						Method: "GET",
+					},
+				},
+			},
+			"CreateSource": WebitelMethod{
+				Access: 0,
+				Input:  "CreateSourceRequest",
+				Output: "Source",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/sources",
+						Method: "POST",
+					},
+				},
+			},
+			"UpdateSource": WebitelMethod{
+				Access: 2,
+				Input:  "UpdateSourceRequest",
+				Output: "Source",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/sources/{id}",
+						Method: "PUT",
+					},
+					{
+						Path:   "/cases/sources/{id}",
+						Method: "PATCH",
+					},
+				},
+			},
+			"DeleteSource": WebitelMethod{
+				Access: 3,
+				Input:  "DeleteSourceRequest",
+				Output: "Source",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/sources/{id}",
+						Method: "DELETE",
+					},
+				},
+			},
+			"LocateSource": WebitelMethod{
+				Access: 1,
+				Input:  "LocateSourceRequest",
+				Output: "LocateSourceResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/sources/{id}",
+						Method: "GET",
+					},
+				},
+			},
+		},
+	},
 	"SLAConditions": WebitelServices{
 		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
@@ -821,71 +886,6 @@ var WebitelAPI = WebitelServicesInfo{
 				HttpBindings: []*HttpBinding{
 					{
 						Path:   "/cases/slas/{id}",
-						Method: "GET",
-					},
-				},
-			},
-		},
-	},
-	"Sources": WebitelServices{
-		ObjClass:           "dictionaries",
-		AdditionalLicenses: []string{},
-		WebitelMethods: map[string]WebitelMethod{
-			"ListSources": WebitelMethod{
-				Access: 1,
-				Input:  "ListSourceRequest",
-				Output: "SourceList",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/sources",
-						Method: "GET",
-					},
-				},
-			},
-			"CreateSource": WebitelMethod{
-				Access: 0,
-				Input:  "CreateSourceRequest",
-				Output: "Source",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/sources",
-						Method: "POST",
-					},
-				},
-			},
-			"UpdateSource": WebitelMethod{
-				Access: 2,
-				Input:  "UpdateSourceRequest",
-				Output: "Source",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/sources/{id}",
-						Method: "PUT",
-					},
-					{
-						Path:   "/cases/sources/{id}",
-						Method: "PATCH",
-					},
-				},
-			},
-			"DeleteSource": WebitelMethod{
-				Access: 3,
-				Input:  "DeleteSourceRequest",
-				Output: "Source",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/sources/{id}",
-						Method: "DELETE",
-					},
-				},
-			},
-			"LocateSource": WebitelMethod{
-				Access: 1,
-				Input:  "LocateSourceRequest",
-				Output: "LocateSourceResponse",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/sources/{id}",
 						Method: "GET",
 					},
 				},

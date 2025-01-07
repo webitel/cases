@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jackc/pgtype"
 	"strconv"
 	"strings"
 	"time"
@@ -865,7 +866,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Description
 			})
-		case "contact_group":
+		case "group":
 			base = base.Column(fmt.Sprintf(
 				"(SELECT ROW(g.id, g.name)::text FROM contacts.group g WHERE g.id = %s.contact_group) AS contact_group", caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
@@ -873,9 +874,82 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "source":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(src.id, src.name)::text FROM cases.source src WHERE src.id = %s.source) AS source", caseLeft))
+				"(SELECT ROW(src.id, src.name, src.type)::text FROM cases.source src WHERE src.id = %s.source) AS source", caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanRowLookup(&caseItem.Source)
+				return scanner.TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil // NULL
+					}
+					// pointer on pointer on source
+					if caseItem.Source == nil {
+						caseItem.Source = new(_go.SourceTypeLookup)
+					}
+
+					var (
+						ok  bool
+						str pgtype.Text
+						row = []pgtype.TextDecoder{
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								id, err := strconv.ParseInt(str.String, 10, 64)
+								if err != nil {
+									return err
+								}
+								caseItem.Source.Id = id
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								caseItem.Source.Name = str.String
+								ok = ok || (str.String != "" && str.String != "[deleted]") // && str.Status == pgtype.Present
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								for i, text := range _go.Type_name {
+									if text == str.String {
+										caseItem.Source.Type = _go.Type(i)
+										return nil
+									}
+								}
+								caseItem.Source.Type = _go.Type_TYPE_UNSPECIFIED
+								return nil
+							}),
+						}
+						raw = pgtype.NewCompositeTextScanner(nil, src)
+					)
+
+					var err error
+					for _, col := range row {
+
+						raw.ScanDecoder(col)
+
+						err = raw.Err()
+						if err != nil {
+							return err
+						}
+					}
+
+					return nil
+				})
 			})
 		case "planned_reaction_at":
 			base = base.Column(store.Ident(caseLeft, "planned_reaction_at"))
@@ -973,19 +1047,24 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Reporter)
 			})
+		case "contact_info":
+			base = base.Column(store.Ident(caseLeft, field))
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanText(&caseItem.ContactInfo)
+			})
 		case "impacted":
 			base = base.Column(fmt.Sprintf(
 				"(SELECT ROW(i.id, i.common_name)::text FROM contacts.contact i WHERE i.id = %s.impacted) AS impacted", caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Impacted)
 			})
-		case "sla_conditions":
+		case "sla_condition":
 			base = base.Column(`
 				(SELECT JSON_AGG(JSON_BUILD_OBJECT(
 					'id', sc.id,
 					'name', sc.name
 				)) FROM cases.sla_condition sc
-				WHERE sc.sla_id = c.sla) AS sla_conditions`)
+				WHERE sc.sla_id = c.sla AND sc.id = ANY(SELECT sla_condition_id FROM cases.priority_sla_condition WHERE priority_id = c.priority LIMIT 1)) AS sla_conditions`)
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanJSONToStructList(&caseItem.SlaCondition)
 			})
@@ -1090,7 +1169,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				}
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
-		case "related_cases":
+		case "related":
 			base = base.Column(fmt.Sprintf(`
 				(SELECT JSON_AGG(JSON_BUILD_OBJECT(
 					'id', rc.id, -- ID of the related_case record

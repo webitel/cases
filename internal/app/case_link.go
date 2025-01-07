@@ -34,6 +34,7 @@ var CaseLinkMetadata = model.NewObjectMetadata(
 	})
 
 func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkRequest) (*cases.CaseLink, error) {
+	// TODO: Case RBAC check
 	// Validate required fields
 	if req.Id == "" {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.check_args.etag", "Etag is required")
@@ -62,6 +63,7 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 }
 
 func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkRequest) (*cases.CaseLink, error) {
+	// TODO: Case RBAC check
 	// Validate request
 	if req.CaseId == "" {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.check_args.case_etag", "Case ID is required")
@@ -85,10 +87,14 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 }
 
 func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkRequest) (*cases.CaseLink, error) {
-	if req.GetId() == "" {
+	// TODO: Case RBAC check
+	if req.Input == nil {
+		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.input", "input required")
+	}
+	if req.Input.GetId() == "" {
 		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.id", "case ID required")
 	}
-	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetId())
+	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetInput().GetId())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
@@ -104,6 +110,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 }
 
 func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkRequest) (*cases.CaseLink, error) {
+	// TODO: Case RBAC check
 	if req.GetId() == "" {
 		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.id", "case ID required")
 	}
