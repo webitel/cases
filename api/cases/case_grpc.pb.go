@@ -29,21 +29,18 @@ const (
 // CasesClient is the client API for Cases service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Service definition for managing cases.
 type CasesClient interface {
+	// RPC method for searching cases.
 	SearchCases(ctx context.Context, in *SearchCasesRequest, opts ...grpc.CallOption) (*CaseList, error)
+	// RPC method to retrieve a specific case by its etag identifier.
 	LocateCase(ctx context.Context, in *LocateCaseRequest, opts ...grpc.CallOption) (*Case, error)
-	// on create, we should accept service and all parameters that correspond to it,
-	// priority have the fields that were directly set from the front-end and if they are empty we should
-	// fill them from service (we can't change the SLA and SLA conditions)
-	// etag doesn't play any role on this API
+	// RPC method for creating a new case.
 	CreateCase(ctx context.Context, in *CreateCaseRequest, opts ...grpc.CallOption) (*Case, error)
-	// on update, we should be able to accept service and all parameters that correspond to it,
-	// if service and corresponding to it fields were changed simultaneously then priority have
-	// service and dependent fields set from the service automatically (we can't change the SLA, SLA conditions )
-	// etag is required to update the true version of the case
+	// RPC method for updating an existing case.
 	UpdateCase(ctx context.Context, in *UpdateCaseRequest, opts ...grpc.CallOption) (*Case, error)
-	// on delete, we should require etag, to understand if user has right version of the case
-	// also will be deleted all objects connected to the case, such as comments, related cases, links and files
+	// RPC method for deleting an existing case by its etag.
 	DeleteCase(ctx context.Context, in *DeleteCaseRequest, opts ...grpc.CallOption) (*Case, error)
 }
 
@@ -108,21 +105,18 @@ func (c *casesClient) DeleteCase(ctx context.Context, in *DeleteCaseRequest, opt
 // CasesServer is the server API for Cases service.
 // All implementations must embed UnimplementedCasesServer
 // for forward compatibility.
+//
+// Service definition for managing cases.
 type CasesServer interface {
+	// RPC method for searching cases.
 	SearchCases(context.Context, *SearchCasesRequest) (*CaseList, error)
+	// RPC method to retrieve a specific case by its etag identifier.
 	LocateCase(context.Context, *LocateCaseRequest) (*Case, error)
-	// on create, we should accept service and all parameters that correspond to it,
-	// priority have the fields that were directly set from the front-end and if they are empty we should
-	// fill them from service (we can't change the SLA and SLA conditions)
-	// etag doesn't play any role on this API
+	// RPC method for creating a new case.
 	CreateCase(context.Context, *CreateCaseRequest) (*Case, error)
-	// on update, we should be able to accept service and all parameters that correspond to it,
-	// if service and corresponding to it fields were changed simultaneously then priority have
-	// service and dependent fields set from the service automatically (we can't change the SLA, SLA conditions )
-	// etag is required to update the true version of the case
+	// RPC method for updating an existing case.
 	UpdateCase(context.Context, *UpdateCaseRequest) (*Case, error)
-	// on delete, we should require etag, to understand if user has right version of the case
-	// also will be deleted all objects connected to the case, such as comments, related cases, links and files
+	// RPC method for deleting an existing case by its etag.
 	DeleteCase(context.Context, *DeleteCaseRequest) (*Case, error)
 	mustEmbedUnimplementedCasesServer()
 }

@@ -435,6 +435,73 @@ var WebitelAPI = WebitelServicesInfo{
 			},
 		},
 	},
+	"CaseCommunications": WebitelServices{
+		ObjClass:           "cases",
+		AdditionalLicenses: []string{},
+		WebitelMethods: map[string]WebitelMethod{
+			"LinkCommunication": WebitelMethod{
+				Access: 1,
+				Input:  "LinkCommunicationRequest",
+				Output: "LinkCommunicationResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_id}/communication",
+						Method: "POST",
+					},
+				},
+			},
+			"UnlinkCommunication": WebitelMethod{
+				Access: 2,
+				Input:  "UnlinkCommunicationRequest",
+				Output: "UnlinkCommunicationResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_id}/communication/{id}",
+						Method: "DELETE",
+					},
+				},
+			},
+			"ListCommunications": WebitelMethod{
+				Access: 1,
+				Input:  "ListCommunicationsRequest",
+				Output: "ListCommunicationsResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_id}/communication",
+						Method: "GET",
+					},
+				},
+			},
+		},
+	},
+	"CaseTimeline": WebitelServices{
+		ObjClass:           "cases",
+		AdditionalLicenses: []string{},
+		WebitelMethods: map[string]WebitelMethod{
+			"GetTimeline": WebitelMethod{
+				Access: 1,
+				Input:  "GetTimelineRequest",
+				Output: "GetTimelineResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_etag}/timeline",
+						Method: "GET",
+					},
+				},
+			},
+			"GetTimelineCounter": WebitelMethod{
+				Access: 1,
+				Input:  "GetTimelineCounterRequest",
+				Output: "GetTimelineCounterResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_etag}/timeline/counter",
+						Method: "GET",
+					},
+				},
+			},
+		},
+	},
 	"Catalogs": WebitelServices{
 		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},

@@ -270,7 +270,6 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 	return nil
 }
 
-
 func NewRelatedCaseService(app *App) (*RelatedCaseService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewBadRequestError("app.case.new_related_case_service.check_args.app", "unable to init service, app is nil")
