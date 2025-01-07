@@ -341,7 +341,8 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 		Set("ver", sq.Expr("ver + 1")). // Increment version
 		// input.Etag == input.ID
 		Where(sq.Eq{
-			"id":         input.Id,
+			"id":         rpc.Etags[0].GetOid(),
+			"ver":        rpc.Etags[0].GetVer(),
 			"dc":         rpc.Session.GetDomainId(),
 			"created_by": rpc.Session.GetUserId(), // Ensure only the creator can edit
 		})

@@ -215,6 +215,95 @@ func ScanRowExtendedLookup(value **_go.ExtendedLookup) any {
 	})
 }
 
+// ScanRelatedCaseLookup is specifically designed for scanning related cases with id, name, subject, and ver fields.
+func ScanRelatedCaseLookup(value **_go.RelatedCaseLookup) any {
+	return TextDecoder(func(src []byte) error {
+		res := *(value)
+		*(value) = nil
+
+		if len(src) == 0 {
+			return nil // NULL
+		}
+
+		if res == nil {
+			res = new(_go.RelatedCaseLookup)
+		}
+
+		var (
+			ok  bool
+			str pgtype.Text
+			row = []pgtype.TextDecoder{
+				TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
+					err := str.DecodeText(nil, src)
+					if err != nil {
+						return err
+					}
+					res.Id = str.String
+					return nil
+				}),
+				TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
+					err := str.DecodeText(nil, src)
+					if err != nil {
+						return err
+					}
+					res.Name = str.String
+					ok = ok || (str.String != "" && str.String != "[deleted]")
+					return nil
+				}),
+				TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
+					err := str.DecodeText(nil, src)
+					if err != nil {
+						return err
+					}
+					res.Subject = str.String
+					ok = ok || (str.String != "" && str.String != "[deleted]")
+					return nil
+				}),
+				TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
+					err := str.DecodeText(nil, src)
+					if err != nil {
+						return err
+					}
+					ver, parseErr := strconv.Atoi(str.String)
+					if parseErr != nil {
+						return parseErr
+					}
+					res.Ver = int32(ver)
+					return nil
+				}),
+			}
+			raw = pgtype.NewCompositeTextScanner(nil, src)
+		)
+
+		var err error
+		for _, col := range row {
+			raw.ScanDecoder(col)
+			err = raw.Err()
+			if err != nil {
+				return err
+			}
+		}
+
+		if ok {
+			*(value) = res
+		}
+
+		return nil
+	})
+}
+
 func ScanLookupList(value *[]*_go.Lookup) any {
 	return TextDecoder(func(src []byte) error {
 		if len(src) == 0 {

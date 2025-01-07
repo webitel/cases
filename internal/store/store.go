@@ -19,6 +19,7 @@ type Store interface {
 	CaseFile() CaseFileStore
 	CaseTimeline() CaseTimelineStore
 	CaseCommunication() CaseCommunicationStore
+	RelatedCase() RelatedCaseStore
 
 	// ------------ Dictionary Stores ------------ //
 	Source() SourceStore
@@ -101,6 +102,17 @@ type CaseCommunicationStore interface {
 type CaseFileStore interface {
 	// List files
 	List(rpc *model.SearchOptions) (*_go.CaseFileList, error)
+}
+
+type RelatedCaseStore interface {
+	// Create relation
+	Create(rpc *model.CreateOptions, relation *_go.RelationType) (*_go.RelatedCase, error)
+	// List related cases
+	List(rpc *model.SearchOptions) (*_go.RelatedCaseList, error)
+	// Update relation
+	Update(req *model.UpdateOptions, upd *_go.InputRelatedCase) (*_go.RelatedCase, error)
+	// Delete relation
+	Delete(req *model.DeleteOptions) error
 }
 
 // ------------Access Control------------//
@@ -203,7 +215,7 @@ type CatalogStore interface {
 	// Create a new catalog
 	Create(rpc *model.CreateOptions, add *_go.Catalog) (*_go.Catalog, error)
 	// List catalogs
-	List(rpc *model.SearchOptions, depth int64, fetchType *_go.FetchType) (*_go.CatalogList, error)
+	List(rpc *model.SearchOptions, depth int64, subfields []string) (*_go.CatalogList, error)
 	// Delete catalog
 	Delete(rpc *model.DeleteOptions) error
 	// Update catalog
