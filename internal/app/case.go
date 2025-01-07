@@ -78,7 +78,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
 	searchOpts := model.NewLocateOptions(ctx, req, CaseMetadata)
-	id, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
+	id, err := util.ParseIds([]string{req.GetId()}, etag.EtagCase)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
 	}
@@ -176,10 +176,9 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		return nil, err
 	}
-
+	id, _ := strconv.Atoi(newCase.Id)
 	// Encode etag from the case ID and version
-	etag := etag.EncodeEtag(etag.EtagCaseComment, newCase.Id, newCase.Ver)
-	newCase.Etag = etag
+	newCase.Id = etag.EncodeEtag(etag.EtagCaseComment, int64(id), newCase.Ver)
 	userId := createOpts.Session.GetUserId()
 
 	// Publish an event to RabbitMQ
@@ -187,7 +186,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		"action":    "CreateCase",
 		"user":      userId,
 		"case_id":   newCase.Id,
-		"case_etag": etag,
+		"case_etag": newCase.Id,
 		"case_ver":  newCase.Ver,
 		"case_name": newCase.Name,
 	}
@@ -218,7 +217,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, appErr
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Input.Etag)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Id)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
@@ -226,7 +225,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	updateOpts := model.NewUpdateOptions(ctx, req, CaseMetadata)
 
 	upd := &cases.Case{
-		Id:               tag.GetOid(),
+		Id:               strconv.Itoa(int(tag.GetOid())),
 		Ver:              tag.GetVer(),
 		Subject:          req.Input.Subject,
 		Description:      req.Input.Description,
@@ -259,13 +258,13 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 }
 
 func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseRequest) (*cases.Case, error) {
-	if req.Etag == "" {
+	if req.Id == "" {
 		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
 	}
 
 	deleteOpts := model.NewDeleteOptions(ctx)
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Etag)
+	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Id)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case.delete_case.invalid_etag", "Invalid etag")
 	}
@@ -289,7 +288,7 @@ func (c *CaseService) ValidateUpdateInput(
 	input *cases.InputCase,
 	xJsonMask []string,
 ) cerror.AppError {
-	if input.Etag == "" {
+	if input.Id == "" {
 		return cerror.NewBadRequestError("app.case.update_case.etag_required", "Etag is required")
 	}
 
@@ -375,9 +374,10 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
-	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
+
 	for _, item := range res.Items {
-		util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
+		id, _ := strconv.Atoi(item.Id)
+		item.Id = etag.EncodeEtag(etag.EtagCase, int64(id), item.Ver)
 		if item.Reporter == nil && util.ContainsField(fields, "reporter") {
 			item.Reporter = &cases.Lookup{
 				Name: AnonymousName,
@@ -397,7 +397,8 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 			for _, item := range res.Items {
 				if item.Links != nil {
 					for _, link := range item.Links.Items {
-						util.NormalizeEtags(etag.EtagCaseLink, true, false, false, &link.Etag, &link.Id, &link.Ver)
+						id, _ := strconv.Atoi(link.Id)
+						item.Id = etag.EncodeEtag(etag.EtagCaseLink, int64(id), link.Ver)
 					}
 				}
 			}
@@ -420,7 +421,9 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
-	util.NormalizeEtag(fields, &re.Etag, &re.Id, &re.Ver)
+
+	id, _ := strconv.Atoi(re.Id)
+	re.Id = etag.EncodeEtag(etag.EtagCase, int64(id), re.Ver)
 
 	if re.Reporter == nil && util.ContainsField(fields, "reporter") {
 		re.Reporter = &cases.Lookup{

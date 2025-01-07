@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	authmodel "github.com/webitel/cases/auth/model"
 
@@ -290,6 +291,8 @@ func (c *CaseCommentStore) Update(
 		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.database_connection_error", dbErr)
 	}
 
+	id, _ := strconv.Atoi(upd.Id)
+
 	// Build the update query
 	queryBuilder, plan, err := c.BuildUpdateCaseCommentSqlizer(
 		rpc,
@@ -298,7 +301,7 @@ func (c *CaseCommentStore) Update(
 			Id   int64
 		}{
 			Text: upd.Text,
-			Id:   upd.Id,
+			Id:   int64(id),
 		})
 	if err != nil {
 		return nil, err

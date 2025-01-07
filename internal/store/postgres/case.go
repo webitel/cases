@@ -672,8 +672,10 @@ func (c *CaseStore) Update(
 	defer tx.Rollback(rpc.Context)
 	txManager := store.NewTxManager(tx)
 
+	id, _ := strconv.Atoi(upd.Id)
+
 	// Scan the current version of the comment
-	ver, verErr := c.ScanVer(rpc.Context, upd.Id, txManager)
+	ver, verErr := c.ScanVer(rpc.Context, int64(id), txManager)
 	if verErr != nil {
 		return nil, verErr
 	}
