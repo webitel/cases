@@ -309,7 +309,7 @@ FROM inserted_service
 // Helper method to build the delete query for Service
 func (s *ServiceStore) buildDeleteServiceQuery(rpc *model.DeleteOptions) (string, []interface{}) {
 	query := `
-		DELETE FROM cases.service
+		DELETE FROM cases.service_catalog
 		WHERE id = ANY($1) AND dc = $2
 	`
 	args := []interface{}{

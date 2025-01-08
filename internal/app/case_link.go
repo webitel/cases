@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"strconv"
+
 	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -19,26 +21,26 @@ type CaseLinkService struct {
 
 var CaseLinkMetadata = model.NewObjectMetadata(
 	[]*model.Field{
-		{"etag", true},
-		{"id", false},
-		{"ver", false},
-		{"created_by", true},
-		{"created_at", true},
-		{"updated_by", false},
-		{"updated_at", false},
-		{"author", true},
-		{"name", true},
-		{"url", true},
-		{"case_id", false},
+		{Name: "id", Default: true},
+		{Name: "ver", Default: true},
+		{Name: "created_by", Default: true},
+		{Name: "created_at", Default: true},
+		{Name: "updated_by", Default: false},
+		{Name: "updated_at", Default: false},
+		{Name: "author", Default: true},
+		{Name: "name", Default: true},
+		{Name: "url", Default: true},
+		{Name: "case_id", Default: false},
 	})
 
 func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkRequest) (*cases.CaseLink, error) {
+	// TODO: Case RBAC check
 	// Validate required fields
-	if req.Etag == "" {
+	if req.Id == "" {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.check_args.etag", "Etag is required")
 	}
 
-	etg, err := etag.EtagOrId(etag.EtagCaseLink, req.Etag)
+	etg, err := etag.EtagOrId(etag.EtagCaseLink, req.Id)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
@@ -61,14 +63,14 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 }
 
 func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkRequest) (*cases.CaseLink, error) {
-
+	// TODO: Case RBAC check
 	// Validate request
-	if req.CaseEtag == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.check_args.case_etag", "Case etag is required")
+	if req.CaseId == "" {
+		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.check_args.case_etag", "Case ID is required")
 	} else if req.Input.GetUrl() == "" {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.check_args.url", "Url is required for each link")
 	}
-	caseTID, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
+	caseTID, err := etag.EtagOrId(etag.EtagCase, req.CaseId)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
@@ -85,10 +87,14 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 }
 
 func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkRequest) (*cases.CaseLink, error) {
-	if req.GetEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.etag", "case etag required")
+	// TODO: Case RBAC check
+	if req.Input == nil {
+		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.input", "input required")
 	}
-	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetEtag())
+	if req.Input.GetId() == "" {
+		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.id", "case ID required")
+	}
+	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetInput().GetId())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
@@ -104,10 +110,11 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 }
 
 func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkRequest) (*cases.CaseLink, error) {
-	if req.GetEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.etag", "case etag required")
+	// TODO: Case RBAC check
+	if req.GetId() == "" {
+		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.id", "case ID required")
 	}
-	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetEtag())
+	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetId())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
@@ -123,11 +130,11 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 
 func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksRequest) (*cases.CaseLinkList, error) {
 	// Validate required fields
-	if req.GetCaseEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.list.case_etag.check_args.etag", "case etag is required")
+	if req.GetCaseId() == "" {
+		return nil, cerror.NewBadRequestError("app.case_link.list.case_etag.check_args.id", "case ID is required")
 	}
 
-	etg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
+	etg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseId())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
@@ -148,7 +155,7 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 
 	NormalizeResponseLinks(links, req.GetFields())
 
-	//Return the located comment
+	// Return the located comment
 	return links, nil
 }
 
@@ -164,12 +171,13 @@ func NormalizeResponseLink(res *cases.CaseLink, opts model.Fielder) {
 	if len(opts.GetFields()) == 0 {
 		fields = CaseLinkMetadata.GetDefaultFields()
 	}
-	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
-	if hasEtag {
-		res.Etag = etag.EncodeEtag(etag.EtagCaseLink, res.Id, res.Ver)
+	_, hasId, hasVer := util.FindEtagFields(fields)
+	if hasId {
+		id, _ := strconv.Atoi(res.Id)
+		res.Id = etag.EncodeEtag(etag.EtagCaseLink, int64(id), res.Ver)
 		// hide
 		if !hasId {
-			res.Id = 0
+			res.Id = ""
 		}
 		if !hasVer {
 			res.Ver = 0
@@ -183,13 +191,14 @@ func NormalizeResponseLinks(res *cases.CaseLinkList, requestedFields []string) {
 	if len(fields) == 0 {
 		fields = CaseLinkMetadata.GetDefaultFields()
 	}
-	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
+	_, hasId, hasVer := util.FindEtagFields(fields)
 	for _, re := range res.Items {
-		if hasEtag {
-			re.Etag = etag.EncodeEtag(etag.EtagCaseLink, re.Id, re.Ver)
+		if hasId {
+			id, _ := strconv.Atoi(re.Id)
+			re.Id = etag.EncodeEtag(etag.EtagCaseLink, int64(id), re.Ver)
 			// hide
 			if !hasId {
-				re.Id = 0
+				re.Id = ""
 			}
 			if !hasVer {
 				re.Ver = 0

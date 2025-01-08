@@ -14,11 +14,13 @@ import (
 // Store is the struct implementing the Store interface.
 type Store struct {
 	//------------cases stores ------------ ----//
-	caseStore        store.CaseStore
-	linkCaseStore    store.CaseLinkStore
-	caseCommentStore store.CaseCommentStore
-	caseFileStore    store.CaseFileStore
-	relatedCaseStore store.RelatedCaseStore
+	caseStore              store.CaseStore
+	linkCaseStore          store.CaseLinkStore
+	caseCommentStore       store.CaseCommentStore
+	caseFileStore          store.CaseFileStore
+	caseTimelineStore      store.CaseTimelineStore
+	caseCommunicationStore store.CaseCommunicationStore
+	relatedCaseStore       store.RelatedCaseStore
 	//----------dictionary stores ------------ //
 	sourceStore           store.SourceStore
 	statusStore           store.StatusStore
@@ -56,7 +58,7 @@ func (s *Store) Case() store.CaseStore {
 
 func (s *Store) CaseLink() store.CaseLinkStore {
 	if s.linkCaseStore == nil {
-		linkCase, err := NewLinkCaseStore(s)
+		linkCase, err := NewCaseLinkStore(s)
 		if err != nil {
 			return nil
 		}
@@ -87,6 +89,27 @@ func (s *Store) CaseFile() store.CaseFileStore {
 	return s.caseFileStore
 }
 
+func (s *Store) CaseTimeline() store.CaseTimelineStore {
+	if s.caseTimelineStore == nil {
+		caseTimeline, err := NewCaseTimelineStore(s)
+		if err != nil {
+			return nil
+		}
+		s.caseTimelineStore = caseTimeline
+	}
+	return s.caseTimelineStore
+}
+
+func (s *Store) CaseCommunication() store.CaseCommunicationStore {
+	if s.caseCommunicationStore == nil {
+		caseCommunication, err := NewCaseCommunicationStore(s)
+		if err != nil {
+			return nil
+		}
+		s.caseCommunicationStore = caseCommunication
+	}
+	return s.caseCommunicationStore
+}
 func (s *Store) RelatedCase() store.RelatedCaseStore {
 	if s.relatedCaseStore == nil {
 		relatedCase, err := NewRelatedCaseStore(s)

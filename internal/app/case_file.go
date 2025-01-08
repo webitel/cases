@@ -27,10 +27,10 @@ var CaseFileMetadata = model.NewObjectMetadata(
 	})
 
 func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesRequest) (*cases.CaseFileList, error) {
-	if req.CaseEtag == "" {
+	if req.CaseId == "" {
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.case_etag_required", "Case Etag is required")
 	}
-	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseId)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
 	}
