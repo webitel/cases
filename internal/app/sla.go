@@ -166,7 +166,7 @@ func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
+		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Q != "" {

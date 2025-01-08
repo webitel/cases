@@ -130,12 +130,12 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_create_case_communication_sqlizer.check_args.case_id", "case id required")
 	}
 	insert := squirrel.Insert(c.mainTable).Columns("created_by", "created_at", "dc", "communication_type", "communication_id", "case_id").Suffix("ON CONFLICT DO NOTHING RETURNING *")
-	session := options.Session
+	session := options.GetAuthOpts()
 	dc := session.GetDomainId()
 	userId := session.GetUserId()
-	roles := session.GetAclRoles()
+	roles := session.GetRoles()
 	caseId := options.ParentID
-	callsRbac := session.GetScope("calls").IsRbacUsed()
+	callsRbac := session.GetObjectScope("calls").IsRbacUsed()
 
 	for _, communication := range communications {
 		switch communication.CommunicationType {

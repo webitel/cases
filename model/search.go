@@ -11,6 +11,31 @@ import (
 	session "github.com/webitel/cases/auth/model"
 )
 
+func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMetadatter) *SearchOptions {
+	opts := &SearchOptions{
+		Context: ctx,
+		Page:    int(searcher.GetPage()),
+		Size:    int(searcher.GetSize()),
+		Search:  searcher.GetQ(),
+		Filter:  make(map[string]any),
+	}
+	// set current time
+	opts.CurrentTime()
+	// normalize fields
+	var resultingFields []string
+	if requestedFields := searcher.GetFields(); len(requestedFields) == 0 {
+		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
+		copy(resultingFields, objMetadata.GetDefaultFields())
+	} else {
+		resultingFields = util.FieldsFunc(
+			requestedFields, graph.SplitFieldsQ,
+		)
+	}
+	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
+	opts.Fields = util.ParseFieldsForEtag(resultingFields)
+	return opts
+}
+
 type SearchOptions struct {
 	Time time.Time
 	context.Context
@@ -43,88 +68,14 @@ func (s *SearchOptions) SearchDerivedOptionByField(field string) *SearchOptions 
 	return nil
 }
 
-type Lister interface {
-	Fielder
-	Pager
-	Searcher
+func (s *SearchOptions) SetAuthOpts(a Auther) *SearchOptions {
+	s.Auth = a
+	return s
 }
 
-type Sorter interface {
-	GetSort() []string
+func (s *SearchOptions) GetAuthOpts() Auther {
+	return s.Auth
 }
-
-type Pager interface {
-	GetPage() int32
-	GetSize() int32
-}
-
-type Searcher interface {
-	GetQ() string
-}
-
-type Fielder interface {
-	GetFields() []string
-}
-
-func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMetadatter) *SearchOptions {
-	opts := &SearchOptions{
-		Context: ctx,
-		//Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
-		Page:   int(searcher.GetPage()),
-		Size:   int(searcher.GetSize()),
-		Search: searcher.GetQ(),
-		Filter: make(map[string]any),
-		Auth:   NewDefaultAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), objMetadata.GetObjectName()),
-	}
-	// set current time
-	opts.CurrentTime()
-
-	// normalize fields
-	var resultingFields []string
-	if requestedFields := searcher.GetFields(); len(requestedFields) == 0 {
-		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
-		copy(resultingFields, objMetadata.GetDefaultFields())
-	} else {
-		resultingFields = util.FieldsFunc(
-			requestedFields, graph.SplitFieldsQ,
-		)
-	}
-	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
-	opts.Fields = util.ParseFieldsForEtag(resultingFields)
-	return opts
-}
-
-func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMetadatter) *SearchOptions {
-	opts := &SearchOptions{
-		Context: ctx,
-		//Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
-		Time: time.Now(),
-		Page: 1,
-		Size: 1,
-		Auth: NewDefaultAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), objMetadata.GetObjectName()),
-	}
-	// set current time
-	opts.CurrentTime()
-
-	// normalize fields
-	var resultingFields []string
-	if requestedFields := locator.GetFields(); len(requestedFields) == 0 {
-		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
-		copy(resultingFields, objMetadata.GetDefaultFields())
-	} else {
-		resultingFields = util.FieldsFunc(
-			requestedFields, graph.SplitFieldsQ,
-		)
-	}
-	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
-	opts.Fields = util.ParseFieldsForEtag(resultingFields)
-	return opts
-}
-
-// DeafaultSearchSize is a constant integer == 16.
-const (
-	DefaultSearchSize = 10
-)
 
 func (rpc *SearchOptions) GetSize() int {
 	if rpc == nil {
@@ -170,3 +121,58 @@ func (rpc *SearchOptions) CurrentTime() time.Time {
 	}
 	return ts
 }
+
+type Lister interface {
+	Fielder
+	Pager
+	Searcher
+}
+
+type Sorter interface {
+	GetSort() []string
+}
+
+type Pager interface {
+	GetPage() int32
+	GetSize() int32
+}
+
+type Searcher interface {
+	GetQ() string
+}
+
+type Fielder interface {
+	GetFields() []string
+}
+
+func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMetadatter) *SearchOptions {
+	opts := &SearchOptions{
+		Context: ctx,
+		//Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
+		Time: time.Now(),
+		Page: 1,
+		Size: 1,
+		Auth: NewSessionAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), objMetadata.GetObjectName()),
+	}
+	// set current time
+	opts.CurrentTime()
+
+	// normalize fields
+	var resultingFields []string
+	if requestedFields := locator.GetFields(); len(requestedFields) == 0 {
+		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
+		copy(resultingFields, objMetadata.GetDefaultFields())
+	} else {
+		resultingFields = util.FieldsFunc(
+			requestedFields, graph.SplitFieldsQ,
+		)
+	}
+	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
+	opts.Fields = util.ParseFieldsForEtag(resultingFields)
+	return opts
+}
+
+// DeafaultSearchSize is a constant integer == 16.
+const (
+	DefaultSearchSize = 10
+)

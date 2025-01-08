@@ -15,6 +15,7 @@ import (
 type CatalogService struct {
 	app *App
 	cases.UnimplementedCatalogsServer
+	objClassName string
 }
 
 const (
@@ -89,7 +90,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 
 	// Define create options
 	createOpts := model.CreateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
 		Context: ctx,
 		Time:    t,
 	}
@@ -123,7 +124,7 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 
 	t := time.Now()
 	deleteOpts := model.DeleteOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 		Context: ctx,
 		IDs:     req.Id,
 		Time:    t,
@@ -184,7 +185,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 	}
 
 	t := time.Now()
-	searchOptions := model.SearchOptions{
+	searchOptions := &model.SearchOptions{
 		IDs: req.Id, // TODO check placholders in DB layer
 		//Session: session,
 		Context: ctx,
@@ -194,15 +195,15 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
 	}
+	searchOptions = searchOptions.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
 
 	if req.Query != "" {
 		searchOptions.Filter["name"] = req.Query
 		req.Fields = append(req.Fields, "searched")
 	}
 
-	catalogs, e := s.app.Store.Catalog().List(&searchOptions, req.Depth, req.SubFields)
+	catalogs, e := s.app.Store.Catalog().List(searchOptions, req.Depth, req.SubFields)
 	if e != nil {
 		return nil, cerror.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
 	}
@@ -335,7 +336,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 
 	// Build update options
 	updateOpts := model.UpdateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
@@ -355,5 +356,5 @@ func NewCatalogService(app *App) (*CatalogService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewInternalError("api.config.new_catalog.args_check.app_nil", "internal is nil")
 	}
-	return &CatalogService{app: app}, nil
+	return &CatalogService{app: app, objClassName: "dictionaries"}, nil
 }

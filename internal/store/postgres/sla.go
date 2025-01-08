@@ -205,16 +205,16 @@ func (s SLAStore) buildCreateSLAQuery(rpc *model.CreateOptions, sla *cases.SLA) 
 
 	query := createSLAQuery
 	args := []interface{}{
-		sla.Name,                  // $1 name
-		rpc.Session.GetDomainId(), // $2 dc
-		rpc.Time,                  // $3 created_at
-		sla.Description,           // $4 description
-		rpc.Session.GetUserId(),   // $5 created_by
-		validFrom,                 // $6 valid_from
-		validTo,                   // $7 valid_to
-		sla.Calendar.Id,           // $8 calendar_id
-		sla.ReactionTime,          // $9 reaction_time
-		sla.ResolutionTime,        // $10 resolution_time
+		sla.Name,                        // $1 name
+		rpc.GetAuthOpts().GetDomainId(), // $2 dc
+		rpc.Time,                        // $3 created_at
+		sla.Description,                 // $4 description
+		rpc.GetAuthOpts().GetUserId(),   // $5 created_by
+		validFrom,                       // $6 valid_from
+		validTo,                         // $7 valid_to
+		sla.Calendar.Id,                 // $8 calendar_id
+		sla.ReactionTime,                // $9 reaction_time
+		sla.ResolutionTime,              // $10 resolution_time
 	}
 	return query, args, nil
 }
@@ -225,7 +225,7 @@ func (s SLAStore) buildDeleteSLAQuery(rpc *model.DeleteOptions) (string, []inter
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	query := deleteSLAQuery
-	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
+	args := []interface{}{pq.Array(ids), rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
 }
 
@@ -236,7 +236,7 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 
 	queryBuilder := sq.Select().
 		From("cases.sla AS g").
-		Where(sq.Eq{"g.dc": rpc.Auth.GetDomainId()}).
+		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
@@ -327,7 +327,7 @@ func (s SLAStore) buildUpdateSLAQuery(rpc *model.UpdateOptions, l *cases.SLA) (s
 	// Create a Squirrel update builder
 	updateBuilder := psql.Update("cases.sla").
 		Set("updated_at", rpc.Time).
-		Set("updated_by", rpc.Session.GetUserId())
+		Set("updated_by", rpc.GetAuthOpts().GetUserId())
 
 	// Convert the valid from and valid to timestamps to local time
 	validFrom := util.LocalTime(l.ValidFrom)
@@ -365,7 +365,7 @@ func (s SLAStore) buildUpdateSLAQuery(rpc *model.UpdateOptions, l *cases.SLA) (s
 	}
 
 	// Add the WHERE clause for id and dc
-	updateBuilder = updateBuilder.Where(sq.Eq{"id": l.Id, "dc": rpc.Session.GetDomainId()})
+	updateBuilder = updateBuilder.Where(sq.Eq{"id": l.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Build the SQL string and the arguments slice
 	sql, args, err := updateBuilder.ToSql()

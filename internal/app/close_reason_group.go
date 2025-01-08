@@ -15,6 +15,7 @@ import (
 type CloseReasonGroupService struct {
 	app *App
 	_go.UnimplementedCloseReasonGroupsServer
+	objClassName string
 }
 
 func (s CloseReasonGroupService) CreateCloseReasonGroup(ctx context.Context, req *_go.CreateCloseReasonGroupRequest) (*_go.CloseReasonGroup, error) {
@@ -54,15 +55,16 @@ func (s CloseReasonGroupService) CreateCloseReasonGroup(ctx context.Context, req
 	t := time.Now()
 
 	// Define create options
-	createOpts := model.CreateOptions{
-		Session: session,
+	createOpts := &model.CreateOptions{
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
 	}
 
+	createOpts = createOpts.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
+
 	// Create the close reason group in the store
-	l, e := s.app.Store.CloseReasonGroup().Create(&createOpts, lookup)
+	l, e := s.app.Store.CloseReasonGroup().Create(createOpts, lookup)
 	if e != nil {
 		return nil, cerror.NewInternalError("close_reason_group_service.create_close_reason_group.store.create.failed", e.Error())
 	}
@@ -96,7 +98,7 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(ctx context.Context, req 
 
 	t := time.Now()
 
-	searchOptions := model.SearchOptions{
+	searchOptions := &model.SearchOptions{
 		IDs: req.Id,
 		//Session: session,
 		Fields:  fields,
@@ -106,14 +108,14 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(ctx context.Context, req 
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
 	}
+	searchOptions = searchOptions.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
 	}
 
-	lookups, e := s.app.Store.CloseReasonGroup().List(&searchOptions)
+	lookups, e := s.app.Store.CloseReasonGroup().List(searchOptions)
 	if e != nil {
 		return nil, cerror.NewInternalError("close_reason_group_service.list_close_reason_groups.store.list.failed", e.Error())
 	}
@@ -170,15 +172,16 @@ func (s CloseReasonGroupService) UpdateCloseReasonGroup(ctx context.Context, req
 	t := time.Now()
 
 	// Define update options
-	updateOpts := model.UpdateOptions{
-		Session: session,
+	updateOpts := &model.UpdateOptions{
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
 	}
 
+	updateOpts = updateOpts.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
+
 	// Update the lookup in the store
-	l, e := s.app.Store.CloseReasonGroup().Update(&updateOpts, lookup)
+	l, e := s.app.Store.CloseReasonGroup().Update(updateOpts, lookup)
 	if e != nil {
 		return nil, cerror.NewInternalError("close_reason_group_service.update_close_reason_group.store.update.failed", e.Error())
 	}
@@ -206,15 +209,16 @@ func (s CloseReasonGroupService) DeleteCloseReasonGroup(ctx context.Context, req
 
 	t := time.Now()
 	// Define delete options
-	deleteOpts := model.DeleteOptions{
-		Session: session,
+	deleteOpts := &model.DeleteOptions{
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,
 	}
 
+	deleteOpts = deleteOpts.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
+
 	// Delete the lookup in the store
-	e := s.app.Store.CloseReasonGroup().Delete(&deleteOpts)
+	e := s.app.Store.CloseReasonGroup().Delete(deleteOpts)
 	if e != nil {
 		return nil, cerror.NewInternalError("close_reason_group_service.delete_close_reason_group.store.delete.failed", e.Error())
 	}
@@ -256,5 +260,5 @@ func NewCloseReasonGroupsService(app *App) (*CloseReasonGroupService, cerror.App
 		return nil, cerror.NewInternalError("api.config.new_close_reason_group_service.args_check.app_nil", "internal is nil")
 	}
 
-	return &CloseReasonGroupService{app: app}, nil
+	return &CloseReasonGroupService{app: app, objClassName: "dictionaries"}, nil
 }

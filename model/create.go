@@ -12,7 +12,7 @@ import (
 )
 
 type CreateOptions struct {
-	Session         *session.Session
+	//Session         *session.Session
 	context.Context // binding
 	Time            time.Time
 	// output
@@ -25,6 +25,16 @@ type CreateOptions struct {
 	ParentID int64
 	// ChildID is the attribute to represent child object, that creation process connect
 	ChildID int64
+	Auth    Auther
+}
+
+func (s *CreateOptions) SetAuthOpts(a Auther) *CreateOptions {
+	s.Auth = a
+	return s
+}
+
+func (s *CreateOptions) GetAuthOpts() Auther {
+	return s.Auth
 }
 
 type Creator interface {
@@ -43,7 +53,7 @@ func (rpc *CreateOptions) CurrentTime() time.Time {
 func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMetadatter) *CreateOptions {
 	createOpts := &CreateOptions{
 		Context: ctx,
-		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
+		Auth:    NewSessionAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), objMetadata.GetObjectName()),
 	}
 
 	// set current time

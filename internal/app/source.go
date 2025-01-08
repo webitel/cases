@@ -109,7 +109,7 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 		Sort:    req.Sort,
 		Size:    int(req.Size),
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
+		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Q != "" {

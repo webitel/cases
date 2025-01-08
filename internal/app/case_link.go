@@ -45,7 +45,7 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
 
-	searchOpts := model.NewLocateOptions(ctx, req, CaseLinkMetadata)
+	searchOpts := model.NewLocateOptions(ctx, req, CaseLinkMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
 	searchOpts.IDs = []int64{etg.GetOid()}
 
 	links, err := c.app.Store.CaseLink().List(searchOpts)
@@ -75,7 +75,7 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, CaseLinkMetadata)
+	createOpts := model.NewCreateOptions(ctx, req, CaseLinkMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
 	createOpts.ParentID = caseTID.GetOid()
 	res, dbErr := c.app.Store.CaseLink().Create(createOpts, req.Input)
 	if dbErr != nil {
@@ -98,7 +98,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
-	updateOpts := model.NewUpdateOptions(ctx, req, CaseLinkMetadata)
+	updateOpts := model.NewUpdateOptions(ctx, req, CaseLinkMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
 	updateOpts.Etags = []*etag.Tid{&linkTID}
 	updated, err := c.app.Store.CaseLink().Update(updateOpts, req.Input)
 	if err != nil {
@@ -118,7 +118,7 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
-	deleteOpts := model.NewDeleteOptions(ctx)
+	deleteOpts := model.NewDeleteOptions(ctx).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
 	deleteOpts.ID = linkTID.GetOid()
 	err = c.app.Store.CaseLink().Delete(deleteOpts)
 	if err != nil {

@@ -99,7 +99,7 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 	}
 
 	t := time.Now()
-	searchOptions := model.SearchOptions{
+	searchOptions := &model.SearchOptions{
 		IDs: req.Id,
 		//Session: session,
 		Fields:  fields,
@@ -109,14 +109,15 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
 	}
+
+	searchOptions = searchOptions.SetAuthOpts(model.NewSessionAuthOptions(session, PriorityMetadata.GetObjectName()))
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
 	}
 
-	prios, err := p.app.Store.Priority().List(&searchOptions)
+	prios, err := p.app.Store.Priority().List(searchOptions)
 	if err != nil {
 		return nil, cerror.NewInternalError("app.priority.list_priorities.store_list_failed", err.Error())
 	}

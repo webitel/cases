@@ -289,7 +289,7 @@ func buildCreateLinkQuery(rpc *model.CreateOptions, add *_go.InputCaseLink) (squ
 	insert := squirrel.
 		Insert("cases.case_link").
 		Columns("created_by", "updated_by", "name", "url", "case_id", "dc").
-		Values(rpc.Session.GetUserId(), rpc.Session.GetUserId(), add.GetName(), add.GetUrl(), rpc.ParentID, rpc.Session.GetDomainId()).
+		Values(rpc.GetAuthOpts().GetUserId(), rpc.GetAuthOpts().GetUserId(), add.GetName(), add.GetUrl(), rpc.ParentID, rpc.GetAuthOpts().GetDomainId()).
 		Suffix("RETURNING *")
 	// select
 	query, args, _ := store.FormAsCTE(insert, insertAlias)
@@ -309,7 +309,7 @@ func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (sq
 	// insert
 	update := squirrel.
 		Update("cases.case_link").
-		Set("updated_by", opts.Session.GetUserId()).
+		Set("updated_by", opts.GetAuthOpts().GetUserId()).
 		Set("updated_at", opts.Time).
 		Set("ver", squirrel.Expr("ver+1")).
 		Where("id = ?", tid.GetOid()).

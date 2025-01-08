@@ -201,8 +201,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	params := map[string]interface{}{
 		// Case-level parameters
 		"date":                rpc.CurrentTime(),
-		"user":                rpc.Session.GetUserId(),
-		"dc":                  rpc.Session.GetDomainId(),
+		"user":                rpc.GetAuthOpts().GetUserId(),
+		"dc":                  rpc.GetAuthOpts().GetDomainId(),
 		"sla":                 sla,
 		"sla_condition":       slaCondition,
 		"status":              caseItem.Status.GetId(),
@@ -517,7 +517,7 @@ func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []int
 	query := deleteCaseQuery
 	args := []interface{}{
 		ids,
-		rpc.Session.GetDomainId(),
+		rpc.GetAuthOpts().GetDomainId(),
 	}
 	return query, args, nil
 }
@@ -573,7 +573,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 								(select value::int from call_center.system_settings s where s.domain_id = ? and s.name = 'search_number_length'),
 								 ?)+1 for ?)
 						 || '%%' )`, caseLeft),
-				searchNumber, opts.Auth.GetDomainId(), len(searchNumber), len(searchNumber)),
+				searchNumber, opts.GetAuthOpts().GetDomainId(), len(searchNumber), len(searchNumber)),
 			sq.Expr(fmt.Sprintf(`%s.reporter = ANY (SELECT contact_id
                         FROM contacts.contact_email ct_em
                         WHERE ct_em.email %s ?)`, caseLeft, operator),
@@ -649,7 +649,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		return base, nil, err
 	}
 
-	base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.Auth.GetDomainId())
+	base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.GetAuthOpts().GetDomainId())
 	// pagination
 	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	// sort
@@ -747,8 +747,8 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	updateBuilder := sq.Update(c.mainTable).
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", req.CurrentTime()).
-		Set("updated_by", req.Session.GetUserId()).
-		Where(sq.Eq{"id": upd.Id, "dc": req.Session.GetDomainId()})
+		Set("updated_by", req.GetAuthOpts().GetUserId()).
+		Where(sq.Eq{"id": upd.Id, "dc": req.GetAuthOpts().GetDomainId()})
 
 	// Increment version
 	updateBuilder = updateBuilder.Set("ver", sq.Expr("ver + 1"))
@@ -802,7 +802,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 
 	// Define SELECT query for returning updated fields
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		&model.SearchOptions{Size: -1, Fields: req.Fields, Auth: model.NewDefaultAuthOptions(req.Session, "dictionaries"), Time: req.Time},
+		&model.SearchOptions{Size: -1, Fields: req.Fields, Auth: req.GetAuthOpts(), Time: req.Time},
 		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
 	)
 	if err != nil {

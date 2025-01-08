@@ -113,7 +113,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
+		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Q != "" {

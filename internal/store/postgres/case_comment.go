@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	authmodel "github.com/webitel/cases/auth/model"
-
 	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
 
@@ -77,13 +75,13 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 		Insert("cases.case_comment").
 		Columns("dc", "case_id", "created_at", "created_by", "updated_at", "updated_by", "comment").
 		Values(
-			rpc.Session.GetDomainId(), // dc
-			rpc.ParentID,              // case_id
-			rpc.CurrentTime(),         // created_at (and updated_at)
-			rpc.Session.GetUserId(),   // created_by (and updated_by)
-			rpc.CurrentTime(),         // updated_at
-			rpc.Session.GetUserId(),   // updated_by
-			input.Text,                // comment text
+			rpc.GetAuthOpts().GetDomainId(), // dc
+			rpc.ParentID,                    // case_id
+			rpc.CurrentTime(),               // created_at (and updated_at)
+			rpc.GetAuthOpts().GetUserId(),   // created_by (and updated_by)
+			rpc.CurrentTime(),               // updated_at
+			rpc.GetAuthOpts().GetUserId(),   // updated_by
+			input.Text,                      // comment text
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -103,7 +101,7 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 		selectBuilder,
 		caseCommentLeft,
 		rpc.Fields,
-		rpc.Session,
+		rpc.GetAuthOpts(),
 	)
 	if dbErr != nil {
 		return nil, nil, dbErr
@@ -152,7 +150,7 @@ func (c CaseCommentStore) buildDeleteCaseCommentQuery(rpc *model.DeleteOptions) 
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	query := deleteCaseCommentQuery
-	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
+	args := []interface{}{pq.Array(ids), rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
 }
 
@@ -225,7 +223,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 	// Begin building the base query
 	queryBuilder := sq.Select().
 		From("cases.case_comment AS cc").
-		Where(sq.Eq{"cc.dc": rpc.Auth.GetDomainId()}).
+		Where(sq.Eq{"cc.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	if rpc.ParentId != 0 {
@@ -243,7 +241,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 		queryBuilder,
 		caseCommentLeft,
 		rpc.Fields,
-		rpc.Session,
+		rpc.GetAuthOpts(),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -340,14 +338,14 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 	updateBuilder := sq.Update("cases.case_comment").
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.CurrentTime()).
-		Set("updated_by", rpc.Session.GetUserId()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Set("ver", sq.Expr("ver + 1")). // Increment version
 		// input.Etag == input.ID
 		Where(sq.Eq{
 			"id":         rpc.Etags[0].GetOid(),
 			"ver":        rpc.Etags[0].GetVer(),
-			"dc":         rpc.Session.GetDomainId(),
-			"created_by": rpc.Session.GetUserId(), // Ensure only the creator can edit
+			"dc":         rpc.GetAuthOpts().GetDomainId(),
+			"created_by": rpc.GetAuthOpts().GetUserId(), // Ensure only the creator can edit
 		})
 
 	// Update the `comment` field if provided
@@ -365,7 +363,7 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 		selectBuilder,
 		caseCommentLeft,
 		rpc.Fields,
-		rpc.Session,
+		rpc.GetAuthOpts(),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -389,7 +387,7 @@ func buildCommentSelectColumnsAndPlan(
 	base sq.SelectBuilder,
 	left string,
 	fields []string,
-	session *authmodel.Session,
+	session model.Auther,
 ) (sq.SelectBuilder, []func(comment *_go.CaseComment) any, *dberr.DBError) {
 	var (
 		plan           []func(link *_go.CaseComment) any
@@ -500,7 +498,7 @@ func buildCommentsSelectAsSubquery(opts *model.SearchOptions, caseAlias string) 
 		From("cases.case_comment " + alias).
 		Where(fmt.Sprintf("%s = %s", store.Ident(alias, "case_id"), store.Ident(caseAlias, "id")))
 
-	base, plan, dbErr := buildCommentSelectColumnsAndPlan(base, alias, opts.Fields, opts.Session)
+	base, plan, dbErr := buildCommentSelectColumnsAndPlan(base, alias, opts.Fields, opts.GetAuthOpts())
 	if dbErr != nil {
 		return base, nil, 0, dbErr
 	}

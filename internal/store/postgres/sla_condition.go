@@ -280,13 +280,13 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc *model.CreateOptions, sla *cases.SLACondition) (string, []interface{}) {
 	// Create arguments for the SQL query
 	args := []interface{}{
-		sla.Name,                  // $1
-		rpc.Time,                  // $2
-		rpc.Session.GetUserId(),   // $3
-		sla.ReactionTime,          // $4
-		sla.ResolutionTime,        // $5
-		sla.SlaId,                 // $6
-		rpc.Session.GetDomainId(), // $7
+		sla.Name,                        // $1
+		rpc.Time,                        // $2
+		rpc.GetAuthOpts().GetUserId(),   // $3
+		sla.ReactionTime,                // $4
+		sla.ResolutionTime,              // $5
+		sla.SlaId,                       // $6
+		rpc.GetAuthOpts().GetDomainId(), // $7
 	}
 
 	// SQL query construction
@@ -352,8 +352,8 @@ func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc *model.DeleteOption
 
 	// Arguments for the query
 	args := []interface{}{
-		rpc.IDs[0],                // $1 is the SLA Condition ID to delete
-		rpc.Session.GetDomainId(), // $2 is the domain context (dc)
+		rpc.IDs[0],                      // $1 is the SLA Condition ID to delete
+		rpc.GetAuthOpts().GetDomainId(), // $2 is the domain context (dc)
 	}
 
 	return query, args, nil
@@ -366,7 +366,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 
 	queryBuilder := sq.Select().
 		From("cases.sla_condition AS g").
-		Where(sq.Eq{"g.dc": rpc.Auth.GetDomainId(), "g.sla_id": rpc.ParentId}).
+		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId(), "g.sla_id": rpc.ParentId}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
@@ -464,11 +464,11 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc *model.UpdateOptions, l *cases.SLACondition) (string, []interface{}) {
 	// Prepare arguments for the SQL query
 	args := []interface{}{
-		l.Id,                      // $1: sla_condition_id
-		rpc.Session.GetUserId(),   // $2: created_by and updated_by
-		rpc.Session.GetDomainId(), // $3: dc
-		pq.Array(rpc.IDs),         // $4: ARRAY of priority IDs
-		rpc.Time,                  // $5: timestamp for updated_at
+		l.Id,                            // $1: sla_condition_id
+		rpc.GetAuthOpts().GetUserId(),   // $2: created_by and updated_by
+		rpc.GetAuthOpts().GetDomainId(), // $3: dc
+		pq.Array(rpc.IDs),               // $4: ARRAY of priority IDs
+		rpc.Time,                        // $5: timestamp for updated_at
 	}
 
 	// query that updates or inserts priorities and deletes non-selected ones
@@ -500,8 +500,8 @@ func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc *model.UpdateOption
 	updateBuilder := sq.Update("cases.sla_condition").
 		PlaceholderFormat(sq.Dollar). // Set placeholder format to Dollar for PostgreSQL
 		Set("updated_at", rpc.Time).
-		Set("updated_by", rpc.Session.GetUserId()).
-		Where(sq.Eq{"id": l.Id, "dc": rpc.Session.GetDomainId()})
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Where(sq.Eq{"id": l.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the update builder based on provided fields
 	for _, field := range rpc.Fields {

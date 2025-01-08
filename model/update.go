@@ -15,7 +15,7 @@ import (
 type UpdateOptions struct {
 	Time time.Time
 	context.Context
-	Session *session.Session
+	//Session *session.Session
 	// output
 	Fields            []string
 	UnknownFields     []string
@@ -26,6 +26,16 @@ type UpdateOptions struct {
 	IDs   []int64
 	Etags []*etag.Tid
 	// ID      int64
+	Auth Auther
+}
+
+func (s *UpdateOptions) SetAuthOpts(a Auther) *UpdateOptions {
+	s.Auth = a
+	return s
+}
+
+func (s *UpdateOptions) GetAuthOpts() Auther {
+	return s.Auth
 }
 
 type Updator interface {
@@ -34,12 +44,13 @@ type Updator interface {
 }
 
 // NewUpdateOptions initializes UpdateOptions with values from a context and an Updator-compliant struct
-func NewUpdateOptions(ctx context.Context, req Updator, objMetadata *ObjectMetadata) *UpdateOptions {
+func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetadatter) *UpdateOptions {
 	opts := &UpdateOptions{
 		Context: ctx,
-		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
-		Mask:    req.GetXJsonMask(),
-		Time:    time.Now(),
+		//Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
+		Mask: req.GetXJsonMask(),
+		Time: time.Now(),
+		Auth: NewSessionAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), objMetadata.GetObjectName()),
 	}
 
 	// normalize fields

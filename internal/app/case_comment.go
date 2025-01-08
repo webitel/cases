@@ -12,6 +12,7 @@ import (
 )
 
 var CaseCommentMetadata = model.NewObjectMetadata(
+	"case_comment",
 	[]*model.Field{
 		{Name: "id", Default: true},
 		{Name: "ver", Default: false},
@@ -78,7 +79,7 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid ID")
 	}
 
-	updateOpts := model.NewUpdateOptions(ctx, req, CaseCommentMetadata)
+	updateOpts := model.NewUpdateOptions(ctx, req, CaseCommentMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName(), CaseCommentMetadata.GetObjectName()))
 	updateOpts.Etags = []*etag.Tid{&tag}
 
 	comment := &cases.CaseComment{
@@ -104,7 +105,7 @@ func (c *CaseCommentService) DeleteComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.etag_required", "ID is required")
 	}
 
-	deleteOpts := model.NewDeleteOptions(ctx)
+	deleteOpts := model.NewDeleteOptions(ctx).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
 
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Id)
 	if err != nil {
@@ -136,7 +137,7 @@ func (c *CaseCommentService) ListComments(
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_qin", "Invalid Qin format")
 	}
-	searchOpts := model.NewSearchOptions(ctx, req, CaseCommentMetadata)
+	searchOpts := model.NewSearchOptions(ctx, req, CaseCommentMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
 	searchOpts.ParentId = tag.GetOid()
 	searchOpts.IDs = ids
 
@@ -160,7 +161,7 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, CaseCommentMetadata)
+	createOpts := model.NewCreateOptions(ctx, req, CaseCommentMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
 
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.CaseId)
 	if err != nil {

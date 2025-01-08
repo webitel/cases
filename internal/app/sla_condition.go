@@ -168,7 +168,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 		Time:    t,
 		Filter:  make(map[string]interface{}),
 		ID:      req.PriorityId,
-		Auth:    model.NewDefaultAuthOptions(session, "dictionaries"),
+		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Q != "" {

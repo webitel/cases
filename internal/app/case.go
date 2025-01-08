@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"encoding/json"
+	session "github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/internal/server/interceptor"
 	"github.com/webitel/webitel-go-kit/errors"
 	"log/slog"
 	"strconv"
@@ -17,6 +19,7 @@ import (
 )
 
 var CaseMetadata = model.NewObjectMetadata(
+	"cases",
 	[]*model.Field{
 		{Name: "id", Default: true},
 		{Name: "ver", Default: true},
@@ -59,7 +62,8 @@ type CaseService struct {
 }
 
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
-	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata)
+	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata).
+		SetAuthOpts(model.NewSessionAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), CaseMetadata.GetObjectName()))
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case.search_cases.parse_ids.invalid", err.Error())
@@ -72,7 +76,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	searchOpts.IDs = ids
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()))
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 		return nil, errors.NewInternalError("app.case_communication.search_cases.database.error", "database error")
 	}
 	c.NormalizeResponseCases(list, req, nil)
@@ -80,7 +84,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 }
 
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
-	searchOpts := model.NewLocateOptions(ctx, req, CaseMetadata)
+	searchOpts := model.NewLocateOptions(ctx, req, CaseMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
 	id, err := util.ParseIds([]string{req.GetId()}, etag.EtagCase)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
@@ -173,7 +177,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Related:          related,
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, CaseMetadata)
+	createOpts := model.NewCreateOptions(ctx, req, CaseMetadata).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
 
 	newCase, err := c.app.Store.Case().Create(createOpts, newCase)
 	if err != nil {
@@ -182,7 +187,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	id, _ := strconv.Atoi(newCase.Id)
 	// Encode etag from the case ID and version
 	newCase.Id = etag.EncodeEtag(etag.EtagCaseComment, int64(id), newCase.Ver)
-	userId := createOpts.Session.GetUserId()
+	userId := createOpts.GetAuthOpts().GetUserId()
 
 	// Publish an event to RabbitMQ
 	event := map[string]interface{}{
@@ -265,7 +270,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
 	}
 
-	deleteOpts := model.NewDeleteOptions(ctx)
+	deleteOpts := model.NewDeleteOptions(ctx).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
 
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Id)
 	if err != nil {
