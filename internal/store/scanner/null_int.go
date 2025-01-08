@@ -4,6 +4,9 @@ import "github.com/jackc/pgtype"
 
 func ScanInt64(value *int64) any {
 	return ScanFunc(func(src any) error {
+		if src == nil {
+			return nil
+		}
 		t := pgtype.Int8{}
 		err := t.Scan(src)
 		if err != nil {

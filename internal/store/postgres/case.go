@@ -984,23 +984,35 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 		case "close_result":
 			base = base.Column(store.Ident(caseLeft, "close_result"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return &caseItem.Close.CloseResult
+				if caseItem.Close == nil {
+					caseItem.Close = &_go.CloseInfo{}
+				}
+				return scanner.ScanText(&caseItem.Close.CloseResult)
 			})
 		case "close_reason":
 			base = base.Column(fmt.Sprintf(
 				"(SELECT ROW(cr.id, cr.name)::text FROM cases.close_reason cr WHERE cr.id = %s.close_reason) AS close_reason", caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
+				if caseItem.Close == nil {
+					caseItem.Close = &_go.CloseInfo{}
+				}
 				return scanner.ScanRowLookup(&caseItem.Close.CloseReason)
 			})
 		case "rating":
 			base = base.Column(store.Ident(caseLeft, "rating"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return &caseItem.Rate.Rating
+				if caseItem.Rate == nil {
+					caseItem.Rate = &_go.RateInfo{}
+				}
+				return scanner.ScanInt64(&caseItem.Rate.Rating)
 			})
 		case "rating_comment":
 			base = base.Column(store.Ident(caseLeft, "rating_comment"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return &caseItem.Rate.RatingComment
+				if caseItem.Rate == nil {
+					caseItem.Rate = &_go.RateInfo{}
+				}
+				return scanner.ScanText(&caseItem.Rate.RatingComment)
 			})
 		case "sla":
 			base = base.Column(fmt.Sprintf(

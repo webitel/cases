@@ -79,13 +79,13 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 	// normalize fields
 	var resultingFields []string
 	if requestedFields := searcher.GetFields(); len(requestedFields) == 0 {
-		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
-		copy(resultingFields, objMetadata.GetDefaultFields())
+		resultingFields = objMetadata.GetDefaultFields()
 	} else {
 		resultingFields = util.FieldsFunc(
 			requestedFields, graph.SplitFieldsQ,
 		)
 	}
+
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
 	opts.Fields = util.ParseFieldsForEtag(resultingFields)
 	return opts
