@@ -305,6 +305,71 @@ var WebitelAPI = WebitelServicesInfo{
 			},
 		},
 	},
+	"Priorities": WebitelServices{
+		ObjClass:           "dictionaries",
+		AdditionalLicenses: []string{},
+		WebitelMethods: map[string]WebitelMethod{
+			"ListPriorities": WebitelMethod{
+				Access: 1,
+				Input:  "ListPriorityRequest",
+				Output: "PriorityList",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/priorities",
+						Method: "GET",
+					},
+				},
+			},
+			"CreatePriority": WebitelMethod{
+				Access: 0,
+				Input:  "CreatePriorityRequest",
+				Output: "Priority",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/priorities",
+						Method: "POST",
+					},
+				},
+			},
+			"UpdatePriority": WebitelMethod{
+				Access: 2,
+				Input:  "UpdatePriorityRequest",
+				Output: "Priority",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/priorities/{id}",
+						Method: "PUT",
+					},
+					{
+						Path:   "/cases/priorities/{id}",
+						Method: "PATCH",
+					},
+				},
+			},
+			"DeletePriority": WebitelMethod{
+				Access: 3,
+				Input:  "DeletePriorityRequest",
+				Output: "Priority",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/priorities/{id}",
+						Method: "DELETE",
+					},
+				},
+			},
+			"LocatePriority": WebitelMethod{
+				Access: 1,
+				Input:  "LocatePriorityRequest",
+				Output: "LocatePriorityResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/priorities/{id}",
+						Method: "GET",
+					},
+				},
+			},
+		},
+	},
 	"Sources": WebitelServices{
 		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
@@ -756,71 +821,6 @@ var WebitelAPI = WebitelServicesInfo{
 				HttpBindings: []*HttpBinding{
 					{
 						Path:   "/cases/close_reason_groups/{id}",
-						Method: "GET",
-					},
-				},
-			},
-		},
-	},
-	"Priorities": WebitelServices{
-		ObjClass:           "dictionaries",
-		AdditionalLicenses: []string{},
-		WebitelMethods: map[string]WebitelMethod{
-			"ListPriorities": WebitelMethod{
-				Access: 1,
-				Input:  "ListPriorityRequest",
-				Output: "PriorityList",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/priorities",
-						Method: "GET",
-					},
-				},
-			},
-			"CreatePriority": WebitelMethod{
-				Access: 0,
-				Input:  "CreatePriorityRequest",
-				Output: "Priority",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/priorities",
-						Method: "POST",
-					},
-				},
-			},
-			"UpdatePriority": WebitelMethod{
-				Access: 2,
-				Input:  "UpdatePriorityRequest",
-				Output: "Priority",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/priorities/{id}",
-						Method: "PUT",
-					},
-					{
-						Path:   "/cases/priorities/{id}",
-						Method: "PATCH",
-					},
-				},
-			},
-			"DeletePriority": WebitelMethod{
-				Access: 3,
-				Input:  "DeletePriorityRequest",
-				Output: "Priority",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/priorities/{id}",
-						Method: "DELETE",
-					},
-				},
-			},
-			"LocatePriority": WebitelMethod{
-				Access: 1,
-				Input:  "LocatePriorityRequest",
-				Output: "LocatePriorityResponse",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/cases/priorities/{id}",
 						Method: "GET",
 					},
 				},

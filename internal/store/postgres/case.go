@@ -1037,9 +1037,74 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "priority":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(p.id, p.name)::text FROM cases.priority p WHERE p.id = %s.priority) AS priority", caseLeft))
+				"(SELECT ROW(p.id, p.name, p.color)::text FROM cases.priority p WHERE p.id = %s.priority) AS priority", caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanRowLookup(&caseItem.Priority)
+				return scanner.TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil // NULL
+					}
+					// pointer on pointer on source
+					if caseItem.Priority == nil {
+						caseItem.Priority = new(_go.Priority)
+					}
+
+					var (
+						str pgtype.Text
+						row = []pgtype.TextDecoder{
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								id, err := strconv.ParseInt(str.String, 10, 64)
+								if err != nil {
+									return err
+								}
+								caseItem.Priority.Id = id
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								caseItem.Priority.Name = str.String
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								caseItem.Priority.Color = str.String
+								return nil
+							}),
+						}
+						raw = pgtype.NewCompositeTextScanner(nil, src)
+					)
+
+					var err error
+					for _, col := range row {
+
+						raw.ScanDecoder(col)
+
+						err = raw.Err()
+						if err != nil {
+							return err
+						}
+					}
+
+					return nil
+				})
 			})
 		case "service":
 			base = base.Column(fmt.Sprintf(
