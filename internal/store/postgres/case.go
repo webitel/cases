@@ -1006,6 +1006,13 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				}
 				return scanner.ScanInt64(&caseItem.Rate.Rating)
 			})
+			base = base.Column(store.Ident(caseLeft, "rating_comment"))
+			plan = append(plan, func(caseItem *_go.Case) any {
+				if caseItem.Rate == nil {
+					caseItem.Rate = &_go.RateInfo{}
+				}
+				return scanner.ScanText(&caseItem.Rate.RatingComment)
+			})
 		case "timing":
 			base = base.
 				Column(fmt.Sprintf("COALESCE(%s.resolved_at, '1970-01-01 00:00:00') AS resolved_at", caseLeft)).
@@ -1033,14 +1040,6 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanInt64(&caseItem.Timing.DifferenceInResolve)
-			})
-		case "rating_comment":
-			base = base.Column(store.Ident(caseLeft, "rating_comment"))
-			plan = append(plan, func(caseItem *_go.Case) any {
-				if caseItem.Rate == nil {
-					caseItem.Rate = &_go.RateInfo{}
-				}
-				return scanner.ScanText(&caseItem.Rate.RatingComment)
 			})
 		case "sla":
 			base = base.Column(fmt.Sprintf(
