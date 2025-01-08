@@ -3,10 +3,11 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"github.com/webitel/webitel-go-kit/errors"
 	"log/slog"
 	"strconv"
 	"time"
+
+	"github.com/webitel/webitel-go-kit/errors"
 
 	cases "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/model"
@@ -47,8 +48,8 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "comments", Default: false},
 		{Name: "links", Default: false},
 		{Name: "files", Default: false},
-		{Name: "related", Default: false},
-		{Name: "contact_info", Default: false},
+		{Name: "related_cases", Default: false},
+		{Name: "timing", Default: true},
 	})
 
 type CaseService struct {

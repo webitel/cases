@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jackc/pgtype"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgtype"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -1005,6 +1006,35 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				}
 				return scanner.ScanInt64(&caseItem.Rate.Rating)
 			})
+		case "timing":
+			base = base.
+				Column(fmt.Sprintf("COALESCE(%s.resolved_at, '1970-01-01 00:00:00') AS resolved_at", caseLeft)).
+				Column(fmt.Sprintf("COALESCE(%s.reacted_at, '1970-01-01 00:00:00') AS reacted_at", caseLeft)).
+				Column(fmt.Sprintf(
+					"COALESCE(CAST(EXTRACT(EPOCH FROM %[1]s.reacted_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_reaction",
+					caseLeft,
+				)).
+				Column(fmt.Sprintf(
+					"COALESCE(CAST(EXTRACT(EPOCH FROM %[1]s.resolved_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_resolve",
+					caseLeft,
+				))
+
+			plan = append(plan, func(caseItem *_go.Case) any {
+				if caseItem.Timing == nil {
+					caseItem.Timing = &_go.TimingInfo{}
+				}
+				return scanner.ScanTimestamp(&caseItem.Timing.ResolvedAt)
+			})
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanTimestamp(&caseItem.Timing.ReactedAt)
+			})
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanInt64(&caseItem.Timing.DifferenceInReaction)
+			})
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanInt64(&caseItem.Timing.DifferenceInResolve)
+			})
+		case "rating_comment":
 			base = base.Column(store.Ident(caseLeft, "rating_comment"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Rate == nil {
