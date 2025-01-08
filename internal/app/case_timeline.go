@@ -36,7 +36,7 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 	searchOpts.IDs = []int64{tid.GetOid()}
 	res, err := c.app.Store.CaseTimeline().Get(searchOpts)
 	if err != nil {
-		slog.Debug(err.Error(), slog.Int64("id", tid.GetOid()))
+		slog.Warn(err.Error(), slog.Int64("id", tid.GetOid()))
 		return nil, errors.NewInternalError("app.case_timeline.get_timeline.database.error", "database error")
 	}
 	return res, nil
@@ -52,7 +52,7 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 	searchOpts := &model.SearchOptions{Context: ctx, Fields: CaseTimelineMetadata.GetDefaultFields(), ParentId: tid.GetOid()}
 	eventTypeCounters, err := c.app.Store.CaseTimeline().GetCounter(searchOpts)
 	if err != nil {
-		slog.Debug(err.Error(), slog.Int64("id", tid.GetOid()))
+		slog.Warn(err.Error(), slog.Int64("id", tid.GetOid()))
 		return nil, errors.NewInternalError("app.case_timeline.get_timeline_counter.database.error", "database error")
 	}
 	if len(eventTypeCounters) == 0 {

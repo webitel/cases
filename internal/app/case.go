@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"github.com/webitel/webitel-go-kit/errors"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -59,18 +61,19 @@ type CaseService struct {
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
 	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata)
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case.search_cases.parse_ids.invalid", err.Error())
+	}
 	for column, value := range req.GetFilters() {
 		if column != "" {
 			searchOpts.Filter[column] = value
 		}
 	}
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
-	}
 	searchOpts.IDs = ids
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
-		return nil, err
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()))
+		return nil, errors.NewInternalError("app.case_communication.search_cases.database.error", "database error")
 	}
 	c.NormalizeResponseCases(list, req, nil)
 	return list, nil

@@ -550,6 +550,9 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 	}
 	var res _go.CaseList
 	res.Items, err = c.scanCases(rows, plan)
+	if err != nil {
+		return nil, err
+	}
 	res.Items, res.Next = store.ResolvePaging(opts.GetSize(), res.Items)
 	res.Page = int64(opts.GetPage())
 	return &res, nil
@@ -1060,13 +1063,11 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "sla_condition":
 			base = base.Column(`
-				(SELECT JSON_AGG(JSON_BUILD_OBJECT(
-					'id', sc.id,
-					'name', sc.name
-				)) FROM cases.sla_condition sc
-				WHERE sc.sla_id = c.sla AND sc.id = ANY(SELECT sla_condition_id FROM cases.priority_sla_condition WHERE priority_id = c.priority LIMIT 1)) AS sla_conditions`)
+				(SELECT ROW(sc.id, sc.name)::text
+				FROM cases.sla_condition sc
+				WHERE sc.sla_id = c.sla AND sc.id = ANY(SELECT sla_condition_id FROM cases.priority_sla_condition WHERE priority_id = c.priority LIMIT 1)) AS sla_condition`)
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanJSONToStructList(&caseItem.SlaCondition)
+				return scanner.ScanRowLookup(&caseItem.SlaCondition)
 			})
 		case "comments":
 			derivedOpts := opts.SearchDerivedOptionByField(field)

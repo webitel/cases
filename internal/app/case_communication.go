@@ -36,7 +36,7 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 
 	res, dbErr := c.app.Store.CaseCommunication().List(searchOpts)
 	if dbErr != nil {
-		slog.Debug(dbErr.Error(), slog.Int64("id", tag.GetOid()))
+		slog.Warn(dbErr.Error(), slog.Int64("id", tag.GetOid()))
 		return nil, errors.NewInternalError("app.case_communication.list_communication.database.error", "database error")
 	}
 	NormalizeResponseCommunications(res.Data, request.GetFields())
@@ -61,7 +61,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 
 	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, request.Input)
 	if dbErr != nil {
-		slog.Debug(dbErr.Error(), slog.Int64("id", tag.GetOid()))
+		slog.Warn(dbErr.Error(), slog.Int64("id", tag.GetOid()))
 		return nil, errors.NewInternalError("app.case_communication.link_communication.database.error", "database error")
 	}
 	if len(res) == 0 {
@@ -82,7 +82,7 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 
 	affected, dbErr := c.app.Store.CaseCommunication().Unlink(deleteOpts)
 	if dbErr != nil {
-		slog.Debug(dbErr.Error(), slog.Int64("id", tag.GetOid()))
+		slog.Warn(dbErr.Error(), slog.Int64("id", tag.GetOid()))
 		return nil, errors.NewInternalError("app.case_communication.unlink_communication.database.error", "database error")
 	}
 	return &cases.UnlinkCommunicationResponse{Affected: affected}, nil
