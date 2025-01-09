@@ -107,6 +107,7 @@ func (s *CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.List
 		Page:    int(page),
 		Size:    int(req.Size),
 		Time:    t,
+		Filter:  make(map[string]interface{}),
 	}
 
 	if req.Q != "" {
