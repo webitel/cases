@@ -257,7 +257,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Source:           &cases.SourceTypeLookup{Id: req.Input.GetSource()},
 		Close: &cases.CloseInfo{
 			CloseResult: req.Input.Close.CloseResult,
-			CloseReason: req.Input.Close.GetCloseReason(),
+			CloseReason: &cases.Lookup{Id: req.Input.Close.GetCloseReason()},
 		},
 		Rate: &cases.RateInfo{
 			Rating:        req.Input.Rate.Rating,
@@ -320,7 +320,7 @@ func (c *CaseService) ValidateUpdateInput(
 		input.Rate = &cases.RateInfo{}
 	}
 	if input.Close == nil {
-		input.Close = &cases.CloseInfo{}
+		input.Close = &cases.CloseInfoInput{}
 	}
 
 	// Iterate over xJsonMask and validate corresponding fields
