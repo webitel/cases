@@ -80,17 +80,15 @@ func AddVersionAndIdByEtag(fields []string) {
 	return
 }
 
-// AddVersionAndIdByEtag searches for etag, id, ver fields and adds missing
+// AddVersionAndIdByEtag searches for id, ver fields and adds missing
 // to provide full functionality of etag (do not changes fields, returns fully new slice)
 func ParseFieldsForEtag(fields []string) []string {
 	var (
-		res                    []string
-		hasEtag, hasId, hasVer bool
+		res           []string
+		hasId, hasVer bool
 	)
 	for _, field := range fields {
-		if field == "etag" {
-			hasEtag = true
-		} else if field == "id" {
+		if field == "id" {
 			res = append(res, field)
 			hasId = true
 		} else if field == "ver" {
@@ -100,13 +98,11 @@ func ParseFieldsForEtag(fields []string) []string {
 			res = append(res, field)
 		}
 	}
-	if hasEtag {
-		if !hasId {
-			res = append(res, "id")
-		}
-		if !hasVer {
-			res = append(res, "ver")
-		}
+	if !hasId {
+		res = append(res, "id")
+	}
+	if !hasVer {
+		res = append(res, "ver")
 	}
 	return res
 }
