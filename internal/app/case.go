@@ -247,23 +247,23 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Ver:              tag.GetVer(),
 		Subject:          req.Input.Subject,
 		Description:      req.Input.Description,
-		Status:           &cases.Lookup{Id: req.Input.Status.GetId()},
-		CloseReasonGroup: &cases.Lookup{Id: req.Input.CloseReason.GetId()},
-		Assignee:         &cases.Lookup{Id: req.Input.Assignee.GetId()},
-		Reporter:         &cases.Lookup{Id: req.Input.Reporter.GetId()},
-		Impacted:         &cases.Lookup{Id: req.Input.Impacted.GetId()},
-		Group:            &cases.Lookup{Id: req.Input.Group.GetId()},
-		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
-		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
+		Status:           &cases.Lookup{Id: req.Input.GetStatus()},
+		CloseReasonGroup: &cases.Lookup{Id: req.Input.GetCloseReason()},
+		Assignee:         &cases.Lookup{Id: req.Input.GetAssignee()},
+		Reporter:         &cases.Lookup{Id: req.Input.GetReporter()},
+		Impacted:         &cases.Lookup{Id: req.Input.GetImpacted()},
+		Group:            &cases.Lookup{Id: req.Input.GetGroup()},
+		Priority:         &cases.Priority{Id: req.Input.GetPriority()},
+		Source:           &cases.SourceTypeLookup{Id: req.Input.GetSource()},
 		Close: &cases.CloseInfo{
 			CloseResult: req.Input.Close.CloseResult,
-			CloseReason: req.Input.GetCloseReason(),
+			CloseReason: req.Input.Close.GetCloseReason(),
 		},
 		Rate: &cases.RateInfo{
 			Rating:        req.Input.Rate.Rating,
 			RatingComment: req.Input.Rate.RatingComment,
 		},
-		Service: &cases.Lookup{Id: req.Input.Service.GetId()},
+		Service: &cases.Lookup{Id: req.Input.GetService()},
 	}
 
 	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
@@ -332,23 +332,23 @@ func (c *CaseService) ValidateUpdateInput(
 				return cerror.NewBadRequestError("app.case.update_case.subject_required", "Subject is required")
 			}
 		case "status":
-			if input.Status.GetId() == 0 {
+			if input.GetStatus() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
 			}
 		case "close.close_reason":
-			if input.CloseReason.GetId() == 0 {
+			if input.GetCloseReason() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
 			}
 		case "priority":
-			if input.Priority.GetId() == 0 {
+			if input.GetPriority() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.priority_required", "Priority is required")
 			}
 		case "source":
-			if input.Source.GetId() == 0 {
+			if input.GetSource() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.source_required", "Source is required")
 			}
 		case "service":
-			if input.Service.GetId() == 0 {
+			if input.GetService() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.service_required", "Service is required")
 			}
 		}
