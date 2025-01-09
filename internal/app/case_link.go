@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 
 	cases "github.com/webitel/cases/api/cases"
@@ -50,15 +51,19 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 
 	links, err := c.app.Store.CaseLink().List(searchOpts)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case_link.locate.get_list.error", err.Error())
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()), slog.Int64("id", etg.GetOid()))
+		return nil, AppDatabaseError
 	}
 	if len(links.Items) == 0 {
 		return nil, cerror.NewNotFoundError("app.case_link.locate.check_items.error", "not found")
 	}
 	res := links.Items[0]
 	// hide etag if needed
-	NormalizeResponseLink(res, req)
-
+	err = NormalizeResponseLink(res, req)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()), slog.Int64("id", etg.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 	return res, nil
 }
 
@@ -79,10 +84,15 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 	createOpts.ParentID = caseTID.GetOid()
 	res, dbErr := c.app.Store.CaseLink().Create(createOpts, req.Input)
 	if dbErr != nil {
-		return nil, dbErr
+		slog.Warn(dbErr.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("case_id", caseTID.GetOid()))
+		return nil, AppDatabaseError
 	}
 
-	NormalizeResponseLink(res, req)
+	err = NormalizeResponseLink(res, req)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("case_id", caseTID.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 	return res, nil
 }
 
@@ -102,9 +112,14 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 	updateOpts.Etags = []*etag.Tid{&linkTID}
 	updated, err := c.app.Store.CaseLink().Update(updateOpts, req.Input)
 	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", updateOpts.Session.GetUserId()), slog.Int64("domain_id", updateOpts.Session.GetDomainId()), slog.Int64("id", linkTID.GetOid()))
 		return nil, err
 	}
-	NormalizeResponseLink(updated, req)
+	err = NormalizeResponseLink(updated, req)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", updateOpts.Session.GetUserId()), slog.Int64("domain_id", updateOpts.Session.GetDomainId()), slog.Int64("id", linkTID.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 
 	return updated, nil
 }
@@ -122,7 +137,8 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	deleteOpts.ID = linkTID.GetOid()
 	err = c.app.Store.CaseLink().Delete(deleteOpts)
 	if err != nil {
-		return nil, err
+		slog.Warn(err.Error(), slog.Int64("user_id", deleteOpts.Session.GetUserId()), slog.Int64("domain_id", deleteOpts.Session.GetDomainId()), slog.Int64("id", linkTID.GetOid()))
+		return nil, AppDatabaseError
 	}
 
 	return nil, nil
@@ -150,11 +166,15 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 
 	links, err := c.app.Store.CaseLink().List(searchOpts)
 	if err != nil {
-		return nil, cerror.NewInternalError("case_comment_service.locate_comment.fetch_error", err.Error())
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()), slog.Int64("case_id", etg.GetOid()))
+		return nil, AppDatabaseError
 	}
 
-	NormalizeResponseLinks(links, req.GetFields())
-
+	err = NormalizeResponseLinks(links, req.GetFields())
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()), slog.Int64("case_id", etg.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 	// Return the located comment
 	return links, nil
 }
@@ -166,15 +186,21 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 	return &CaseLinkService{app: app}, nil
 }
 
-func NormalizeResponseLink(res *cases.CaseLink, opts model.Fielder) {
+func NormalizeResponseLink(res *cases.CaseLink, opts model.Fielder) error {
 	fields := opts.GetFields()
 	if len(opts.GetFields()) == 0 {
 		fields = CaseLinkMetadata.GetDefaultFields()
 	}
 	_, hasId, hasVer := util.FindEtagFields(fields)
 	if hasId {
-		id, _ := strconv.Atoi(res.Id)
-		res.Id = etag.EncodeEtag(etag.EtagCaseLink, int64(id), res.Ver)
+		id, err := strconv.Atoi(res.Id)
+		if err != nil {
+			return err
+		}
+		res.Id, err = etag.EncodeEtag(etag.EtagCaseLink, int64(id), res.Ver)
+		if err != nil {
+			return err
+		}
 		// hide
 		if !hasId {
 			res.Id = ""
@@ -183,9 +209,10 @@ func NormalizeResponseLink(res *cases.CaseLink, opts model.Fielder) {
 			res.Ver = 0
 		}
 	}
+	return nil
 }
 
-func NormalizeResponseLinks(res *cases.CaseLinkList, requestedFields []string) {
+func NormalizeResponseLinks(res *cases.CaseLinkList, requestedFields []string) error {
 	fields := make([]string, len(requestedFields))
 	copy(fields, requestedFields)
 	if len(fields) == 0 {
@@ -194,8 +221,14 @@ func NormalizeResponseLinks(res *cases.CaseLinkList, requestedFields []string) {
 	_, hasId, hasVer := util.FindEtagFields(fields)
 	for _, re := range res.Items {
 		if hasId {
-			id, _ := strconv.Atoi(re.Id)
-			re.Id = etag.EncodeEtag(etag.EtagCaseLink, int64(id), re.Ver)
+			id, err := strconv.Atoi(re.Id)
+			if err != nil {
+				return err
+			}
+			re.Id, err = etag.EncodeEtag(etag.EtagCaseLink, int64(id), re.Ver)
+			if err != nil {
+				return err
+			}
 			// hide
 			if !hasId {
 				re.Id = ""
@@ -205,4 +238,5 @@ func NormalizeResponseLinks(res *cases.CaseLinkList, requestedFields []string) {
 			}
 		}
 	}
+	return nil
 }

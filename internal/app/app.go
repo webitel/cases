@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/webitel/webitel-go-kit/errors"
 	"log/slog"
 
 	"github.com/webitel/cases/auth"
@@ -21,6 +22,11 @@ import (
 
 const (
 	AnonymousName = "Anonymous"
+)
+
+var (
+	AppDatabaseError            = errors.NewInternalError("app.process_api.database.perform_query.error", "database error occurred")
+	AppResponseNormalizingError = errors.NewInternalError("app.process_api.response.normalize.error", "error occurred while normalizing response")
 )
 
 type App struct {

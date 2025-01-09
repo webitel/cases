@@ -74,7 +74,11 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()))
 		return nil, errors.NewInternalError("app.case_communication.search_cases.database.error", "database error")
 	}
-	c.NormalizeResponseCases(list, req, nil)
+	err = c.NormalizeResponseCases(list, req, nil)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()))
+		return nil, AppResponseNormalizingError
+	}
 	return list, nil
 }
 
@@ -89,7 +93,11 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	c.NormalizeResponseCases(list, req, nil)
+	err = c.NormalizeResponseCases(list, req, nil)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()))
+		return nil, AppResponseNormalizingError
+	}
 	return list.Items[0], nil
 }
 
@@ -180,7 +188,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	}
 	id, _ := strconv.Atoi(newCase.Id)
 	// Encode etag from the case ID and version
-	newCase.Id = etag.EncodeEtag(etag.EtagCaseComment, int64(id), newCase.Ver)
+	newCase.Id, err = etag.EncodeEtag(etag.EtagCaseComment, int64(id), newCase.Ver)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("case_id", int64(id)))
+		return nil, AppResponseNormalizingError
+	}
 	userId := createOpts.Session.GetUserId()
 
 	// Publish an event to RabbitMQ
@@ -208,7 +220,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		return nil, cerror.NewInternalError("app.case.create_case.event_publish.failed", err.Error())
 	}
-	c.NormalizeResponseCase(newCase, req)
+	err = c.NormalizeResponseCase(newCase, req)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()))
+		return nil, AppResponseNormalizingError
+	}
 	return newCase, nil
 }
 
@@ -255,7 +271,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, cerror.NewInternalError("app.case.update_case.store_update_failed", err.Error())
 	}
 
-	c.NormalizeResponseCase(updatedCase, req)
+	err = c.NormalizeResponseCase(updatedCase, req)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", updateOpts.Session.GetUserId()), slog.Int64("domain_id", updateOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 	return updatedCase, nil
 }
 
@@ -274,7 +294,8 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 
 	err = c.app.Store.Case().Delete(deleteOpts)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case.delete_case.store_delete_failed", err.Error())
+		slog.Warn(err.Error(), slog.Int64("user_id", deleteOpts.Session.GetUserId()), slog.Int64("domain_id", deleteOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, AppDatabaseError
 	}
 	return nil, nil
 }
@@ -371,15 +392,20 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 }
 
 // NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.
-func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) {
+func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) error {
 	fields := mainOpts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
-
 	for _, item := range res.Items {
-		id, _ := strconv.Atoi(item.Id)
-		item.Id = etag.EncodeEtag(etag.EtagCase, int64(id), item.Ver)
+		id, err := strconv.Atoi(item.Id)
+		if err != nil {
+			return err
+		}
+		item.Id, err = etag.EncodeEtag(etag.EtagCase, int64(id), item.Ver)
+		if err != nil {
+			return err
+		}
 		if item.Reporter == nil && util.ContainsField(fields, "reporter") {
 			item.Reporter = &cases.Lookup{
 				Name: AnonymousName,
@@ -399,39 +425,58 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 			for _, item := range res.Items {
 				if item.Links != nil {
 					for _, link := range item.Links.Items {
-						id, _ := strconv.Atoi(link.Id)
-						item.Id = etag.EncodeEtag(etag.EtagCaseLink, int64(id), link.Ver)
+						id, err := strconv.Atoi(link.Id)
+						if err != nil {
+							return err
+						}
+						item.Id, err = etag.EncodeEtag(etag.EtagCaseLink, int64(id), link.Ver)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
-		case "related_cases":
+		case "related":
 			for _, item := range res.Items {
 				if item.Related != nil {
 					for _, related := range item.Related.Data {
-						id, _ := strconv.Atoi(related.Id)
-						related.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), related.Ver)
+						id, err := strconv.Atoi(related.Id)
+						if err != nil {
+							return err
+						}
+						related.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), related.Ver)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
 		}
 	}
+	return nil
 }
 
 // NormalizeResponseCase validates and normalizes the response cases.Case to the front-end side.
-func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) {
+func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) error {
 	fields := opts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
 
-	id, _ := strconv.Atoi(re.Id)
-	re.Id = etag.EncodeEtag(etag.EtagCase, int64(id), re.Ver)
-
+	id, err := strconv.Atoi(re.Id)
+	if err != nil {
+		return err
+	}
+	re.Id, err = etag.EncodeEtag(etag.EtagCase, int64(id), re.Ver)
+	if err != nil {
+		return err
+	}
 	if re.Reporter == nil && util.ContainsField(fields, "reporter") {
 		re.Reporter = &cases.Lookup{
 			Name: AnonymousName,
 		}
 	}
+	return nil
 }
 
 // endregion

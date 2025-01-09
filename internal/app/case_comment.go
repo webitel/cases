@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"github.com/webitel/webitel-go-kit/errors"
+	"log/slog"
 	"strconv"
 
 	cases "github.com/webitel/cases/api/cases"
@@ -57,7 +59,11 @@ func (c *CaseCommentService) LocateComment(
 		return nil, cerror.NewInternalError("app.case_comment.locate_comment.multiple_found", "Multiple comments found")
 	}
 
-	NormalizeCommentsResponse(commentList.Items[0], req)
+	err = NormalizeCommentsResponse(commentList.Items[0], req)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()))
+		return nil, AppResponseNormalizingError
+	}
 
 	return commentList.Items[0], nil
 }
@@ -89,10 +95,15 @@ func (c *CaseCommentService) UpdateComment(
 
 	updatedComment, err := c.app.Store.CaseComment().Update(updateOpts, comment)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case_comment.update_comment.store_update_failed", err.Error())
+		slog.Warn(err.Error(), slog.Int64("user_id", updateOpts.Session.GetUserId()), slog.Int64("domain_id", updateOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, cerror.NewInternalError("app.case_comment.update_comment.store_update_failed", "database error")
 	}
 
-	NormalizeCommentsResponse(updatedComment, req)
+	err = NormalizeCommentsResponse(updatedComment, req)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", updateOpts.Session.GetUserId()), slog.Int64("domain_id", updateOpts.Session.GetDomainId()))
+		return nil, AppResponseNormalizingError
+	}
 	return updatedComment, nil
 }
 
@@ -114,7 +125,8 @@ func (c *CaseCommentService) DeleteComment(
 
 	err = c.app.Store.CaseComment().Delete(deleteOpts)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case_comment.delete_comment.store_delete_failed", err.Error())
+		slog.Warn(err.Error(), slog.Int64("user_id", deleteOpts.Session.GetUserId()), slog.Int64("domain_id", deleteOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, AppDatabaseError
 	}
 	return nil, nil
 }
@@ -142,10 +154,15 @@ func (c *CaseCommentService) ListComments(
 
 	comments, err := c.app.Store.CaseComment().List(searchOpts)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case_comment.list_comments.fetch_error", err.Error())
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, AppDatabaseError
 	}
 
-	NormalizeCommentsResponse(comments, req)
+	err = NormalizeCommentsResponse(comments, req)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 
 	return comments, nil
 }
@@ -162,7 +179,7 @@ func (c *CaseCommentService) PublishComment(
 
 	createOpts := model.NewCreateOptions(ctx, req, CaseCommentMetadata)
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.CaseId)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseId)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.invalid_etag", "Invalid ID")
 	}
@@ -170,24 +187,35 @@ func (c *CaseCommentService) PublishComment(
 
 	comment, err := c.app.Store.CaseComment().Publish(createOpts, &cases.CaseComment{Text: req.Input.Text})
 	if err != nil {
-		return nil, err
+		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, errors.NewInternalError("app.case_comment.publish_comment.database.exec", "database error")
 	}
 
-	NormalizeCommentsResponse(comment, req)
+	err = NormalizeCommentsResponse(comment, req)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 	return comment, nil
 }
 
-func NormalizeCommentsResponse(res interface{}, opts model.Fielder) {
+func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 	fields := util.FieldsFunc(opts.GetFields(), util.InlineFields)
 	if len(fields) == 0 {
 		fields = CaseCommentMetadata.GetDefaultFields()
 	}
 	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
 
-	processComment := func(comment *cases.CaseComment) {
+	processComment := func(comment *cases.CaseComment) error {
 		if hasEtag {
-			id, _ := strconv.Atoi(comment.Id)
-			comment.Id = etag.EncodeEtag(etag.EtagCaseComment, int64(id), comment.Ver)
+			id, err := strconv.Atoi(comment.Id)
+			if err != nil {
+				return err
+			}
+			comment.Id, err = etag.EncodeEtag(etag.EtagCaseComment, int64(id), comment.Ver)
+			if err != nil {
+				return err
+			}
 			// if NOT provided in requested fields - hide them in response
 			if !hasId {
 				comment.Id = ""
@@ -196,16 +224,24 @@ func NormalizeCommentsResponse(res interface{}, opts model.Fielder) {
 				comment.Ver = 0
 			}
 		}
+		return nil
 	}
 
 	switch v := res.(type) {
 	case *cases.CaseComment:
-		processComment(v)
+		err := processComment(v)
+		if err != nil {
+			return err
+		}
 	case *cases.CaseCommentList:
 		for _, comment := range v.Items {
-			processComment(comment)
+			err := processComment(comment)
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {

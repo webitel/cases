@@ -37,9 +37,13 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 	res, dbErr := c.app.Store.CaseCommunication().List(searchOpts)
 	if dbErr != nil {
 		slog.Warn(dbErr.Error(), slog.Int64("id", tag.GetOid()))
-		return nil, errors.NewInternalError("app.case_communication.list_communication.database.error", "database error")
+		return nil, AppDatabaseError
 	}
-	NormalizeResponseCommunications(res.Data, request.GetFields())
+	err = NormalizeResponseCommunications(res.Data, request.GetFields())
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 	return res, nil
 }
 
@@ -62,12 +66,16 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, request.Input)
 	if dbErr != nil {
 		slog.Warn(dbErr.Error(), slog.Int64("id", tag.GetOid()))
-		return nil, errors.NewInternalError("app.case_communication.link_communication.database.error", "database error")
+		return nil, AppDatabaseError
 	}
 	if len(res) == 0 {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.result.no_response", "no rows were affected (wrong ids or insufficient rights)")
 	}
-	NormalizeResponseCommunications(res, request.GetFields())
+	err = NormalizeResponseCommunications(res, request.GetFields())
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 	return &cases.LinkCommunicationResponse{Data: res}, nil
 }
 
@@ -83,7 +91,7 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 	affected, dbErr := c.app.Store.CaseCommunication().Unlink(deleteOpts)
 	if dbErr != nil {
 		slog.Warn(dbErr.Error(), slog.Int64("id", tag.GetOid()))
-		return nil, errors.NewInternalError("app.case_communication.unlink_communication.database.error", "database error")
+		return nil, AppDatabaseError
 	}
 	return &cases.UnlinkCommunicationResponse{Affected: affected}, nil
 }
@@ -92,7 +100,7 @@ func NewCaseCommunicationService(app *App) (*CaseCommunicationService, errors.Ap
 	return &CaseCommunicationService{app: app}, nil
 }
 
-func NormalizeResponseCommunications(res []*cases.CaseCommunication, requestedFields []string) {
+func NormalizeResponseCommunications(res []*cases.CaseCommunication, requestedFields []string) error {
 	if len(requestedFields) == 0 {
 		requestedFields = CaseLinkMetadata.GetDefaultFields()
 	}
@@ -101,14 +109,18 @@ func NormalizeResponseCommunications(res []*cases.CaseCommunication, requestedFi
 		if hasId {
 			id, err := strconv.ParseInt(re.Id, 10, 64)
 			if err != nil {
-				continue
+				return err
 			}
-			re.Id = etag.EncodeEtag(etag.EtagCaseCommunication, id, re.Ver)
+			re.Id, err = etag.EncodeEtag(etag.EtagCaseCommunication, id, re.Ver)
+			if err != nil {
+				return err
+			}
 			if !hasVer {
 				re.Ver = 0
 			}
 		}
 	}
+	return nil
 }
 
 func ValidateCaseCommunicationsCreate(input ...*cases.InputCaseCommunication) error {
