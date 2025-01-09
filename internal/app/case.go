@@ -409,6 +409,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 		if err != nil {
 			return err
 		}
+		item.Ver = 0
 		if item.Reporter == nil && util.ContainsField(fields, "reporter") {
 			item.Reporter = &cases.Lookup{
 				Name: AnonymousName,
@@ -416,46 +417,46 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 		}
 
 	}
-	for _, field := range fields {
-		switch field {
-		case "comments":
-			//for _, item := range res.Items {
-			//	for _, comment := range item.Comments.Items {
-			//		util.NormalizeEtags(etag.EtagCaseComment, true, true, true, &comment.Id, &comment.Id, &comment.Ver)
-			//	}
-			//}
-		case "links":
-			for _, item := range res.Items {
-				if item.Links != nil {
-					for _, link := range item.Links.Items {
-						id, err := strconv.Atoi(link.Id)
-						if err != nil {
-							return err
-						}
-						item.Id, err = etag.EncodeEtag(etag.EtagCaseLink, int64(id), link.Ver)
-						if err != nil {
-							return err
-						}
-					}
+
+	for _, item := range res.Items {
+		if item.Comments != nil {
+			for _, com := range item.Comments.Items {
+				id, err := strconv.Atoi(com.Id)
+				if err != nil {
+					return err
+				}
+				com.Id, err = etag.EncodeEtag(etag.EtagCaseComment, int64(id), com.Ver)
+				if err != nil {
+					return err
 				}
 			}
-		case "related":
-			for _, item := range res.Items {
-				if item.Related != nil {
-					for _, related := range item.Related.Data {
-						id, err := strconv.Atoi(related.Id)
-						if err != nil {
-							return err
-						}
-						related.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), related.Ver)
-						if err != nil {
-							return err
-						}
-					}
+		}
+		if item.Links != nil {
+			for _, link := range item.Links.Items {
+				id, err := strconv.Atoi(link.Id)
+				if err != nil {
+					return err
+				}
+				link.Id, err = etag.EncodeEtag(etag.EtagCaseLink, int64(id), link.Ver)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		if item.Related != nil {
+			for _, related := range item.Related.Data {
+				id, err := strconv.Atoi(related.Id)
+				if err != nil {
+					return err
+				}
+				related.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), related.Ver)
+				if err != nil {
+					return err
 				}
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -474,6 +475,7 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 	if err != nil {
 		return err
 	}
+	re.Ver = 0
 	if re.Reporter == nil && util.ContainsField(fields, "reporter") {
 		re.Reporter = &cases.Lookup{
 			Name: AnonymousName,

@@ -200,30 +200,17 @@ func (c *CaseCommentService) PublishComment(
 }
 
 func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
-	fields := util.FieldsFunc(opts.GetFields(), util.InlineFields)
-	if len(fields) == 0 {
-		fields = CaseCommentMetadata.GetDefaultFields()
-	}
-	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
-
 	processComment := func(comment *cases.CaseComment) error {
-		if hasEtag {
-			id, err := strconv.Atoi(comment.Id)
-			if err != nil {
-				return err
-			}
-			comment.Id, err = etag.EncodeEtag(etag.EtagCaseComment, int64(id), comment.Ver)
-			if err != nil {
-				return err
-			}
-			// if NOT provided in requested fields - hide them in response
-			if !hasId {
-				comment.Id = ""
-			}
-			if !hasVer {
-				comment.Ver = 0
-			}
+
+		id, err := strconv.Atoi(comment.Id)
+		if err != nil {
+			return err
 		}
+		comment.Id, err = etag.EncodeEtag(etag.EtagCaseComment, int64(id), comment.Ver)
+		if err != nil {
+			return err
+		}
+		comment.Ver = 0
 		return nil
 	}
 

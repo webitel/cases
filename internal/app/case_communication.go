@@ -7,7 +7,6 @@ import (
 	"github.com/webitel/cases/api/cases"
 	errors "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 	"log/slog"
 	"strconv"
@@ -101,24 +100,18 @@ func NewCaseCommunicationService(app *App) (*CaseCommunicationService, errors.Ap
 }
 
 func NormalizeResponseCommunications(res []*cases.CaseCommunication, requestedFields []string) error {
-	if len(requestedFields) == 0 {
-		requestedFields = CaseLinkMetadata.GetDefaultFields()
-	}
-	_, hasId, hasVer := util.FindEtagFields(requestedFields)
 	for _, re := range res {
-		if hasId {
-			id, err := strconv.ParseInt(re.Id, 10, 64)
-			if err != nil {
-				return err
-			}
-			re.Id, err = etag.EncodeEtag(etag.EtagCaseCommunication, id, re.Ver)
-			if err != nil {
-				return err
-			}
-			if !hasVer {
-				re.Ver = 0
-			}
+		id, err := strconv.ParseInt(re.Id, 10, 64)
+		if err != nil {
+			return err
 		}
+		re.Id, err = etag.EncodeEtag(etag.EtagCaseCommunication, id, re.Ver)
+		if err != nil {
+			return err
+		}
+
+		re.Ver = 0
+
 	}
 	return nil
 }

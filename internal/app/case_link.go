@@ -187,28 +187,16 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 }
 
 func NormalizeResponseLink(res *cases.CaseLink, opts model.Fielder) error {
-	fields := opts.GetFields()
-	if len(opts.GetFields()) == 0 {
-		fields = CaseLinkMetadata.GetDefaultFields()
+	id, err := strconv.Atoi(res.Id)
+	if err != nil {
+		return err
 	}
-	_, hasId, hasVer := util.FindEtagFields(fields)
-	if hasId {
-		id, err := strconv.Atoi(res.Id)
-		if err != nil {
-			return err
-		}
-		res.Id, err = etag.EncodeEtag(etag.EtagCaseLink, int64(id), res.Ver)
-		if err != nil {
-			return err
-		}
-		// hide
-		if !hasId {
-			res.Id = ""
-		}
-		if !hasVer {
-			res.Ver = 0
-		}
+	res.Id, err = etag.EncodeEtag(etag.EtagCaseLink, int64(id), res.Ver)
+	if err != nil {
+		return err
 	}
+
+	res.Ver = 0
 	return nil
 }
 
