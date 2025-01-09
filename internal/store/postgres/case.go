@@ -592,6 +592,9 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		base = base.Where(where)
 
 	}
+	for _, d := range opts.IDs {
+		base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLeft, "id")), d)
+	}
 	for column, value := range opts.Filter {
 		switch column {
 		case "created_by",
