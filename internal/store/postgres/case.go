@@ -772,6 +772,8 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("source", upd.Source.GetId())
 		case "status":
 			updateBuilder = updateBuilder.Set("status", upd.Status.GetId())
+		case "service":
+			updateBuilder = updateBuilder.Set("service", upd.GetService())
 		case "close.close_reason":
 			if upd.Close != nil {
 				updateBuilder = updateBuilder.Set("close_reason", upd.Close.CloseReason.GetId())
@@ -784,9 +786,11 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
 		case "reporter":
 			updateBuilder = updateBuilder.Set("reporter", upd.Reporter.GetId())
+		case "contact_info":
+			updateBuilder = updateBuilder.Set("contact_info", upd.GetContactInfo())
 		case "impacted":
 			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
-		case "contact_group":
+		case "group":
 			updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
 		case "planned_reaction_at":
 			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.PlannedReactionAt))

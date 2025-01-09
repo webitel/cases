@@ -336,7 +336,7 @@ func (c *CaseService) ValidateUpdateInput(
 				return cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
 			}
 		case "close.close_reason":
-			if input.GetCloseReason() == 0 {
+			if input.Close.GetCloseReason() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
 			}
 		case "priority":
