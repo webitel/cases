@@ -541,6 +541,8 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case.list.to_sql.error", err.Error())
 	}
+	slct = store.CompactSQL(slct)
+
 	db, dbErr := c.storage.Database()
 	if dbErr != nil {
 		return nil, dbErr
@@ -928,13 +930,13 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 								if err != nil {
 									return err
 								}
-								for i, text := range _go.Type_name {
+								for i, text := range _go.SourceType_name {
 									if text == str.String {
-										caseItem.Source.Type = _go.Type(i)
+										caseItem.Source.Type = _go.SourceType(i)
 										return nil
 									}
 								}
-								caseItem.Source.Type = _go.Type_TYPE_UNSPECIFIED
+								caseItem.Source.Type = _go.SourceType_TYPE_UNSPECIFIED
 								return nil
 							}),
 						}
@@ -1274,30 +1276,20 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				}
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
-		case "related":
-			base = base.Column(fmt.Sprintf(`
-				(SELECT JSON_AGG(JSON_BUILD_OBJECT(
-					'id', rc.id, -- ID of the related_case record
-					'related_case', JSON_BUILD_OBJECT( -- Child case details
-						'id', c_child.id,
-						'name', c_child.name,
-						'subject', c_child.subject,
-						'description', c_child.description
-					),
-					'created_at', CAST(EXTRACT(EPOCH FROM rc.created_at) * 1000 AS BIGINT),
-					'created_by', JSON_BUILD_OBJECT(
-					   'name', u.name,
-					   'id', u.id
-					),
-					'relation_type', rc.relation_type  -- Output numeric enum value directly
-				))
-				FROM %s rc
-                JOIN cases.case c_child
-                ON rc.related_case_id = c_child.id -- Fetch details for the child case
-				LEFT JOIN directory.wbt_user u ON rc.created_by = u.id
-                WHERE rc.primary_case_id = %s.id) AS related_cases`, relatedAlias, caseLeft))
-			// primary_case_id -- newly created case
-			// related_case_id -- attached case id
+		case "related_cases":
+			subquery, err := buildRelatedCasesSubquery(caseLeft)
+			if err != nil {
+				return base, nil, err
+			}
+
+			sqlStr, _, sqlErr := subquery.ToSql()
+			if sqlErr != nil {
+				return base, nil, sqlErr
+			}
+
+			// Add the subquery as a column
+			base = base.Column(fmt.Sprintf("(%s) AS related_cases", sqlStr))
+
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Related == nil {
 					caseItem.Related = &_go.RelatedCaseList{}
@@ -1314,6 +1306,30 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 	}
 
 	return base, plan, nil
+}
+
+func buildRelatedCasesSubquery(caseAlias string) (sq.SelectBuilder, error) {
+	return sq.Select(`
+        JSON_AGG(JSON_BUILD_OBJECT(
+            'id', rc.id::text,
+            'related_case', JSON_BUILD_OBJECT(
+                'id', c_child.id::text,
+                'name', c_child.name,
+                'subject', c_child.subject,
+                'description', c_child.description
+            ),
+            'created_at', CAST(EXTRACT(EPOCH FROM rc.created_at) * 1000 AS BIGINT),
+            'created_by', JSON_BUILD_OBJECT(
+                'name', u.name,
+                'id', u.id
+            ),
+            'relation_type', rc.relation_type -- No casting needed for enum type
+        )) AS related_cases
+    `).
+		From("cases.related_case rc").
+		Join("cases.case c_child ON rc.related_case_id = c_child.id").
+		LeftJoin("directory.wbt_user u ON rc.created_by = u.id").
+		Where(fmt.Sprintf("%s = %s.id", store.Ident("rc", "primary_case_id"), caseAlias)), nil
 }
 
 func AddSubqueryAsColumn(mainQuery sq.SelectBuilder, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) sq.SelectBuilder {

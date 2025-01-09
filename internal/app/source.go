@@ -27,7 +27,7 @@ func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRe
 	}
 
 	// Validate the Type field
-	if req.Type == _go.Type_TYPE_UNSPECIFIED {
+	if req.Type == _go.SourceType_TYPE_UNSPECIFIED {
 		return nil, cerror.NewBadRequestError("source_service.create_source.type.required", "Source type is required")
 	}
 
@@ -205,7 +205,7 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 
 		case "type":
 			// Validate that type is not unspecified
-			if req.Input.Type == _go.Type_TYPE_UNSPECIFIED {
+			if req.Input.Type == _go.SourceType_TYPE_UNSPECIFIED {
 				return nil, cerror.NewBadRequestError("source_service.update_source.type.required", "Type is required and cannot be unspecified")
 			}
 			fields = append(fields, "type")

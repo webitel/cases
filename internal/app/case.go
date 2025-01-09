@@ -397,6 +397,9 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
+
+	fields = util.FieldsFunc(fields, util.InlineFields)
+
 	for _, item := range res.Items {
 		id, err := strconv.Atoi(item.Id)
 		if err != nil {

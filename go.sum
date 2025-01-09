@@ -335,10 +335,6 @@ github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXl
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
-github.com/webitel/webitel-go-kit v0.0.21-0.20241220125539-20cb58bb52e5 h1:J7TUWc7dxWdb6gdyJIF5CKpuACISteSOCyozRXvK4x0=
-github.com/webitel/webitel-go-kit v0.0.21-0.20241220125539-20cb58bb52e5/go.mod h1:CMnTRWZ9NoMAPdDyj9d19O3tC/kYJmub6qEDVPV59FM=
-github.com/webitel/webitel-go-kit v0.0.21-0.20250109094401-e93c7294aaa2 h1:zuYooGApRitpnfXquocXlJeC2PwbCXEvSSGYMnxVC+M=
-github.com/webitel/webitel-go-kit v0.0.21-0.20250109094401-e93c7294aaa2/go.mod h1:CMnTRWZ9NoMAPdDyj9d19O3tC/kYJmub6qEDVPV59FM=
 github.com/webitel/webitel-go-kit v0.0.21-0.20250109110208-ce50be3e96ea h1:2p3u5SX4djPdHrgiArc7QpbYIhbTKIwC24ec1jwh0Mw=
 github.com/webitel/webitel-go-kit v0.0.21-0.20250109110208-ce50be3e96ea/go.mod h1:CMnTRWZ9NoMAPdDyj9d19O3tC/kYJmub6qEDVPV59FM=
 github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218 h1:5Jn9KhUMjqAUdVMi7EvFJrJlJGrwndhKFbz7FZ7woL0=
