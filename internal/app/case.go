@@ -253,6 +253,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Description:      req.Input.GetDescription(),
 		ContactInfo:      req.Input.GetContactInfo(),
 		Status:           req.Input.GetStatus(),
+		StatusCondition:  req.Input.GetStatusCondition(),
 		CloseReasonGroup: req.Input.GetCloseReason(),
 		Assignee:         req.Input.GetAssignee(),
 		Reporter:         req.Input.GetReporter(),

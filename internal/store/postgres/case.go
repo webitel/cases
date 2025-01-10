@@ -739,6 +739,8 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("source", upd.Source.GetId())
 		case "status":
 			updateBuilder = updateBuilder.Set("status", upd.Status.GetId())
+		case "status_condition":
+			updateBuilder = updateBuilder.Set("status_condition", upd.StatusCondition.GetId())
 		case "service":
 			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
 		case "assignee":
