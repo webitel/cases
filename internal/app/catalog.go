@@ -285,6 +285,49 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 
 	// Validate required fields and build the list of fields for update
 	for _, f := range req.XJsonMask {
+		// Handle prefixed fields
+		if strings.HasPrefix(f, "skills") {
+			if !util.ContainsField(fields, "skills") {
+				fields = append(fields, "skills")
+			}
+			continue
+		}
+
+		if strings.HasPrefix(f, "teams") {
+			if !util.ContainsField(fields, "teams") {
+				fields = append(fields, "teams")
+			}
+			continue
+		}
+
+		if strings.HasPrefix(f, "close_reason") {
+			if !util.ContainsField(fields, "close_reason_id") {
+				fields = append(fields, "close_reason_id")
+			}
+			continue
+		}
+
+		if strings.HasPrefix(f, "status") {
+			if req.Input.Status.GetId() == 0 {
+				return nil, cerror.NewBadRequestError("catalog.update_catalog.status.required", "Catalog status is required and cannot be empty")
+			}
+			if !util.ContainsField(fields, "status_id") {
+				fields = append(fields, "status_id")
+			}
+			continue
+		}
+
+		if strings.HasPrefix(f, "sla") {
+			if req.Input.Sla.GetId() == 0 {
+				return nil, cerror.NewBadRequestError("catalog.update_catalog.sla.required", "Catalog SLA is required and cannot be empty")
+			}
+			if !util.ContainsField(fields, "sla_id") {
+				fields = append(fields, "sla_id")
+			}
+			continue
+		}
+
+		// Handle exact matches
 		switch f {
 		case "name":
 			if req.Input.Name == "" {
@@ -296,26 +339,10 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 				return nil, cerror.NewBadRequestError("catalog.update_catalog.prefix.required", "Catalog prefix is required and cannot be empty")
 			}
 			fields = append(fields, "prefix")
-		case "sla_id":
-			if req.Input.Sla.GetId() == 0 {
-				return nil, cerror.NewBadRequestError("catalog.update_catalog.sla.required", "Catalog SLA is required and cannot be empty")
-			}
-			fields = append(fields, "sla_id")
-		case "status_id":
-			if req.Input.Status.GetId() == 0 {
-				return nil, cerror.NewBadRequestError("catalog.update_catalog.status.required", "Catalog status is required and cannot be empty")
-			}
-			fields = append(fields, "status_id")
 		case "description":
 			fields = append(fields, "description")
 		case "code":
 			fields = append(fields, "code")
-		case "close_reason_id":
-			fields = append(fields, "close_reason_id")
-		case "team_ids":
-			fields = append(fields, "teams")
-		case "skill_ids":
-			fields = append(fields, "skills")
 		case "state":
 			fields = append(fields, "state")
 		}

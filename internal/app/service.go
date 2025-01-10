@@ -256,6 +256,29 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 	fields := []string{"id"}
 
 	for _, f := range req.XJsonMask {
+		// Handle fields with specific prefixes
+		if strings.HasPrefix(f, "sla") {
+			if !util.ContainsField(fields, "sla_id") {
+				fields = append(fields, "sla_id")
+			}
+			continue
+		}
+
+		if strings.HasPrefix(f, "group") {
+			if !util.ContainsField(fields, "group_id") {
+				fields = append(fields, "group_id")
+			}
+			continue
+		}
+
+		if strings.HasPrefix(f, "assignee") {
+			if !util.ContainsField(fields, "assignee_id") {
+				fields = append(fields, "assignee_id")
+			}
+			continue
+		}
+
+		// Handle exact matches
 		switch f {
 		case "name":
 			fields = append(fields, "name")
@@ -268,12 +291,6 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 			fields = append(fields, "root_id")
 		case "code":
 			fields = append(fields, "code")
-		case "sla_id":
-			fields = append(fields, "sla_id")
-		case "group_id":
-			fields = append(fields, "group_id")
-		case "assignee_id":
-			fields = append(fields, "assignee_id")
 		case "state":
 			fields = append(fields, "state")
 		}
