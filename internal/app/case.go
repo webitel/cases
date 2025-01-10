@@ -40,7 +40,7 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "close_reason_group", Default: true},
 		{Name: "group", Default: true},
 		{Name: "close", Default: false},
-		{Name: "rate", Default: false},
+		{Name: "rate", Default: true},
 		{Name: "sla_condition", Default: true},
 		{Name: "service", Default: true},
 		{Name: "status_condition", Default: true},
@@ -241,12 +241,14 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	}
 
 	updateOpts := model.NewUpdateOptions(ctx, req, CaseMetadata)
+	updateOpts.Etags = []*etag.Tid{&tag}
 
 	upd := &cases.Case{
 		Id:               strconv.Itoa(int(tag.GetOid())),
 		Ver:              tag.GetVer(),
-		Subject:          req.Input.Subject,
-		Description:      req.Input.Description,
+		Subject:          req.Input.GetSubject(),
+		Description:      req.Input.GetDescription(),
+		ContactInfo:      req.Input.GetContactInfo(),
 		Status:           &cases.Lookup{Id: req.Input.GetStatus()},
 		CloseReasonGroup: &cases.Lookup{Id: req.Input.GetCloseReason()},
 		Assignee:         &cases.Lookup{Id: req.Input.GetAssignee()},
@@ -256,12 +258,12 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Priority:         &cases.Priority{Id: req.Input.GetPriority()},
 		Source:           &cases.SourceTypeLookup{Id: req.Input.GetSource()},
 		Close: &cases.CloseInfo{
-			CloseResult: req.Input.Close.CloseResult,
+			CloseResult: req.Input.Close.GetCloseResult(),
 			CloseReason: &cases.Lookup{Id: req.Input.Close.GetCloseReason()},
 		},
 		Rate: &cases.RateInfo{
-			Rating:        req.Input.Rate.Rating,
-			RatingComment: req.Input.Rate.RatingComment,
+			Rating:        req.Input.Rate.GetRating(),
+			RatingComment: req.Input.Rate.GetRatingComment(),
 		},
 		Service: &cases.Lookup{Id: req.Input.GetService()},
 	}

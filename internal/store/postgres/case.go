@@ -1,8 +1,8 @@
 package postgres
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -674,26 +674,6 @@ func (c *CaseStore) Update(
 		return nil, dberr.NewDBInternalError("postgres.case.update.database_connection_error", err)
 	}
 
-	// Begin a transaction
-	tx, txErr := db.Begin(rpc.Context)
-	if txErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case.update.transaction_error", txErr)
-	}
-	defer tx.Rollback(rpc.Context)
-	txManager := store.NewTxManager(tx)
-
-	id, _ := strconv.Atoi(upd.Id)
-
-	// Scan the current version of the comment
-	ver, verErr := c.ScanVer(rpc.Context, int64(id), txManager)
-	if verErr != nil {
-		return nil, verErr
-	}
-
-	if upd.Ver != int32(ver) {
-		return nil, dberr.NewDBConflictError("postgres.cases.case.update.version_mismatch", "Version mismatch, update failed")
-	}
-
 	// Build the SQL query and scan plan
 	queryBuilder, plan, sqErr := c.buildUpdateCaseSqlizer(rpc, upd)
 	if sqErr != nil {
@@ -711,59 +691,43 @@ func (c *CaseStore) Update(
 	// Prepare scan arguments
 	scanArgs := convertToCaseScanArgs(plan, upd)
 
-	// Execute the query
-	if sqErr = db.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); sqErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.update.execution_error", sqErr)
-	}
-
-	// Commit the transaction
-	if err := tx.Commit(rpc.Context); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case.update.commit_error", err)
+	if err := db.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Explicitly indicate that the user is not the creator
+			return nil, dberr.NewDBNotFoundError("postgres.case.update.update.scan_ver.not_found", "Comment not found")
+		}
+		return nil, dberr.NewDBInternalError("postgres.case.update.update.execution_error", err)
 	}
 
 	return upd, nil
 }
 
-func (c *CaseStore) ScanVer(
-	ctx context.Context,
-	caseID int64,
-	txManager *store.TxManager,
-) (int64, error) {
-	// Retrieve the current version (`ver`) of the case
-	var ver int64
-	err := txManager.QueryRow(ctx, "SELECT ver FROM cases.case WHERE id = $1", caseID).Scan(&ver)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			// Return a specific error if no case with the given ID is found
-			return 0, dberr.NewDBNotFoundError("postgres.cases.case.scan_ver.not_found", "Case not found")
-		}
-		return 0, dberr.NewDBInternalError("postgres.cases.case.scan_ver.query_error", err)
-	}
-	return ver, nil
-}
-
 func (c *CaseStore) buildUpdateCaseSqlizer(
-	req *model.UpdateOptions,
+	rpc *model.UpdateOptions,
 	upd *_go.Case,
 ) (sq.Sqlizer, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included
-	req.Fields = util.EnsureIdAndVerField(req.Fields)
+	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
 
 	// Initialize the update query
 	updateBuilder := sq.Update(c.mainTable).
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", req.CurrentTime()).
-		Set("updated_by", req.Session.GetUserId()).
-		Where(sq.Eq{"id": upd.Id, "dc": req.Session.GetDomainId()})
+		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_by", rpc.Session.GetUserId()).
+		Where(sq.Eq{
+			"id":  rpc.Etags[0].GetOid(),
+			"ver": rpc.Etags[0].GetVer(),
+			"dc":  rpc.Session.GetDomainId(),
+		})
 
 	// Increment version
 	updateBuilder = updateBuilder.Set("ver", sq.Expr("ver + 1"))
 
 	// Handle nested fields using switch-case on req.Mask
-	for _, field := range req.Mask {
+	for _, field := range rpc.Mask {
 		switch field {
 		case "subject":
-			updateBuilder = updateBuilder.Set("subject", upd.Subject)
+			updateBuilder = updateBuilder.Set("subject", upd.GetSubject())
 		case "description":
 			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", upd.Description))
 		case "priority":
@@ -773,15 +737,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		case "status":
 			updateBuilder = updateBuilder.Set("status", upd.Status.GetId())
 		case "service":
-			updateBuilder = updateBuilder.Set("service", upd.GetService())
-		case "close.close_reason":
-			if upd.Close != nil {
-				updateBuilder = updateBuilder.Set("close_reason", upd.Close.CloseReason.GetId())
-			}
-		case "close.close_result":
-			if upd.Close != nil {
-				updateBuilder = updateBuilder.Set("close_result", upd.Close.CloseResult)
-			}
+			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
 		case "assignee":
 			updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
 		case "reporter":
@@ -792,10 +748,14 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
 		case "group":
 			updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
-		case "planned_reaction_at":
-			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.PlannedReactionAt))
-		case "planned_resolve_at":
-			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(upd.PlannedResolveAt))
+		case "close.close_reason":
+			if upd.Close != nil {
+				updateBuilder = updateBuilder.Set("close_reason", upd.Close.CloseReason.GetId())
+			}
+		case "close.close_result":
+			if upd.Close != nil {
+				updateBuilder = updateBuilder.Set("close_result", upd.Close.GetCloseResult())
+			}
 		case "rate.rating":
 			if upd.Rate != nil {
 				updateBuilder = updateBuilder.Set("rating", upd.Rate.Rating)
@@ -804,15 +764,17 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			if upd.Rate != nil {
 				updateBuilder = updateBuilder.Set("rating_comment", sq.Expr("NULLIF(?, '')", upd.Rate.RatingComment))
 			}
-		default:
-			// Optionally handle unknown fields
-			return nil, nil, dberr.NewDBError("postgres.case.update.invalid_field", fmt.Sprintf("Unknown field: %s", field))
 		}
 	}
 
 	// Define SELECT query for returning updated fields
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		&model.SearchOptions{Size: -1, Fields: req.Fields, Session: req.Session, Time: req.Time},
+		&model.SearchOptions{
+			Size:    -1,
+			Fields:  rpc.Fields,
+			Session: rpc.Session,
+			Time:    rpc.Time,
+		},
 		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
 	)
 	if err != nil {
