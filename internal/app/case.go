@@ -50,6 +50,7 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "files", Default: false},
 		{Name: "related_cases", Default: false},
 		{Name: "timing", Default: true},
+		{Name: "contact_info", Default: true},
 	})
 
 type CaseService struct {
