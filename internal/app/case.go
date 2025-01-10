@@ -174,7 +174,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Impacted:         req.Input.Impacted,
 		Group:            req.Input.Group,
 		Status:           req.Input.Status,
-		CloseReasonGroup: &cases.Lookup{Id: req.Input.Close.GetCloseReason()},
+		CloseReasonGroup: &cases.Lookup{Id: req.Input.Close.CloseReason.GetId()},
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
 		Service:          req.Input.Service,
 		Links:            links,
@@ -372,7 +372,7 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 		return cerror.NewBadRequestError("app.case.create_case.status_required", "Case status is required")
 	}
 
-	if input.Close.GetCloseReason() == 0 {
+	if input.Close.GetCloseReason().GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.close_reason_required", "Case close reason is required")
 	}
 
