@@ -264,7 +264,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 			fields = append(fields, "valid_from")
 		case "valid_to":
 			fields = append(fields, "valid_to")
-		case "calendar_id":
+		case "calendar", "calendar.name", "calendar.id":
 			fields = append(fields, "calendar_id")
 			if req.Input.Calendar.GetId() == 0 {
 				return nil, cerror.NewBadRequestError("sla_service.update_sla.calendar_id.required", "Calendar ID is required")

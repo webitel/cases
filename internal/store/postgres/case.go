@@ -202,6 +202,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	params := map[string]interface{}{
 		// Case-level parameters
 		"date":                rpc.CurrentTime(),
+		"contact_info":        caseItem.GetContactInfo(),
 		"user":                rpc.Session.GetUserId(),
 		"dc":                  rpc.Session.GetDomainId(),
 		"sla":                 sla,
@@ -255,7 +256,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				id, name, dc, created_at, created_by, updated_at, updated_by,
 				priority, source, status, contact_group, close_reason_group,
 				subject, planned_reaction_at, planned_resolve_at, reporter, impacted,
-				service, description, assignee, sla, sla_condition_id, status_condition
+				service, description, assignee, sla, sla_condition_id, status_condition, contact_info
 			) VALUES (
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
@@ -263,7 +264,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:priority, :source, :status, :contact_group, :close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee, :sla, :sla_condition,
-				(SELECT status_condition_id FROM status_condition_cte)
+				(SELECT status_condition_id FROM status_condition_cte), :contact_info
 			)
 			RETURNING *
 		),

@@ -221,10 +221,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		return nil, cerror.NewInternalError("app.case.create_case.event_publish.failed", err.Error())
 	}
-	err = c.NormalizeResponseCase(newCase, req)
-	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()))
-		return nil, AppResponseNormalizingError
+
+	if newCase.Reporter == nil && util.ContainsField(createOpts.Fields, "reporter") {
+		newCase.Reporter = &cases.Lookup{
+			Name: AnonymousName,
+		}
 	}
 	return newCase, nil
 }

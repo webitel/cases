@@ -7,6 +7,7 @@ import (
 
 	cases "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/util"
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -258,8 +259,13 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 
 	fields := []string{"id"}
 
-	// Map XJsonMask fields to the corresponding SLACondition fields
 	for _, f := range req.XJsonMask {
+		if strings.HasPrefix(f, "priorities") {
+			if !util.ContainsField(fields, "priorities") {
+				fields = append(fields, "priorities")
+			}
+			continue
+		}
 		switch f {
 		case "name":
 			fields = append(fields, "name")
@@ -272,8 +278,6 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 			fields = append(fields, "resolution_time")
 		case "sla_id":
 			fields = append(fields, "sla_id")
-		case "priorities":
-			fields = append(fields, "priorities")
 		}
 	}
 
