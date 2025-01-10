@@ -214,7 +214,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"contact_group":       caseItem.Group.GetId(),
 		"close_reason_group":  caseItem.CloseReasonGroup.GetId(),
 		"close_result":        caseItem.Close.GetCloseResult(),
-		"close_reason":        caseItem.Close.GetCloseReason(),
+		"close_reason":        caseItem.Close.GetCloseReason().GetId(),
 		"subject":             caseItem.Subject,
 		"planned_reaction_at": util.LocalTime(caseItem.PlannedReactionAt),
 		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),
