@@ -693,8 +693,7 @@ func (c *CaseStore) Update(
 
 	if err := db.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Explicitly indicate that the user is not the creator
-			return nil, dberr.NewDBNotFoundError("postgres.case.update.update.scan_ver.not_found", "Comment not found")
+			return nil, dberr.NewDBNotFoundError("postgres.case.update.update.scan_ver.not_found", "Case not found")
 		}
 		return nil, dberr.NewDBInternalError("postgres.case.update.update.execution_error", err)
 	}
