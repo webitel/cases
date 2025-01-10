@@ -259,7 +259,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
 		Close: &cases.CloseInfo{
 			CloseResult: req.Input.Close.GetCloseResult(),
-			CloseReason: &cases.Lookup{Id: req.Input.Close.GetCloseReason()},
+			CloseReason: req.Input.Close.GetCloseReason(),
 		},
 		Rate: &cases.RateInfo{
 			Rating:        req.Input.Rate.GetRating(),
@@ -322,7 +322,7 @@ func (c *CaseService) ValidateUpdateInput(
 		input.Rate = &cases.RateInfo{}
 	}
 	if input.Close == nil {
-		input.Close = &cases.CloseInfoInput{}
+		input.Close = &cases.CloseInfo{}
 	}
 
 	// Iterate over xJsonMask and validate corresponding fields
@@ -338,7 +338,7 @@ func (c *CaseService) ValidateUpdateInput(
 				return cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
 			}
 		case "close.close_reason":
-			if input.Close.GetCloseReason() == 0 {
+			if input.Close.GetCloseReason().GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
 			}
 		case "priority":
