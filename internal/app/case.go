@@ -189,7 +189,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	}
 	id, _ := strconv.Atoi(newCase.Id)
 	// Encode etag from the case ID and version
-	newCase.Id, err = etag.EncodeEtag(etag.EtagCaseComment, int64(id), newCase.Ver)
+	newCase.Id, err = etag.EncodeEtag(etag.EtagCase, int64(id), newCase.Ver)
 	if err != nil {
 		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("case_id", int64(id)))
 		return nil, AppResponseNormalizingError
