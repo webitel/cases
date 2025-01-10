@@ -213,6 +213,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"source":              caseItem.Source.GetId(),
 		"contact_group":       caseItem.Group.GetId(),
 		"close_reason_group":  caseItem.CloseReasonGroup.GetId(),
+		"close_result":        caseItem.Close.GetCloseResult(),
+		"close_reason":        caseItem.Close.GetCloseReason(),
 		"subject":             caseItem.Subject,
 		"planned_reaction_at": util.LocalTime(caseItem.PlannedReactionAt),
 		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),
@@ -256,7 +258,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				id, name, dc, created_at, created_by, updated_at, updated_by,
 				priority, source, status, contact_group, close_reason_group,
 				subject, planned_reaction_at, planned_resolve_at, reporter, impacted,
-				service, description, assignee, sla, sla_condition_id, status_condition, contact_info
+				service, description, assignee, sla, sla_condition_id, status_condition, contact_info,
+				close_result, close_reason
 			) VALUES (
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
@@ -264,7 +267,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:priority, :source, :status, :contact_group, :close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee, :sla, :sla_condition,
-				(SELECT status_condition_id FROM status_condition_cte), :contact_info
+				(SELECT status_condition_id FROM status_condition_cte), :contact_info, :close_result, :close_reason
 			)
 			RETURNING *
 		),

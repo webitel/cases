@@ -39,7 +39,7 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "status", Default: true},
 		{Name: "close_reason_group", Default: true},
 		{Name: "group", Default: true},
-		{Name: "close", Default: false},
+		{Name: "close", Default: true},
 		{Name: "rate", Default: true},
 		{Name: "sla_condition", Default: true},
 		{Name: "service", Default: true},
@@ -174,7 +174,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Impacted:         req.Input.Impacted,
 		Group:            req.Input.Group,
 		Status:           req.Input.Status,
-		CloseReasonGroup: &cases.Lookup{Id: req.Input.Close.CloseReason.GetId()},
+		Close:            (*cases.CloseInfo)(req.Input.GetClose()),
+		CloseReasonGroup: req.Input.GetCloseReasonGroup(),
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
 		Service:          req.Input.Service,
 		Links:            links,
@@ -372,7 +373,7 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 		return cerror.NewBadRequestError("app.case.create_case.status_required", "Case status is required")
 	}
 
-	if input.Close.GetCloseReason().GetId() == 0 {
+	if input.GetCloseReasonGroup().GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.close_reason_required", "Case close reason is required")
 	}
 
