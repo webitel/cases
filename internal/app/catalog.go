@@ -31,10 +31,10 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	if req.Prefix == "" {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.prefix.required", "Catalog prefix is required")
 	}
-	if req.SlaId == 0 {
+	if req.Sla.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.sla.required", "SLA is required")
 	}
-	if req.StatusId == 0 {
+	if req.Status.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.status.required", "Status is required")
 	}
 
@@ -63,26 +63,22 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		Prefix:      req.Prefix,
 		Code:        req.Code,
 		State:       req.State,
-		Sla:         &cases.Lookup{Id: req.SlaId},
-		Status:      &cases.Lookup{Id: req.StatusId},
-		CloseReason: &cases.Lookup{Id: req.CloseReasonId},
+		Sla:         req.Sla,
+		Status:      req.Status,
+		CloseReason: req.CloseReason,
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
 	}
 
 	// Handle multiselect fields: teams and skills
-	if len(req.TeamIds) > 0 {
-		catalog.Teams = make([]*cases.Lookup, len(req.TeamIds))
-		for i, teamId := range req.TeamIds {
-			catalog.Teams[i] = &cases.Lookup{Id: teamId}
-		}
+	if len(req.Teams) > 0 {
+		catalog.Teams = make([]*cases.Lookup, len(req.Teams))
+		copy(catalog.Teams, req.Teams)
 	}
 
-	if len(req.SkillIds) > 0 {
-		catalog.Skills = make([]*cases.Lookup, len(req.SkillIds))
-		for i, skillId := range req.SkillIds {
-			catalog.Skills[i] = &cases.Lookup{Id: skillId}
-		}
+	if len(req.Skills) > 0 {
+		catalog.Skills = make([]*cases.Lookup, len(req.Skills))
+		copy(catalog.Skills, req.Skills)
 	}
 
 	t := time.Now()
@@ -266,26 +262,22 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		Prefix:      req.Input.Prefix,
 		Code:        req.Input.Code,
 		State:       req.Input.State,
-		Sla:         &cases.Lookup{Id: req.Input.SlaId},
-		Status:      &cases.Lookup{Id: req.Input.StatusId},
-		CloseReason: &cases.Lookup{Id: req.Input.CloseReasonId},
+		Sla:         req.Input.Sla,
+		Status:      req.Input.Status,
+		CloseReason: req.Input.CloseReason,
 		UpdatedBy:   u,
 	}
 
 	// Add teams if provided
-	if len(req.Input.TeamIds) > 0 {
-		catalog.Teams = make([]*cases.Lookup, len(req.Input.TeamIds))
-		for i, teamId := range req.Input.TeamIds {
-			catalog.Teams[i] = &cases.Lookup{Id: teamId}
-		}
+	if len(req.Input.Teams) > 0 {
+		catalog.Teams = make([]*cases.Lookup, len(req.Input.Teams))
+		copy(catalog.Teams, req.Input.Teams)
 	}
 
 	// Add skills if provided
-	if len(req.Input.SkillIds) > 0 {
-		catalog.Skills = make([]*cases.Lookup, len(req.Input.SkillIds))
-		for i, skillId := range req.Input.SkillIds {
-			catalog.Skills[i] = &cases.Lookup{Id: skillId}
-		}
+	if len(req.Input.Skills) > 0 {
+		catalog.Skills = make([]*cases.Lookup, len(req.Input.Skills))
+		copy(catalog.Skills, req.Input.Skills)
 	}
 
 	// List of fields to update
@@ -305,12 +297,12 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 			}
 			fields = append(fields, "prefix")
 		case "sla_id":
-			if req.Input.SlaId == 0 {
+			if req.Input.Sla.GetId() == 0 {
 				return nil, cerror.NewBadRequestError("catalog.update_catalog.sla.required", "Catalog SLA is required and cannot be empty")
 			}
 			fields = append(fields, "sla_id")
 		case "status_id":
-			if req.Input.StatusId == 0 {
+			if req.Input.Status.GetId() == 0 {
 				return nil, cerror.NewBadRequestError("catalog.update_catalog.status.required", "Catalog status is required and cannot be empty")
 			}
 			fields = append(fields, "status_id")

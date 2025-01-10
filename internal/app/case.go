@@ -167,15 +167,15 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Subject:          req.Input.Subject,
 		Description:      req.Input.Description,
 		ContactInfo:      req.Input.ContactInfo,
-		Assignee:         &cases.Lookup{Id: req.Input.Assignee},
-		Reporter:         &cases.Lookup{Id: req.Input.Reporter},
-		Source:           &cases.SourceTypeLookup{Id: req.Input.Source},
-		Impacted:         &cases.Lookup{Id: req.Input.Impacted},
-		Group:            &cases.Lookup{Id: req.Input.Group},
-		Status:           &cases.Lookup{Id: req.Input.Status},
-		CloseReasonGroup: &cases.Lookup{Id: req.Input.CloseReason},
-		Priority:         &cases.Priority{Id: req.Input.Priority},
-		Service:          &cases.Lookup{Id: req.Input.Service},
+		Assignee:         req.Input.Assignee,
+		Reporter:         req.Input.Reporter,
+		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
+		Impacted:         req.Input.Impacted,
+		Group:            req.Input.Group,
+		Status:           req.Input.Status,
+		CloseReasonGroup: req.Input.CloseReason,
+		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
+		Service:          req.Input.Service,
 		Links:            links,
 		Related:          related,
 	}
@@ -249,14 +249,14 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Subject:          req.Input.GetSubject(),
 		Description:      req.Input.GetDescription(),
 		ContactInfo:      req.Input.GetContactInfo(),
-		Status:           &cases.Lookup{Id: req.Input.GetStatus()},
-		CloseReasonGroup: &cases.Lookup{Id: req.Input.GetCloseReason()},
-		Assignee:         &cases.Lookup{Id: req.Input.GetAssignee()},
-		Reporter:         &cases.Lookup{Id: req.Input.GetReporter()},
-		Impacted:         &cases.Lookup{Id: req.Input.GetImpacted()},
-		Group:            &cases.Lookup{Id: req.Input.GetGroup()},
-		Priority:         &cases.Priority{Id: req.Input.GetPriority()},
-		Source:           &cases.SourceTypeLookup{Id: req.Input.GetSource()},
+		Status:           req.Input.GetStatus(),
+		CloseReasonGroup: req.Input.GetCloseReason(),
+		Assignee:         req.Input.GetAssignee(),
+		Reporter:         req.Input.GetReporter(),
+		Impacted:         req.Input.GetImpacted(),
+		Group:            req.Input.GetGroup(),
+		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
+		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
 		Close: &cases.CloseInfo{
 			CloseResult: req.Input.Close.GetCloseResult(),
 			CloseReason: &cases.Lookup{Id: req.Input.Close.GetCloseReason()},
@@ -265,7 +265,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 			Rating:        req.Input.Rate.GetRating(),
 			RatingComment: req.Input.Rate.GetRatingComment(),
 		},
-		Service: &cases.Lookup{Id: req.Input.GetService()},
+		Service: req.Input.GetService(),
 	}
 
 	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
@@ -334,7 +334,7 @@ func (c *CaseService) ValidateUpdateInput(
 				return cerror.NewBadRequestError("app.case.update_case.subject_required", "Subject is required")
 			}
 		case "status":
-			if input.GetStatus() == 0 {
+			if input.Status.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
 			}
 		case "close.close_reason":
@@ -342,15 +342,15 @@ func (c *CaseService) ValidateUpdateInput(
 				return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
 			}
 		case "priority":
-			if input.GetPriority() == 0 {
+			if input.Priority.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.priority_required", "Priority is required")
 			}
 		case "source":
-			if input.GetSource() == 0 {
+			if input.Source.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.source_required", "Source is required")
 			}
 		case "service":
-			if input.GetService() == 0 {
+			if input.Service.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.service_required", "Service is required")
 			}
 		}
@@ -366,28 +366,28 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 		return cerror.NewBadRequestError("app.case.create_case.subject_required", "Case subject is required")
 	}
 
-	if input.Status == 0 {
+	if input.Status.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.status_required", "Case status is required")
 	}
 
-	if input.CloseReason == 0 {
+	if input.CloseReason.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.close_reason_required", "Case close reason is required")
 	}
 
-	if input.Source == 0 {
+	if input.Source.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
 	}
 
-	if input.Impacted == 0 {
+	if input.Impacted.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.impacted_required", "Impacted contact is required")
 	}
 
 	// Validate additional optional fields if needed
-	if input.Priority == 0 {
+	if input.Priority.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_priority", "Invalid priority specified")
 	}
 
-	if input.Service == 0 {
+	if input.Service.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_service", "Invalid service specified")
 	}
 	return nil

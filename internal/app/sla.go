@@ -27,7 +27,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 	if req.Name == "" {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.name.required", "SLA name is required")
 	}
-	if req.CalendarId == 0 {
+	if req.Calendar.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.calendar_id.required", "Calendar ID is required")
 	}
 	if req.ReactionTime == 0 {
@@ -61,7 +61,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 		Description:    req.Description,
 		ValidFrom:      req.ValidFrom,
 		ValidTo:        req.ValidTo,
-		Calendar:       &cases.Lookup{Id: req.CalendarId},
+		Calendar:       req.Calendar,
 		ReactionTime:   req.ReactionTime,
 		ResolutionTime: req.ResolutionTime,
 		CreatedBy:      currentU,
@@ -242,7 +242,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		Description:    req.Input.Description,
 		ValidFrom:      req.Input.ValidFrom,
 		ValidTo:        req.Input.ValidTo,
-		Calendar:       &cases.Lookup{Id: req.Input.CalendarId},
+		Calendar:       req.Input.Calendar,
 		ReactionTime:   req.Input.ReactionTime,
 		ResolutionTime: req.Input.ResolutionTime,
 		UpdatedBy:      u,
@@ -266,7 +266,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 			fields = append(fields, "valid_to")
 		case "calendar_id":
 			fields = append(fields, "calendar_id")
-			if req.Input.CalendarId == 0 {
+			if req.Input.Calendar.GetId() == 0 {
 				return nil, cerror.NewBadRequestError("sla_service.update_sla.calendar_id.required", "Calendar ID is required")
 			}
 		case "reaction_time":

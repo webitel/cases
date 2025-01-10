@@ -75,17 +75,25 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 
 	t := time.Now()
 
+	// Convert []*cases.Lookup to []int64
+	var priorityIDs []int64
+	for _, priority := range req.Priorities {
+		if priority != nil { // Check for nil to avoid runtime panic
+			priorityIDs = append(priorityIDs, priority.GetId()) // Use GetId() to ensure proper handling
+		}
+	}
+
 	// Define create options
 	createOpts := model.CreateOptions{
 		Session: session,
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-		Ids:     req.Priorities,
+		Ids:     priorityIDs,
 	}
 
 	// Create the SLACondition in the store
-	r, e := s.app.Store.SLACondition().Create(&createOpts, slaCondition, req.Priorities)
+	r, e := s.app.Store.SLACondition().Create(&createOpts, slaCondition, priorityIDs)
 	if e != nil {
 		return nil, cerror.NewInternalError("sla_condition_service.create_sla_condition.store.create.failed", e.Error())
 	}
@@ -271,13 +279,21 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 
 	t := time.Now()
 
+	// Convert []*cases.Lookup to []int64
+	var priorityIDs []int64
+	for _, priority := range req.Input.Priorities {
+		if priority != nil { // Check for nil to avoid runtime panic
+			priorityIDs = append(priorityIDs, priority.GetId()) // Use GetId() to ensure proper handling
+		}
+	}
+
 	// Define update options
 	updateOpts := model.UpdateOptions{
 		Session: session,
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-		IDs:     req.Input.Priorities,
+		IDs:     priorityIDs,
 	}
 
 	// Update the SLACondition in the store

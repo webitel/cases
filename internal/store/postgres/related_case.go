@@ -385,9 +385,9 @@ func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
 	for _, mask := range rpc.Mask {
 		switch mask {
 		case "primaryCaseId":
-			updateBuilder = updateBuilder.Set("primary_case_id", input.GetPrimaryCaseId())
+			updateBuilder = updateBuilder.Set("primary_case_id", input.GetPrimaryCase().GetId())
 		case "relatedCaseId":
-			updateBuilder = updateBuilder.Set("related_case_id", input.GetRelatedCaseId())
+			updateBuilder = updateBuilder.Set("related_case_id", input.GetRelatedCase().GetId())
 		}
 	}
 

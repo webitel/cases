@@ -76,7 +76,7 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		)
 	}
 
-	relatedCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetInput().GetRelatedCaseId())
+	relatedCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetRelatedCase().GetId())))
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
 			"app.related_case.created_related_case.invalid_etag",
@@ -148,7 +148,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 	}
 	updateOpts.Etags = []*etag.Tid{&tag}
 
-	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetInput().GetPrimaryCaseId())
+	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetPrimaryCase().GetId())))
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
 			"app.related_case.created_related_case.invalid_etag",
@@ -156,7 +156,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		)
 	}
 
-	relatedCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetInput().GetRelatedCaseId())
+	relatedCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetRelatedCase().GetId())))
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
 			"app.related_case.created_related_case.invalid_etag",
@@ -172,9 +172,9 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 	}
 
 	input := &cases.InputRelatedCase{
-		PrimaryCaseId: strconv.Itoa(int(primaryCaseTag.GetOid())),
-		RelatedCaseId: strconv.Itoa(int(relatedCaseTag.GetOid())),
-		RelationType:  req.Input.RelationType,
+		PrimaryCase:  req.Input.GetPrimaryCase(),
+		RelatedCase:  req.Input.GetRelatedCase(),
+		RelationType: req.Input.RelationType,
 	}
 
 	output, err := r.app.Store.RelatedCase().Update(updateOpts, input)
