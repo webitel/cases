@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	cases "github.com/webitel/cases/api/cases"
@@ -76,7 +77,7 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		)
 	}
 
-	relatedCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetInput().GetRelatedCaseId())
+	relatedCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetRelatedCase().GetId())))
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
 			"app.related_case.created_related_case.invalid_etag",
@@ -115,9 +116,21 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		)
 	}
 
-	relatedCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(parsedID), relatedCase.Ver)
-	relatedCase.RelatedCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(relatedID), relatedCase.Ver)
-	relatedCase.PrimaryCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(primaryID), relatedCase.Ver)
+	relatedCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(parsedID), relatedCase.Ver)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("parent_id", primaryCaseTag.GetOid()), slog.Int64("related_id", relatedCaseTag.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
+	relatedCase.RelatedCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(relatedID), relatedCase.Ver)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("parent_id", primaryCaseTag.GetOid()), slog.Int64("related_id", relatedCaseTag.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
+	relatedCase.PrimaryCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(primaryID), relatedCase.Ver)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("parent_id", primaryCaseTag.GetOid()), slog.Int64("related_id", relatedCaseTag.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 	return relatedCase, nil
 }
 
@@ -136,7 +149,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 	}
 	updateOpts.Etags = []*etag.Tid{&tag}
 
-	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetInput().GetPrimaryCaseId())
+	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetPrimaryCase().GetId())))
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
 			"app.related_case.created_related_case.invalid_etag",
@@ -144,7 +157,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		)
 	}
 
-	relatedCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetInput().GetRelatedCaseId())
+	relatedCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetRelatedCase().GetId())))
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
 			"app.related_case.created_related_case.invalid_etag",
@@ -160,9 +173,9 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 	}
 
 	input := &cases.InputRelatedCase{
-		PrimaryCaseId: strconv.Itoa(int(primaryCaseTag.GetOid())),
-		RelatedCaseId: strconv.Itoa(int(relatedCaseTag.GetOid())),
-		RelationType:  req.Input.RelationType,
+		PrimaryCase:  req.Input.GetPrimaryCase(),
+		RelatedCase:  req.Input.GetRelatedCase(),
+		RelationType: req.Input.RelationType,
 	}
 
 	output, err := r.app.Store.RelatedCase().Update(updateOpts, input)
@@ -176,7 +189,11 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		return nil, cerror.NewInternalError("failed encoding id, error", err.Error())
 	}
 
-	output.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), output.Ver)
+	output.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), output.Ver)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", updateOpts.Session.GetUserId()), slog.Int64("domain_id", updateOpts.Session.GetDomainId()), slog.Int64("parent_id", primaryCaseTag.GetOid()), slog.Int64("related_id", relatedCaseTag.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 	return output, nil
 }
 
@@ -241,7 +258,10 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 		if err != nil {
 			return fmt.Errorf("failed encoding related_case id: %w", err)
 		}
-		relatedCase.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), relatedCase.Ver)
+		relatedCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), relatedCase.Ver)
+		if err != nil {
+			return err
+		}
 
 		// Normalize primary case ID
 		if relatedCase.PrimaryCase != nil {
@@ -249,8 +269,10 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 			if err != nil {
 				return fmt.Errorf("failed encoding primary_case id: %w", err)
 			}
-			relatedCase.PrimaryCase.Id = etag.EncodeEtag(etag.EtagCase, int64(primaryCaseID), relatedCase.PrimaryCase.GetVer())
-
+			relatedCase.PrimaryCase.Id, err = etag.EncodeEtag(etag.EtagCase, int64(primaryCaseID), relatedCase.PrimaryCase.GetVer())
+			if err != nil {
+				return err
+			}
 			// Set PrimaryCase Ver to nil
 			relatedCase.PrimaryCase.Ver = 0
 		}
@@ -261,8 +283,10 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 			if err != nil {
 				return fmt.Errorf("failed encoding related_case id: %w", err)
 			}
-			relatedCase.RelatedCase.Id = etag.EncodeEtag(etag.EtagCase, int64(relatedCaseID), relatedCase.RelatedCase.GetVer())
-
+			relatedCase.RelatedCase.Id, err = etag.EncodeEtag(etag.EtagCase, int64(relatedCaseID), relatedCase.RelatedCase.GetVer())
+			if err != nil {
+				return err
+			}
 			// Set RelatedCase Ver to nil
 			relatedCase.RelatedCase.Ver = 0
 		}

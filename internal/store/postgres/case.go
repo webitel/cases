@@ -3,22 +3,22 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/jackc/pgtype"
-	"github.com/lib/pq"
-	authmodel "github.com/webitel/cases/auth/model"
-	"strconv"
-	"strings"
-	"time"
-
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
+	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
+	authmodel "github.com/webitel/cases/auth/model"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type CaseStore struct {
@@ -204,6 +204,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	params := map[string]interface{}{
 		// Case-level parameters
 		"date":                rpc.CurrentTime(),
+		"contact_info":        caseItem.GetContactInfo(),
 		"user":                rpc.GetAuthOpts().GetUserId(),
 		"dc":                  rpc.GetAuthOpts().GetDomainId(),
 		"sla":                 sla,
@@ -214,6 +215,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"source":              caseItem.Source.GetId(),
 		"contact_group":       caseItem.Group.GetId(),
 		"close_reason_group":  caseItem.CloseReasonGroup.GetId(),
+		"close_result":        caseItem.Close.GetCloseResult(),
+		"close_reason":        caseItem.Close.GetCloseReason().GetId(),
 		"subject":             caseItem.Subject,
 		"planned_reaction_at": util.LocalTime(caseItem.PlannedReactionAt),
 		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),
@@ -257,7 +260,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				id, name, dc, created_at, created_by, updated_at, updated_by,
 				priority, source, status, contact_group, close_reason_group,
 				subject, planned_reaction_at, planned_resolve_at, reporter, impacted,
-				service, description, assignee, sla, sla_condition_id, status_condition
+				service, description, assignee, sla, sla_condition_id, status_condition, contact_info,
+				close_result, close_reason
 			) VALUES (
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
@@ -265,7 +269,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:priority, :source, :status, :contact_group, :close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee, :sla, :sla_condition,
-				(SELECT status_condition_id FROM status_condition_cte)
+				(SELECT status_condition_id FROM status_condition_cte), :contact_info, :close_result, :close_reason
 			)
 			RETURNING *
 		),
@@ -544,6 +548,8 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case.list.to_sql.error", err.Error())
 	}
+	slct = store.CompactSQL(slct)
+
 	db, dbErr := c.storage.Database()
 	if dbErr != nil {
 		return nil, dbErr
@@ -624,6 +630,9 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		}
 		base = base.Where(where)
 
+	}
+	for _, d := range opts.IDs {
+		base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLeft, "id")), d)
 	}
 	for column, value := range opts.Filter {
 		switch column {
@@ -707,26 +716,6 @@ func (c *CaseStore) Update(
 		return nil, dberr.NewDBInternalError("postgres.case.update.database_connection_error", err)
 	}
 
-	// Begin a transaction
-	tx, txErr := db.Begin(rpc.Context)
-	if txErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case.update.transaction_error", txErr)
-	}
-	defer tx.Rollback(rpc.Context)
-	txManager := store.NewTxManager(tx)
-
-	id, _ := strconv.Atoi(upd.Id)
-
-	// Scan the current version of the comment
-	ver, verErr := c.ScanVer(rpc.Context, int64(id), txManager)
-	if verErr != nil {
-		return nil, verErr
-	}
-
-	if upd.Ver != int32(ver) {
-		return nil, dberr.NewDBConflictError("postgres.cases.case.update.version_mismatch", "Version mismatch, update failed")
-	}
-
 	// Build the SQL query and scan plan
 	queryBuilder, plan, sqErr := c.buildUpdateCaseSqlizer(rpc, upd)
 	if sqErr != nil {
@@ -744,53 +733,36 @@ func (c *CaseStore) Update(
 	// Prepare scan arguments
 	scanArgs := convertToCaseScanArgs(plan, upd)
 
-	// Execute the query
-	if sqErr = db.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); sqErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.update.execution_error", sqErr)
-	}
-
-	// Commit the transaction
-	if err := tx.Commit(rpc.Context); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case.update.commit_error", err)
+	if err := db.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, dberr.NewDBNotFoundError("postgres.case.update.update.scan_ver.not_found", "Case not found")
+		}
+		return nil, dberr.NewDBInternalError("postgres.case.update.update.execution_error", err)
 	}
 
 	return upd, nil
 }
 
-func (c *CaseStore) ScanVer(
-	ctx context.Context,
-	caseID int64,
-	txManager *store.TxManager,
-) (int64, error) {
-	// Retrieve the current version (`ver`) of the case
-	var ver int64
-	err := txManager.QueryRow(ctx, "SELECT ver FROM cases.case WHERE id = $1", caseID).Scan(&ver)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			// Return a specific error if no case with the given ID is found
-			return 0, dberr.NewDBNotFoundError("postgres.cases.case.scan_ver.not_found", "Case not found")
-		}
-		return 0, dberr.NewDBInternalError("postgres.cases.case.scan_ver.query_error", err)
-	}
-	return ver, nil
-}
-
 func (c *CaseStore) buildUpdateCaseSqlizer(
-	req *model.UpdateOptions,
+	rpc *model.UpdateOptions,
 	upd *_go.Case,
 ) (sq.Sqlizer, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included
-	req.Fields = util.EnsureIdAndVerField(req.Fields)
+	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
 	var err error
 
 	// Initialize the update query
 	updateBuilder := sq.Update(c.mainTable).
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", req.CurrentTime()).
-		Set("updated_by", req.GetAuthOpts().GetUserId()).
-		Where(sq.Eq{"id": upd.Id, "dc": req.GetAuthOpts().GetDomainId()})
+		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Where(sq.Eq{
+			"id":  rpc.Etags[0].GetOid(),
+			"ver": rpc.Etags[0].GetVer(),
+			"dc":  rpc.GetAuthOpts().GetDomainId(),
+		})
 
-	updateBuilder, err = addCaseRbacConditionForUpdate(req.GetAuthOpts(), authmodel.Edit, updateBuilder, "case.id")
+	updateBuilder, err = addCaseRbacConditionForUpdate(rpc.GetAuthOpts(), authmodel.Edit, updateBuilder, "case.id")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -798,10 +770,10 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	updateBuilder = updateBuilder.Set("ver", sq.Expr("ver + 1"))
 
 	// Handle nested fields using switch-case on req.Mask
-	for _, field := range req.Mask {
+	for _, field := range rpc.Mask {
 		switch field {
 		case "subject":
-			updateBuilder = updateBuilder.Set("subject", upd.Subject)
+			updateBuilder = updateBuilder.Set("subject", upd.GetSubject())
 		case "description":
 			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", upd.Description))
 		case "priority":
@@ -810,26 +782,28 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("source", upd.Source.GetId())
 		case "status":
 			updateBuilder = updateBuilder.Set("status", upd.Status.GetId())
+		case "status_condition":
+			updateBuilder = updateBuilder.Set("status_condition", upd.StatusCondition.GetId())
+		case "service":
+			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
+		case "assignee":
+			updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
+		case "reporter":
+			updateBuilder = updateBuilder.Set("reporter", upd.Reporter.GetId())
+		case "contact_info":
+			updateBuilder = updateBuilder.Set("contact_info", upd.GetContactInfo())
+		case "impacted":
+			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
+		case "group":
+			updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
 		case "close.close_reason":
 			if upd.Close != nil {
 				updateBuilder = updateBuilder.Set("close_reason", upd.Close.CloseReason.GetId())
 			}
 		case "close.close_result":
 			if upd.Close != nil {
-				updateBuilder = updateBuilder.Set("close_result", upd.Close.CloseResult)
+				updateBuilder = updateBuilder.Set("close_result", upd.Close.GetCloseResult())
 			}
-		case "assignee":
-			updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
-		case "reporter":
-			updateBuilder = updateBuilder.Set("reporter", upd.Reporter.GetId())
-		case "impacted":
-			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
-		case "contact_group":
-			updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
-		case "planned_reaction_at":
-			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.PlannedReactionAt))
-		case "planned_resolve_at":
-			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(upd.PlannedResolveAt))
 		case "rate.rating":
 			if upd.Rate != nil {
 				updateBuilder = updateBuilder.Set("rating", upd.Rate.Rating)
@@ -838,15 +812,17 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			if upd.Rate != nil {
 				updateBuilder = updateBuilder.Set("rating_comment", sq.Expr("NULLIF(?, '')", upd.Rate.RatingComment))
 			}
-		default:
-			// Optionally handle unknown fields
-			return nil, nil, dberr.NewDBError("postgres.case.update.invalid_field", fmt.Sprintf("Unknown field: %s", field))
 		}
 	}
 
 	// Define SELECT query for returning updated fields
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		&model.SearchOptions{Size: -1, Fields: req.Fields, Auth: req.GetAuthOpts(), Time: req.Time},
+		&model.SearchOptions{
+			Size:   -1,
+			Fields: rpc.Fields,
+			Auth:   rpc.GetAuthOpts(),
+			Time:   rpc.Time,
+		},
 		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
 	)
 	if err != nil {
@@ -971,13 +947,13 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 								if err != nil {
 									return err
 								}
-								for i, text := range _go.Type_name {
+								for i, text := range _go.SourceType_name {
 									if text == str.String {
-										caseItem.Source.Type = _go.Type(i)
+										caseItem.Source.Type = _go.SourceType(i)
 										return nil
 									}
 								}
-								caseItem.Source.Type = _go.Type_TYPE_UNSPECIFIED
+								caseItem.Source.Type = _go.SourceType_TYPE_UNSPECIFIED
 								return nil
 							}),
 						}
@@ -1025,26 +1001,64 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				return scanner.ScanRowLookup(&caseItem.Author)
 			})
 
-		case "close_result":
+		case "close":
 			base = base.Column(store.Ident(caseLeft, "close_result"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return &caseItem.Close.CloseResult
+				if caseItem.Close == nil {
+					caseItem.Close = &_go.CloseInfo{}
+				}
+				return scanner.ScanText(&caseItem.Close.CloseResult)
 			})
-		case "close_reason":
 			base = base.Column(fmt.Sprintf(
 				"(SELECT ROW(cr.id, cr.name)::text FROM cases.close_reason cr WHERE cr.id = %s.close_reason) AS close_reason", caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
+				if caseItem.Close == nil {
+					caseItem.Close = &_go.CloseInfo{}
+				}
 				return scanner.ScanRowLookup(&caseItem.Close.CloseReason)
 			})
-		case "rating":
+		case "rate":
 			base = base.Column(store.Ident(caseLeft, "rating"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return &caseItem.Rate.Rating
+				if caseItem.Rate == nil {
+					caseItem.Rate = &_go.RateInfo{}
+				}
+				return scanner.ScanInt64(&caseItem.Rate.Rating)
 			})
-		case "rating_comment":
 			base = base.Column(store.Ident(caseLeft, "rating_comment"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return &caseItem.Rate.RatingComment
+				if caseItem.Rate == nil {
+					caseItem.Rate = &_go.RateInfo{}
+				}
+				return scanner.ScanText(&caseItem.Rate.RatingComment)
+			})
+		case "timing":
+			base = base.
+				Column(fmt.Sprintf("COALESCE(%s.resolved_at, '1970-01-01 00:00:00') AS resolved_at", caseLeft)).
+				Column(fmt.Sprintf("COALESCE(%s.reacted_at, '1970-01-01 00:00:00') AS reacted_at", caseLeft)).
+				Column(fmt.Sprintf(
+					"COALESCE(CAST(EXTRACT(EPOCH FROM %[1]s.reacted_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_reaction",
+					caseLeft,
+				)).
+				Column(fmt.Sprintf(
+					"COALESCE(CAST(EXTRACT(EPOCH FROM %[1]s.resolved_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_resolve",
+					caseLeft,
+				))
+
+			plan = append(plan, func(caseItem *_go.Case) any {
+				if caseItem.Timing == nil {
+					caseItem.Timing = &_go.TimingInfo{}
+				}
+				return scanner.ScanTimestamp(&caseItem.Timing.ResolvedAt)
+			})
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanTimestamp(&caseItem.Timing.ReactedAt)
+			})
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanInt64(&caseItem.Timing.DifferenceInReaction)
+			})
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanInt64(&caseItem.Timing.DifferenceInResolve)
 			})
 		case "sla":
 			base = base.Column(fmt.Sprintf(
@@ -1071,9 +1085,74 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "priority":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(p.id, p.name)::text FROM cases.priority p WHERE p.id = %s.priority) AS priority", caseLeft))
+				"(SELECT ROW(p.id, p.name, p.color)::text FROM cases.priority p WHERE p.id = %s.priority) AS priority", caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanRowLookup(&caseItem.Priority)
+				return scanner.TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil // NULL
+					}
+					// pointer on pointer on source
+					if caseItem.Priority == nil {
+						caseItem.Priority = new(_go.Priority)
+					}
+
+					var (
+						str pgtype.Text
+						row = []pgtype.TextDecoder{
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								id, err := strconv.ParseInt(str.String, 10, 64)
+								if err != nil {
+									return err
+								}
+								caseItem.Priority.Id = id
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								caseItem.Priority.Name = str.String
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								caseItem.Priority.Color = str.String
+								return nil
+							}),
+						}
+						raw = pgtype.NewCompositeTextScanner(nil, src)
+					)
+
+					var err error
+					for _, col := range row {
+
+						raw.ScanDecoder(col)
+
+						err = raw.Err()
+						if err != nil {
+							return err
+						}
+					}
+
+					return nil
+				})
 			})
 		case "service":
 			base = base.Column(fmt.Sprintf(
@@ -1214,30 +1293,20 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				}
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
-		case "related":
-			base = base.Column(fmt.Sprintf(`
-				(SELECT JSON_AGG(JSON_BUILD_OBJECT(
-					'id', rc.id, -- ID of the related_case record
-					'related_case', JSON_BUILD_OBJECT( -- Child case details
-						'id', c_child.id,
-						'name', c_child.name,
-						'subject', c_child.subject,
-						'description', c_child.description
-					),
-					'created_at', CAST(EXTRACT(EPOCH FROM rc.created_at) * 1000 AS BIGINT),
-					'created_by', JSON_BUILD_OBJECT(
-					   'name', u.name,
-					   'id', u.id
-					),
-					'relation_type', rc.relation_type  -- Output numeric enum value directly
-				))
-				FROM %s rc
-                JOIN cases.case c_child
-                ON rc.related_case_id = c_child.id -- Fetch details for the child case
-				LEFT JOIN directory.wbt_user u ON rc.created_by = u.id
-                WHERE rc.primary_case_id = %s.id) AS related_cases`, relatedAlias, caseLeft))
-			// primary_case_id -- newly created case
-			// related_case_id -- attached case id
+		case "related_cases":
+			subquery, err := buildRelatedCasesSubquery(caseLeft)
+			if err != nil {
+				return base, nil, err
+			}
+
+			sqlStr, _, sqlErr := subquery.ToSql()
+			if sqlErr != nil {
+				return base, nil, sqlErr
+			}
+
+			// Add the subquery as a column
+			base = base.Column(fmt.Sprintf("(%s) AS related_cases", sqlStr))
+
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Related == nil {
 					caseItem.Related = &_go.RelatedCaseList{}
@@ -1254,6 +1323,30 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 	}
 
 	return base, plan, nil
+}
+
+func buildRelatedCasesSubquery(caseAlias string) (sq.SelectBuilder, error) {
+	return sq.Select(`
+        JSON_AGG(JSON_BUILD_OBJECT(
+            'id', rc.id::text,
+            'related_case', JSON_BUILD_OBJECT(
+                'id', c_child.id::text,
+                'name', c_child.name,
+                'subject', c_child.subject,
+                'description', c_child.description
+            ),
+            'created_at', CAST(EXTRACT(EPOCH FROM rc.created_at) * 1000 AS BIGINT),
+            'created_by', JSON_BUILD_OBJECT(
+                'name', u.name,
+                'id', u.id
+            ),
+            'relation_type', rc.relation_type -- No casting needed for enum type
+        )) AS related_cases
+    `).
+		From("cases.related_case rc").
+		Join("cases.case c_child ON rc.related_case_id = c_child.id").
+		LeftJoin("directory.wbt_user u ON rc.created_by = u.id").
+		Where(fmt.Sprintf("%s = %s.id", store.Ident("rc", "primary_case_id"), caseAlias)), nil
 }
 
 func AddSubqueryAsColumn(mainQuery sq.SelectBuilder, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) sq.SelectBuilder {

@@ -7,6 +7,7 @@ import (
 
 	cases "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/util"
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -28,7 +29,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 	if req.Name == "" {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.name.required", "SLA name is required")
 	}
-	if req.CalendarId == 0 {
+	if req.Calendar.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.calendar_id.required", "Calendar ID is required")
 	}
 	if req.ReactionTime == 0 {
@@ -62,7 +63,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 		Description:    req.Description,
 		ValidFrom:      req.ValidFrom,
 		ValidTo:        req.ValidTo,
-		Calendar:       &cases.Lookup{Id: req.CalendarId},
+		Calendar:       req.Calendar,
 		ReactionTime:   req.ReactionTime,
 		ResolutionTime: req.ResolutionTime,
 		CreatedBy:      currentU,
@@ -244,7 +245,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		Description:    req.Input.Description,
 		ValidFrom:      req.Input.ValidFrom,
 		ValidTo:        req.Input.ValidTo,
-		Calendar:       &cases.Lookup{Id: req.Input.CalendarId},
+		Calendar:       req.Input.Calendar,
 		ReactionTime:   req.Input.ReactionTime,
 		ResolutionTime: req.Input.ResolutionTime,
 		UpdatedBy:      u,
@@ -254,6 +255,16 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 
 	// Map XJsonMask fields to the corresponding SLA fields
 	for _, f := range req.XJsonMask {
+		if strings.HasPrefix(f, "calendar") {
+			// Handle fields with "calendar." prefix
+			if !util.ContainsField(fields, "calendar_id") {
+				fields = append(fields, "calendar_id")
+			}
+			if req.Input.Calendar.GetId() == 0 {
+				return nil, cerror.NewBadRequestError("sla_service.update_sla.calendar_id.required", "Calendar ID is required")
+			}
+			continue
+		}
 		switch f {
 		case "name":
 			fields = append(fields, "name")
@@ -266,11 +277,6 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 			fields = append(fields, "valid_from")
 		case "valid_to":
 			fields = append(fields, "valid_to")
-		case "calendar_id":
-			fields = append(fields, "calendar_id")
-			if req.Input.CalendarId == 0 {
-				return nil, cerror.NewBadRequestError("sla_service.update_sla.calendar_id.required", "Calendar ID is required")
-			}
 		case "reaction_time":
 			fields = append(fields, "reaction_time")
 		case "resolution_time":

@@ -41,10 +41,8 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "status", Default: true},
 		{Name: "close_reason_group", Default: true},
 		{Name: "group", Default: true},
-		{Name: "close_result", Default: false},
-		{Name: "close_reason", Default: false},
-		{Name: "rating", Default: false},
-		{Name: "rating_comment", Default: false},
+		{Name: "close", Default: true},
+		{Name: "rate", Default: true},
 		{Name: "sla_condition", Default: true},
 		{Name: "service", Default: true},
 		{Name: "status_condition", Default: true},
@@ -52,11 +50,10 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "comments", Default: false},
 		{Name: "links", Default: false},
 		{Name: "files", Default: false},
-		{Name: "related", Default: false},
-		{Name: "contact_info", Default: false},
-	},
-	// child object metadata
-	CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata, CaseFileMetadata, CaseTimelineMetadata)
+		{Name: "related_cases", Default: false},
+		{Name: "timing", Default: true},
+		{Name: "contact_info", Default: true},
+	})
 
 type CaseService struct {
 	app *App
@@ -81,7 +78,11 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		slog.Warn(err.Error(), slog.Int64("user_id", *searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", *searchOpts.GetAuthOpts().GetDomainId()))
 		return nil, errors.NewInternalError("app.case_communication.search_cases.database.error", "database error")
 	}
-	c.NormalizeResponseCases(list, req, nil)
+	err = c.NormalizeResponseCases(list, req, nil)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()))
+		return nil, AppResponseNormalizingError
+	}
 	return list, nil
 }
 
@@ -96,7 +97,11 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	c.NormalizeResponseCases(list, req, nil)
+	err = c.NormalizeResponseCases(list, req, nil)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()))
+		return nil, AppResponseNormalizingError
+	}
 	return list.Items[0], nil
 }
 
@@ -166,15 +171,16 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Subject:          req.Input.Subject,
 		Description:      req.Input.Description,
 		ContactInfo:      req.Input.ContactInfo,
-		Assignee:         &cases.Lookup{Id: req.Input.Assignee},
-		Reporter:         &cases.Lookup{Id: req.Input.Reporter},
-		Source:           &cases.SourceTypeLookup{Id: req.Input.Source},
-		Impacted:         &cases.Lookup{Id: req.Input.Impacted},
-		Group:            &cases.Lookup{Id: req.Input.Group},
-		Status:           &cases.Lookup{Id: req.Input.Status},
-		CloseReasonGroup: &cases.Lookup{Id: req.Input.CloseReason},
-		Priority:         &cases.Lookup{Id: req.Input.Priority},
-		Service:          &cases.Lookup{Id: req.Input.Service},
+		Assignee:         req.Input.Assignee,
+		Reporter:         req.Input.Reporter,
+		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
+		Impacted:         req.Input.Impacted,
+		Group:            req.Input.Group,
+		Status:           req.Input.Status,
+		Close:            (*cases.CloseInfo)(req.Input.GetClose()),
+		CloseReasonGroup: req.Input.GetCloseReasonGroup(),
+		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
+		Service:          req.Input.Service,
 		Links:            links,
 		Related:          related,
 	}
@@ -188,7 +194,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	}
 	id, _ := strconv.Atoi(newCase.Id)
 	// Encode etag from the case ID and version
-	newCase.Id = etag.EncodeEtag(etag.EtagCaseComment, int64(id), newCase.Ver)
+	newCase.Id, err = etag.EncodeEtag(etag.EtagCase, int64(id), newCase.Ver)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", *createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("case_id", int64(id)))
+		return nil, AppResponseNormalizingError
+	}
 	userId := createOpts.GetAuthOpts().GetUserId()
 
 	// Publish an event to RabbitMQ
@@ -216,7 +226,12 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		return nil, cerror.NewInternalError("app.case.create_case.event_publish.failed", err.Error())
 	}
-	c.NormalizeResponseCase(newCase, req)
+
+	if newCase.Reporter == nil && util.ContainsField(createOpts.Fields, "reporter") {
+		newCase.Reporter = &cases.Lookup{
+			Name: AnonymousName,
+		}
+	}
 	return newCase, nil
 }
 
@@ -234,29 +249,32 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	updateOpts := model.NewUpdateOptions(ctx, req, CaseMetadata).
 		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetAllScopeNames()...))
+	updateOpts.Etags = []*etag.Tid{&tag}
 
 	upd := &cases.Case{
 		Id:               strconv.Itoa(int(tag.GetOid())),
 		Ver:              tag.GetVer(),
-		Subject:          req.Input.Subject,
-		Description:      req.Input.Description,
-		Status:           &cases.Lookup{Id: req.Input.Status.GetId()},
-		CloseReasonGroup: &cases.Lookup{Id: req.Input.CloseReason.GetId()},
-		Assignee:         &cases.Lookup{Id: req.Input.Assignee.GetId()},
-		Reporter:         &cases.Lookup{Id: req.Input.Reporter.GetId()},
-		Impacted:         &cases.Lookup{Id: req.Input.Impacted.GetId()},
-		Group:            &cases.Lookup{Id: req.Input.Group.GetId()},
-		Priority:         &cases.Lookup{Id: req.Input.Priority.GetId()},
+		Subject:          req.Input.GetSubject(),
+		Description:      req.Input.GetDescription(),
+		ContactInfo:      req.Input.GetContactInfo(),
+		Status:           req.Input.GetStatus(),
+		StatusCondition:  req.Input.GetStatusCondition(),
+		CloseReasonGroup: req.Input.GetCloseReason(),
+		Assignee:         req.Input.GetAssignee(),
+		Reporter:         req.Input.GetReporter(),
+		Impacted:         req.Input.GetImpacted(),
+		Group:            req.Input.GetGroup(),
+		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
 		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
 		Close: &cases.CloseInfo{
-			CloseResult: req.Input.Close.CloseResult,
-			CloseReason: req.Input.GetCloseReason(),
+			CloseResult: req.Input.Close.GetCloseResult(),
+			CloseReason: req.Input.Close.GetCloseReason(),
 		},
 		Rate: &cases.RateInfo{
-			Rating:        req.Input.Rate.Rating,
-			RatingComment: req.Input.Rate.RatingComment,
+			Rating:        req.Input.Rate.GetRating(),
+			RatingComment: req.Input.Rate.GetRatingComment(),
 		},
-		Service: &cases.Lookup{Id: req.Input.Service.GetId()},
+		Service: req.Input.GetService(),
 	}
 
 	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
@@ -264,7 +282,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, cerror.NewInternalError("app.case.update_case.store_update_failed", err.Error())
 	}
 
-	c.NormalizeResponseCase(updatedCase, req)
+	err = c.NormalizeResponseCase(updatedCase, req)
+	if err != nil {
+		slog.Warn(err.Error(), slog.Int64("user_id", updateOpts.Session.GetUserId()), slog.Int64("domain_id", updateOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, AppResponseNormalizingError
+	}
 	return updatedCase, nil
 }
 
@@ -284,7 +306,8 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 
 	err = c.app.Store.Case().Delete(deleteOpts)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case.delete_case.store_delete_failed", err.Error())
+		slog.Warn(err.Error(), slog.Int64("user_id", *deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		return nil, AppDatabaseError
 	}
 	return nil, nil
 }
@@ -325,7 +348,7 @@ func (c *CaseService) ValidateUpdateInput(
 				return cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
 			}
 		case "close.close_reason":
-			if input.CloseReason.GetId() == 0 {
+			if input.Close.GetCloseReason().GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
 			}
 		case "priority":
@@ -353,43 +376,52 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 		return cerror.NewBadRequestError("app.case.create_case.subject_required", "Case subject is required")
 	}
 
-	if input.Status == 0 {
+	if input.Status.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.status_required", "Case status is required")
 	}
 
-	if input.CloseReason == 0 {
+	if input.GetCloseReasonGroup().GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.close_reason_required", "Case close reason is required")
 	}
 
-	if input.Source == 0 {
+	if input.Source.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
 	}
 
-	if input.Impacted == 0 {
+	if input.Impacted.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.impacted_required", "Impacted contact is required")
 	}
 
 	// Validate additional optional fields if needed
-	if input.Priority == 0 {
+	if input.Priority.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_priority", "Invalid priority specified")
 	}
 
-	if input.Service == 0 {
+	if input.Service.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_service", "Invalid service specified")
 	}
 	return nil
 }
 
 // NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.
-func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) {
+func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) error {
 	fields := mainOpts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
 
+	fields = util.FieldsFunc(fields, util.InlineFields)
+
 	for _, item := range res.Items {
-		id, _ := strconv.Atoi(item.Id)
-		item.Id = etag.EncodeEtag(etag.EtagCase, int64(id), item.Ver)
+		id, err := strconv.Atoi(item.Id)
+		if err != nil {
+			return err
+		}
+		item.Id, err = etag.EncodeEtag(etag.EtagCase, int64(id), item.Ver)
+		if err != nil {
+			return err
+		}
+		item.Ver = 0
 		if item.Reporter == nil && util.ContainsField(fields, "reporter") {
 			item.Reporter = &cases.Lookup{
 				Name: AnonymousName,
@@ -397,51 +429,71 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 		}
 
 	}
-	for _, field := range fields {
-		switch field {
-		case "comments":
-			//for _, item := range res.Items {
-			//	for _, comment := range item.Comments.Items {
-			//		util.NormalizeEtags(etag.EtagCaseComment, true, true, true, &comment.Id, &comment.Id, &comment.Ver)
-			//	}
-			//}
-		case "links":
-			for _, item := range res.Items {
-				if item.Links != nil {
-					for _, link := range item.Links.Items {
-						id, _ := strconv.Atoi(link.Id)
-						item.Id = etag.EncodeEtag(etag.EtagCaseLink, int64(id), link.Ver)
-					}
+
+	for _, item := range res.Items {
+		if item.Comments != nil {
+			for _, com := range item.Comments.Items {
+				id, err := strconv.Atoi(com.Id)
+				if err != nil {
+					return err
+				}
+				com.Id, err = etag.EncodeEtag(etag.EtagCaseComment, int64(id), com.Ver)
+				if err != nil {
+					return err
 				}
 			}
-		case "related_cases":
-			for _, item := range res.Items {
-				if item.Related != nil {
-					for _, related := range item.Related.Data {
-						id, _ := strconv.Atoi(related.Id)
-						related.Id = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), related.Ver)
-					}
+		}
+		if item.Links != nil {
+			for _, link := range item.Links.Items {
+				id, err := strconv.Atoi(link.Id)
+				if err != nil {
+					return err
+				}
+				link.Id, err = etag.EncodeEtag(etag.EtagCaseLink, int64(id), link.Ver)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		if item.Related != nil {
+			for _, related := range item.Related.Data {
+				id, err := strconv.Atoi(related.Id)
+				if err != nil {
+					return err
+				}
+				related.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), related.Ver)
+				if err != nil {
+					return err
 				}
 			}
 		}
 	}
+
+	return nil
 }
 
 // NormalizeResponseCase validates and normalizes the response cases.Case to the front-end side.
-func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) {
+func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) error {
 	fields := opts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
 
-	id, _ := strconv.Atoi(re.Id)
-	re.Id = etag.EncodeEtag(etag.EtagCase, int64(id), re.Ver)
-
+	id, err := strconv.Atoi(re.Id)
+	if err != nil {
+		return err
+	}
+	re.Id, err = etag.EncodeEtag(etag.EtagCase, int64(id), re.Ver)
+	if err != nil {
+		return err
+	}
+	re.Ver = 0
 	if re.Reporter == nil && util.ContainsField(fields, "reporter") {
 		re.Reporter = &cases.Lookup{
 			Name: AnonymousName,
 		}
 	}
+	return nil
 }
 
 // endregion

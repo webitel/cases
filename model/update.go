@@ -2,10 +2,15 @@ package model
 
 import (
 	"context"
+	"strings"
+	"time"
+
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
-	"time"
+
+	session "github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/internal/server/interceptor"
 )
 
 // UpdateOptions defines options for updating an entity with fields, mask, filter, and pagination
@@ -49,7 +54,7 @@ func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetada
 		Time: time.Now(),
 	}
 
-	// normalize fields
+	// Normalize fields
 	var resultingFields []string
 	if requestedFields := req.GetFields(); len(requestedFields) == 0 {
 		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
@@ -60,6 +65,22 @@ func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetada
 		)
 	}
 
+	// Deduplicate and trim prefixes in the mask
+	uniquePrefixes := make(map[string]struct{})
+	var trimmedMask []string
+	for _, field := range opts.Mask {
+		prefix := field
+		if dotIndex := strings.Index(field, "."); dotIndex > 0 {
+			prefix = field[:dotIndex] // Trim after the dot
+		}
+		if _, exists := uniquePrefixes[prefix]; !exists {
+			uniquePrefixes[prefix] = struct{}{}
+			trimmedMask = append(trimmedMask, prefix)
+		}
+	}
+	opts.Mask = trimmedMask
+
+	// Split known and unknown fields
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
 	opts.Fields = util.ParseFieldsForEtag(resultingFields)
 

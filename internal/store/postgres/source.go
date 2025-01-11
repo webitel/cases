@@ -286,7 +286,7 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
-	if types, ok := rpc.Filter["type"].([]_go.Type); ok && len(types) > 0 {
+	if types, ok := rpc.Filter["type"].([]_go.SourceType); ok && len(types) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.type": types})
 	}
 
@@ -333,7 +333,7 @@ func (s Source) buildUpdateSourceQuery(rpc *model.UpdateOptions, l *_go.Source) 
 			// Use NULLIF to store NULL when the description is an empty string
 			builder = builder.Set("description", sq.Expr("NULLIF(?, '')", l.Description))
 		case "type":
-			if l.Type != _go.Type_TYPE_UNSPECIFIED {
+			if l.Type != _go.SourceType_TYPE_UNSPECIFIED {
 				builder = builder.Set("type", l.Type)
 			}
 		}
@@ -368,22 +368,22 @@ FROM upd
 // StringToType converts a string into the corresponding Type enum value.
 //
 // Types are specified ONLY for Source dictionary and are ENUMS in API.
-func stringToType(typeStr string) (_go.Type, error) {
+func stringToType(typeStr string) (_go.SourceType, error) {
 	switch strings.ToUpper(typeStr) {
 	case "CALL":
-		return _go.Type_CALL, nil
+		return _go.SourceType_CALL, nil
 	case "CHAT":
-		return _go.Type_CHAT, nil
+		return _go.SourceType_CHAT, nil
 	case "SOCIAL_MEDIA":
-		return _go.Type_SOCIAL_MEDIA, nil
+		return _go.SourceType_SOCIAL_MEDIA, nil
 	case "EMAIL":
-		return _go.Type_EMAIL, nil
+		return _go.SourceType_EMAIL, nil
 	case "API":
-		return _go.Type_API, nil
+		return _go.SourceType_API, nil
 	case "MANUAL":
-		return _go.Type_MANUAL, nil
+		return _go.SourceType_MANUAL, nil
 	default:
-		return _go.Type_TYPE_UNSPECIFIED, fmt.Errorf("invalid type value: %s", typeStr)
+		return _go.SourceType_TYPE_UNSPECIFIED, fmt.Errorf("invalid type value: %s", typeStr)
 	}
 }
 

@@ -52,9 +52,9 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		Name:        req.Name,
 		Description: req.Description,
 		Code:        req.Code,
-		Sla:         &api.Lookup{Id: req.SlaId},
-		Group:       &api.Lookup{Id: req.GroupId},
-		Assignee:    &api.Lookup{Id: req.AssigneeId},
+		Sla:         req.Sla,
+		Group:       req.Group,
+		Assignee:    req.Assignee,
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
 		State:       req.State,
@@ -247,9 +247,9 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
 		Code:        req.Input.Code,
-		Sla:         &api.Lookup{Id: req.Input.SlaId},
-		Group:       &api.Lookup{Id: req.Input.GroupId},
-		Assignee:    &api.Lookup{Id: req.Input.AssigneeId},
+		Sla:         req.Input.Sla,
+		Group:       req.Input.Group,
+		Assignee:    req.Input.Assignee,
 		UpdatedBy:   u,
 		State:       req.Input.State,
 		RootId:      req.Input.RootId,
@@ -258,6 +258,29 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 	fields := []string{"id"}
 
 	for _, f := range req.XJsonMask {
+		// Handle fields with specific prefixes
+		if strings.HasPrefix(f, "sla") {
+			if !util.ContainsField(fields, "sla_id") {
+				fields = append(fields, "sla_id")
+			}
+			continue
+		}
+
+		if strings.HasPrefix(f, "group") {
+			if !util.ContainsField(fields, "group_id") {
+				fields = append(fields, "group_id")
+			}
+			continue
+		}
+
+		if strings.HasPrefix(f, "assignee") {
+			if !util.ContainsField(fields, "assignee_id") {
+				fields = append(fields, "assignee_id")
+			}
+			continue
+		}
+
+		// Handle exact matches
 		switch f {
 		case "name":
 			fields = append(fields, "name")
@@ -270,12 +293,6 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 			fields = append(fields, "root_id")
 		case "code":
 			fields = append(fields, "code")
-		case "sla_id":
-			fields = append(fields, "sla_id")
-		case "group_id":
-			fields = append(fields, "group_id")
-		case "assignee_id":
-			fields = append(fields, "assignee_id")
 		case "state":
 			fields = append(fields, "state")
 		}

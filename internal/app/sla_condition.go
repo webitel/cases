@@ -7,6 +7,7 @@ import (
 
 	cases "github.com/webitel/cases/api/cases"
 	authmodel "github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/util"
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -76,17 +77,25 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 
 	t := time.Now()
 
+	// Convert []*cases.Lookup to []int64
+	var priorityIDs []int64
+	for _, priority := range req.Priorities {
+		if priority != nil { // Check for nil to avoid runtime panic
+			priorityIDs = append(priorityIDs, priority.GetId()) // Use GetId() to ensure proper handling
+		}
+	}
+
 	// Define create options
 	createOpts := model.CreateOptions{
 		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-		Ids:     req.Priorities,
+		Ids:     priorityIDs,
 	}
 
 	// Create the SLACondition in the store
-	r, e := s.app.Store.SLACondition().Create(&createOpts, slaCondition, req.Priorities)
+	r, e := s.app.Store.SLACondition().Create(&createOpts, slaCondition, priorityIDs)
 	if e != nil {
 		return nil, cerror.NewInternalError("sla_condition_service.create_sla_condition.store.create.failed", e.Error())
 	}
@@ -252,8 +261,13 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 
 	fields := []string{"id"}
 
-	// Map XJsonMask fields to the corresponding SLACondition fields
 	for _, f := range req.XJsonMask {
+		if strings.HasPrefix(f, "priorities") {
+			if !util.ContainsField(fields, "priorities") {
+				fields = append(fields, "priorities")
+			}
+			continue
+		}
 		switch f {
 		case "name":
 			fields = append(fields, "name")
@@ -266,12 +280,18 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 			fields = append(fields, "resolution_time")
 		case "sla_id":
 			fields = append(fields, "sla_id")
-		case "priorities":
-			fields = append(fields, "priorities")
 		}
 	}
 
 	t := time.Now()
+
+	// Convert []*cases.Lookup to []int64
+	var priorityIDs []int64
+	for _, priority := range req.Input.Priorities {
+		if priority != nil { // Check for nil to avoid runtime panic
+			priorityIDs = append(priorityIDs, priority.GetId()) // Use GetId() to ensure proper handling
+		}
+	}
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
@@ -279,7 +299,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-		IDs:     req.Input.Priorities,
+		IDs:     priorityIDs,
 	}
 
 	// Update the SLACondition in the store
