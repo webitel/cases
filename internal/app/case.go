@@ -54,7 +54,9 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "files", Default: false},
 		{Name: "related", Default: false},
 		{Name: "contact_info", Default: false},
-	})
+	},
+	// child object metadata
+	CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata, CaseFileMetadata, CaseTimelineMetadata)
 
 type CaseService struct {
 	app *App
@@ -63,7 +65,7 @@ type CaseService struct {
 
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
 	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata).
-		SetAuthOpts(model.NewSessionAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), CaseMetadata.GetObjectName()))
+		SetAuthOpts(model.NewSessionAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), CaseMetadata.GetAllScopeNames()...))
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case.search_cases.parse_ids.invalid", err.Error())
@@ -76,7 +78,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	searchOpts.IDs = ids
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
+		slog.Warn(err.Error(), slog.Int64("user_id", *searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", *searchOpts.GetAuthOpts().GetDomainId()))
 		return nil, errors.NewInternalError("app.case_communication.search_cases.database.error", "database error")
 	}
 	c.NormalizeResponseCases(list, req, nil)
@@ -84,7 +86,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 }
 
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
-	searchOpts := model.NewLocateOptions(ctx, req, CaseMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+	searchOpts := model.NewLocateOptions(ctx, req, CaseMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetAllScopeNames()...))
 	id, err := util.ParseIds([]string{req.GetId()}, etag.EtagCase)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
@@ -178,7 +180,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	}
 
 	createOpts := model.NewCreateOptions(ctx, req, CaseMetadata).
-		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetAllScopeNames()...))
 
 	newCase, err := c.app.Store.Case().Create(createOpts, newCase)
 	if err != nil {
@@ -230,7 +232,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts := model.NewUpdateOptions(ctx, req, CaseMetadata)
+	updateOpts := model.NewUpdateOptions(ctx, req, CaseMetadata).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetAllScopeNames()...))
 
 	upd := &cases.Case{
 		Id:               strconv.Itoa(int(tag.GetOid())),
@@ -270,7 +273,8 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
 	}
 
-	deleteOpts := model.NewDeleteOptions(ctx).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+	deleteOpts := model.NewDeleteOptions(ctx).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetAllScopeNames()...))
 
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Id)
 	if err != nil {

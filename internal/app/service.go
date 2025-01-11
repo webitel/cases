@@ -284,11 +284,12 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 	t := time.Now()
 
 	updateOpts := model.UpdateOptions{
-		Session: session,
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 	}
+	updateOpts.SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName))
 
 	r, e := s.app.Store.Service().Update(&updateOpts, service)
 	if e != nil {
@@ -303,5 +304,5 @@ func NewServiceService(app *App) (*ServiceService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewInternalError("api.config.new_service.args_check.app_nil", "internal is nil")
 	}
-	return &ServiceService{app: app, objClassName: "dictionaries"}, nil
+	return &ServiceService{app: app, objClassName: model.ScopeDictionary}, nil
 }

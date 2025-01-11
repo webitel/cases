@@ -20,6 +20,7 @@ type CaseLinkService struct {
 }
 
 var CaseLinkMetadata = model.NewObjectMetadata(
+	"cases",
 	[]*model.Field{
 		{Name: "id", Default: true},
 		{Name: "ver", Default: true},
@@ -45,7 +46,8 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
 
-	searchOpts := model.NewLocateOptions(ctx, req, CaseLinkMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+	searchOpts := model.NewLocateOptions(ctx, req, CaseLinkMetadata).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseLinkMetadata.GetAllScopeNames()...))
 	searchOpts.IDs = []int64{etg.GetOid()}
 
 	links, err := c.app.Store.CaseLink().List(searchOpts)
@@ -75,7 +77,8 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, CaseLinkMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+	createOpts := model.NewCreateOptions(ctx, req, CaseLinkMetadata).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseLinkMetadata.GetAllScopeNames()...))
 	createOpts.ParentID = caseTID.GetOid()
 	res, dbErr := c.app.Store.CaseLink().Create(createOpts, req.Input)
 	if dbErr != nil {
@@ -98,7 +101,8 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
-	updateOpts := model.NewUpdateOptions(ctx, req, CaseLinkMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+	updateOpts := model.NewUpdateOptions(ctx, req, CaseLinkMetadata).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseLinkMetadata.GetAllScopeNames()...))
 	updateOpts.Etags = []*etag.Tid{&linkTID}
 	updated, err := c.app.Store.CaseLink().Update(updateOpts, req.Input)
 	if err != nil {
@@ -118,7 +122,8 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
-	deleteOpts := model.NewDeleteOptions(ctx).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+	deleteOpts := model.NewDeleteOptions(ctx).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseLinkMetadata.GetAllScopeNames()...))
 	deleteOpts.ID = linkTID.GetOid()
 	err = c.app.Store.CaseLink().Delete(deleteOpts)
 	if err != nil {
@@ -139,7 +144,8 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
 
-	searchOpts := model.NewSearchOptions(ctx, req, CaseLinkMetadata)
+	searchOpts := model.NewSearchOptions(ctx, req, CaseLinkMetadata).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseLinkMetadata.GetAllScopeNames()...))
 	searchOpts.ParentId = etg.GetOid()
 	//
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCaseLink)

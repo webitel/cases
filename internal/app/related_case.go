@@ -18,6 +18,7 @@ type RelatedCaseService struct {
 }
 
 var RelatedCaseMetadata = model.NewObjectMetadata(
+	"cases",
 	[]*model.Field{
 		{Name: "id", Default: true},
 		{Name: "ver", Default: true},

@@ -18,6 +18,7 @@ const (
 type SourceService struct {
 	app *App
 	_go.UnimplementedSourcesServer
+	objClassName string
 }
 
 func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRequest) (*_go.Source, error) {
@@ -62,7 +63,7 @@ func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRe
 
 	// Define create options
 	createOpts := model.CreateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 	}
@@ -215,7 +216,7 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 	}
@@ -249,7 +250,7 @@ func (s SourceService) DeleteSource(ctx context.Context, req *_go.DeleteSourceRe
 
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		IDs:     []int64{req.Id},
 	}
@@ -296,5 +297,5 @@ func NewSourceService(app *App) (*SourceService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewInternalError("api.config.new_source_service.args_check.app_nil", "internal is nil")
 	}
-	return &SourceService{app: app}, nil
+	return &SourceService{app: app, objClassName: model.ScopeDictionary}, nil
 }

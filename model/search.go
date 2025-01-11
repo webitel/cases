@@ -4,11 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/webitel/cases/internal/server/interceptor"
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
-
-	session "github.com/webitel/cases/auth/model"
 )
 
 func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMetadatter) *SearchOptions {
@@ -152,7 +149,6 @@ func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMe
 		Time: time.Now(),
 		Page: 1,
 		Size: 1,
-		Auth: NewSessionAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), objMetadata.GetObjectName()),
 	}
 	// set current time
 	opts.CurrentTime()
@@ -172,7 +168,7 @@ func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMe
 	return opts
 }
 
-// DeafaultSearchSize is a constant integer == 16.
+// DeafaultSearchSize is a constant integer == 10.
 const (
 	DefaultSearchSize = 10
 )

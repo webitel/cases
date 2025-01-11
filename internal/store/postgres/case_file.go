@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	authmodel "github.com/webitel/cases/auth/model"
 	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
@@ -113,6 +114,8 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 	if err != nil {
 		return nil, nil, err
 	}
+
+	queryBuilder = insertListCaseRbacCondition(rpc.GetAuthOpts(), authmodel.Read, queryBuilder, fileAlias, "uuid")
 
 	// Apply additional filters, sorting, and pagination as needed
 	if len(rpc.IDs) > 0 {

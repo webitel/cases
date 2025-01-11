@@ -36,7 +36,8 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
 	}
 	// Build search options
-	searchOpts := model.NewSearchOptions(ctx, req, CaseFileMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+	searchOpts := model.NewSearchOptions(ctx, req, CaseFileMetadata).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseFileMetadata.GetAllScopeNames()...))
 	searchOpts.ParentId = tag.GetOid()
 
 	files, err := c.app.Store.CaseFile().List(searchOpts)

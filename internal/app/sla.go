@@ -15,6 +15,7 @@ import (
 type SLAService struct {
 	app *App
 	cases.UnimplementedSLAsServer
+	objClassName string
 }
 
 const (
@@ -78,10 +79,10 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 
 	// Define create options
 	createOpts := model.CreateOptions{
-		Session: session,
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 	}
 
 	// Create the SLA in the store
@@ -115,7 +116,7 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 	t := time.Now()
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,
@@ -281,7 +282,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
@@ -300,5 +301,5 @@ func NewSLAService(app *App) (*SLAService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewInternalError("api.config.new_sla_service.args_check.app_nil", "internal is nil")
 	}
-	return &SLAService{app: app}, nil
+	return &SLAService{app: app, objClassName: model.ScopeDictionary}, nil
 }

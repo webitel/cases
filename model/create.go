@@ -6,9 +6,6 @@ import (
 
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
-
-	session "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/internal/server/interceptor"
 )
 
 type CreateOptions struct {
@@ -53,7 +50,6 @@ func (rpc *CreateOptions) CurrentTime() time.Time {
 func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMetadatter) *CreateOptions {
 	createOpts := &CreateOptions{
 		Context: ctx,
-		Auth:    NewSessionAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), objMetadata.GetObjectName()),
 	}
 
 	// set current time

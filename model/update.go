@@ -6,9 +6,6 @@ import (
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 	"time"
-
-	session "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/internal/server/interceptor"
 )
 
 // UpdateOptions defines options for updating an entity with fields, mask, filter, and pagination
@@ -50,7 +47,6 @@ func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetada
 		//Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
 		Mask: req.GetXJsonMask(),
 		Time: time.Now(),
-		Auth: NewSessionAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), objMetadata.GetObjectName()),
 	}
 
 	// normalize fields

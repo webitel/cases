@@ -15,6 +15,7 @@ import (
 type SLAConditionService struct {
 	app *App
 	cases.UnimplementedSLAConditionsServer
+	objClassName string
 }
 
 const (
@@ -77,7 +78,7 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 
 	// Define create options
 	createOpts := model.CreateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
@@ -115,7 +116,7 @@ func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases
 	t := time.Now()
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,
@@ -274,7 +275,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
@@ -294,5 +295,5 @@ func NewSLAConditionService(app *App) (*SLAConditionService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewInternalError("api.config.new_sla_condition_service.args_check.app_nil", "internal is nil")
 	}
-	return &SLAConditionService{app: app}, nil
+	return &SLAConditionService{app: app, objClassName: model.ScopeDictionary}, nil
 }

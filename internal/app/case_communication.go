@@ -14,7 +14,7 @@ import (
 )
 
 var CaseCommunicationMetadata = model.NewObjectMetadata(
-	"case",
+	"cases",
 	[]*model.Field{
 		{"id", true},
 		{"communication_type", true},
@@ -32,7 +32,8 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.list_communication.invalid_etag", "Invalid case etag")
 	}
-	searchOpts := model.NewSearchOptions(ctx, request, CaseCommunicationMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+	searchOpts := model.NewSearchOptions(ctx, request, CaseCommunicationMetadata).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseCommunicationMetadata.GetAllScopeNames()...))
 	searchOpts.ParentId = tag.GetOid()
 
 	res, dbErr := c.app.Store.CaseCommunication().List(searchOpts)
@@ -57,7 +58,8 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.invalid_etag", "Invalid case etag")
 	}
-	createOpts := model.NewCreateOptions(ctx, request, CaseCommunicationMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+	createOpts := model.NewCreateOptions(ctx, request, CaseCommunicationMetadata).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseCommunicationMetadata.GetAllScopeNames()...))
 	createOpts.ParentID = tag.GetOid()
 
 	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, request.Input)
@@ -78,7 +80,8 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.unlink_communication.invalid_etag", "Invalid case etag")
 	}
-	deleteOpts := model.NewDeleteOptions(ctx).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetObjectName()))
+	deleteOpts := model.NewDeleteOptions(ctx).
+		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseCommunicationMetadata.GetAllScopeNames()...))
 	deleteOpts.IDs = []int64{tag.GetOid()}
 
 	affected, dbErr := c.app.Store.CaseCommunication().Unlink(deleteOpts)

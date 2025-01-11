@@ -8,7 +8,7 @@ import (
 
 type Auther interface {
 	GetRoles() []int64
-	GetUserId() int64
+	GetUserId() *int64
 	GetDomainId() int64
 	GetObjectScope(string) ObjectScope
 }
@@ -40,13 +40,10 @@ type SessionAuthOptions struct {
 func (a *SessionAuthOptions) GetRoles() []int64 {
 	return a.roles
 }
-func (a *SessionAuthOptions) GetUserId() int64 {
-	return a.userId
+func (a *SessionAuthOptions) GetUserId() *int64 {
+	return &a.userId
 }
 func (a *SessionAuthOptions) GetDomainId() int64 {
-	return a.domainId
-}
-func (a *SessionAuthOptions) GetOtherScope() int64 {
 	return a.domainId
 }
 func (a *SessionAuthOptions) GetObjectScope(s string) ObjectScope {
@@ -68,10 +65,16 @@ func newSessionObjectScope(scope *authmodel.Scope) ObjectScope {
 }
 
 func (d *DefaultScope) IsRbacUsed() bool {
+	if d == nil {
+		return false
+	}
 	return d.rbac
 }
 
 func (d *DefaultScope) IsObacUsed() bool {
+	if d == nil {
+		return false
+	}
 	return d.obac
 }
 

@@ -109,9 +109,8 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), PriorityMetadata.GetMainScopeName()),
 	}
-
-	searchOptions = searchOptions.SetAuthOpts(model.NewSessionAuthOptions(session, PriorityMetadata.GetObjectName()))
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
