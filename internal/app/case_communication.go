@@ -5,6 +5,7 @@ import (
 	defErr "errors"
 	"fmt"
 	"github.com/webitel/cases/api/cases"
+	authmodel "github.com/webitel/cases/auth/model"
 	errors "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/webitel-go-kit/etag"
@@ -26,14 +27,25 @@ type CaseCommunicationService struct {
 }
 
 func (c *CaseCommunicationService) ListCommunications(ctx context.Context, request *cases.ListCommunicationsRequest) (*cases.ListCommunicationsResponse, error) {
-	// TODO: RBAC check by request.CaseEtag
 	tag, err := etag.EtagOrId(etag.EtagCase, request.CaseId)
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.list_communication.invalid_etag", "Invalid case etag")
 	}
-	searchOpts := model.NewSearchOptions(ctx, request, CaseCommunicationMetadata).
-		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseCommunicationMetadata.GetAllScopeNames()...))
+	searchOpts := model.NewSearchOptions(ctx, request, CaseCommunicationMetadata)
 	searchOpts.ParentId = tag.GetOid()
+	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
+
+	if searchOpts.GetAuthOpts().GetObjectScope(CaseMetadata.GetMainScopeName()).IsRbacUsed() {
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
+		if err != nil {
+			slog.Warn(err.Error(), logAttributes)
+			return nil, AppForbiddenError
+		}
+		if !access {
+			slog.Warn("user don't have required (READ) access to the case", logAttributes)
+			return nil, AppForbiddenError
+		}
+	}
 
 	res, dbErr := c.app.Store.CaseCommunication().List(searchOpts)
 	if dbErr != nil {
@@ -42,14 +54,13 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 	}
 	err = NormalizeResponseCommunications(res.Data, request.GetFields())
 	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		slog.Warn(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return res, nil
 }
 
 func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, request *cases.LinkCommunicationRequest) (*cases.LinkCommunicationResponse, error) {
-	// TODO: RBAC check by request.CaseEtag
 	if len(request.Input) == 0 {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.check_args.payload", "no payload")
 	}
@@ -61,13 +72,25 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.invalid_etag", "Invalid case etag")
 	}
-	createOpts := model.NewCreateOptions(ctx, request, CaseCommunicationMetadata).
-		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseCommunicationMetadata.GetAllScopeNames()...))
+	createOpts := model.NewCreateOptions(ctx, request, CaseCommunicationMetadata)
 	createOpts.ParentID = tag.GetOid()
+	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", createOpts.ParentID))
+
+	if createOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetMainScopeName()).IsRbacUsed() {
+		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), authmodel.Edit, createOpts.ParentID)
+		if err != nil {
+			slog.Warn(err.Error(), logAttributes)
+			return nil, AppForbiddenError
+		}
+		if !access {
+			slog.Warn("user don't have required (EDIT) access to the case", logAttributes)
+			return nil, AppForbiddenError
+		}
+	}
 
 	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, request.Input)
 	if dbErr != nil {
-		slog.Warn(dbErr.Error(), slog.Int64("id", tag.GetOid()))
+		slog.Warn(dbErr.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 	if len(res) == 0 {
@@ -75,21 +98,36 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	}
 	err = NormalizeResponseCommunications(res, request.GetFields())
 	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", createOpts.Session.GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		slog.Warn(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return &cases.LinkCommunicationResponse{Data: res}, nil
 }
 
 func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, request *cases.UnlinkCommunicationRequest) (*cases.UnlinkCommunicationResponse, error) {
-	// TODO: RBAC check by request.CaseEtag
 	tag, err := etag.EtagOrId(etag.EtagCaseCommunication, request.GetId())
+	if err != nil {
+		return nil, errors.NewBadRequestError("app.case_communication.unlink_communication.invalid_etag", "Invalid communication etag")
+	}
+	caseTag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.unlink_communication.invalid_etag", "Invalid case etag")
 	}
-	deleteOpts := model.NewDeleteOptions(ctx).
-		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseCommunicationMetadata.GetAllScopeNames()...))
+	deleteOpts := model.NewDeleteOptions(ctx, CaseCommunicationMetadata)
 	deleteOpts.IDs = []int64{tag.GetOid()}
+	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()))
+
+	if deleteOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetMainScopeName()).IsRbacUsed() {
+		access, err := c.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), authmodel.Edit, caseTag.GetOid())
+		if err != nil {
+			slog.Warn(err.Error(), logAttributes)
+			return nil, AppForbiddenError
+		}
+		if !access {
+			slog.Warn("user don't have required (EDIT) access to the case", logAttributes)
+			return nil, AppForbiddenError
+		}
+	}
 
 	affected, dbErr := c.app.Store.CaseCommunication().Unlink(deleteOpts)
 	if dbErr != nil {

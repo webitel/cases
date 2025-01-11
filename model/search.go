@@ -16,6 +16,9 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 		Search:  searcher.GetQ(),
 		Filter:  make(map[string]any),
 	}
+	if sess := GetSessionOutOfContext(ctx); sess != nil {
+		opts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
+	}
 	// set current time
 	opts.CurrentTime()
 	// normalize fields
@@ -152,6 +155,9 @@ func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMe
 	}
 	// set current time
 	opts.CurrentTime()
+	if sess := GetSessionOutOfContext(ctx); sess != nil {
+		opts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
+	}
 
 	// normalize fields
 	var resultingFields []string

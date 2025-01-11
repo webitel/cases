@@ -3,8 +3,6 @@ package app
 import (
 	"context"
 	"encoding/json"
-	session "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/internal/server/interceptor"
 	"github.com/webitel/webitel-go-kit/errors"
 	"log/slog"
 	"strconv"
@@ -61,8 +59,8 @@ type CaseService struct {
 }
 
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
-	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata).
-		SetAuthOpts(model.NewSessionAuthOptions(ctx.Value(interceptor.SessionHeader).(*session.Session), CaseMetadata.GetAllScopeNames()...))
+	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata)
+	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case.search_cases.parse_ids.invalid", err.Error())
@@ -75,19 +73,20 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	searchOpts.IDs = ids
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", *searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", *searchOpts.GetAuthOpts().GetDomainId()))
+		slog.Warn(err.Error(), logAttributes)
 		return nil, errors.NewInternalError("app.case_communication.search_cases.database.error", "database error")
 	}
 	err = c.NormalizeResponseCases(list, req, nil)
 	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()))
+		slog.Warn(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return list, nil
 }
 
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
-	searchOpts := model.NewLocateOptions(ctx, req, CaseMetadata).SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetAllScopeNames()...))
+	searchOpts := model.NewLocateOptions(ctx, req, CaseMetadata)
+	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	id, err := util.ParseIds([]string{req.GetId()}, etag.EtagCase)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
@@ -99,7 +98,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	}
 	err = c.NormalizeResponseCases(list, req, nil)
 	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()))
+		slog.Warn(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return list.Items[0], nil
@@ -185,9 +184,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Related:          related,
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, CaseMetadata).
-		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetAllScopeNames()...))
-
+	createOpts := model.NewCreateOptions(ctx, req, CaseMetadata)
+	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()))
 	newCase, err := c.app.Store.Case().Create(createOpts, newCase)
 	if err != nil {
 		return nil, err
@@ -196,7 +194,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	// Encode etag from the case ID and version
 	newCase.Id, err = etag.EncodeEtag(etag.EtagCase, int64(id), newCase.Ver)
 	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", *createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.Session.GetDomainId()), slog.Int64("case_id", int64(id)))
+		slog.Warn(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	userId := createOpts.GetAuthOpts().GetUserId()
@@ -247,9 +245,9 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts := model.NewUpdateOptions(ctx, req, CaseMetadata).
-		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetAllScopeNames()...))
+	updateOpts := model.NewUpdateOptions(ctx, req, CaseMetadata)
 	updateOpts.Etags = []*etag.Tid{&tag}
+	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
 	upd := &cases.Case{
 		Id:               strconv.Itoa(int(tag.GetOid())),
@@ -284,7 +282,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	err = c.NormalizeResponseCase(updatedCase, req)
 	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", updateOpts.Session.GetUserId()), slog.Int64("domain_id", updateOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		slog.Warn(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return updatedCase, nil
@@ -295,18 +293,18 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
 	}
 
-	deleteOpts := model.NewDeleteOptions(ctx).
-		SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseMetadata.GetAllScopeNames()...))
+	deleteOpts := model.NewDeleteOptions(ctx, CaseMetadata)
 
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Id)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case.delete_case.invalid_etag", "Invalid etag")
 	}
 	deleteOpts.IDs = []int64{tag.GetOid()}
+	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
 	err = c.app.Store.Case().Delete(deleteOpts)
 	if err != nil {
-		slog.Warn(err.Error(), slog.Int64("user_id", *deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+		slog.Warn(err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 	return nil, nil

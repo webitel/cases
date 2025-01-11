@@ -109,8 +109,8 @@ func (s *CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.List
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
-	searchOptions = searchOptions.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q

@@ -16,7 +16,7 @@ var defaultFieldsPriority = []string{
 	"id", "name", "description", "color",
 }
 
-var PriorityMetadata = model.NewObjectMetadata("dictionaries",
+var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary,
 	[]*model.Field{
 		{"id", true},
 		{"created_by", false},
@@ -207,7 +207,7 @@ func (p *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePri
 		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
-	deleteOpts := model.NewDeleteOptions(ctx)
+	deleteOpts := model.NewDeleteOptions(ctx, PriorityMetadata)
 	deleteOpts.IDs = []int64{req.Id}
 
 	err = p.app.Store.Priority().Delete(deleteOpts)

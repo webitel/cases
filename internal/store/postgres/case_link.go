@@ -72,9 +72,14 @@ func (l *CaseLinkStore) Delete(opts *model.DeleteOptions) error {
 	if opts.ID == 0 {
 		return dberr.NewDBError("postgres.case_link.delete.check_args.id", "id required")
 	}
+	if opts.ParentID == 0 {
+		return dberr.NewDBError("postgres.case_link.delete.check_args.id", "case id required")
+	}
 	base := squirrel.
 		Delete(l.mainTable).
 		Where("id = ?", opts.ID).
+		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
+		Where("case_id = ?", opts.ParentID).
 		PlaceholderFormat(squirrel.Dollar)
 	query, args, err := base.ToSql()
 	if err != nil {
@@ -113,6 +118,7 @@ func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, erro
 	base := squirrel.
 		Select().
 		From(l.mainTable).
+		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
 	if opts.ParentId != 0 {
 		base = base.Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "case_id")), opts.ParentId)
@@ -314,6 +320,8 @@ func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (sq
 		Set("ver", squirrel.Expr("ver+1")).
 		Where("id = ?", tid.GetOid()).
 		Where("ver = ?", tid.GetVer()).
+		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
+		Where("case_id = ?", opts.ParentID).
 		Suffix("RETURNING *").
 		PlaceholderFormat(squirrel.Dollar)
 	for _, field := range opts.Mask {

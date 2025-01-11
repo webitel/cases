@@ -159,10 +159,8 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
-
-	searchOptions = searchOptions.SetAuthOpts(model.NewSessionAuthOptions(session))
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
@@ -306,7 +304,6 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		Time:    t,
 		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 	}
-	updateOpts.SetAuthOpts(model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName))
 
 	r, e := s.app.Store.Service().Update(&updateOpts, service)
 	if e != nil {

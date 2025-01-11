@@ -77,21 +77,17 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 	insertBuilder := sq.
 		Insert("cases.case_comment").
 		Columns("dc", "case_id", "created_at", "created_by", "updated_at", "updated_by", "comment").
+		Values(
+			rpc.GetAuthOpts().GetDomainId(), // dc
+			rpc.ParentID,                    // case_id
+			rpc.CurrentTime(),               // created_at (and updated_at)
+			rpc.GetAuthOpts().GetUserId(),   // created_by (and updated_by)
+			rpc.CurrentTime(),               // updated_at
+			rpc.GetAuthOpts().GetUserId(),   // updated_by
+			input.Text,                      // comment text
+		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
-	insertBuilder, err = addCaseRbacConditionForInsert(rpc.GetAuthOpts(), authmodel.Edit, insertBuilder, rpc.ParentID, "rbac")
-	if err != nil {
-		return nil, nil, err
-	}
-	insertBuilder = insertBuilder.Values(
-		rpc.GetAuthOpts().GetDomainId(), // dc
-		"(SELECT id FROM rbac)",         // case_id
-		rpc.CurrentTime(),               // created_at (and updated_at)
-		rpc.GetAuthOpts().GetUserId(),   // created_by (and updated_by)
-		rpc.CurrentTime(),               // updated_at
-		rpc.GetAuthOpts().GetUserId(),   // updated_by
-		input.Text,                      // comment text
-	)
 
 	// Convert insertBuilder to SQL to use it within a CTE
 	insertSQL, insertArgs, err := insertBuilder.ToSql()
@@ -164,10 +160,6 @@ func (c CaseCommentStore) buildDeleteCaseCommentQuery(rpc *model.DeleteOptions) 
 		Where("id = ANY(?)", pq.Array(ids)).
 		Where("dc = ?", rpc.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(sq.Dollar)
-	base, err = addCaseRbacConditionForDelete(rpc.GetAuthOpts(), authmodel.Edit, base, "c.case_id")
-	if err != nil {
-		return base, err
-	}
 	base, err = addCaseCommentRbacConditionForDelete(rpc.GetAuthOpts(), authmodel.Delete, base, "c.id")
 	if err != nil {
 		return base, err
@@ -250,10 +242,6 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 
 	if rpc.ParentId != 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": rpc.ParentId})
-	}
-	queryBuilder, defErr = addCaseRbacCondition(rpc.GetAuthOpts(), authmodel.Read, queryBuilder, "cc.case_id")
-	if defErr != nil {
-		return nil, nil, defErr
 	}
 	queryBuilder, defErr = addCaseCommentRbacCondition(rpc.GetAuthOpts(), authmodel.Read, queryBuilder, "cc.id")
 	if defErr != nil {
@@ -361,6 +349,7 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 		Id   int64
 	},
 ) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
+	var defErr error
 	// Ensure "id" and "ver" are in the fields list
 	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
 
@@ -377,7 +366,10 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 			"dc":         rpc.GetAuthOpts().GetDomainId(),
 			"created_by": rpc.GetAuthOpts().GetUserId(), // Ensure only the creator can edit
 		})
-
+	updateBuilder, defErr = addCaseCommentRbacConditionForUpdate(rpc.GetAuthOpts(), authmodel.Edit, updateBuilder, "case_comment.id")
+	if defErr != nil {
+		return nil, nil, defErr
+	}
 	// Update the `comment` field if provided
 	if input.Text != "" {
 		updateBuilder = updateBuilder.Set("comment", input.Text)
@@ -395,7 +387,6 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 		rpc.Fields,
 		rpc.GetAuthOpts(),
 	)
-	selectBuilder = insertListCaseRbacCondition(rpc.GetAuthOpts(), authmodel.Edit, selectBuilder, caseCommentLeft, "case_id")
 	if err != nil {
 		return nil, nil, err
 	}

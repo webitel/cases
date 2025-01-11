@@ -8,9 +8,6 @@ import (
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
-
-	session "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/internal/server/interceptor"
 )
 
 // UpdateOptions defines options for updating an entity with fields, mask, filter, and pagination
@@ -25,8 +22,9 @@ type UpdateOptions struct {
 	// update
 	Mask []string
 	// filters
-	IDs   []int64
-	Etags []*etag.Tid
+	ParentID int64
+	IDs      []int64
+	Etags    []*etag.Tid
 	// ID      int64
 	Auth Auther
 }
@@ -53,7 +51,9 @@ func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetada
 		Mask: req.GetXJsonMask(),
 		Time: time.Now(),
 	}
-
+	if sess := GetSessionOutOfContext(ctx); sess != nil {
+		opts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
+	}
 	// Normalize fields
 	var resultingFields []string
 	if requestedFields := req.GetFields(); len(requestedFields) == 0 {

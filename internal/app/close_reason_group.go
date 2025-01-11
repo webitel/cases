@@ -59,9 +59,8 @@ func (s CloseReasonGroupService) CreateCloseReasonGroup(ctx context.Context, req
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
-
-	createOpts = createOpts.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
 
 	// Create the close reason group in the store
 	l, e := s.app.Store.CloseReasonGroup().Create(createOpts, lookup)
@@ -108,8 +107,8 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(ctx context.Context, req 
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
-	searchOptions = searchOptions.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
@@ -176,9 +175,8 @@ func (s CloseReasonGroupService) UpdateCloseReasonGroup(ctx context.Context, req
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
-
-	updateOpts = updateOpts.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
 
 	// Update the lookup in the store
 	l, e := s.app.Store.CloseReasonGroup().Update(updateOpts, lookup)
@@ -213,9 +211,8 @@ func (s CloseReasonGroupService) DeleteCloseReasonGroup(ctx context.Context, req
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
-
-	deleteOpts = deleteOpts.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
 
 	// Delete the lookup in the store
 	e := s.app.Store.CloseReasonGroup().Delete(deleteOpts)

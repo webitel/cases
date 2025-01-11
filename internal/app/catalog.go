@@ -191,8 +191,8 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
-	searchOptions = searchOptions.SetAuthOpts(model.NewSessionAuthOptions(session, s.objClassName))
 
 	if req.Query != "" {
 		searchOptions.Filter["name"] = req.Query

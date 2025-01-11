@@ -100,7 +100,6 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(options *mode
 	}
 	alias := "s"
 	base := squirrel.Select().From(fmt.Sprintf("%s %s", c.mainTable, alias)).PlaceholderFormat(squirrel.Dollar)
-	base = insertListCaseRbacCondition(options.GetAuthOpts(), authmodel.Read, base, alias, "case_id")
 	base = store.ApplyPaging(options.GetPage(), options.GetSize(), base)
 	return c.buildSelectColumnsAndPlan(base, alias, options.Fields)
 
@@ -241,7 +240,6 @@ func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(options *mo
 		return nil, dberr.NewDBError("postgres.case_communication.build_delete_case_communication_sqlizer.check_args.ids", "ids required to delete")
 	}
 	del := squirrel.Delete(c.mainTable).Where("id = ANY(?)", options.IDs)
-	del = insertDeleteCaseRbacCondition(options.GetAuthOpts(), authmodel.Edit, del, c.mainTable, "case_id")
 	return del, nil
 
 }

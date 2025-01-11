@@ -8,7 +8,7 @@ import (
 
 type Auther interface {
 	GetRoles() []int64
-	GetUserId() *int64
+	GetUserId() int64
 	GetDomainId() int64
 	GetObjectScope(string) ObjectScope
 }
@@ -23,7 +23,7 @@ func NewSessionAuthOptions(session *authmodel.Session, requiredScopes ...string)
 	if len(requiredScopes) == 0 || session == nil {
 		return nil
 	}
-	var scopes map[string]ObjectScope
+	scopes := make(map[string]ObjectScope)
 	for _, s := range requiredScopes {
 		scopes[s] = newSessionObjectScope(session.GetScope(s))
 	}
@@ -40,8 +40,8 @@ type SessionAuthOptions struct {
 func (a *SessionAuthOptions) GetRoles() []int64 {
 	return a.roles
 }
-func (a *SessionAuthOptions) GetUserId() *int64 {
-	return &a.userId
+func (a *SessionAuthOptions) GetUserId() int64 {
+	return a.userId
 }
 func (a *SessionAuthOptions) GetDomainId() int64 {
 	return a.domainId
