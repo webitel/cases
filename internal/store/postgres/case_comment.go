@@ -519,7 +519,10 @@ func buildCommentsSelectAsSubquery(opts *model.SearchOptions, caseAlias string) 
 		Select().
 		From("cases.case_comment " + alias).
 		Where(fmt.Sprintf("%s = %s", store.Ident(alias, "case_id"), store.Ident(caseAlias, "id")))
-
+	base, err := addCaseCommentRbacCondition(opts.Auth, authmodel.Read, base, store.Ident(alias, "id"))
+	if err != nil {
+		return base, nil, 0, dberr.NewDBError("store.case_comment.build_comments_subquery.rbac_err", err.Error())
+	}
 	base, plan, dbErr := buildCommentSelectColumnsAndPlan(base, alias, opts.Fields, opts.GetAuthOpts())
 	if dbErr != nil {
 		return base, nil, 0, dbErr

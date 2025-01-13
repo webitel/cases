@@ -120,7 +120,7 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user don't have required (EDIT) access to the case", logAttributes)
+			slog.Warn("user doesn't have required (EDIT) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}

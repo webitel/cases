@@ -1202,6 +1202,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 					Size:    10,
 					Page:    1,
 					Sort:    []string{"-created_at"},
+					Auth:    opts.Auth,
 				}
 			}
 

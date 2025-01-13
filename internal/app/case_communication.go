@@ -42,7 +42,7 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user don't have required (READ) access to the case", logAttributes)
+			slog.Warn("user doesn't have required (READ) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
@@ -83,7 +83,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user don't have required (EDIT) access to the case", logAttributes)
+			slog.Warn("user doesn't have required (EDIT) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
@@ -124,7 +124,7 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user don't have required (EDIT) access to the case", logAttributes)
+			slog.Warn("user doesn't have required (EDIT) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}

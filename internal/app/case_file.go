@@ -49,7 +49,7 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user don't have required (READ) access to the case", logAttributes)
+			slog.Warn("user doesn't have required (READ) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}

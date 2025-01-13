@@ -51,7 +51,11 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "related_cases", Default: false},
 		{Name: "timing", Default: true},
 		{Name: "contact_info", Default: true},
-	})
+	},
+	// child metadata
+	CaseCommentMetadata,
+	CaseLinkMetadata,
+	RelatedCaseMetadata)
 
 type CaseService struct {
 	app *App
