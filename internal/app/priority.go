@@ -64,7 +64,7 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 		fields = defaultFieldsPriority
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, nil)
+	createOpts := model.NewCreateOptions(ctx, req, PriorityMetadata)
 	createOpts.Fields = fields
 
 	l, err := p.app.Store.Priority().Create(createOpts, lookup)
