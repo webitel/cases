@@ -58,6 +58,7 @@ type CaseService struct {
 	cases.UnimplementedCasesServer
 }
 
+// TODO: search cases attributes by rbac
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
 	searchOpts := model.NewSearchOptions(ctx, req, CaseMetadata)
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
