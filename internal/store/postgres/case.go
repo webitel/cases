@@ -743,6 +743,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("status_condition", upd.StatusCondition.GetId())
 		case "service":
 			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
+			updateBuilder = updateBuilder.Set("sla", sq.Expr("(SELECT sla_id FROM cases.service_catalog WHERE id = ? LIMIT 1)", upd.Service.GetId()))
 		case "assignee":
 			updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
 		case "reporter":
