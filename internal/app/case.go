@@ -19,8 +19,9 @@ import (
 
 var CaseMetadata = model.NewObjectMetadata(
 	[]*model.Field{
-		{Name: "id", Default: true},
-		{Name: "ver", Default: true},
+		{Name: "etag", Default: true},
+		{Name: "id", Default: false},
+		{Name: "ver", Default: false},
 		{Name: "created_by", Default: true},
 		{Name: "created_at", Default: true},
 		{Name: "updated_by", Default: false},
