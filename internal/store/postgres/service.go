@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/internal/store/scanner"
 	"strings"
 	"time"
 
@@ -207,6 +208,10 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 		return nil, dberr.NewDBInternalError("postgres.service.update.query_build_error", err)
 	}
 
+	if lookup.Sla == nil {
+		lookup.Sla = &cases.Lookup{}
+	}
+
 	var (
 		createdByLookup, updatedByLookup cases.Lookup
 		createdAt, updatedAt             time.Time
@@ -216,8 +221,8 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &lookup.Description,
 		&lookup.Code, &lookup.State, &lookup.Sla.Id,
-		&lookup.Sla.Name, &groupLookup.Id, &groupLookup.Name,
-		&assigneeLookup.Id, &assigneeLookup.Name, &createdByLookup.Id,
+		&lookup.Sla.Name, scanner.ScanInt64(&groupLookup.Id), scanner.ScanText(&groupLookup.Name),
+		scanner.ScanInt64(&assigneeLookup.Id), scanner.ScanText(&assigneeLookup.Name), &createdByLookup.Id,
 		&createdByLookup.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 		&createdAt, &updatedAt, &lookup.RootId,
 	)
@@ -244,13 +249,15 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 
 func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *cases.Service) (string, []interface{}) {
 	args := []interface{}{
-		add.Name,                  // $1: name
-		add.Description,           // $2: description (can be null)
-		add.Code,                  // $3: code (can be null)
-		rpc.Time,                  // $4: created_at, updated_at
-		rpc.Session.GetUserId(),   // $5: created_by, updated_by
-		add.Sla.Id,                // $6: sla_id
-		add.Group.Id,              // $7: group_id
+		add.Name,                // $1: name
+		add.Description,         // $2: description (can be null)
+		add.Code,                // $3: code (can be null)
+		rpc.Time,                // $4: created_at, updated_at
+		rpc.Session.GetUserId(), // $5: created_by, updated_by
+		add.Sla.Id,              // $6: sla_id
+		// TODO: not required
+		add.Group.Id, // $7: group_id
+		// TODO: not required
 		add.Assignee.Id,           // $8: assignee_id
 		add.State,                 // $9: state
 		rpc.Session.GetDomainId(), // $10: domain ID
@@ -336,6 +343,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 		"updated_by":  "service.updated_by",
 		"sla":         "COALESCE(service.sla_id, 0) AS sla_id, COALESCE(sla.name, '') AS sla_name",
 		"group":       "COALESCE(service.group_id, 0) AS group_id, COALESCE(grp.name, '') AS group_name",
+		"assignee":    "COALESCE(service.assignee_id, 0) AS assignee_id, COALESCE(ass.common_name, '') AS assignee_name",
 	}
 
 	// Initialize query builder
@@ -355,6 +363,8 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 			queryBuilder = queryBuilder.LeftJoin("cases.sla ON sla.id = service.sla_id")
 		case "group":
 			queryBuilder = queryBuilder.LeftJoin("contacts.group AS grp ON grp.id = service.group_id")
+		case "assignee":
+			queryBuilder = queryBuilder.LeftJoin("contacts.contact AS ass ON ass.id = service.assignee_id")
 		case "created_by":
 			queryBuilder = queryBuilder.LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by").
 				Column("COALESCE(created_by_user.name, '') AS created_by_name")
@@ -419,11 +429,19 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc *model.UpdateOptions, lookup 
 			// Use NULLIF to store NULL if sla_id is 0
 			updateQueryBuilder = updateQueryBuilder.Set("sla_id", sq.Expr("NULLIF(?, 0)", lookup.Sla.Id))
 		case "group_id":
+			var val *int64
+			if lookup.Group != nil {
+				val = &lookup.Group.Id
+			}
 			// Use NULLIF to store NULL if group_id is 0
-			updateQueryBuilder = updateQueryBuilder.Set("group_id", sq.Expr("NULLIF(?, 0)", lookup.Group.Id))
+			updateQueryBuilder = updateQueryBuilder.Set("group_id", sq.Expr("NULLIF(?, 0)", val))
 		case "assignee_id":
+			var val *int64
+			if lookup.Assignee != nil {
+				val = &lookup.Assignee.Id
+			}
 			// Use NULLIF to store NULL if assignee_id is 0
-			updateQueryBuilder = updateQueryBuilder.Set("assignee_id", sq.Expr("NULLIF(?, 0)", lookup.Assignee.Id))
+			updateQueryBuilder = updateQueryBuilder.Set("assignee_id", sq.Expr("NULLIF(?, 0)", val))
 		case "state":
 			updateQueryBuilder = updateQueryBuilder.Set("state", lookup.State)
 		case "root_id":

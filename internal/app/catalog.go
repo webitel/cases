@@ -31,11 +31,14 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	if req.Prefix == "" {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.prefix.required", "Catalog prefix is required")
 	}
-	if req.Sla.GetId() == 0 {
+	if req.Sla == nil || req.Sla.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.sla.required", "SLA is required")
 	}
-	if req.Status.GetId() == 0 {
+	if req.Status == nil || req.Status.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.status.required", "Status is required")
+	}
+	if req.CloseReason == nil || req.CloseReason.GetId() == 0 {
+		return nil, cerror.NewBadRequestError("catalog.create_catalog.status.required", "Close reason is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
