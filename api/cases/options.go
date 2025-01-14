@@ -370,6 +370,71 @@ var WebitelAPI = WebitelServicesInfo{
 			},
 		},
 	},
+	"StatusConditions": WebitelServices{
+		ObjClass:           "dictionaries",
+		AdditionalLicenses: []string{},
+		WebitelMethods: map[string]WebitelMethod{
+			"ListStatusConditions": WebitelMethod{
+				Access: 1,
+				Input:  "ListStatusConditionRequest",
+				Output: "StatusConditionList",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/statuses/{status_id}/status",
+						Method: "GET",
+					},
+				},
+			},
+			"CreateStatusCondition": WebitelMethod{
+				Access: 0,
+				Input:  "CreateStatusConditionRequest",
+				Output: "StatusCondition",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/statuses/{status_id}/status",
+						Method: "POST",
+					},
+				},
+			},
+			"UpdateStatusCondition": WebitelMethod{
+				Access: 2,
+				Input:  "UpdateStatusConditionRequest",
+				Output: "StatusCondition",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/statuses/{status_id}/status/{id}",
+						Method: "PUT",
+					},
+					{
+						Path:   "/statuses/{status_id}/status/{id}",
+						Method: "PATCH",
+					},
+				},
+			},
+			"DeleteStatusCondition": WebitelMethod{
+				Access: 3,
+				Input:  "DeleteStatusConditionRequest",
+				Output: "StatusCondition",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/statuses/{status_id}/status/{id}",
+						Method: "DELETE",
+					},
+				},
+			},
+			"LocateStatusCondition": WebitelMethod{
+				Access: 1,
+				Input:  "LocateStatusConditionRequest",
+				Output: "LocateStatusConditionResponse",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/statuses/{status_id}/status/{id}",
+						Method: "GET",
+					},
+				},
+			},
+		},
+	},
 	"Sources": WebitelServices{
 		ObjClass:           "dictionaries",
 		AdditionalLicenses: []string{},
@@ -951,71 +1016,6 @@ var WebitelAPI = WebitelServicesInfo{
 				HttpBindings: []*HttpBinding{
 					{
 						Path:   "/cases/statuses/{id}",
-						Method: "GET",
-					},
-				},
-			},
-		},
-	},
-	"StatusConditions": WebitelServices{
-		ObjClass:           "dictionaries",
-		AdditionalLicenses: []string{},
-		WebitelMethods: map[string]WebitelMethod{
-			"ListStatusConditions": WebitelMethod{
-				Access: 1,
-				Input:  "ListStatusConditionRequest",
-				Output: "StatusConditionList",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/statuses/{status_id}/status",
-						Method: "GET",
-					},
-				},
-			},
-			"CreateStatusCondition": WebitelMethod{
-				Access: 0,
-				Input:  "CreateStatusConditionRequest",
-				Output: "StatusCondition",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/statuses/{status_id}/status",
-						Method: "POST",
-					},
-				},
-			},
-			"UpdateStatusCondition": WebitelMethod{
-				Access: 2,
-				Input:  "UpdateStatusConditionRequest",
-				Output: "StatusCondition",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/statuses/{status_id}/status/{id}",
-						Method: "PUT",
-					},
-					{
-						Path:   "/statuses/{status_id}/status/{id}",
-						Method: "PATCH",
-					},
-				},
-			},
-			"DeleteStatusCondition": WebitelMethod{
-				Access: 3,
-				Input:  "DeleteStatusConditionRequest",
-				Output: "StatusCondition",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/statuses/{status_id}/status/{id}",
-						Method: "DELETE",
-					},
-				},
-			},
-			"LocateStatusCondition": WebitelMethod{
-				Access: 1,
-				Input:  "LocateStatusConditionRequest",
-				Output: "LocateStatusConditionResponse",
-				HttpBindings: []*HttpBinding{
-					{
-						Path:   "/statuses/{status_id}/status/{id}",
 						Method: "GET",
 					},
 				},

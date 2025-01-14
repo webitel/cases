@@ -1026,11 +1026,88 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "status_condition":
 			base = base.Column(fmt.Sprintf(`
-				(SELECT ROW(stc.id, stc.name)::text
+				(SELECT ROW(stc.id, stc.name, stc.initial, stc.final)::text
 				 FROM cases.status_condition stc
 				 WHERE stc.id = %s.status_condition) AS status_condition`, caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanRowLookup(&caseItem.StatusCondition)
+				return scanner.TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil // NULL
+					}
+					// pointer on pointer on source
+					if caseItem.StatusCondition == nil {
+						caseItem.StatusCondition = new(_go.StatusCondition)
+					}
+
+					var (
+						str pgtype.Text
+						bl  pgtype.Bool
+						row = []pgtype.TextDecoder{
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								id, err := strconv.ParseInt(str.String, 10, 64)
+								if err != nil {
+									return err
+								}
+								caseItem.StatusCondition.Id = id
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := str.DecodeText(nil, src)
+								if err != nil {
+									return err
+								}
+								caseItem.StatusCondition.Name = str.String
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := bl.Scan(src)
+								if err != nil {
+									return err
+								}
+								caseItem.StatusCondition.Initial = bl.Bool
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+								err := bl.Scan(src)
+								if err != nil {
+									return err
+								}
+								caseItem.StatusCondition.Final = bl.Bool
+								return nil
+							}),
+						}
+						raw = pgtype.NewCompositeTextScanner(nil, src)
+					)
+
+					var err error
+					for _, col := range row {
+
+						raw.ScanDecoder(col)
+
+						err = raw.Err()
+						if err != nil {
+							return err
+						}
+					}
+
+					return nil
+				})
 			})
 		case "status":
 			base = base.Column(fmt.Sprintf(`

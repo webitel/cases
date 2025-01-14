@@ -292,7 +292,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 
 	deleteOpts := model.NewDeleteOptions(ctx)
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Id)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.Id)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case.delete_case.invalid_etag", "Invalid etag")
 	}
