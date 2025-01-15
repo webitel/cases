@@ -2,20 +2,18 @@ package app
 
 import (
 	"context"
-	"github.com/webitel/webitel-go-kit/errors"
-	"log/slog"
-	"strconv"
-
 	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
+	"github.com/webitel/webitel-go-kit/errors"
 	"github.com/webitel/webitel-go-kit/etag"
+	"log/slog"
 )
 
 var CaseCommentMetadata = model.NewObjectMetadata(
 	[]*model.Field{
-		{Name: "id", Default: true},
+		{Name: "id", Default: false},
 		{Name: "etag", Default: true},
 		{Name: "ver", Default: false},
 		{Name: "created_at", Default: true},
@@ -201,21 +199,16 @@ func (c *CaseCommentService) PublishComment(
 }
 
 func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
+	requestedFields := opts.GetFields()
+	if len(requestedFields) == 0 {
+		requestedFields = CaseCommentMetadata.GetDefaultFields()
+	}
 	processComment := func(comment *cases.CaseComment) error {
-
-		if hasEtag {
-			comment.Etag, err = etag.EncodeEtag(etag.EtagCaseComment, comment.Id, comment.Ver)
-			if err != nil {
-				return err
-			}
-			// if NOT provided in requested fields - hide them in response
-			if !hasId {
-				comment.Id = 0
-			}
-			if !hasVer {
-				comment.Ver = 0
-			}
+		err := util.NormalizeEtag(requestedFields, &comment.Etag, &comment.Id, &comment.Ver)
+		if err != nil {
+			return err
 		}
+		return nil
 	}
 
 	switch v := res.(type) {

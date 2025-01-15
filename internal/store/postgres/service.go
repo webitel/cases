@@ -248,17 +248,22 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 }
 
 func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *cases.Service) (string, []interface{}) {
+	var assignee, group *int64
+	if add.Assignee != nil && add.Assignee.GetId() != 0 {
+		assignee = &add.Assignee.Id
+	}
+	if add.Group != nil && add.Group.GetId() != 0 {
+		group = &add.Group.Id
+	}
 	args := []interface{}{
-		add.Name,                // $1: name
-		add.Description,         // $2: description (can be null)
-		add.Code,                // $3: code (can be null)
-		rpc.Time,                // $4: created_at, updated_at
-		rpc.Session.GetUserId(), // $5: created_by, updated_by
-		add.Sla.Id,              // $6: sla_id
-		// TODO: not required
-		add.Group.Id, // $7: group_id
-		// TODO: not required
-		add.Assignee.Id,           // $8: assignee_id
+		add.Name,                  // $1: name
+		add.Description,           // $2: description (can be null)
+		add.Code,                  // $3: code (can be null)
+		rpc.Time,                  // $4: created_at, updated_at
+		rpc.Session.GetUserId(),   // $5: created_by, updated_by
+		add.Sla.Id,                // $6: sla_id
+		group,                     // $7: group_id
+		assignee,                  // $8: assignee_id
 		add.State,                 // $9: state
 		rpc.Session.GetDomainId(), // $10: domain ID
 		add.RootId,                // $11: root_id (can be null)

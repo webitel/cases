@@ -168,7 +168,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/related/{id}",
+						Path:   "/cases/related/{etag}",
 						Method: "GET",
 					},
 				},
@@ -179,7 +179,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/{primary_case_id}/related",
+						Path:   "/cases/{primary_case_etag}/related",
 						Method: "POST",
 					},
 				},
@@ -190,11 +190,11 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/related/{id}",
+						Path:   "/cases/related/{etag}",
 						Method: "PUT",
 					},
 					{
-						Path:   "/cases/related/{id}",
+						Path:   "/cases/related/{etag}",
 						Method: "PATCH",
 					},
 				},
@@ -205,7 +205,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/related/{id}",
+						Path:   "/cases/related/{etag}",
 						Method: "DELETE",
 					},
 				},
@@ -640,7 +640,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "LinkCommunicationResponse",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/{case_id}/communication",
+						Path:   "/cases/{case_etag}/communication",
 						Method: "POST",
 					},
 				},
@@ -651,7 +651,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "UnlinkCommunicationResponse",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/{case_id}/communication/{id}",
+						Path:   "/cases/{case_etag}/communication/{id}",
 						Method: "DELETE",
 					},
 				},
@@ -662,7 +662,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "ListCommunicationsResponse",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/{case_id}/communication",
+						Path:   "/cases/{case_etag}/communication",
 						Method: "GET",
 					},
 				},

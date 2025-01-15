@@ -1328,7 +1328,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				}
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
-		case "related_cases":
+		case "related":
 			subquery, err := buildRelatedCasesSubquery(caseLeft)
 			if err != nil {
 				return base, nil, err
@@ -1363,9 +1363,9 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 func buildRelatedCasesSubquery(caseAlias string) (sq.SelectBuilder, error) {
 	return sq.Select(`
         JSON_AGG(JSON_BUILD_OBJECT(
-            'id', rc.id::text,
+            'id', rc.id,
             'related_case', JSON_BUILD_OBJECT(
-                'id', c_child.id::text,
+                'id', c_child.id,
                 'name', c_child.name,
                 'subject', c_child.subject,
                 'description', c_child.description

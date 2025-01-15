@@ -13,13 +13,23 @@ func TestSearchOptions_ProcessEtag(t *testing.T) {
 		want   []string
 	}{
 		{
-			name:   "ID present",
+			name:   "ETAG present",
+			fields: []string{"etag"},
+			want:   []string{"id", "ver"},
+		},
+		{
+			name:   "ETAG not present",
 			fields: []string{"id"},
+			want:   []string{"id"},
+		},
+		{
+			name:   "ID present",
+			fields: []string{"etag", "id"},
 			want:   []string{"id", "ver"},
 		},
 		{
 			name:   "VER present",
-			fields: []string{"ver"},
+			fields: []string{"etag", "ver"},
 			want:   []string{"id", "ver"},
 		},
 	}

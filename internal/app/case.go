@@ -49,7 +49,7 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "comments", Default: false},
 		{Name: "links", Default: false},
 		{Name: "files", Default: false},
-		{Name: "related_cases", Default: false},
+		{Name: "related", Default: false},
 		{Name: "timing", Default: true},
 		{Name: "contact_info", Default: true},
 	})
@@ -130,7 +130,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		relatedItems := make([]*cases.RelatedCase, len(req.Input.Related))
 		for i, inputRelated := range req.Input.Related {
 			relatedItems[i] = &cases.RelatedCase{
-				Id:           inputRelated.GetRelatedTo(),
+				Etag:         inputRelated.GetRelatedTo(),
 				RelationType: inputRelated.RelationType,
 			}
 		}
@@ -278,7 +278,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, cerror.NewInternalError("app.case.update_case.store_update_failed", err.Error())
 	}
 
-	err = NormalizeResponseCase(updatedCase, req)
+	err = c.NormalizeResponseCase(updatedCase, req)
 	if err != nil {
 		slog.Warn(err.Error(), slog.Int64("user_id", updateOpts.Session.GetUserId()), slog.Int64("domain_id", updateOpts.Session.GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 		return nil, AppResponseNormalizingError
@@ -400,6 +400,7 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 
 // NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.
 func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) error {
+	var err error
 	fields := mainOpts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
@@ -409,7 +410,10 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 	fields = util.FieldsFunc(fields, util.InlineFields)
 
 	for _, item := range res.Items {
-		util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
+		err = util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
+		if err != nil {
+			return err
+		}
 		if item.Reporter == nil && util.ContainsField(fields, "reporter") {
 			item.Reporter = &cases.Lookup{
 				Name: AnonymousName,
@@ -421,11 +425,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 	for _, item := range res.Items {
 		if item.Comments != nil {
 			for _, com := range item.Comments.Items {
-				id, err := strconv.Atoi(com.Id)
-				if err != nil {
-					return err
-				}
-				com.Id, err = etag.EncodeEtag(etag.EtagCaseComment, int64(id), com.Ver)
+				err = util.NormalizeEtags(etag.EtagCaseComment, true, false, false, &com.Etag, &com.Id, &com.Ver)
 				if err != nil {
 					return err
 				}
@@ -433,11 +433,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 		}
 		if item.Links != nil {
 			for _, link := range item.Links.Items {
-				id, err := strconv.Atoi(link.Id)
-				if err != nil {
-					return err
-				}
-				link.Id, err = etag.EncodeEtag(etag.EtagCaseLink, int64(id), link.Ver)
+				err = util.NormalizeEtags(etag.EtagCaseLink, true, false, false, &link.Etag, &link.Id, &link.Ver)
 				if err != nil {
 					return err
 				}
@@ -445,11 +441,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 		}
 		if item.Related != nil {
 			for _, related := range item.Related.Data {
-				id, err := strconv.Atoi(related.Id)
-				if err != nil {
-					return err
-				}
-				related.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), related.Ver)
+				err = util.NormalizeEtags(etag.EtagRelatedCase, true, false, false, &related.Etag, &related.Id, &related.Ver)
 				if err != nil {
 					return err
 				}

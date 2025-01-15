@@ -2,14 +2,12 @@ package app
 
 import (
 	"context"
-	"log/slog"
-	"strconv"
-
 	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	"log/slog"
 )
 
 // In search options extract from context user
@@ -98,16 +96,13 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 }
 
 func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkRequest) (*cases.CaseLink, error) {
-	if req.GetEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.etag", "case etag required")
-	}
 	if req.Input == nil {
 		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.input", "input required")
 	}
-	if req.Input.GetId() == "" {
+	if req.Input.GetEtag() == "" {
 		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.id", "case ID required")
 	}
-	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetEtag())
+	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetInput().GetEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
@@ -177,9 +172,6 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		slog.Warn(err.Error(), slog.Int64("user_id", searchOpts.Session.GetUserId()), slog.Int64("domain_id", searchOpts.Session.GetDomainId()), slog.Int64("case_id", etg.GetOid()))
 		return nil, AppResponseNormalizingError
 	}
-
-	NormalizeResponseLinks(links, req.GetFields())
-	// TODO: error!!!!!!!!!
 	//Return the located comment
 	return links, nil
 }
@@ -192,13 +184,10 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 }
 
 func NormalizeResponseLink(res *cases.CaseLink, opts model.Fielder) error {
-	id, err := strconv.Atoi(res.Id)
-	if err != nil {
-		return err
-	}
-	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
+	var err error
+	hasEtag, hasId, hasVer := util.FindEtagFields(opts.GetFields())
 	if hasEtag {
-		res.Etag, err = etag.EncodeEtag(etag.EtagCaseLink, res.Id, res.Ver)
+		res.Etag, err = etag.EncodeEtag(etag.EtagCaseLink, res.GetId(), res.GetVer())
 		if err != nil {
 			return err
 		}
@@ -211,15 +200,16 @@ func NormalizeResponseLink(res *cases.CaseLink, opts model.Fielder) error {
 			res.Ver = 0
 		}
 	}
+	return nil
 }
 
 func NormalizeResponseLinks(res *cases.CaseLinkList, requestedFields []string) error {
-	fields := make([]string, len(requestedFields))
-	copy(fields, requestedFields)
-	if len(fields) == 0 {
-		fields = CaseLinkMetadata.GetDefaultFields()
+
+	if len(requestedFields) == 0 {
+		requestedFields = CaseLinkMetadata.GetDefaultFields()
 	}
-	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
+	var err error
+	hasEtag, hasId, hasVer := util.FindEtagFields(requestedFields)
 	for _, re := range res.Items {
 		if hasEtag {
 			re.Etag, err = etag.EncodeEtag(etag.EtagCaseLink, re.Id, re.Ver)

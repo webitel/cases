@@ -7,13 +7,15 @@ import (
 	"github.com/webitel/cases/api/cases"
 	errors "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 	"log/slog"
-	"strconv"
 )
 
 var CaseCommunicationMetadata = model.NewObjectMetadata(
 	[]*model.Field{
+		{Name: "etag", Default: true},
+		{Name: "ver", Default: false},
 		{"id", true},
 		{"communication_type", true},
 		{"communication_id", true},
@@ -26,7 +28,7 @@ type CaseCommunicationService struct {
 
 func (c *CaseCommunicationService) ListCommunications(ctx context.Context, request *cases.ListCommunicationsRequest) (*cases.ListCommunicationsResponse, error) {
 	// TODO: RBAC check by request.CaseEtag
-	tag, err := etag.EtagOrId(etag.EtagCase, request.CaseId)
+	tag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.list_communication.invalid_etag", "Invalid case etag")
 	}
@@ -55,7 +57,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.validate_payload.error", err.Error())
 	}
-	tag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
+	tag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.invalid_etag", "Invalid case etag")
 	}
@@ -100,17 +102,15 @@ func NewCaseCommunicationService(app *App) (*CaseCommunicationService, errors.Ap
 }
 
 func NormalizeResponseCommunications(res []*cases.CaseCommunication, requestedFields []string) error {
+	if len(requestedFields) == 0 {
+		requestedFields = CaseCommentMetadata.GetDefaultFields()
+	}
+	hasEtag, hasId, hasVer := util.FindEtagFields(requestedFields)
 	for _, re := range res {
-		id, err := strconv.ParseInt(re.Id, 10, 64)
+		err := util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &re.Etag, &re.Id, &re.Ver)
 		if err != nil {
 			return err
 		}
-		re.Id, err = etag.EncodeEtag(etag.EtagCaseCommunication, id, re.Ver)
-		if err != nil {
-			return err
-		}
-
-		re.Ver = 0
 
 	}
 	return nil
