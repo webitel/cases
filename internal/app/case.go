@@ -239,7 +239,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, appErr
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Input.Etag)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Etag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
