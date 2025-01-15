@@ -16,6 +16,7 @@ import (
 var CaseCommentMetadata = model.NewObjectMetadata(
 	[]*model.Field{
 		{Name: "id", Default: true},
+		{Name: "etag", Default: true},
 		{Name: "ver", Default: false},
 		{Name: "created_at", Default: true},
 		{Name: "created_by", Default: true},
@@ -36,13 +37,13 @@ func (c *CaseCommentService) LocateComment(
 	ctx context.Context,
 	req *cases.LocateCommentRequest,
 ) (*cases.CaseComment, error) {
-	if req.Id == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.etag_required", "ID is required")
+	if req.Etag == "" {
+		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.etag_required", "Etag is required")
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Id)
+	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Etag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.invalid_etag", "Invalid ID")
+		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.invalid_etag", "Invalid etag")
 	}
 
 	searchOpts := model.NewLocateOptions(ctx, req, CaseCommentMetadata)
@@ -72,23 +73,23 @@ func (c *CaseCommentService) UpdateComment(
 	ctx context.Context,
 	req *cases.UpdateCommentRequest,
 ) (*cases.CaseComment, error) {
-	if req.Input.Id == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.etag_required", "ID is required")
+	if req.Input.Etag == "" {
+		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.etag_required", "Etag is required")
 	}
 	if req.Input.Text == "" {
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.text_required", "Text is required")
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Input.Id)
+	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Input.Etag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid ID")
+		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
 	updateOpts := model.NewUpdateOptions(ctx, req, CaseCommentMetadata)
 	updateOpts.Etags = []*etag.Tid{&tag}
 
 	comment := &cases.CaseComment{
-		Id:   strconv.Itoa(int(tag.GetOid())),
+		Id:   tag.GetOid(),
 		Text: req.Input.Text,
 		Ver:  tag.GetVer(),
 	}
@@ -111,15 +112,15 @@ func (c *CaseCommentService) DeleteComment(
 	ctx context.Context,
 	req *cases.DeleteCommentRequest,
 ) (*cases.CaseComment, error) {
-	if req.Id == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.etag_required", "ID is required")
+	if req.Etag == "" {
+		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.etag_required", "Etag is required")
 	}
 
 	deleteOpts := model.NewDeleteOptions(ctx)
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Id)
+	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Etag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.invalid_etag", "Invalid ID")
+		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.invalid_etag", "Invalid etag")
 	}
 	deleteOpts.IDs = []int64{tag.GetOid()}
 
@@ -135,13 +136,13 @@ func (c *CaseCommentService) ListComments(
 	ctx context.Context,
 	req *cases.ListCommentsRequest,
 ) (*cases.CaseCommentList, error) {
-	if req.CaseId == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.case_etag_required", "Case ID is required")
+	if req.CaseEtag == "" {
+		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.case_etag_required", "Case etag is required")
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseId)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_etag", "Invalid ID")
+		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_etag", "Invalid etag")
 	}
 
 	ids, err := util.ParseIds(req.Ids, etag.EtagCaseComment)
@@ -171,17 +172,17 @@ func (c *CaseCommentService) PublishComment(
 	ctx context.Context,
 	req *cases.PublishCommentRequest,
 ) (*cases.CaseComment, error) {
-	if req.CaseId == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.case_etag_required", "Case ID is required")
+	if req.CaseEtag == "" {
+		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.case_etag_required", "Case etag is required")
 	} else if req.Input.Text == "" {
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
 	}
 
 	createOpts := model.NewCreateOptions(ctx, req, CaseCommentMetadata)
 
-	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseId)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.invalid_etag", "Invalid ID")
+		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.invalid_etag", "Invalid etag")
 	}
 	createOpts.ParentID = tag.GetOid()
 
@@ -202,16 +203,19 @@ func (c *CaseCommentService) PublishComment(
 func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 	processComment := func(comment *cases.CaseComment) error {
 
-		id, err := strconv.Atoi(comment.Id)
-		if err != nil {
-			return err
+		if hasEtag {
+			comment.Etag, err = etag.EncodeEtag(etag.EtagCaseComment, comment.Id, comment.Ver)
+			if err != nil {
+				return err
+			}
+			// if NOT provided in requested fields - hide them in response
+			if !hasId {
+				comment.Id = 0
+			}
+			if !hasVer {
+				comment.Ver = 0
+			}
 		}
-		comment.Id, err = etag.EncodeEtag(etag.EtagCaseComment, int64(id), comment.Ver)
-		if err != nil {
-			return err
-		}
-		comment.Ver = 0
-		return nil
 	}
 
 	switch v := res.(type) {
