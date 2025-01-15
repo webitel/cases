@@ -348,7 +348,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 		"created_by":  "service.created_by",
 		"updated_by":  "service.updated_by",
 		"sla":         "COALESCE(service.sla_id, 0) AS sla_id, COALESCE(sla.name, '') AS sla_name",
-		"group":       "COALESCE(service.group_id, 0) AS group_id, COALESCE(grp.name, '') AS group_name, CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END AS group_type",
+		"group":       "COALESCE(service.group_id, 0) AS group_id, COALESCE(grp.name, '') AS group_name, CASE WHEN service.group_id NOTNULL THEN(CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE NULL END AS group_type",
 		"assignee":    "COALESCE(service.assignee_id, 0) AS assignee_id, COALESCE(ass.common_name, '') AS assignee_name",
 	}
 
@@ -474,6 +474,7 @@ SELECT service.id,
        COALESCE(sla.name, '')            AS sla_name,     -- Handle NULL SLA as empty string
        service.group_id,
        COALESCE(grp.name, '')            AS group_name,   -- Handle NULL group as empty string
+       CASE WHEN service.group_id NOTNULL THEN(CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE NULL END AS group_type,
        service.assignee_id,
        COALESCE(assignee.given_name, '') AS assignee_name, -- Handle NULL assignee as empty string
        service.created_by,
@@ -527,7 +528,7 @@ func (s *ServiceStore) buildServiceScanArgs(
 			if service.Group == nil {
 				service.Group = &cases.ExtendedLookup{}
 			}
-			scanArgs = append(scanArgs, &service.Group.Id, &service.Group.Name, &service.Group.Type)
+			scanArgs = append(scanArgs, &service.Group.Id, &service.Group.Name, scanner.ScanText(&service.Group.Type))
 		},
 		"assignee": func() {
 			if service.Assignee == nil {
