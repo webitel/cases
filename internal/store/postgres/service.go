@@ -36,14 +36,15 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 	var (
 		createdByLookup, updatedByLookup cases.Lookup
 		createdAt, updatedAt             time.Time
-		groupLookup, assigneeLookup      cases.Lookup
+		groupLookup                      cases.ExtendedLookup
+		assigneeLookup                   cases.Lookup
 	)
 
 	err := db.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Code, &add.State,
 		&createdAt, &updatedAt,
 		&add.Sla.Id, &add.Sla.Name,
-		&groupLookup.Id, &groupLookup.Name,
+		&groupLookup.Id, &groupLookup.Name, &groupLookup.Type,
 		&assigneeLookup.Id, &assigneeLookup.Name,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedByLookup.Id, &updatedByLookup.Name,
@@ -140,7 +141,7 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 		}
 
 		if util.ContainsField(rpc.Fields, "group") {
-			service.Group = &cases.Lookup{}
+			service.Group = &cases.ExtendedLookup{}
 		}
 
 		if util.ContainsField(rpc.Fields, "assignee") {
@@ -173,7 +174,6 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 		// Assign the created and updated timestamp values
 		service.CreatedAt = util.Timestamp(createdAt)
 		service.UpdatedAt = util.Timestamp(updatedAt)
-
 		// Append the populated service object to the services slice
 		services = append(services, service)
 		lCount++
@@ -215,13 +215,14 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 	var (
 		createdByLookup, updatedByLookup cases.Lookup
 		createdAt, updatedAt             time.Time
-		groupLookup, assigneeLookup      cases.Lookup
+		groupLookup                      cases.ExtendedLookup
+		assigneeLookup                   cases.Lookup
 	)
 
 	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &lookup.Description,
 		&lookup.Code, &lookup.State, &lookup.Sla.Id,
-		&lookup.Sla.Name, scanner.ScanInt64(&groupLookup.Id), scanner.ScanText(&groupLookup.Name),
+		&lookup.Sla.Name, scanner.ScanInt64(&groupLookup.Id), scanner.ScanText(&groupLookup.Name), scanner.ScanText(&groupLookup.Type),
 		scanner.ScanInt64(&assigneeLookup.Id), scanner.ScanText(&assigneeLookup.Name), &createdByLookup.Id,
 		&createdByLookup.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 		&createdAt, &updatedAt, &lookup.RootId,
@@ -347,7 +348,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 		"created_by":  "service.created_by",
 		"updated_by":  "service.updated_by",
 		"sla":         "COALESCE(service.sla_id, 0) AS sla_id, COALESCE(sla.name, '') AS sla_name",
-		"group":       "COALESCE(service.group_id, 0) AS group_id, COALESCE(grp.name, '') AS group_name",
+		"group":       "COALESCE(service.group_id, 0) AS group_id, COALESCE(grp.name, '') AS group_name, CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END AS group_type",
 		"assignee":    "COALESCE(service.assignee_id, 0) AS assignee_id, COALESCE(ass.common_name, '') AS assignee_name",
 	}
 
@@ -524,9 +525,9 @@ func (s *ServiceStore) buildServiceScanArgs(
 		},
 		"group": func() {
 			if service.Group == nil {
-				service.Group = &cases.Lookup{}
+				service.Group = &cases.ExtendedLookup{}
 			}
-			scanArgs = append(scanArgs, &service.Group.Id, &service.Group.Name)
+			scanArgs = append(scanArgs, &service.Group.Id, &service.Group.Name, &service.Group.Type)
 		},
 		"assignee": func() {
 			if service.Assignee == nil {

@@ -406,7 +406,7 @@ func (s *CatalogStore) List(
 				// Map Group to Lookup
 				if groupID, ok := raw["group_id"].(float64); ok {
 					if groupName, ok := raw["group_name"].(string); ok {
-						service.Group = &cases.Lookup{
+						service.Group = &cases.ExtendedLookup{
 							Id:   int64(groupID),
 							Name: groupName,
 						}
@@ -679,11 +679,11 @@ func (s *CatalogStore) parsePartialService(
 				namePh, _ := placeholders[idx+1].(*sql.NullString)
 
 				if idPh != nil && idPh.Valid {
-					svc.Group = &cases.Lookup{Id: idPh.Int64}
+					svc.Group = &cases.ExtendedLookup{Id: idPh.Int64}
 				}
 				if namePh != nil && namePh.Valid {
 					if svc.Group == nil {
-						svc.Group = &cases.Lookup{}
+						svc.Group = &cases.ExtendedLookup{}
 					}
 					svc.Group.Name = namePh.String
 				}

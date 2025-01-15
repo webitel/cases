@@ -187,10 +187,10 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 }
 
 func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.ListRelatedCasesRequest) (*cases.RelatedCaseList, error) {
-	if req.GetPrimaryCaseId() == "" {
+	if req.GetPrimaryCaseEtag() == "" {
 		return nil, cerror.NewBadRequestError("app.related_case.list_related_case.id_required", "ID required")
 	}
-	tag, err := etag.EtagOrId(etag.EtagCase, req.PrimaryCaseId)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.PrimaryCaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.list_related_cases.invalid_etag", "Invalid etag")
 	}
