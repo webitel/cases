@@ -941,14 +941,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		searchCondition = "OR id IN (SELECT target_catalog_id FROM search_catalog)"
 	}
 
-	// Pagination
-	var pagination string
-	if len(rpc.IDs) == 0 {
-		pagination = `
-			ORDER BY id ASC
-			LIMIT :limit OFFSET :offset
-		`
-	}
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Prefix query
 	prefixQuery := `
@@ -957,10 +950,9 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 			FROM cases.service_catalog
 			WHERE root_id IS NULL
 			%s -- Conditionally include the search condition
-			%s -- Conditionally include pagination
 		),
 	`
-	prefixQuery = fmt.Sprintf(prefixQuery, searchCondition, pagination)
+	prefixQuery = fmt.Sprintf(prefixQuery, searchCondition)
 
 	// Add the prefix query with or without search_catalog based on search condition
 	if selectFlags["search"] {

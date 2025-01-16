@@ -303,9 +303,9 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 			continue
 		}
 
-		if strings.HasPrefix(f, "close_reason") {
-			if !util.ContainsField(fields, "close_reason_id") {
-				fields = append(fields, "close_reason_id")
+		if strings.HasPrefix(f, "close_reason_group") {
+			if !util.ContainsField(fields, "close_reason_group_id") {
+				fields = append(fields, "close_reason_group_id")
 			}
 			continue
 		}
