@@ -462,6 +462,7 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc *model.UpdateOptions, lookup 
 	}
 
 	// Now build the select query with a static SQL using a WITH clause
+	// TODO: refactor group type
 	query := fmt.Sprintf(`
 WITH updated_service AS (%s
 			RETURNING id, name, description, code, state, sla_id, group_id, assignee_id, created_by, updated_by, created_at, updated_at, root_id)

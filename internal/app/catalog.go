@@ -18,7 +18,7 @@ type CatalogService struct {
 }
 
 const (
-	defaultCatalogFields = "id, root_id, name, description, prefix, code, state, sla, status, close_reason, teams, skills, created_at, created_by, updated_at, updated_by, services"
+	defaultCatalogFields = "id, root_id, name, description, prefix, code, state, sla, status, close_reason_group, teams, skills, created_at, created_by, updated_at, updated_by, services"
 	defaultSubfields     = "id, name, description, root_id"
 )
 
@@ -37,8 +37,8 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	if req.Status == nil || req.Status.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.status.required", "Status is required")
 	}
-	if req.CloseReason == nil || req.CloseReason.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("catalog.create_catalog.status.required", "Close reason is required")
+	if req.CloseReasonGroup == nil || req.CloseReasonGroup.GetId() == 0 {
+		return nil, cerror.NewBadRequestError("catalog.create_catalog.close_reason_group.required", "Close reason group is required")
 	}
 
 	session, err := s.app.AuthorizeFromContext(ctx)
@@ -61,16 +61,16 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 
 	// Create a new Catalog model
 	catalog := &cases.Catalog{
-		Name:        req.Name,
-		Description: req.Description,
-		Prefix:      req.Prefix,
-		Code:        req.Code,
-		State:       req.State,
-		Sla:         req.Sla,
-		Status:      req.Status,
-		CloseReason: req.CloseReason,
-		CreatedBy:   currentU,
-		UpdatedBy:   currentU,
+		Name:             req.Name,
+		Description:      req.Description,
+		Prefix:           req.Prefix,
+		Code:             req.Code,
+		State:            req.State,
+		Sla:              req.Sla,
+		Status:           req.Status,
+		CloseReasonGroup: req.CloseReasonGroup,
+		CreatedBy:        currentU,
+		UpdatedBy:        currentU,
 	}
 
 	// Handle multiselect fields: teams and skills
@@ -259,16 +259,16 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 
 	// Build catalog from the request input
 	catalog := &cases.Catalog{
-		Id:          req.Id,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-		Prefix:      req.Input.Prefix,
-		Code:        req.Input.Code,
-		State:       req.Input.State,
-		Sla:         req.Input.Sla,
-		Status:      req.Input.Status,
-		CloseReason: req.Input.CloseReason,
-		UpdatedBy:   u,
+		Id:               req.Id,
+		Name:             req.Input.Name,
+		Description:      req.Input.Description,
+		Prefix:           req.Input.Prefix,
+		Code:             req.Input.Code,
+		State:            req.Input.State,
+		Sla:              req.Input.Sla,
+		Status:           req.Input.Status,
+		CloseReasonGroup: req.Input.CloseReasonGroup,
+		UpdatedBy:        u,
 	}
 
 	// Add teams if provided
