@@ -28,10 +28,6 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		return nil, cerror.NewBadRequestError("service.create_service.root_id.required", "Root ID is required")
 	}
 
-	if req.Sla == nil || req.Sla.Id == 0 {
-		return nil, cerror.NewBadRequestError("service.create_service.sla.required", "Sla is required")
-	}
-
 	session, err := s.app.AuthorizeFromContext(ctx)
 	if err != nil {
 		return nil, cerror.NewUnauthorizedError("service.create_service.authorization.failed", err.Error())

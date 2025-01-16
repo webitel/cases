@@ -34,16 +34,16 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 	query, args := s.buildCreateServiceQuery(rpc, add)
 
 	var (
-		createdByLookup, updatedByLookup cases.Lookup
-		createdAt, updatedAt             time.Time
-		groupLookup                      cases.ExtendedLookup
-		assigneeLookup                   cases.Lookup
+		createdByLookup, updatedByLookup, slaLookup cases.Lookup
+		createdAt, updatedAt                        time.Time
+		groupLookup                                 cases.ExtendedLookup
+		assigneeLookup                              cases.Lookup
 	)
 
 	err := db.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Code, &add.State,
 		&createdAt, &updatedAt,
-		&add.Sla.Id, &add.Sla.Name,
+		&slaLookup.Id, &slaLookup.Name,
 		&groupLookup.Id, &groupLookup.Name, &groupLookup.Type,
 		&assigneeLookup.Id, &assigneeLookup.Name,
 		&createdByLookup.Id, &createdByLookup.Name,
@@ -61,6 +61,7 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 	add.UpdatedBy = &updatedByLookup
 	add.Group = &groupLookup
 	add.Assignee = &assigneeLookup
+	add.Sla = &slaLookup
 
 	// Return the created Service
 	return add, nil
@@ -249,12 +250,15 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 }
 
 func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *cases.Service) (string, []interface{}) {
-	var assignee, group *int64
+	var assignee, group, sla *int64
 	if add.Assignee != nil && add.Assignee.GetId() != 0 {
 		assignee = &add.Assignee.Id
 	}
 	if add.Group != nil && add.Group.GetId() != 0 {
 		group = &add.Group.Id
+	}
+	if add.Sla != nil && add.Sla.GetId() != 0 {
+		sla = &add.Sla.Id
 	}
 	args := []interface{}{
 		add.Name,                  // $1: name
@@ -262,7 +266,7 @@ func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *ca
 		add.Code,                  // $3: code (can be null)
 		rpc.Time,                  // $4: created_at, updated_at
 		rpc.Session.GetUserId(),   // $5: created_by, updated_by
-		add.Sla.Id,                // $6: sla_id
+		sla,                       // $6: sla_id
 		group,                     // $7: group_id
 		assignee,                  // $8: assignee_id
 		add.State,                 // $9: state
@@ -300,6 +304,7 @@ SELECT inserted_service.id,
        COALESCE(sla.name, '')                     AS sla_name,        -- Return empty string if null
        COALESCE(inserted_service.group_id, 0)     AS group_id,        -- Return 0 if null
        COALESCE(grp.name, '')                     AS group_name,      -- Return empty string if null
+       CASE WHEN inserted_service.group_id NOTNULL THEN(CASE WHEN inserted_service.group_id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE '' END AS group_type,
        COALESCE(inserted_service.assignee_id, 0)  AS assignee_id,     -- Return 0 if null
        COALESCE(assignee.given_name, '')          AS assignee_name,   -- Return empty string if null
        COALESCE(inserted_service.created_by, 0)   AS created_by,      -- Return 0 if null
