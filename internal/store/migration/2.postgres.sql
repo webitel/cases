@@ -39,3 +39,11 @@ alter table cases.case_communication
 alter table cases.case_communication
     add constraint case_communication_wbt_user_id_fk
         foreign key (created_by) references directory.wbt_user;
+
+alter table contacts.dynamic_group
+    add constraint dynamic_group_default_group_id_fk
+        foreign key (default_group_id) references contacts."group"
+            on update cascade on delete restrict;
+
+alter table cases.service_catalog
+    rename column close_reason_id to close_reason_group_id;
