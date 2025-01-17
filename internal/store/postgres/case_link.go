@@ -118,7 +118,7 @@ func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, erro
 	base := squirrel.
 		Select().
 		From(l.mainTable).
-		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
+		Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "dc")), opts.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
 	if opts.ParentId != 0 {
 		base = base.Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "case_id")), opts.ParentId)

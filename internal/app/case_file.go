@@ -19,8 +19,6 @@ type CaseFileService struct {
 var CaseFileMetadata = model.NewObjectMetadata(
 	"cases",
 	[]*model.Field{
-		{Name: "etag", Default: true},
-		{Name: "ver", Default: false},
 		{Name: "id", Default: true},
 		{Name: "size", Default: true},
 		{Name: "mime", Default: true},
