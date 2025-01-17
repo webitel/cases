@@ -392,6 +392,9 @@ func (s *CatalogStore) List(
 				if updatedAt, ok := raw["updated_at"].(float64); ok {
 					service.UpdatedAt = int64(updatedAt)
 				}
+				if catalogId, ok := raw["catalog_id"].(float64); ok {
+					service.CatalogId = int64(catalogId)
+				}
 
 				// Map SLA to Lookup
 				if slaID, ok := raw["sla_id"].(float64); ok {
@@ -972,7 +975,9 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	// Add GROUP BY for catalog fields
 	groupByFields := buildCatalogGroupByFields(rpc.Fields)
 
-	queryBuilder = queryBuilder.GroupBy(strings.Join(groupByFields, ", "))
+	if len(groupByFields) != 0 {
+		queryBuilder = queryBuilder.GroupBy(strings.Join(groupByFields, ", "))
+	}
 
 	// 11) Build final query
 	sqlQuery, _, err := queryBuilder.ToSql()
@@ -1041,6 +1046,9 @@ COALESCE(
 	}
 	if util.ContainsField(subfields, "root_id") {
 		jsonFields.WriteString("'root_id', service_hierarchy.root_id,\n")
+	}
+	if util.ContainsField(subfields, "catalog_id") {
+		jsonFields.WriteString("'catalog_id', service_hierarchy.catalog_id,\n")
 	}
 	// Add the searched field if search is active
 	if searched {
