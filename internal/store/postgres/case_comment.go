@@ -25,10 +25,11 @@ type CaseCommentStore struct {
 type CommentScan func(comment *_go.CaseComment) any
 
 const (
-	caseCommentLeft           = "cc"
-	caseCommentAuthorAlias    = "au"
-	caseCommentCreatedByAlias = "cb"
-	caseCommentUpdatedByAlias = "cb"
+	caseCommentLeft              = "cc"
+	caseCommentAuthorAlias       = "au"
+	caseCommentCreatedByAlias    = "cb"
+	caseCommentUpdatedByAlias    = "cb"
+	caseCommentObjClassScopeName = "case_comments"
 )
 
 // Publish implements store.CommentCaseStore for publishing a single comment.
@@ -581,7 +582,7 @@ func applyCaseCommentFilters(
 }
 
 func addCaseCommentRbacCondition(auth model.Auther, access authmodel.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
-	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
+	if auth != nil && auth.GetObjectScope(caseCommentObjClassScopeName).IsRbacUsed() {
 		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
 			Where("acl.dc = ?", auth.GetDomainId()).
 			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
@@ -595,7 +596,7 @@ func addCaseCommentRbacCondition(auth model.Auther, access authmodel.AccessMode,
 }
 
 func addCaseCommentRbacConditionForDelete(auth model.Auther, access authmodel.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
-	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
+	if auth != nil && auth.GetObjectScope(caseCommentObjClassScopeName).IsRbacUsed() {
 		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
 			Where("acl.dc = ?", auth.GetDomainId()).
 			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
@@ -609,7 +610,7 @@ func addCaseCommentRbacConditionForDelete(auth model.Auther, access authmodel.Ac
 }
 
 func addCaseCommentRbacConditionForUpdate(auth model.Auther, access authmodel.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
-	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
+	if auth != nil && auth.GetObjectScope(caseCommentObjClassScopeName).IsRbacUsed() {
 		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
 			Where("acl.dc = ?", auth.GetDomainId()).
 			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
