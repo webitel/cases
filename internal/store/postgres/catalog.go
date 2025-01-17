@@ -1330,7 +1330,7 @@ SELECT catalog.id,
 	if util.ContainsField(serviceFields, "assignee") {
 		sb.WriteString(`,
        COALESCE(catalog.assignee_id, 0) AS assignee_id,
-       COALESCE(service_assignee.name, '') AS assignee_name
+       COALESCE(service_assignee.common_name, '') AS assignee_name
 `)
 	}
 
@@ -1374,7 +1374,7 @@ LEFT JOIN contacts.group AS service_group
 	}
 	if util.ContainsField(serviceFields, "assignee") {
 		sb.WriteString(`
-LEFT JOIN directory.wbt_user AS service_assignee
+LEFT JOIN contacts.contact AS service_assignee
        ON service_assignee.id = catalog.assignee_id
 `)
 	}
@@ -1454,7 +1454,7 @@ SELECT subservice.id,
 	if util.ContainsField(serviceFields, "assignee") {
 		sb.WriteString(`,
        COALESCE(subservice.assignee_id, 0) AS assignee_id,
-       COALESCE(service_assignee2.name, '') AS assignee_name
+       COALESCE(service_assignee2.common_name, '') AS assignee_name
 `)
 	}
 	if util.ContainsField(serviceFields, "created_by") {
@@ -1505,7 +1505,7 @@ LEFT JOIN contacts.group AS service_group2
 	}
 	if util.ContainsField(serviceFields, "assignee") {
 		sb.WriteString(`
-LEFT JOIN directory.wbt_user AS service_assignee2
+LEFT JOIN contacts.contact AS service_assignee2
        ON service_assignee2.id = subservice.assignee_id
 `)
 	}
