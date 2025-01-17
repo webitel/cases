@@ -2,17 +2,15 @@ package model
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
-
-	session "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/internal/server/interceptor"
 )
 
 type CreateOptions struct {
-	Session         *session.Session
+	//Session         *session.Session
 	context.Context // binding
 	Time            time.Time
 	// output
@@ -25,6 +23,16 @@ type CreateOptions struct {
 	ParentID int64
 	// ChildID is the attribute to represent child object, that creation process connect
 	ChildID int64
+	Auth    Auther
+}
+
+func (s *CreateOptions) SetAuthOpts(a Auther) *CreateOptions {
+	s.Auth = a
+	return s
+}
+
+func (s *CreateOptions) GetAuthOpts() Auther {
+	return s.Auth
 }
 
 type Creator interface {
@@ -40,14 +48,20 @@ func (rpc *CreateOptions) CurrentTime() time.Time {
 	return ts
 }
 
-func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMetadatter) *CreateOptions {
+func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMetadatter) (*CreateOptions, error) {
 	createOpts := &CreateOptions{
 		Context: ctx,
-		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
 	}
 
 	// set current time
 	createOpts.CurrentTime()
+	if sess := GetSessionOutOfContext(ctx); sess != nil {
+		createOpts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
+	} else if false {
+		// TODO: new authorization method without token
+	} else {
+		return nil, errors.New("can't authorize user")
+	}
 
 	// normalize fields
 	var resultingFields []string
@@ -61,5 +75,5 @@ func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMe
 	}
 	resultingFields, createOpts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
 	createOpts.Fields = util.ParseFieldsForEtag(resultingFields)
-	return createOpts
+	return createOpts, nil
 }

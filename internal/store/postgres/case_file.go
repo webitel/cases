@@ -98,7 +98,7 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 		From("storage.files AS cf").
 		Where(
 			sq.And{
-				sq.Eq{"cf.domain_id": rpc.Session.GetDomainId()},
+				sq.Eq{"cf.domain_id": rpc.GetAuthOpts().GetDomainId()},
 				sq.Eq{"cf.uuid": strconv.Itoa(int(rpc.ParentId))},
 				sq.Eq{"cf.channel": channel},
 			},

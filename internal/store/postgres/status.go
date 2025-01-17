@@ -219,11 +219,11 @@ func (s Status) Update(rpc *model.UpdateOptions, l *_go.Status) (*_go.Status, er
 // buildCreateStatusLookupQuery constructs the SQL insert query and returns the query string and arguments.
 func (s Status) buildCreateStatusQuery(rpc *model.CreateOptions, lookup *_go.Status) (string, []interface{}, error) {
 	args := []interface{}{
-		lookup.Name,               // $1 - name
-		rpc.Session.GetDomainId(), // $2 - dc
-		rpc.Time,                  // $3 - created_at / updated_at
-		lookup.Description,        // $4 - description
-		rpc.Session.GetUserId(),   // $5 - created_by / updated_by
+		lookup.Name,                     // $1 - name
+		rpc.GetAuthOpts().GetDomainId(), // $2 - dc
+		rpc.Time,                        // $3 - created_at / updated_at
+		lookup.Description,              // $4 - description
+		rpc.GetAuthOpts().GetUserId(),   // $5 - created_by / updated_by
 	}
 	return createStatusQuery, args, nil
 }
@@ -234,7 +234,7 @@ func (s Status) buildSearchStatusQuery(rpc *model.SearchOptions) (string, []inte
 
 	queryBuilder := sq.Select().
 		From("cases.status AS g").
-		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
@@ -292,8 +292,8 @@ func (s Status) buildDeleteStatusQuery(rpc *model.DeleteOptions) (string, []inte
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	args := []interface{}{
-		pq.Array(ids),             // $1 - id
-		rpc.Session.GetDomainId(), // $2 - dc
+		pq.Array(ids),                   // $1 - id
+		rpc.GetAuthOpts().GetDomainId(), // $2 - dc
 	}
 	return deleteStatusQuery, args, nil
 }
@@ -305,7 +305,7 @@ func (s Status) buildUpdateStatusQuery(rpc *model.UpdateOptions, l *_go.Status) 
 	// Create a Squirrel update builder
 	updateBuilder := psql.Update("cases.status").
 		Set("updated_at", rpc.Time).
-		Set("updated_by", rpc.Session.GetUserId())
+		Set("updated_by", rpc.GetAuthOpts().GetUserId())
 
 	// Add the fields to the update query if they are provided
 	for _, field := range rpc.Fields {
@@ -321,7 +321,7 @@ func (s Status) buildUpdateStatusQuery(rpc *model.UpdateOptions, l *_go.Status) 
 	}
 
 	// Add the WHERE clause for id and dc
-	updateBuilder = updateBuilder.Where(sq.Eq{"id": l.Id, "dc": rpc.Session.GetDomainId()})
+	updateBuilder = updateBuilder.Where(sq.Eq{"id": l.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Build the SQL string and the arguments slice
 	sql, args, err := updateBuilder.ToSql()

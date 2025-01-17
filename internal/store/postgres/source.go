@@ -235,8 +235,8 @@ func (s Source) Update(rpc *model.UpdateOptions, l *_go.Source) (*_go.Source, er
 func (s Source) buildCreateSourceQuery(rpc *model.CreateOptions, lookup *_go.Source) (string, []interface{}, error) {
 	query := createSourceQuery
 	args := []interface{}{
-		lookup.Name, rpc.Session.GetDomainId(), rpc.CurrentTime(), lookup.Description, lookup.Type,
-		rpc.Session.GetUserId(),
+		lookup.Name, rpc.GetAuthOpts().GetDomainId(), rpc.CurrentTime(), lookup.Description, lookup.Type,
+		rpc.GetAuthOpts().GetUserId(),
 	}
 	return query, args, nil
 }
@@ -247,7 +247,7 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 
 	queryBuilder := sq.Select().
 		From("cases.source AS g").
-		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
@@ -310,7 +310,7 @@ func (s Source) buildDeleteSourceQuery(rpc *model.DeleteOptions) (string, []inte
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	query := deleteSourceQuery
-	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
+	args := []interface{}{pq.Array(ids), rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
 }
 
@@ -319,9 +319,9 @@ func (s Source) buildUpdateSourceQuery(rpc *model.UpdateOptions, l *_go.Source) 
 
 	builder := psql.Update("cases.source").
 		Set("updated_at", rpc.CurrentTime()).
-		Set("updated_by", rpc.Session.GetUserId()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": l.Id}).
-		Where(sq.Eq{"dc": rpc.Session.GetDomainId()})
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	for _, field := range rpc.Fields {
 		switch field {

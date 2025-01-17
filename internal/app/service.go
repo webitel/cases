@@ -15,6 +15,7 @@ import (
 type ServiceService struct {
 	app *App
 	api.UnimplementedServicesServer
+	objClassName string
 }
 
 // CreateService implements cases.ServicesServer.
@@ -65,7 +66,6 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 
 	// Define create options
 	createOpts := model.CreateOptions{
-		Session: session,
 		Context: ctx,
 		Time:    t,
 	}
@@ -99,7 +99,6 @@ func (s *ServiceService) DeleteService(ctx context.Context, req *api.DeleteServi
 
 	t := time.Now()
 	deleteOpts := model.DeleteOptions{
-		Session: session,
 		Context: ctx,
 		IDs:     req.Id,
 		Time:    t,
@@ -150,16 +149,17 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 	}
 
 	t := time.Now()
-	searchOptions := model.SearchOptions{
-		Fields:  req.Fields,
-		IDs:     req.Id,
-		Session: session,
+	searchOptions := &model.SearchOptions{
+		Fields: req.Fields,
+		IDs:    req.Id,
+		//Session: session,
 		Context: ctx,
 		Sort:    req.Sort,
 		Page:    int(page),
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
 
 	if req.Q != "" {
@@ -174,7 +174,7 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 		searchOptions.Filter["state"] = req.State
 	}
 
-	services, e := s.app.Store.Service().List(&searchOptions)
+	services, e := s.app.Store.Service().List(searchOptions)
 	if e != nil {
 		return nil, cerror.NewInternalError("service.list_services.store.list.failed", e.Error())
 	}
@@ -299,10 +299,10 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 	t := time.Now()
 
 	updateOpts := model.UpdateOptions{
-		Session: session,
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 	}
 
 	r, e := s.app.Store.Service().Update(&updateOpts, service)
@@ -318,5 +318,5 @@ func NewServiceService(app *App) (*ServiceService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewInternalError("api.config.new_service.args_check.app_nil", "internal is nil")
 	}
-	return &ServiceService{app: app}, nil
+	return &ServiceService{app: app, objClassName: model.ScopeDictionary}, nil
 }

@@ -72,9 +72,14 @@ func (l *CaseLinkStore) Delete(opts *model.DeleteOptions) error {
 	if opts.ID == 0 {
 		return dberr.NewDBError("postgres.case_link.delete.check_args.id", "id required")
 	}
+	if opts.ParentID == 0 {
+		return dberr.NewDBError("postgres.case_link.delete.check_args.id", "case id required")
+	}
 	base := squirrel.
 		Delete(l.mainTable).
 		Where("id = ?", opts.ID).
+		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
+		Where("case_id = ?", opts.ParentID).
 		PlaceholderFormat(squirrel.Dollar)
 	query, args, err := base.ToSql()
 	if err != nil {
@@ -113,6 +118,7 @@ func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, erro
 	base := squirrel.
 		Select().
 		From(l.mainTable).
+		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
 	if opts.ParentId != 0 {
 		base = base.Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "case_id")), opts.ParentId)
@@ -289,7 +295,7 @@ func buildCreateLinkQuery(rpc *model.CreateOptions, add *_go.InputCaseLink) (squ
 	insert := squirrel.
 		Insert("cases.case_link").
 		Columns("created_by", "updated_by", "name", "url", "case_id", "dc").
-		Values(rpc.Session.GetUserId(), rpc.Session.GetUserId(), add.GetName(), add.GetUrl(), rpc.ParentID, rpc.Session.GetDomainId()).
+		Values(rpc.GetAuthOpts().GetUserId(), rpc.GetAuthOpts().GetUserId(), add.GetName(), add.GetUrl(), rpc.ParentID, rpc.GetAuthOpts().GetDomainId()).
 		Suffix("RETURNING *")
 	// select
 	query, args, _ := store.FormAsCTE(insert, insertAlias)
@@ -309,11 +315,13 @@ func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (sq
 	// insert
 	update := squirrel.
 		Update("cases.case_link").
-		Set("updated_by", opts.Session.GetUserId()).
+		Set("updated_by", opts.GetAuthOpts().GetUserId()).
 		Set("updated_at", opts.Time).
 		Set("ver", squirrel.Expr("ver+1")).
 		Where("id = ?", tid.GetOid()).
 		Where("ver = ?", tid.GetVer()).
+		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
+		Where("case_id = ?", opts.ParentID).
 		Suffix("RETURNING *").
 		PlaceholderFormat(squirrel.Dollar)
 	for _, field := range opts.Mask {

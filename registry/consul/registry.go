@@ -107,7 +107,7 @@ func (c *ConsulRegistry) RunServiceCheck() error {
 		case <-ticker.C:
 			err := c.client.Agent().UpdateTTL(c.checkId, "success", "pass")
 			if err != nil {
-				slog.Warn(fmtConsulLog(err.Error()))
+				slog.Error(fmtConsulLog(err.Error()))
 			}
 			// TODO: seems that connection is lost, reconnect?
 		}

@@ -59,13 +59,13 @@ func (p *Priority) buildCreatePriorityQuery(
 	insertBuilder := sq.Insert("cases.priority").
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by", "color").
 		Values(
-			priority.Name,             // name
-			rpc.Session.GetDomainId(), // dc
-			rpc.Time,                  // created_at
+			priority.Name,                   // name
+			rpc.GetAuthOpts().GetDomainId(), // dc
+			rpc.Time,                        // created_at
 			sq.Expr("NULLIF(?, '')", priority.Description), // NULLIF for empty description
-			rpc.Session.GetUserId(),                        // created_by
+			rpc.GetAuthOpts().GetUserId(),                  // created_by
 			rpc.Time,                                       // updated_at
-			rpc.Session.GetUserId(),                        // updated_by
+			rpc.GetAuthOpts().GetUserId(),                  // updated_by
 			priority.Color,                                 // color
 		).
 		PlaceholderFormat(sq.Dollar).
@@ -131,7 +131,7 @@ func (p *Priority) buildDeletePriorityQuery(
 	// Build the delete query
 	deleteBuilder := sq.Delete("cases.priority").
 		Where(sq.Eq{"id": rpc.IDs}).
-		Where(sq.Eq{"dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	return deleteBuilder, nil
@@ -196,7 +196,7 @@ func (p *Priority) buildListPriorityQuery(
 
 	queryBuilder := sq.Select().
 		From("cases.priority AS cp").
-		Where(sq.Eq{"cp.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"cp.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	// Add ID filter if provided
@@ -261,9 +261,9 @@ func (p *Priority) buildUpdatePriorityQuery(
 	updateBuilder := sq.Update("cases.priority").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
 		Set("updated_at", rpc.Time).
-		Set("updated_by", rpc.Session.GetUserId()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": priority.Id}).
-		Where(sq.Eq{"dc": rpc.Session.GetDomainId()})
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the `SET` clause
 	for _, field := range rpc.Mask {

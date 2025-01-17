@@ -261,18 +261,18 @@ func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *ca
 		sla = &add.Sla.Id
 	}
 	args := []interface{}{
-		add.Name,                  // $1: name
-		add.Description,           // $2: description (can be null)
-		add.Code,                  // $3: code (can be null)
-		rpc.Time,                  // $4: created_at, updated_at
-		rpc.Session.GetUserId(),   // $5: created_by, updated_by
-		sla,                       // $6: sla_id
-		group,                     // $7: group_id
-		assignee,                  // $8: assignee_id
-		add.State,                 // $9: state
-		rpc.Session.GetDomainId(), // $10: domain ID
-		add.RootId,                // $11: root_id (can be null)
-		add.CatalogId,             // $12: catalog_id
+		add.Name,                        // $1: name
+		add.Description,                 // $2: description (can be null)
+		add.Code,                        // $3: code (can be null)
+		rpc.Time,                        // $4: created_at, updated_at
+		rpc.GetAuthOpts().GetUserId(),   // $5: created_by, updated_by
+		sla,                             // $6: sla_id
+		group,                           // $7: group_id
+		assignee,                        // $8: assignee_id
+		add.State,                       // $9: state
+		rpc.GetAuthOpts().GetDomainId(), // $10: domain ID
+		add.RootId,                      // $11: root_id (can be null)
+		add.CatalogId,                   // $12: catalog_id
 	}
 
 	query := `
@@ -331,8 +331,8 @@ func (s *ServiceStore) buildDeleteServiceQuery(rpc *model.DeleteOptions) (string
 		WHERE id = ANY($1) AND dc = $2
 	`
 	args := []interface{}{
-		pq.Array(rpc.IDs),         // $1: array of service IDs to delete
-		rpc.Session.GetDomainId(), // $2: domain ID to ensure proper scoping
+		pq.Array(rpc.IDs),               // $1: array of service IDs to delete
+		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
 	return store.CompactSQL(query), args
@@ -422,8 +422,8 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc *model.UpdateOptions, lookup 
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.Time).
-		Set("updated_by", rpc.Session.GetUserId()).
-		Where(sq.Eq{"id": lookup.Id, "dc": rpc.Session.GetDomainId()})
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically set fields based on what the user wants to update
 	for _, field := range rpc.Fields {

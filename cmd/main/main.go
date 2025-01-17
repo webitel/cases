@@ -25,6 +25,7 @@ import (
 )
 
 func Run() {
+
 	// Load configuration
 	config, appErr := conf.LoadConfig()
 	if appErr != nil {
@@ -89,3 +90,7 @@ func handleSignals(signal os.Signal, application *app.App) {
 		os.Exit(0)
 	}
 }
+
+//func setupLogger() {
+//	slog.New(slog.NewTextHandler(os.Stdout))
+//}

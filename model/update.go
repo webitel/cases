@@ -2,22 +2,20 @@ package model
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
-
-	session "github.com/webitel/cases/auth/model"
-	"github.com/webitel/cases/internal/server/interceptor"
 )
 
 // UpdateOptions defines options for updating an entity with fields, mask, filter, and pagination
 type UpdateOptions struct {
 	Time time.Time
 	context.Context
-	Session *session.Session
+	//Session *session.Session
 	// output
 	Fields            []string
 	UnknownFields     []string
@@ -25,9 +23,20 @@ type UpdateOptions struct {
 	// update
 	Mask []string
 	// filters
-	IDs   []int64
-	Etags []*etag.Tid
+	ParentID int64
+	IDs      []int64
+	Etags    []*etag.Tid
 	// ID      int64
+	Auth Auther
+}
+
+func (s *UpdateOptions) SetAuthOpts(a Auther) *UpdateOptions {
+	s.Auth = a
+	return s
+}
+
+func (s *UpdateOptions) GetAuthOpts() Auther {
+	return s.Auth
 }
 
 type Updator interface {
@@ -36,14 +45,19 @@ type Updator interface {
 }
 
 // NewUpdateOptions initializes UpdateOptions with values from a context and an Updator-compliant struct
-func NewUpdateOptions(ctx context.Context, req Updator, objMetadata *ObjectMetadata) *UpdateOptions {
+func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetadatter) (*UpdateOptions, error) {
 	opts := &UpdateOptions{
 		Context: ctx,
-		Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
 		Mask:    req.GetXJsonMask(),
 		Time:    time.Now(),
 	}
-
+	if sess := GetSessionOutOfContext(ctx); sess != nil {
+		opts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
+	} else if false {
+		// TODO: new authorization method without token
+	} else {
+		return nil, errors.New("can't authorize user")
+	}
 	// Normalize fields
 	var resultingFields []string
 	if requestedFields := req.GetFields(); len(requestedFields) == 0 {
@@ -74,7 +88,7 @@ func NewUpdateOptions(ctx context.Context, req Updator, objMetadata *ObjectMetad
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
 	opts.Fields = util.ParseFieldsForEtag(resultingFields)
 
-	return opts
+	return opts, nil
 }
 
 // CurrentTime ensures Time is set to the current time if not already set, and returns it

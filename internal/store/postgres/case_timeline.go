@@ -61,13 +61,10 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (squirrel.Sqlizer, []fun
 	if rpc == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.rpc", "search options required")
 	}
-	if len(rpc.IDs) == 0 {
+	if rpc.ParentId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id required")
 	}
-	caseId := rpc.IDs[0]
-	if caseId <= 0 {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id empty")
-	}
+	caseId := rpc.ParentId
 	fields := rpc.Fields[:]
 	if len(fields) == 0 {
 		fields = CaseTimelineFields

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	authmodel "github.com/webitel/cases/auth/model"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_go "github.com/webitel/cases/api/cases"
@@ -60,6 +61,8 @@ type CaseStore interface {
 	Update(req *model.UpdateOptions, upd *_go.Case) (*_go.Case, error)
 	// Delete case
 	Delete(req *model.DeleteOptions) error
+	// Check case by current auth options
+	CheckRbacAccess(ctx context.Context, auth model.Auther, access authmodel.AccessMode, caseId int64) (bool, error)
 }
 
 // RelatedCases attribute attached to the case (n:1)

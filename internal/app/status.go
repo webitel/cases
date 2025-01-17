@@ -15,6 +15,7 @@ import (
 type StatusService struct {
 	app *App
 	_go.UnimplementedStatusesServer
+	objClassName string
 }
 
 const (
@@ -61,7 +62,7 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 
 	// Define create options
 	createOpts := model.CreateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
@@ -104,8 +105,8 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 	t := time.Now()
 
 	searchOptions := model.SearchOptions{
-		IDs:     req.Id,
-		Session: session,
+		IDs: req.Id,
+		//Session: session,
 		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
@@ -113,6 +114,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
 	}
 
 	if req.Q != "" {
@@ -178,7 +180,7 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
@@ -215,7 +217,7 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 	t := time.Now()
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,

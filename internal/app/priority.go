@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	api "github.com/webitel/cases/api/cases"
@@ -16,7 +17,7 @@ var defaultFieldsPriority = []string{
 	"id", "name", "description", "color",
 }
 
-var PriorityMetadata = model.NewObjectMetadata(
+var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary,
 	[]*model.Field{
 		{"id", true},
 		{"created_by", false},
@@ -64,7 +65,11 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 		fields = defaultFieldsPriority
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, PriorityMetadata)
+	createOpts, err := model.NewCreateOptions(ctx, req, PriorityMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	createOpts.Fields = fields
 
 	l, err := p.app.Store.Priority().Create(createOpts, lookup)
@@ -99,9 +104,9 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 	}
 
 	t := time.Now()
-	searchOptions := model.SearchOptions{
-		IDs:     req.Id,
-		Session: session,
+	searchOptions := &model.SearchOptions{
+		IDs: req.Id,
+		//Session: session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -109,13 +114,14 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), PriorityMetadata.GetMainScopeName()),
 	}
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
 	}
 
-	prios, err := p.app.Store.Priority().List(&searchOptions)
+	prios, err := p.app.Store.Priority().List(searchOptions)
 	if err != nil {
 		return nil, cerror.NewInternalError("app.priority.list_priorities.store_list_failed", err.Error())
 	}
@@ -177,7 +183,11 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 		fields = defaultFieldsPriority
 	}
 
-	updateOpts := model.NewUpdateOptions(ctx, req, PriorityMetadata)
+	updateOpts, err := model.NewUpdateOptions(ctx, req, PriorityMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	updateOpts.Fields = fields
 	updateOpts.Mask = mask
 
@@ -206,7 +216,11 @@ func (p *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePri
 		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
 	}
 
-	deleteOpts := model.NewDeleteOptions(ctx)
+	deleteOpts, err := model.NewDeleteOptions(ctx, PriorityMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	deleteOpts.IDs = []int64{req.Id}
 
 	err = p.app.Store.Priority().Delete(deleteOpts)

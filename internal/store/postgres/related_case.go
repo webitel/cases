@@ -72,14 +72,14 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 		Insert("cases.related_case").
 		Columns("dc", "primary_case_id", "related_case_id", "relation_type", "created_at", "created_by", "updated_at", "updated_by").
 		Values(
-			rpc.Session.GetDomainId(), // dc
-			rpc.ParentID,              // primary_case_id
-			rpc.ChildID,               // related_case_id
-			relation,                  // relation_type
-			rpc.CurrentTime(),         // created_at
-			rpc.Session.GetUserId(),   // created_by
-			rpc.CurrentTime(),         // updated_at
-			rpc.Session.GetUserId(),   // updated_by
+			rpc.GetAuthOpts().GetDomainId(), // dc
+			rpc.ParentID,                    // primary_case_id
+			rpc.ChildID,                     // related_case_id
+			relation,                        // relation_type
+			rpc.CurrentTime(),               // created_at
+			rpc.GetAuthOpts().GetUserId(),   // created_by
+			rpc.CurrentTime(),               // updated_at
+			rpc.GetAuthOpts().GetUserId(),   // updated_by
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -143,7 +143,7 @@ func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc *model.DeleteOptions) 
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	query := deleteRelatedCaseQuery
-	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
+	args := []interface{}{pq.Array(ids), rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
 }
 
@@ -276,7 +276,7 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 	// Start building the base query
 	queryBuilder := sq.Select().
 		From("cases.related_case AS rc").
-		Where(sq.Eq{"rc.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"rc.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	// Filter by parent case if provided
@@ -364,12 +364,12 @@ func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
 		PlaceholderFormat(sq.Dollar).
 		Set("relation_type", input.RelationType).
 		Set("updated_at", rpc.CurrentTime()).
-		Set("updated_by", rpc.Session.GetUserId()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Set("ver", sq.Expr("ver + 1")).
 		Where(sq.Eq{
 			"id":  rpc.Etags[0].GetOid(),
 			"ver": rpc.Etags[0].GetVer(),
-			"dc":  rpc.Session.GetDomainId(),
+			"dc":  rpc.GetAuthOpts().GetDomainId(),
 		})
 
 	for _, mask := range rpc.Mask {

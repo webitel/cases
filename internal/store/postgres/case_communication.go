@@ -130,18 +130,39 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_create_case_communication_sqlizer.check_args.case_id", "case id required")
 	}
 	insert := squirrel.Insert(c.mainTable).Columns("created_by", "created_at", "dc", "communication_type", "communication_id", "case_id").Suffix("ON CONFLICT DO NOTHING RETURNING *")
-	session := options.Session
-	dc := session.GetDomainId()
-	userId := session.GetUserId()
-	roles := session.GetAclRoles()
-	caseId := options.ParentID
-	callsRbac := session.GetScope("calls").IsRbacUsed()
+
+	var (
+		caseId              = options.ParentID
+		dc                  *int64
+		userId              *int64
+		roles               []int64
+		callsRbac, caseRbac bool
+	)
+	if session := options.GetAuthOpts(); session != nil {
+		d := session.GetDomainId()
+		dc = &d
+		u := session.GetUserId()
+		userId = &u
+		roles = session.GetRoles()
+		callsRbac = session.GetObjectScope("calls").IsRbacUsed()
+		caseRbac = session.GetObjectScope("cases").IsRbacUsed()
+	}
+	var caseSubquery squirrel.Sqlizer
+	if caseRbac {
+		caseSubquery = squirrel.Expr(`(SELECT object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = ? AND acl.subject = any(?::int[]) AND acl.access & ? = ?)`,
+			dc, caseId, roles, authmodel.Edit, authmodel.Edit)
+	} else {
+		caseSubquery = squirrel.Expr(`?`, caseId)
+	}
 
 	for _, communication := range communications {
 		switch communication.CommunicationType {
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CALL:
+			var (
+				callsSubquery squirrel.Sqlizer
+			)
 			if callsRbac {
-				insert = insert.Values(session.GetUserId(), options.CurrentTime(), dc, int32(communication.CommunicationType), squirrel.Expr(`(SELECT c.id::text
+				callsSubquery = squirrel.Expr(`(SELECT c.id::text
 															 FROM call_center.cc_calls_history c
 															 WHERE id = ?::uuid
 															   AND (
@@ -155,14 +176,15 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 					dc, userId, roles,
 					dc, userId, roles,
 					dc, authmodel.Read, roles,
-					roles), options.ParentID)
+					roles)
 			} else {
-				insert = insert.Values(session.GetUserId(), options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`, communication.CommunicationId), caseId)
+				callsSubquery = squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`)
 			}
+			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), callsSubquery, caseSubquery)
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CHAT:
-			insert = insert.Values(session.GetUserId(), options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM chat.conversation WHERE id = ?)`, communication.CommunicationId), caseId)
+			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM chat.conversation WHERE id = ?)`, communication.CommunicationId), caseSubquery)
 		case cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL:
-			insert = insert.Values(session.GetUserId(), options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_email WHERE id = ?)`, communication.CommunicationId), caseId)
+			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_email WHERE id = ?)`, communication.CommunicationId), caseSubquery)
 		default:
 			return nil, nil, dberr.NewDBError("postgres.case_communication.build.create_case_communication_sqlizer.switch_types.unknown", "unsupported communication type")
 		}

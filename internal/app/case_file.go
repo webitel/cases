@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	authmodel "github.com/webitel/cases/auth/model"
+	"log/slog"
 
 	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
@@ -15,6 +17,7 @@ type CaseFileService struct {
 }
 
 var CaseFileMetadata = model.NewObjectMetadata(
+	"cases",
 	[]*model.Field{
 		{Name: "etag", Default: true},
 		{Name: "ver", Default: false},
@@ -37,15 +40,29 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
 	}
 	// Build search options
-	searchOpts := model.NewSearchOptions(ctx, req, CaseFileMetadata)
+	searchOpts, err := model.NewSearchOptions(ctx, req, CaseFileMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	searchOpts.ParentId = tag.GetOid()
+	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 
+	if searchOpts.GetAuthOpts().GetObjectScope(CaseFileMetadata.GetMainScopeName()).IsRbacUsed() {
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
+		if err != nil {
+			slog.Error(err.Error(), logAttributes)
+			return nil, AppForbiddenError
+		}
+		if !access {
+			slog.Error("user doesn't have required (READ) access to the case", logAttributes)
+			return nil, AppForbiddenError
+		}
+	}
 	files, err := c.app.Store.CaseFile().List(searchOpts)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case_file.list_files.fetch_error", err.Error())
-	}
-	if len(files.Items) == 0 {
-		return nil, cerror.NewNotFoundError("app.case_file.list_files.not_found", "Files not found")
+		slog.Error(err.Error(), logAttributes)
+		return nil, AppDatabaseError
 	}
 	return files, nil
 }

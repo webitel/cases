@@ -15,6 +15,7 @@ import (
 type StatusConditionService struct {
 	app *App
 	_go.UnimplementedStatusConditionsServer
+	objClassName string
 }
 
 const (
@@ -62,7 +63,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 
 	// Define create options
 	createOpts := model.CreateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
@@ -104,8 +105,8 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 
 	t := time.Now()
 	searchOptions := model.SearchOptions{
-		IDs:     req.Id,
-		Session: session,
+		IDs: req.Id,
+		//Session: session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -113,6 +114,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
 
 	if req.Q != "" {
@@ -187,7 +189,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
@@ -224,7 +226,7 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 	t := time.Now()
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
-		Session: session,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 		Context: ctx,
 		ID:      req.Id,
 		Time:    t,
@@ -274,5 +276,5 @@ func NewStatusConditionService(app *App) (*StatusConditionService, cerror.AppErr
 	if app == nil {
 		return nil, cerror.NewInternalError("api.config.new_status_condition_service.args_check.app_nil", "internal is nil")
 	}
-	return &StatusConditionService{app: app}, nil
+	return &StatusConditionService{app: app, objClassName: model.ScopeDictionary}, nil
 }

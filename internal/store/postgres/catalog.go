@@ -74,17 +74,17 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
 	// Define arguments for the query
 	args := []interface{}{
-		add.Name,                  // $1: name (cannot be null)
-		add.Description,           // $2: description (could be null)
-		add.Prefix,                // $3: prefix (could be null)
-		add.Code,                  // $4: code (could be null)
-		rpc.Time,                  // $5: created_at, updated_at
-		rpc.Session.GetUserId(),   // $6: created_by, updated_by
-		add.Sla.Id,                // $7: sla_id (could be null)
-		add.Status.Id,             // $8: status_id (could be null)
-		add.CloseReasonGroup.Id,   // $9: close_reason_id (required)
-		add.State,                 // $10: state (cannot be null)
-		rpc.Session.GetDomainId(), // $11: domain ID (dc)
+		add.Name,                        // $1: name (cannot be null)
+		add.Description,                 // $2: description (could be null)
+		add.Prefix,                      // $3: prefix (could be null)
+		add.Code,                        // $4: code (could be null)
+		rpc.Time,                        // $5: created_at, updated_at
+		rpc.GetAuthOpts().GetUserId(),   // $6: created_by, updated_by
+		add.Sla.Id,                      // $7: sla_id (could be null)
+		add.Status.Id,                   // $8: status_id (could be null)
+		add.CloseReasonGroup.Id,         // $9: close_reason_id (could be null)
+		add.State,                       // $10: state (cannot be null)
+		rpc.GetAuthOpts().GetDomainId(), // $11: domain ID (dc)
 	}
 
 	var teamIds []int64
@@ -220,8 +220,8 @@ func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string
 
 	// Use the array of IDs and domain ID (dc) for the deletion
 	args := []interface{}{
-		pq.Array(rpc.IDs),         // $1: array of catalog IDs to delete
-		rpc.Session.GetDomainId(), // $2: domain ID to ensure proper scoping
+		pq.Array(rpc.IDs),               // $1: array of catalog IDs to delete
+		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
 	return store.CompactSQL(query), args
@@ -865,7 +865,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 
 	// Named parameters
 	params := map[string]interface{}{
-		"dc":     rpc.Session.GetDomainId(),
+		"dc":     rpc.GetAuthOpts().GetDomainId(),
 		"limit":  rpc.GetSize() + 1,
 		"offset": (rpc.Page - 1) * rpc.Size,
 	}
@@ -1651,9 +1651,9 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 			lookup.Id,
 			teamIDs,  // Pass empty slice if no team IDs are provided
 			skillIDs, // Pass empty slice if no skill IDs are provided
-			rpc.Session.GetUserId(),
+			rpc.GetAuthOpts().GetUserId(),
 			rpc.Time,
-			rpc.Session.GetDomainId(),
+			rpc.GetAuthOpts().GetDomainId(),
 		)
 
 		// Execute the teams and skills update query and check for affected rows
@@ -1837,8 +1837,8 @@ WITH root_check AS (
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.Time).
-		Set("updated_by", rpc.Session.GetUserId()).
-		Where(sq.Eq{"id": lookup.Id, "dc": rpc.Session.GetDomainId()})
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically set fields based on user update preferences
 	for _, field := range rpc.Fields {

@@ -120,7 +120,7 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 }
 
 func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) error {
-	domainId := rpc.Session.GetDomainId()
+	domainId := rpc.GetAuthOpts().GetDomainId()
 
 	query, args, err := s.buildDeleteStatusConditionQuery(rpc.ID, domainId, statusId)
 	if err != nil {
@@ -201,12 +201,12 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc *model.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
 	query := createStatusConditionQuery
 	args := []interface{}{
-		status.Name,               // $1 name
-		rpc.Time,                  // $2 created_at / updated_at
-		status.Description,        // $3 description
-		rpc.Session.GetUserId(),   // $4 created_by / updated_by
-		rpc.Session.GetDomainId(), // $5 dc
-		status.StatusId,           // $6 status_id
+		status.Name,                     // $1 name
+		rpc.Time,                        // $2 created_at / updated_at
+		status.Description,              // $3 description
+		rpc.GetAuthOpts().GetUserId(),   // $4 created_by / updated_by
+		rpc.GetAuthOpts().GetDomainId(), // $5 dc
+		status.StatusId,                 // $6 status_id
 	}
 	return query, args, nil
 }
@@ -214,7 +214,7 @@ func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc *model.CreateO
 func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOptions, statusId int64) (string, []interface{}, error) {
 	queryBuilder := sq.Select().
 		From("cases.status_condition AS s").
-		Where(sq.Eq{"s.dc": rpc.Session.GetDomainId(), "s.status_id": statusId}).
+		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId(), "s.status_id": statusId}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
@@ -287,7 +287,7 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc *model.UpdateO
 	// 1. Squirrel operations: Building the dynamic part of the "upd" query
 	updBuilder := sq.Update("cases.status_condition").
 		Set("updated_at", rpc.Time).
-		Set("updated_by", rpc.Session.GetUserId())
+		Set("updated_by", rpc.GetAuthOpts().GetUserId())
 
 	// Track whether "initial" or "final" are being updated
 	updateInitial := false
@@ -315,7 +315,7 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc *model.UpdateO
 	// Build the dynamic part of the "upd" query using squirrel
 	updSql, updArgs, err := updBuilder.
 		Where(sq.Eq{"id": st.Id}).
-		Where(sq.Eq{"dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
 		Suffix("RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id").
 		ToSql()
 	if err != nil {
@@ -379,13 +379,13 @@ WHERE CASE
 
 	// 3. Adding all arguments
 	args = append(args,
-		rpc.Session.GetDomainId(), // $1
-		st.StatusId,               // $2
-		st.Id,                     // $3
-		updateInitial,             // $4
-		updateFinal,               // $5
-		st.Final,                  // $6
-		st.Initial,                // $7
+		rpc.GetAuthOpts().GetDomainId(), // $1
+		st.StatusId,                     // $2
+		st.Id,                           // $3
+		updateInitial,                   // $4
+		updateFinal,                     // $5
+		st.Final,                        // $6
+		st.Initial,                      // $7
 	)
 
 	// Append the dynamic query arguments

@@ -177,10 +177,10 @@ func (s CloseReason) buildCreateCloseReasonQuery(rpc *model.CreateOptions, looku
 	query := createCloseReasonQuery
 	args := []interface{}{
 		lookup.Name,
-		rpc.Session.GetDomainId(),
+		rpc.GetAuthOpts().GetDomainId(),
 		rpc.Time,
 		lookup.Description,
-		rpc.Session.GetUserId(),
+		rpc.GetAuthOpts().GetUserId(),
 		lookup.CloseReasonGroupId,
 	}
 	return query, args, nil
@@ -190,7 +190,7 @@ func (s CloseReason) buildCreateCloseReasonQuery(rpc *model.CreateOptions, looku
 func (s CloseReason) buildSearchCloseReasonQuery(rpc *model.SearchOptions, closeReasonId int64) (string, []interface{}, error) {
 	queryBuilder := sq.Select().
 		From("cases.close_reason AS g").
-		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId(), "g.close_reason_id": closeReasonId}).
+		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId(), "g.close_reason_id": closeReasonId}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
@@ -248,7 +248,7 @@ func (s CloseReason) buildDeleteCloseReasonQuery(rpc *model.DeleteOptions) (stri
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	query := deleteCloseReasonQuery
-	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
+	args := []interface{}{pq.Array(ids), rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
 }
 
@@ -257,7 +257,7 @@ func (s CloseReason) buildUpdateCloseReasonQuery(rpc *model.UpdateOptions, l *_g
 
 	updateBuilder := psql.Update("cases.close_reason").
 		Set("updated_at", rpc.Time).
-		Set("updated_by", rpc.Session.GetUserId())
+		Set("updated_by", rpc.GetAuthOpts().GetUserId())
 
 	for _, field := range rpc.Fields {
 		switch field {
@@ -270,7 +270,7 @@ func (s CloseReason) buildUpdateCloseReasonQuery(rpc *model.UpdateOptions, l *_g
 		}
 	}
 
-	updateBuilder = updateBuilder.Where(sq.Eq{"id": l.Id, "dc": rpc.Session.GetDomainId()})
+	updateBuilder = updateBuilder.Where(sq.Eq{"id": l.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	sql, args, err := updateBuilder.ToSql()
 	if err != nil {

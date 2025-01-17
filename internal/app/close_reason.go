@@ -15,6 +15,7 @@ import (
 type CloseReasonService struct {
 	app *App
 	_go.UnimplementedCloseReasonsServer
+	objClassName string
 }
 
 // CreateCloseReason implements api.CloseReasonsServer.
@@ -56,15 +57,15 @@ func (s *CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.Cre
 	t := time.Now()
 
 	// Define create options
-	createOpts := model.CreateOptions{
-		Session: session,
+	createOpts := &model.CreateOptions{
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 	}
 
 	// Create the close reason in the store
-	r, e := s.app.Store.CloseReason().Create(&createOpts, closeReason)
+	r, e := s.app.Store.CloseReason().Create(createOpts, closeReason)
 	if e != nil {
 		return nil, cerror.NewInternalError("close_reason_service.create_close_reason.store.create.failed", e.Error())
 	}
@@ -98,9 +99,9 @@ func (s *CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.List
 	}
 
 	t := time.Now()
-	searchOptions := model.SearchOptions{
-		IDs:     req.Id,
-		Session: session,
+	searchOptions := &model.SearchOptions{
+		IDs: req.Id,
+		//Session: session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -108,13 +109,14 @@ func (s *CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.List
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
 
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
 	}
 
-	closeReasons, e := s.app.Store.CloseReason().List(&searchOptions, req.CloseReasonGroupId)
+	closeReasons, e := s.app.Store.CloseReason().List(searchOptions, req.CloseReasonGroupId)
 	if e != nil {
 		return nil, cerror.NewInternalError("close_reason_service.list_close_reasons.store.list.failed", e.Error())
 	}
@@ -173,15 +175,15 @@ func (s *CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.Upd
 	t := time.Now()
 
 	// Define update options
-	updateOpts := model.UpdateOptions{
-		Session: session,
+	updateOpts := &model.UpdateOptions{
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 	}
 
 	// Update the close reason in the store
-	r, e := s.app.Store.CloseReason().Update(&updateOpts, closeReason)
+	r, e := s.app.Store.CloseReason().Update(updateOpts, closeReason)
 	if e != nil {
 		return nil, cerror.NewInternalError("close_reason_service.update_close_reason.store.update.failed", e.Error())
 	}
@@ -210,15 +212,15 @@ func (s *CloseReasonService) DeleteCloseReason(ctx context.Context, req *_go.Del
 
 	t := time.Now()
 	// Define delete options
-	deleteOpts := model.DeleteOptions{
-		Session: session,
+	deleteOpts := &model.DeleteOptions{
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,
+		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
 	}
 
 	// Delete the close reason in the store
-	e := s.app.Store.CloseReason().Delete(&deleteOpts, req.CloseReasonGroupId)
+	e := s.app.Store.CloseReason().Delete(deleteOpts, req.CloseReasonGroupId)
 	if e != nil {
 		return nil, cerror.NewInternalError("close_reason_service.delete_close_reason.store.delete.failed", e.Error())
 	}
@@ -261,5 +263,5 @@ func NewCloseReasonService(app *App) (*CloseReasonService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewInternalError("api.config.new_close_reason_service.args_check.app_nil", "internal is nil")
 	}
-	return &CloseReasonService{app: app}, nil
+	return &CloseReasonService{app: app, objClassName: model.ScopeDictionary}, nil
 }

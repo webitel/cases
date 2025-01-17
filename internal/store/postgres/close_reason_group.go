@@ -203,7 +203,7 @@ func (s CloseReasonGroup) Update(rpc *model.UpdateOptions, l *_go.CloseReasonGro
 func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(rpc *model.CreateOptions, lookup *_go.CloseReasonGroup) (string, []interface{}, error) {
 	query := createCloseReasonGroupQuery
 	args := []interface{}{
-		lookup.Name, rpc.Session.GetDomainId(), rpc.Time, lookup.Description, rpc.Session.GetUserId(),
+		lookup.Name, rpc.GetAuthOpts().GetDomainId(), rpc.Time, lookup.Description, rpc.GetAuthOpts().GetUserId(),
 	}
 	return query, args, nil
 }
@@ -214,7 +214,7 @@ func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOpti
 
 	queryBuilder := sq.Select().
 		From("cases.close_reason_group AS g").
-		Where(sq.Eq{"g.dc": rpc.Session.GetDomainId()}).
+		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
@@ -268,7 +268,7 @@ func (s CloseReasonGroup) buildDeleteCloseReasonGroupQuery(rpc *model.DeleteOpti
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	query := deleteCloseReasonGroupQuery
-	args := []interface{}{pq.Array(ids), rpc.Session.GetDomainId()}
+	args := []interface{}{pq.Array(ids), rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
 }
 
@@ -277,9 +277,9 @@ func (s CloseReasonGroup) buildUpdateCloseReasonGroupQuery(rpc *model.UpdateOpti
 
 	builder := psql.Update("cases.close_reason_group").
 		Set("updated_at", rpc.Time).
-		Set("updated_by", rpc.Session.GetUserId()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": l.Id}).
-		Where(sq.Eq{"dc": rpc.Session.GetDomainId()})
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	for _, field := range rpc.Fields {
 		switch field {

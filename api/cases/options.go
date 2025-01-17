@@ -168,13 +168,13 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/related/{etag}",
+						Path:   "/cases/{primary_case_etag}/related/{etag}",
 						Method: "GET",
 					},
 				},
 			},
 			"CreateRelatedCase": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "CreateRelatedCaseRequest",
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
@@ -190,22 +190,22 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/related/{etag}",
+						Path:   "/cases/{input.primary_case.id}/related/{etag}",
 						Method: "PUT",
 					},
 					{
-						Path:   "/cases/related/{etag}",
+						Path:   "/cases/{input.primary_case.id}/related/{etag}",
 						Method: "PATCH",
 					},
 				},
 			},
 			"DeleteRelatedCase": WebitelMethod{
-				Access: 3,
+				Access: 2,
 				Input:  "DeleteRelatedCaseRequest",
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/related/{etag}",
+						Path:   "/cases/{primary_case_etag}/related/{etag}",
 						Method: "DELETE",
 					},
 				},
@@ -250,7 +250,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/links/{etag}",
+						Path:   "/cases/{case_etag}/links/{etag}",
 						Method: "GET",
 					},
 				},
@@ -261,7 +261,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/links/{case_etag}",
+						Path:   "/cases/{case_etag}/links",
 						Method: "POST",
 					},
 				},
@@ -272,11 +272,11 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/links/{input.etag}",
+						Path:   "/cases/{case_etag}/links/{input.etag}",
 						Method: "PUT",
 					},
 					{
-						Path:   "/cases/links/{input.etag}",
+						Path:   "/cases/{case_etag}/links/{input.etag}",
 						Method: "PATCH",
 					},
 				},
@@ -287,7 +287,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "CaseLink",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/links/{etag}",
+						Path:   "/cases/{case_etag}/links/{etag}",
 						Method: "DELETE",
 					},
 				},
