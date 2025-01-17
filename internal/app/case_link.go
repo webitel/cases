@@ -52,7 +52,11 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_case_etag.error", err.Error())
 	}
 
-	searchOpts := model.NewLocateOptions(ctx, req, CaseLinkMetadata)
+	searchOpts, err := model.NewLocateOptions(ctx, req, CaseLinkMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	searchOpts.IDs = []int64{etg.GetOid()}
 	searchOpts.ParentId = caseEtg.GetOid()
 	logAttributes := slog.Group(
@@ -66,17 +70,17 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 	if searchOpts.GetAuthOpts().GetObjectScope(CaseLinkMetadata.GetMainScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user doesn't have required (READ) access to the case", logAttributes)
+			slog.Error("user doesn't have required (READ) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
 	links, err := c.app.Store.CaseLink().List(searchOpts)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 	if len(links.Items) == 0 {
@@ -86,7 +90,7 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 	// hide etag if needed
 	err = NormalizeResponseLink(res, req)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return res, nil
@@ -104,7 +108,11 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, CaseLinkMetadata)
+	createOpts, err := model.NewCreateOptions(ctx, req, CaseLinkMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	createOpts.ParentID = caseTID.GetOid()
 	logAttributes := slog.Group(
 		"context",
@@ -116,23 +124,23 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 	if createOpts.GetAuthOpts().GetObjectScope(CaseLinkMetadata.GetMainScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), authmodel.Edit, createOpts.ParentID)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user doesn't have required (EDIT) access to the case", logAttributes)
+			slog.Error("user doesn't have required (EDIT) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
 	res, dbErr := c.app.Store.CaseLink().Create(createOpts, req.Input)
 	if dbErr != nil {
-		slog.Warn(dbErr.Error(), logAttributes)
+		slog.Error(dbErr.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 
 	err = NormalizeResponseLink(res, req)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return res, nil
@@ -153,7 +161,11 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
-	updateOpts := model.NewUpdateOptions(ctx, req, CaseLinkMetadata)
+	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseLinkMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	updateOpts.Etags = []*etag.Tid{&linkTID}
 	updateOpts.ParentID = caseTID.GetOid()
 	logAttributes := slog.Group(
@@ -167,22 +179,22 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 	if updateOpts.GetAuthOpts().GetObjectScope(CaseLinkMetadata.GetMainScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), authmodel.Edit, updateOpts.ParentID)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user doesn't have required (EDIT) access to the case", logAttributes)
+			slog.Error("user doesn't have required (EDIT) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
 	updated, err := c.app.Store.CaseLink().Update(updateOpts, req.Input)
 	if err != nil {
-		slog.Warn(err.Error())
+		slog.Error(err.Error())
 		return nil, err
 	}
 	err = NormalizeResponseLink(updated, req)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 
@@ -201,7 +213,11 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
-	deleteOpts := model.NewDeleteOptions(ctx, CaseLinkMetadata)
+	deleteOpts, err := model.NewDeleteOptions(ctx, CaseLinkMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	deleteOpts.ID = linkTID.GetOid()
 	deleteOpts.ParentID = caseTID.GetOid()
 	logAttributes := slog.Group(
@@ -214,17 +230,17 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	if deleteOpts.GetAuthOpts().GetObjectScope(CaseLinkMetadata.GetMainScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), authmodel.Edit, deleteOpts.ParentID)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user doesn't have required (EDIT) access to the case", logAttributes)
+			slog.Error("user doesn't have required (EDIT) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
 	err = c.app.Store.CaseLink().Delete(deleteOpts)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 
@@ -242,7 +258,11 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
 
-	searchOpts := model.NewSearchOptions(ctx, req, CaseLinkMetadata)
+	searchOpts, err := model.NewSearchOptions(ctx, req, CaseLinkMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	searchOpts.ParentId = etg.GetOid()
 	//
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCaseLink)
@@ -260,24 +280,24 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 	if searchOpts.GetAuthOpts().GetObjectScope(CaseLinkMetadata.GetMainScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user doesn't have required (READ) access to the case", logAttributes)
+			slog.Error("user doesn't have required (READ) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
 
 	links, err := c.app.Store.CaseLink().List(searchOpts)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 
 	err = NormalizeResponseLinks(links, req.GetFields())
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	// Return the located comment

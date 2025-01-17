@@ -86,7 +86,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 
 	// Define create options
 	createOpts := model.CreateOptions{
-		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 		Context: ctx,
 		Time:    t,
 	}

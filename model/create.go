@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/webitel/cases/model/graph"
@@ -47,13 +48,20 @@ func (rpc *CreateOptions) CurrentTime() time.Time {
 	return ts
 }
 
-func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMetadatter) *CreateOptions {
+func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMetadatter) (*CreateOptions, error) {
 	createOpts := &CreateOptions{
 		Context: ctx,
 	}
 
 	// set current time
 	createOpts.CurrentTime()
+	if sess := GetSessionOutOfContext(ctx); sess != nil {
+		createOpts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
+	} else if false {
+		// TODO: new authorization method without token
+	} else {
+		return nil, errors.New("can't authorize user")
+	}
 
 	// normalize fields
 	var resultingFields []string
@@ -67,5 +75,5 @@ func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMe
 	}
 	resultingFields, createOpts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
 	createOpts.Fields = util.ParseFieldsForEtag(resultingFields)
-	return createOpts
+	return createOpts, nil
 }

@@ -2,13 +2,14 @@ package model
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
 )
 
-func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMetadatter) *SearchOptions {
+func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMetadatter) (*SearchOptions, error) {
 	opts := &SearchOptions{
 		Context: ctx,
 		Page:    int(searcher.GetPage()),
@@ -18,6 +19,10 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 	}
 	if sess := GetSessionOutOfContext(ctx); sess != nil {
 		opts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
+	} else if false {
+		// TODO: new authorization method without token
+	} else {
+		return nil, errors.New("can't authorize user")
 	}
 	// set current time
 	opts.CurrentTime()
@@ -33,7 +38,7 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
 	opts.Fields = util.ParseFieldsForEtag(resultingFields)
-	return opts
+	return opts, nil
 }
 
 type SearchOptions struct {
@@ -145,7 +150,7 @@ type Fielder interface {
 	GetFields() []string
 }
 
-func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMetadatter) *SearchOptions {
+func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMetadatter) (*SearchOptions, error) {
 	opts := &SearchOptions{
 		Context: ctx,
 		//Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
@@ -157,6 +162,10 @@ func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMe
 	opts.CurrentTime()
 	if sess := GetSessionOutOfContext(ctx); sess != nil {
 		opts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
+	} else if false {
+		// TODO: new authorization method without token
+	} else {
+		return nil, errors.New("can't authorize user")
 	}
 
 	// normalize fields
@@ -171,7 +180,7 @@ func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMe
 	}
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
 	opts.Fields = util.ParseFieldsForEtag(resultingFields)
-	return opts
+	return opts, nil
 }
 
 // DeafaultSearchSize is a constant integer == 10.

@@ -65,7 +65,7 @@ var stopHandler = func(l *RabbitBroker) {
 	for {
 		select {
 		case amqpErr := <-l.amqpCloseNotifier:
-			slog.Warn(fmtBrokerLog(fmt.Sprintf("connection lost %s", amqpErr.Reason)), slog.Int("code", amqpErr.Code))
+			slog.Error(fmtBrokerLog(fmt.Sprintf("connection lost %s", amqpErr.Reason)), slog.Int("code", amqpErr.Code))
 
 			var (
 				continueReconnection = true
@@ -80,7 +80,7 @@ var stopHandler = func(l *RabbitBroker) {
 				reconnectErr := l.reconnect()
 				if reconnectErr != nil {
 					reconnectAttempts++
-					slog.Warn(fmtBrokerLog(reconnectErr.Error()), slog.Int("attempt", reconnectAttempts))
+					slog.Error(fmtBrokerLog(reconnectErr.Error()), slog.Int("attempt", reconnectAttempts))
 					// time.Sleep(time.Second * 10)
 				} else {
 					continueReconnection = false

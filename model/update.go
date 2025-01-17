@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -44,15 +45,18 @@ type Updator interface {
 }
 
 // NewUpdateOptions initializes UpdateOptions with values from a context and an Updator-compliant struct
-func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetadatter) *UpdateOptions {
+func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetadatter) (*UpdateOptions, error) {
 	opts := &UpdateOptions{
 		Context: ctx,
-		//Session: ctx.Value(interceptor.SessionHeader).(*session.Session),
-		Mask: req.GetXJsonMask(),
-		Time: time.Now(),
+		Mask:    req.GetXJsonMask(),
+		Time:    time.Now(),
 	}
 	if sess := GetSessionOutOfContext(ctx); sess != nil {
 		opts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
+	} else if false {
+		// TODO: new authorization method without token
+	} else {
+		return nil, errors.New("can't authorize user")
 	}
 	// Normalize fields
 	var resultingFields []string
@@ -84,7 +88,7 @@ func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetada
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
 	opts.Fields = util.ParseFieldsForEtag(resultingFields)
 
-	return opts
+	return opts, nil
 }
 
 // CurrentTime ensures Time is set to the current time if not already set, and returns it

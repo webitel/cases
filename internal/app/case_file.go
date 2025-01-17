@@ -38,24 +38,28 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
 	}
 	// Build search options
-	searchOpts := model.NewSearchOptions(ctx, req, CaseFileMetadata)
+	searchOpts, err := model.NewSearchOptions(ctx, req, CaseFileMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	searchOpts.ParentId = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 
 	if searchOpts.GetAuthOpts().GetObjectScope(CaseFileMetadata.GetMainScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user doesn't have required (READ) access to the case", logAttributes)
+			slog.Error("user doesn't have required (READ) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
 	files, err := c.app.Store.CaseFile().List(searchOpts)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 	return files, nil

@@ -46,7 +46,11 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.invalid_primary_id", "Invalid ID")
 	}
-	searchOpts := model.NewLocateOptions(ctx, req, RelatedCaseMetadata)
+	searchOpts, err := model.NewLocateOptions(ctx, req, RelatedCaseMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	searchOpts.IDs = []int64{tag.GetOid()}
 	searchOpts.ParentId = caseTid.GetOid()
 	logAttributes := slog.Group(
@@ -58,11 +62,11 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 	if searchOpts.GetAuthOpts().GetObjectScope(RelatedCaseMetadata.GetMainScopeName()).IsRbacUsed() {
 		access, err := r.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user doesn't have required (READ) access to the case", logAttributes)
+			slog.Error("user doesn't have required (READ) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
@@ -90,8 +94,11 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		return nil, cerror.NewBadRequestError("app.related_case.create_related_case.primary_case_id_required", "Primary case id required")
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, RelatedCaseMetadata)
-
+	createOpts, err := model.NewCreateOptions(ctx, req, RelatedCaseMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseId())
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
@@ -120,16 +127,16 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 	if createOpts.GetAuthOpts().GetObjectScope(RelatedCaseMetadata.GetMainScopeName()).IsRbacUsed() {
 		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), authmodel.Edit, createOpts.ParentID)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), authmodel.Read, createOpts.ChildID)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !(primaryAccess && secondaryAccess) {
-			slog.Warn("user doesn't have required (EDIT) access to case", logAttributes)
+			slog.Error("user doesn't have required (EDIT) access to case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
@@ -165,17 +172,17 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 
 	relatedCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(parsedID), relatedCase.Ver)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	relatedCase.RelatedCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(relatedID), relatedCase.Ver)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	relatedCase.PrimaryCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(primaryID), relatedCase.Ver)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return relatedCase, nil
@@ -186,7 +193,11 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		return nil, cerror.NewBadRequestError("app.related_case.update_related_case.id_required", "ID required")
 	}
 
-	updateOpts := model.NewUpdateOptions(ctx, req, RelatedCaseMetadata)
+	updateOpts, err := model.NewUpdateOptions(ctx, req, RelatedCaseMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetId())
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
@@ -236,16 +247,16 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 	if updateOpts.GetAuthOpts().GetObjectScope(RelatedCaseMetadata.GetMainScopeName()).IsRbacUsed() {
 		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), authmodel.Edit, primaryId)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), authmodel.Read, relatedId)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !(primaryAccess && secondaryAccess) {
-			slog.Warn("user doesn't have required access to case", logAttributes)
+			slog.Error("user doesn't have required access to case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
@@ -263,7 +274,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 
 	output.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), output.Ver)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return output, nil
@@ -283,7 +294,11 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.invalid_etag", "Invalid etag")
 	}
 
-	deleteOpts := model.NewDeleteOptions(ctx, RelatedCaseMetadata)
+	deleteOpts, err := model.NewDeleteOptions(ctx, RelatedCaseMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	deleteOpts.ID = tag.GetOid()
 	deleteOpts.ParentID = caseEtag.GetOid()
 	logAttributes := slog.Group(
@@ -296,11 +311,11 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		if deleteOpts.GetAuthOpts().GetObjectScope(RelatedCaseMetadata.GetMainScopeName()).IsRbacUsed() {
 			access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), authmodel.Edit, deleteOpts.ParentID)
 			if err != nil {
-				slog.Warn(err.Error(), logAttributes)
+				slog.Error(err.Error(), logAttributes)
 				return nil, AppForbiddenError
 			}
 			if !access {
-				slog.Warn("user doesn't have required (READ) access to the case", logAttributes)
+				slog.Error("user doesn't have required (READ) access to the case", logAttributes)
 				return nil, AppForbiddenError
 			}
 		}
@@ -327,7 +342,11 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.list_related_cases.invalid_ids", "Invalid ids format")
 	}
-	searchOpts := model.NewSearchOptions(ctx, req, RelatedCaseMetadata)
+	searchOpts, err := model.NewSearchOptions(ctx, req, RelatedCaseMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	searchOpts.ParentId = tag.GetOid()
 	searchOpts.IDs = ids
 

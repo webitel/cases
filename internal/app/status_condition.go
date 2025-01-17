@@ -114,7 +114,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
 
 	if req.Q != "" {

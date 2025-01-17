@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -35,7 +36,7 @@ func (rpc *DeleteOptions) CurrentTime() time.Time {
 }
 
 // NewDeleteOptions initializes a DeleteOptions instance with the current session, context, and current time.
-func NewDeleteOptions(ctx context.Context, metadatter ObjectMetadatter) *DeleteOptions {
+func NewDeleteOptions(ctx context.Context, metadatter ObjectMetadatter) (*DeleteOptions, error) {
 
 	deleteOpts := &DeleteOptions{
 		Context: ctx,
@@ -44,7 +45,11 @@ func NewDeleteOptions(ctx context.Context, metadatter ObjectMetadatter) *DeleteO
 
 	if sess := GetSessionOutOfContext(ctx); sess != nil {
 		deleteOpts.Auth = NewSessionAuthOptions(sess, metadatter.GetAllScopeNames()...)
+	} else if false {
+		// TODO: new authorization method without token
+	} else {
+		return nil, errors.New("can't authorize user")
 	}
 
-	return deleteOpts
+	return deleteOpts, nil
 }

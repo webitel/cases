@@ -47,7 +47,11 @@ func (c *CaseCommentService) LocateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.invalid_etag", "Invalid ID")
 	}
 
-	searchOpts := model.NewLocateOptions(ctx, req, CaseCommentMetadata)
+	searchOpts, err := model.NewLocateOptions(ctx, req, CaseCommentMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	searchOpts.IDs = []int64{tag.GetOid()}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 
@@ -64,7 +68,7 @@ func (c *CaseCommentService) LocateComment(
 
 	err = NormalizeCommentsResponse(commentList.Items[0], req)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 
@@ -87,7 +91,11 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid ID")
 	}
 
-	updateOpts := model.NewUpdateOptions(ctx, req, CaseCommentMetadata)
+	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseCommentMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	updateOpts.Etags = []*etag.Tid{&tag}
 	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("id", tag.GetOid()))
 
@@ -99,13 +107,13 @@ func (c *CaseCommentService) UpdateComment(
 
 	updatedComment, err := c.app.Store.CaseComment().Update(updateOpts, comment)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, cerror.NewInternalError("app.case_comment.update_comment.store_update_failed", "database error")
 	}
 
 	err = NormalizeCommentsResponse(updatedComment, req)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return updatedComment, nil
@@ -119,8 +127,11 @@ func (c *CaseCommentService) DeleteComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.etag_required", "ID is required")
 	}
 
-	deleteOpts := model.NewDeleteOptions(ctx, CaseCommentMetadata)
-
+	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommentMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Id)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.invalid_etag", "Invalid ID")
@@ -130,7 +141,7 @@ func (c *CaseCommentService) DeleteComment(
 
 	err = c.app.Store.CaseComment().Delete(deleteOpts)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 	return nil, nil
@@ -153,20 +164,24 @@ func (c *CaseCommentService) ListComments(
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_qin", "Invalid Qin format")
 	}
-	searchOpts := model.NewSearchOptions(ctx, req, CaseCommentMetadata)
+	searchOpts, err := model.NewSearchOptions(ctx, req, CaseCommentMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 	searchOpts.ParentId = tag.GetOid()
 	searchOpts.IDs = ids
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
 	comments, err := c.app.Store.CaseComment().List(searchOpts)
 	if err != nil {
-		slog.Warn(err.Error())
+		slog.Error(err.Error())
 		return nil, AppDatabaseError
 	}
 
 	err = NormalizeCommentsResponse(comments, req)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 
@@ -183,7 +198,11 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
 	}
 
-	createOpts := model.NewCreateOptions(ctx, req, CaseCommentMetadata)
+	createOpts, err := model.NewCreateOptions(ctx, req, CaseCommentMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseId)
 	if err != nil {
@@ -194,23 +213,23 @@ func (c *CaseCommentService) PublishComment(
 	if createOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetMainScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), authmodel.Edit, createOpts.ParentID)
 		if err != nil {
-			slog.Warn(err.Error(), logAttributes)
+			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Warn("user doesn't have required (EDIT) access to the case", logAttributes)
+			slog.Error("user doesn't have required (EDIT) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
 	comment, err := c.app.Store.CaseComment().Publish(createOpts, &cases.CaseComment{Text: req.Input.Text})
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, errors.NewInternalError("app.case_comment.publish_comment.database.exec", "database error")
 	}
 
 	err = NormalizeCommentsResponse(comment, req)
 	if err != nil {
-		slog.Warn(err.Error(), logAttributes)
+		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return comment, nil
