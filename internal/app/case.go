@@ -19,8 +19,9 @@ import (
 var CaseMetadata = model.NewObjectMetadata(
 	"cases",
 	[]*model.Field{
-		{Name: "id", Default: true},
-		{Name: "ver", Default: true},
+		{Name: "etag", Default: true},
+		{Name: "id", Default: false},
+		{Name: "ver", Default: false},
 		{Name: "created_by", Default: true},
 		{Name: "created_at", Default: true},
 		{Name: "updated_by", Default: false},
@@ -48,7 +49,7 @@ var CaseMetadata = model.NewObjectMetadata(
 		{Name: "comments", Default: false},
 		{Name: "links", Default: false},
 		{Name: "files", Default: false},
-		{Name: "related_cases", Default: false},
+		{Name: "related", Default: false},
 		{Name: "timing", Default: true},
 		{Name: "contact_info", Default: true},
 	},
@@ -99,7 +100,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 		return nil, AppForbiddenError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
-	id, err := util.ParseIds([]string{req.GetId()}, etag.EtagCase)
+	id, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
 	}
@@ -143,7 +144,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		relatedItems := make([]*cases.RelatedCase, len(req.Input.Related))
 		for i, inputRelated := range req.Input.Related {
 			relatedItems[i] = &cases.RelatedCase{
-				Id:           inputRelated.GetRelatedTo(),
+				Etag:         inputRelated.GetRelatedTo(),
 				RelationType: inputRelated.RelationType,
 			}
 		}
@@ -206,9 +207,9 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	id, _ := strconv.Atoi(newCase.Id)
+
 	// Encode etag from the case ID and version
-	newCase.Id, err = etag.EncodeEtag(etag.EtagCase, int64(id), newCase.Ver)
+	newCase.Etag, err = etag.EncodeEtag(etag.EtagCase, newCase.Id, newCase.Ver)
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
@@ -220,7 +221,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		"action":    "CreateCase",
 		"user":      userId,
 		"case_id":   newCase.Id,
-		"case_etag": newCase.Id,
+		"case_etag": newCase.Etag,
 		"case_ver":  newCase.Ver,
 		"case_name": newCase.Name,
 	}
@@ -256,7 +257,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, appErr
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Id)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Etag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
@@ -270,7 +271,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
 	upd := &cases.Case{
-		Id:               strconv.Itoa(int(tag.GetOid())),
+		Id:               tag.GetOid(),
 		Ver:              tag.GetVer(),
 		Subject:          req.Input.GetSubject(),
 		Description:      req.Input.GetDescription(),
@@ -309,7 +310,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 }
 
 func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseRequest) (*cases.Case, error) {
-	if req.Id == "" {
+	if req.Etag == "" {
 		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
 	}
 
@@ -319,7 +320,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		return nil, AppInternalError
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Id)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.Etag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case.delete_case.invalid_etag", "Invalid etag")
 	}
@@ -345,7 +346,7 @@ func (c *CaseService) ValidateUpdateInput(
 	input *cases.InputCase,
 	xJsonMask []string,
 ) cerror.AppError {
-	if input.Id == "" {
+	if input.Etag == "" {
 		return cerror.NewBadRequestError("app.case.update_case.etag_required", "Etag is required")
 	}
 
@@ -427,23 +428,20 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 
 // NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.
 func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) error {
+	var err error
 	fields := mainOpts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
+	hasEtag, hasId, hasVer := util.FindEtagFields(fields)
 
 	fields = util.FieldsFunc(fields, util.InlineFields)
 
 	for _, item := range res.Items {
-		id, err := strconv.Atoi(item.Id)
+		err = util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
 		if err != nil {
 			return err
 		}
-		item.Id, err = etag.EncodeEtag(etag.EtagCase, int64(id), item.Ver)
-		if err != nil {
-			return err
-		}
-		item.Ver = 0
 		if item.Reporter == nil && util.ContainsField(fields, "reporter") {
 			item.Reporter = &cases.Lookup{
 				Name: AnonymousName,
@@ -455,11 +453,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 	for _, item := range res.Items {
 		if item.Comments != nil {
 			for _, com := range item.Comments.Items {
-				id, err := strconv.Atoi(com.Id)
-				if err != nil {
-					return err
-				}
-				com.Id, err = etag.EncodeEtag(etag.EtagCaseComment, int64(id), com.Ver)
+				err = util.NormalizeEtags(etag.EtagCaseComment, true, false, false, &com.Etag, &com.Id, &com.Ver)
 				if err != nil {
 					return err
 				}
@@ -467,11 +461,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 		}
 		if item.Links != nil {
 			for _, link := range item.Links.Items {
-				id, err := strconv.Atoi(link.Id)
-				if err != nil {
-					return err
-				}
-				link.Id, err = etag.EncodeEtag(etag.EtagCaseLink, int64(id), link.Ver)
+				err = util.NormalizeEtags(etag.EtagCaseLink, true, false, false, &link.Etag, &link.Id, &link.Ver)
 				if err != nil {
 					return err
 				}
@@ -479,11 +469,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 		}
 		if item.Related != nil {
 			for _, related := range item.Related.Data {
-				id, err := strconv.Atoi(related.Id)
-				if err != nil {
-					return err
-				}
-				related.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), related.Ver)
+				err = util.NormalizeEtags(etag.EtagRelatedCase, true, false, false, &related.Etag, &related.Id, &related.Ver)
 				if err != nil {
 					return err
 				}
@@ -500,16 +486,8 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
+	util.NormalizeEtag(fields, &re.Etag, &re.Id, &re.Ver)
 
-	id, err := strconv.Atoi(re.Id)
-	if err != nil {
-		return err
-	}
-	re.Id, err = etag.EncodeEtag(etag.EtagCase, int64(id), re.Ver)
-	if err != nil {
-		return err
-	}
-	re.Ver = 0
 	if re.Reporter == nil && util.ContainsField(fields, "reporter") {
 		re.Reporter = &cases.Lookup{
 			Name: AnonymousName,

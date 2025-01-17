@@ -232,16 +232,17 @@ func ScanRelatedCaseLookup(value **_go.RelatedCaseLookup) any {
 		var (
 			ok  bool
 			str pgtype.Text
+			num pgtype.Int8
 			row = []pgtype.TextDecoder{
 				TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
 						return nil
 					}
-					err := str.DecodeText(nil, src)
+					err := num.DecodeText(nil, src)
 					if err != nil {
 						return err
 					}
-					res.Id = str.String
+					res.Id = num.Int
 					return nil
 				}),
 				TextDecoder(func(src []byte) error {

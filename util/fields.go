@@ -80,15 +80,17 @@ func AddVersionAndIdByEtag(fields []string) {
 	return
 }
 
-// AddVersionAndIdByEtag searches for id, ver fields and adds missing
+// ParseFieldsForEtag searches for id, ver fields and adds missing
 // to provide full functionality of etag (do not changes fields, returns fully new slice)
 func ParseFieldsForEtag(fields []string) []string {
 	var (
-		res           []string
-		hasId, hasVer bool
+		res                    []string
+		hasEtag, hasId, hasVer bool
 	)
 	for _, field := range fields {
-		if field == "id" {
+		if field == "etag" {
+			hasEtag = true
+		} else if field == "id" {
 			res = append(res, field)
 			hasId = true
 		} else if field == "ver" {
@@ -98,11 +100,14 @@ func ParseFieldsForEtag(fields []string) []string {
 			res = append(res, field)
 		}
 	}
-	if !hasId {
-		res = append(res, "id")
-	}
-	if !hasVer {
-		res = append(res, "ver")
+
+	if hasEtag {
+		if !hasId {
+			res = append(res, "id")
+		}
+		if !hasVer {
+			res = append(res, "ver")
+		}
 	}
 	return res
 }
@@ -240,6 +245,49 @@ func EnsureFields(fields []string, requiredFields ...string) []string {
 		}
 	}
 	return fields
+}
+
+// NormalizeEtag normalizes etag, id, ver fields visibility for the response depending on what fields were requested.
+func NormalizeEtag(fields []string, etg *string, id *int64, ver *int32) error {
+	var err error
+	hasEtag, hasId, hasVer := FindEtagFields(fields)
+	if hasEtag {
+		*etg, err = etag.EncodeEtag(etag.EtagCase, *id, *ver)
+		if err != nil {
+			return err
+		}
+		// hide
+		if !hasId {
+			*id = 0
+		}
+		if !hasVer {
+			*ver = 0
+		}
+	}
+	return nil
+}
+
+// NormalizeEtags normalizes etag, id, ver fields visibility for the response depending on what fields were requested.
+// Function is an optimized-for-slice copy of NormalizeEtag function.
+//
+// Before usage you should call FindEtagFields on requested fields to find hasEtag, hasId, hasVer args.
+// Optimization consists in reduced number of cycles running through requested fields. If you are going to use
+// NormalizeEtag for each item in slice of your elements, FindEtagFields will be executed for each slice element.
+func NormalizeEtags(t etag.EtagType, hasEtag bool, hasId bool, hasVer bool, etg *string, id *int64, ver *int32) (err error) {
+	if hasEtag {
+		*etg, err = etag.EncodeEtag(t, *id, *ver)
+		if err != nil {
+			return err
+		}
+		// hide
+		if !hasId {
+			*id = 0
+		}
+		if !hasVer {
+			*ver = 0
+		}
+	}
+	return err
 }
 
 // ParseIds converts a slice of strings (each possibly containing comma-separated eTags or numeric IDs)

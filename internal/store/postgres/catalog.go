@@ -43,7 +43,7 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 		&createdAt, &updatedAt,
 		&add.Sla.Id, &add.Sla.Name,
 		&add.Status.Id, &add.Status.Name,
-		&add.CloseReason.Id, &add.CloseReason.Name,
+		&add.CloseReasonGroup.Id, &add.CloseReasonGroup.Name,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedByLookup.Id, &updatedByLookup.Name,
 		&teamLookups,  // JSON array for teams
@@ -82,7 +82,7 @@ func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *ca
 		rpc.GetAuthOpts().GetUserId(),   // $6: created_by, updated_by
 		add.Sla.Id,                      // $7: sla_id (could be null)
 		add.Status.Id,                   // $8: status_id (could be null)
-		add.CloseReason.Id,              // $9: close_reason_id (could be null)
+		add.CloseReasonGroup.Id,         // $9: close_reason_id (could be null)
 		add.State,                       // $10: state (cannot be null)
 		rpc.GetAuthOpts().GetDomainId(), // $11: domain ID (dc)
 	}
@@ -114,7 +114,7 @@ func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *ca
 WITH inserted_catalog AS (
     INSERT INTO cases.service_catalog (
                                        name, description, prefix, code, created_at, created_by, updated_at,
-                                       updated_by, sla_id, status_id, close_reason_id, state, dc
+                                       updated_by, sla_id, status_id, close_reason_group_id, state, dc
         ) VALUES ($1,
                   COALESCE(NULLIF($2, ''), NULL), -- Description (NULL if empty string)
                   COALESCE(NULLIF($3, ''), NULL), -- Prefix (NULL if empty string)
@@ -125,7 +125,7 @@ WITH inserted_catalog AS (
                   COALESCE(NULLIF($9, 0), NULL), -- Close Reason ID (NULL if 0)
                   $10,
                   $11)
-        RETURNING id, name, description, prefix, code, state, sla_id, status_id, close_reason_id,
+        RETURNING id, name, description, prefix, code, state, sla_id, status_id, close_reason_group_id,
             created_by, updated_by, created_at, updated_at),
      inserted_teams AS (
          INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, created_at, updated_at, dc)
@@ -159,8 +159,8 @@ SELECT inserted_catalog.id,
        COALESCE(sla.name, '')                        AS sla_name,          -- Return empty string if null
        COALESCE(inserted_catalog.status_id, 0)       AS status_id,         -- Return 0 if null
        COALESCE(status.name, '')                     AS status_name,       -- Return empty string if null
-       COALESCE(inserted_catalog.close_reason_id, 0) AS close_reason_id,   -- Return 0 if null
-       COALESCE(close_reason_group.name, '')               AS close_reason_name, -- Return empty string if null
+       COALESCE(inserted_catalog.close_reason_group_id, 0) AS close_reason_group_id,   -- Return 0 if null
+       COALESCE(close_reason_group.name, '')               AS close_reason_group_name, -- Return empty string if null
        COALESCE(inserted_catalog.created_by, 0)      AS created_by,        -- Return 0 if null
        COALESCE(created_by_user.name, '')            AS created_by_name,   -- Return empty string if null
        COALESCE(inserted_catalog.updated_by, 0)      AS updated_by,        -- Return 0 if null
@@ -170,7 +170,7 @@ SELECT inserted_catalog.id,
 FROM inserted_catalog
          LEFT JOIN cases.sla ON sla.id = inserted_catalog.sla_id
          LEFT JOIN cases.status ON status.id = inserted_catalog.status_id
-         LEFT JOIN cases.close_reason_group ON close_reason_group.id = inserted_catalog.close_reason_id
+         LEFT JOIN cases.close_reason_group ON close_reason_group.id = inserted_catalog.close_reason_group_id
          LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_catalog.created_by
          LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_catalog.updated_by
          LEFT JOIN teams_agg ON teams_agg.catalog_id = inserted_catalog.id
@@ -283,8 +283,8 @@ func (s *CatalogStore) List(
 		if util.ContainsField(rpc.Fields, "status") {
 			catalog.Status = &cases.Lookup{}
 		}
-		if util.ContainsField(rpc.Fields, "close_reason") {
-			catalog.CloseReason = &cases.Lookup{}
+		if util.ContainsField(rpc.Fields, "close_reason_group") {
+			catalog.CloseReasonGroup = &cases.Lookup{}
 		}
 		if util.ContainsField(rpc.Fields, "teams") {
 			catalog.Teams = []*cases.Lookup{}
@@ -392,6 +392,9 @@ func (s *CatalogStore) List(
 				if updatedAt, ok := raw["updated_at"].(float64); ok {
 					service.UpdatedAt = int64(updatedAt)
 				}
+				if catalogId, ok := raw["catalog_id"].(float64); ok {
+					service.CatalogId = int64(catalogId)
+				}
 
 				// Map SLA to Lookup
 				if slaID, ok := raw["sla_id"].(float64); ok {
@@ -406,7 +409,7 @@ func (s *CatalogStore) List(
 				// Map Group to Lookup
 				if groupID, ok := raw["group_id"].(float64); ok {
 					if groupName, ok := raw["group_name"].(string); ok {
-						service.Group = &cases.Lookup{
+						service.Group = &cases.ExtendedLookup{
 							Id:   int64(groupID),
 							Name: groupName,
 						}
@@ -546,8 +549,8 @@ func (s *CatalogStore) buildCatalogScanArgs(
 		case "status":
 			scanArgs = append(scanArgs, &catalog.Status.Id, &catalog.Status.Name)
 
-		case "close_reason":
-			scanArgs = append(scanArgs, &catalog.CloseReason.Id, &catalog.CloseReason.Name)
+		case "close_reason_group":
+			scanArgs = append(scanArgs, &catalog.CloseReasonGroup.Id, &catalog.CloseReasonGroup.Name)
 
 		case "created_by":
 			scanArgs = append(scanArgs, &catalog.CreatedBy.Id, &catalog.CreatedBy.Name)
@@ -679,11 +682,11 @@ func (s *CatalogStore) parsePartialService(
 				namePh, _ := placeholders[idx+1].(*sql.NullString)
 
 				if idPh != nil && idPh.Valid {
-					svc.Group = &cases.Lookup{Id: idPh.Int64}
+					svc.Group = &cases.ExtendedLookup{Id: idPh.Int64}
 				}
 				if namePh != nil && namePh.Valid {
 					if svc.Group == nil {
-						svc.Group = &cases.Lookup{}
+						svc.Group = &cases.ExtendedLookup{}
 					}
 					svc.Group.Name = namePh.String
 				}
@@ -793,24 +796,24 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 ) (string, []interface{}, error) {
 	// Catalog-level field map (removed "services": "" entry)
 	fieldMap := map[string]string{
-		"id":           "catalog.id",
-		"name":         "catalog.name",
-		"prefix":       "COALESCE(catalog.prefix, '') AS prefix",
-		"sla":          "COALESCE(catalog.sla_id, 0) AS sla_id, COALESCE(sla.name, '') AS sla_name",
-		"group":        "COALESCE(catalog.group_id, 0) AS group_id, COALESCE(group_lookup.name, '') AS group_name",
-		"assignee":     "COALESCE(catalog.assignee_id, 0) AS assignee_id, COALESCE(assignee_user.name, '') AS assignee_name",
-		"status":       "COALESCE(catalog.status_id, 0) AS status_id, COALESCE(status.name, '') AS status_name",
-		"code":         "COALESCE(catalog.code, '') AS code",
-		"description":  "COALESCE(catalog.description, '') AS description",
-		"close_reason": "COALESCE(catalog.close_reason_id, 0) AS close_reason_id, COALESCE(close_reason.name, '') AS close_reason_name",
-		"state":        "catalog.state AS state",
-		"created_by":   "COALESCE(catalog.created_by, 0) AS created_by, COALESCE(created_by_user.name, '') AS created_by_name",
-		"updated_by":   "COALESCE(catalog.updated_by, 0) AS updated_by, COALESCE(updated_by_user.name, '') AS updated_by_name",
-		"created_at":   "catalog.created_at AS created_at",
-		"updated_at":   "catalog.updated_at AS updated_at",
-		"teams":        "COALESCE(JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', teams.team_id, 'name', teams.team_name)) FILTER (WHERE teams.team_id IS NOT NULL), '[]') AS team_data",
-		"skills":       "COALESCE(JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', skills.skill_id, 'name', skills.skill_name)) FILTER (WHERE skills.skill_id IS NOT NULL), '[]') AS skill_data",
-		"root_id":      "COALESCE(catalog.root_id, 0) AS root_id",
+		"id":                 "catalog.id",
+		"name":               "catalog.name",
+		"prefix":             "COALESCE(catalog.prefix, '') AS prefix",
+		"sla":                "COALESCE(catalog.sla_id, 0) AS sla_id, COALESCE(sla.name, '') AS sla_name",
+		"group":              "COALESCE(catalog.group_id, 0) AS group_id, COALESCE(group_lookup.name, '') AS group_name",
+		"assignee":           "COALESCE(catalog.assignee_id, 0) AS assignee_id, COALESCE(assignee_user.name, '') AS assignee_name",
+		"status":             "COALESCE(catalog.status_id, 0) AS status_id, COALESCE(status.name, '') AS status_name",
+		"code":               "COALESCE(catalog.code, '') AS code",
+		"description":        "COALESCE(catalog.description, '') AS description",
+		"close_reason_group": "COALESCE(catalog.close_reason_group_id, 0) AS close_reason_group_id, COALESCE(close_reason_group.name, '') AS close_reason_name",
+		"state":              "catalog.state AS state",
+		"created_by":         "COALESCE(catalog.created_by, 0) AS created_by, COALESCE(created_by_user.name, '') AS created_by_name",
+		"updated_by":         "COALESCE(catalog.updated_by, 0) AS updated_by, COALESCE(updated_by_user.name, '') AS updated_by_name",
+		"created_at":         "catalog.created_at AS created_at",
+		"updated_at":         "catalog.updated_at AS updated_at",
+		"teams":              "COALESCE(JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', teams.team_id, 'name', teams.team_name)) FILTER (WHERE teams.team_id IS NOT NULL), '[]') AS team_data",
+		"skills":             "COALESCE(JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', skills.skill_id, 'name', skills.skill_name)) FILTER (WHERE skills.skill_id IS NOT NULL), '[]') AS skill_data",
+		"root_id":            "COALESCE(catalog.root_id, 0) AS root_id",
 	}
 
 	// Flags for applying CTEs or conditional joins
@@ -879,7 +882,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		LeftJoin("contacts.group AS group_lookup ON group_lookup.id = catalog.group_id").
 		LeftJoin("directory.wbt_user AS assignee_user ON assignee_user.id = catalog.assignee_id").
 		LeftJoin("cases.status ON status.id = catalog.status_id").
-		LeftJoin("cases.close_reason ON close_reason.id = catalog.close_reason_id").
+		LeftJoin("cases.close_reason_group ON close_reason_group.id = catalog.close_reason_group_id").
 		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
 		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by")
 
@@ -941,14 +944,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		searchCondition = "OR id IN (SELECT target_catalog_id FROM search_catalog)"
 	}
 
-	// Pagination
-	var pagination string
-	if len(rpc.IDs) == 0 {
-		pagination = `
-			ORDER BY id ASC
-			LIMIT :limit OFFSET :offset
-		`
-	}
+	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Prefix query
 	prefixQuery := `
@@ -957,10 +953,9 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 			FROM cases.service_catalog
 			WHERE root_id IS NULL
 			%s -- Conditionally include the search condition
-			%s -- Conditionally include pagination
 		),
 	`
-	prefixQuery = fmt.Sprintf(prefixQuery, searchCondition, pagination)
+	prefixQuery = fmt.Sprintf(prefixQuery, searchCondition)
 
 	// Add the prefix query with or without search_catalog based on search condition
 	if selectFlags["search"] {
@@ -980,7 +975,9 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	// Add GROUP BY for catalog fields
 	groupByFields := buildCatalogGroupByFields(rpc.Fields)
 
-	queryBuilder = queryBuilder.GroupBy(strings.Join(groupByFields, ", "))
+	if len(groupByFields) != 0 {
+		queryBuilder = queryBuilder.GroupBy(strings.Join(groupByFields, ", "))
+	}
 
 	// 11) Build final query
 	sqlQuery, _, err := queryBuilder.ToSql()
@@ -1050,6 +1047,9 @@ COALESCE(
 	if util.ContainsField(subfields, "root_id") {
 		jsonFields.WriteString("'root_id', service_hierarchy.root_id,\n")
 	}
+	if util.ContainsField(subfields, "catalog_id") {
+		jsonFields.WriteString("'catalog_id', service_hierarchy.catalog_id,\n")
+	}
 	// Add the searched field if search is active
 	if searched {
 		jsonFields.WriteString("'searched', service_hierarchy.searched,\n")
@@ -1070,14 +1070,14 @@ COALESCE(
 // applySorting applies dynamic sorting based on rpc.Sort and defaults to sorting by name in ascending order.
 func applySorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.SelectBuilder {
 	sortableFields := map[string]string{
-		"name":         "catalog.name",
-		"prefix":       "catalog.prefix",
-		"sla":          "sla.name",
-		"code":         "catalog.code",
-		"status":       "status.name",
-		"close_reason": "close_reason.name",
-		"description":  "catalog.description",
-		"state":        "catalog.state",
+		"name":               "catalog.name",
+		"prefix":             "catalog.prefix",
+		"sla":                "sla.name",
+		"code":               "catalog.code",
+		"status":             "status.name",
+		"close_reason_group": "close_reason_group.name",
+		"description":        "catalog.description",
+		"state":              "catalog.state",
 	}
 
 	sortApplied := false
@@ -1110,22 +1110,22 @@ func applySorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.Se
 // buildCatalogGroupByFields constructs the GROUP BY fields for catalog-level columns conditionally.
 func buildCatalogGroupByFields(requestedFields []string) []string {
 	fieldMap := map[string]string{
-		"id":           "catalog.id",
-		"name":         "catalog.name",
-		"prefix":       "catalog.prefix",
-		"sla":          "catalog.sla_id, sla.name",
-		"group":        "catalog.group_id, group_lookup.name",
-		"assignee":     "catalog.assignee_id, assignee_user.name",
-		"status":       "catalog.status_id, status.name",
-		"code":         "catalog.code",
-		"description":  "catalog.description",
-		"close_reason": "catalog.close_reason_id, close_reason.name",
-		"state":        "catalog.state",
-		"created_by":   "catalog.created_by, created_by_user.name",
-		"updated_by":   "catalog.updated_by, updated_by_user.name",
-		"created_at":   "catalog.created_at",
-		"updated_at":   "catalog.updated_at",
-		"root_id":      "catalog.root_id",
+		"id":                 "catalog.id",
+		"name":               "catalog.name",
+		"prefix":             "catalog.prefix",
+		"sla":                "catalog.sla_id, sla.name",
+		"group":              "catalog.group_id, group_lookup.name",
+		"assignee":           "catalog.assignee_id, assignee_user.name",
+		"status":             "catalog.status_id, status.name",
+		"code":               "catalog.code",
+		"description":        "catalog.description",
+		"close_reason_group": "catalog.close_reason_group_id, close_reason_group.name",
+		"state":              "catalog.state",
+		"created_by":         "catalog.created_by, created_by_user.name",
+		"updated_by":         "catalog.updated_by, updated_by_user.name",
+		"created_at":         "catalog.created_at",
+		"updated_at":         "catalog.updated_at",
+		"root_id":            "catalog.root_id",
 	}
 
 	groupByFields := []string{}
@@ -1330,7 +1330,7 @@ SELECT catalog.id,
 	if util.ContainsField(serviceFields, "assignee") {
 		sb.WriteString(`,
        COALESCE(catalog.assignee_id, 0) AS assignee_id,
-       COALESCE(service_assignee.name, '') AS assignee_name
+       COALESCE(service_assignee.common_name, '') AS assignee_name
 `)
 	}
 
@@ -1374,7 +1374,7 @@ LEFT JOIN contacts.group AS service_group
 	}
 	if util.ContainsField(serviceFields, "assignee") {
 		sb.WriteString(`
-LEFT JOIN directory.wbt_user AS service_assignee
+LEFT JOIN contacts.contact AS service_assignee
        ON service_assignee.id = catalog.assignee_id
 `)
 	}
@@ -1454,7 +1454,7 @@ SELECT subservice.id,
 	if util.ContainsField(serviceFields, "assignee") {
 		sb.WriteString(`,
        COALESCE(subservice.assignee_id, 0) AS assignee_id,
-       COALESCE(service_assignee2.name, '') AS assignee_name
+       COALESCE(service_assignee2.common_name, '') AS assignee_name
 `)
 	}
 	if util.ContainsField(serviceFields, "created_by") {
@@ -1505,7 +1505,7 @@ LEFT JOIN contacts.group AS service_group2
 	}
 	if util.ContainsField(serviceFields, "assignee") {
 		sb.WriteString(`
-LEFT JOIN directory.wbt_user AS service_assignee2
+LEFT JOIN contacts.contact AS service_assignee2
        ON service_assignee2.id = subservice.assignee_id
 `)
 	}
@@ -1685,7 +1685,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 		&lookup.Id, &lookup.Name, &createdAt,
 		&lookup.Sla.Id, &lookup.Sla.Name,
 		&lookup.Status.Id, &lookup.Status.Name,
-		&lookup.CloseReason.Id, &lookup.CloseReason.Name,
+		&lookup.CloseReasonGroup.Id, &lookup.CloseReasonGroup.Name,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedByLookup.Id, &updatedByLookup.Name, &updatedAt,
 		&lookup.State,
@@ -1866,10 +1866,10 @@ WITH root_check AS (
 				sq.Expr("(CASE WHEN (SELECT root_id FROM root_check) IS NULL THEN ? ELSE status_id END)",
 					lookup.Status.Id,
 				))
-		case "close_reason_id":
-			updateQueryBuilder = updateQueryBuilder.Set("close_reason_id",
-				sq.Expr("(CASE WHEN (SELECT root_id FROM root_check) IS NULL THEN NULLIF(?, 0) ELSE close_reason_id END)",
-					lookup.CloseReason.Id,
+		case "close_reason_group_id":
+			updateQueryBuilder = updateQueryBuilder.Set("close_reason_group_id",
+				sq.Expr("(CASE WHEN (SELECT root_id FROM root_check) IS NULL THEN NULLIF(?, 0) ELSE close_reason_group_id END)",
+					lookup.CloseReasonGroup.Id,
 				))
 		}
 	}
@@ -1893,8 +1893,8 @@ SELECT catalog.id,
        sla.name,
        COALESCE(catalog.status_id, 0) AS status_id,
        COALESCE(status.name, '') AS status_name,
-       COALESCE(catalog.close_reason_id, 0) AS close_reason_id,
-       COALESCE(close_reason_group.name, '')                    AS close_reason_name,
+       COALESCE(catalog.close_reason_group_id, 0) AS close_reason_group_id,
+       COALESCE(close_reason_group.name, '')                    AS close_reason_group_name,
        catalog.created_by,
        COALESCE(created_by_user.name, '')                 AS created_by_name,
        catalog.updated_by,
@@ -1912,11 +1912,11 @@ SELECT catalog.id,
 FROM updated_catalog AS catalog
          LEFT JOIN cases.sla ON sla.id = catalog.sla_id
          LEFT JOIN cases.status ON status.id = catalog.status_id
-         LEFT JOIN cases.close_reason_group ON close_reason_group.id = catalog.close_reason_id
+         LEFT JOIN cases.close_reason_group ON close_reason_group.id = catalog.close_reason_group_id
          LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by
          LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by
 GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name, catalog.status_id,
-         status.name, catalog.close_reason_id, close_reason_group.name, catalog.created_by, created_by_user.name,
+         status.name, catalog.close_reason_group_id, close_reason_group.name, catalog.created_by, created_by_user.name,
          catalog.updated_by, updated_by_user.name, catalog.updated_at, catalog.state;
 	`, checkRoot, updateSQL)
 

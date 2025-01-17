@@ -34,11 +34,11 @@ var RelatedCaseMetadata = model.NewObjectMetadata(
 	})
 
 func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.LocateRelatedCaseRequest) (*cases.RelatedCase, error) {
-	if req.GetId() == "" {
+	if req.GetEtag() == "" {
 		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.id_required", "ID is required")
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.Id)
+	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.invalid_id", "Invalid ID")
 	}
@@ -90,7 +90,7 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 }
 
 func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.CreateRelatedCaseRequest) (*cases.RelatedCase, error) {
-	if req.GetPrimaryCaseId() == "" {
+	if req.GetPrimaryCaseEtag() == "" {
 		return nil, cerror.NewBadRequestError("app.related_case.create_related_case.primary_case_id_required", "Primary case id required")
 	}
 
@@ -99,7 +99,7 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		slog.Error(err.Error())
 		return nil, AppInternalError
 	}
-	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseId())
+	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
 			"app.related_case.created_related_case.invalid_etag",
@@ -146,41 +146,17 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		return nil, err
 	}
 
-	parsedID, err := strconv.Atoi(relatedCase.Id)
-	if err != nil {
-		return nil, cerror.NewInternalError(
-			"app.related_case.create_related_case.invalid_id",
-			"Failed to parse relation ID",
-		)
-	}
-
-	relatedID, err := strconv.Atoi(relatedCase.RelatedCase.GetId())
-	if err != nil {
-		return nil, cerror.NewInternalError(
-			"app.related_case.create_related_case.invalid_id",
-			"Failed to parse related ID",
-		)
-	}
-
-	primaryID, err := strconv.Atoi(relatedCase.PrimaryCase.GetId())
-	if err != nil {
-		return nil, cerror.NewInternalError(
-			"app.related_case.create_related_case.invalid_id",
-			"Failed to parse related ID",
-		)
-	}
-
-	relatedCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(parsedID), relatedCase.Ver)
+	relatedCase.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, relatedCase.GetId(), relatedCase.Ver)
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-	relatedCase.RelatedCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(relatedID), relatedCase.Ver)
+	relatedCase.RelatedCase.Etag, err = etag.EncodeEtag(etag.EtagCase, relatedCase.RelatedCase.GetId(), relatedCase.Ver)
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-	relatedCase.PrimaryCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(primaryID), relatedCase.Ver)
+	relatedCase.PrimaryCase.Etag, err = etag.EncodeEtag(etag.EtagCase, relatedCase.PrimaryCase.GetId(), relatedCase.Ver)
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
@@ -189,7 +165,7 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 }
 
 func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.UpdateRelatedCaseRequest) (*cases.RelatedCase, error) {
-	if req.GetId() == "" {
+	if req.GetEtag() == "" {
 		return nil, cerror.NewBadRequestError("app.related_case.update_related_case.id_required", "ID required")
 	}
 
@@ -198,7 +174,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		slog.Error(err.Error())
 		return nil, AppInternalError
 	}
-	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetId())
+	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
 			"app.related_case.created_related_case.invalid_etag",
@@ -266,13 +242,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		return nil, err
 	}
 
-	id, err := strconv.Atoi(output.Id)
-	if err != nil {
-		// Return the error if ID conversion fails
-		return nil, cerror.NewInternalError("failed encoding id, error", err.Error())
-	}
-
-	output.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), output.Ver)
+	output.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, output.GetId(), output.GetVer())
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
@@ -281,11 +251,11 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 }
 
 func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.DeleteRelatedCaseRequest) (*cases.RelatedCase, error) {
-	if req.GetId() == "" {
+	if req.GetEtag() == "" {
 		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.id_required", "ID required")
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.Id)
+	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.invalid_etag", "Invalid etag")
 	}
@@ -330,10 +300,10 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 }
 
 func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.ListRelatedCasesRequest) (*cases.RelatedCaseList, error) {
-	if req.GetPrimaryCaseId() == "" {
+	if req.GetPrimaryCaseEtag() == "" {
 		return nil, cerror.NewBadRequestError("app.related_case.list_related_case.id_required", "ID required")
 	}
-	tag, err := etag.EtagOrId(etag.EtagCase, req.PrimaryCaseId)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.PrimaryCaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.list_related_cases.invalid_etag", "Invalid etag")
 	}
@@ -367,24 +337,17 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 		if relatedCase == nil {
 			continue
 		}
-
+		var err error
 		// Normalize related case ID
-		id, err := strconv.Atoi(relatedCase.Id)
-		if err != nil {
-			return fmt.Errorf("failed encoding related_case id: %w", err)
-		}
-		relatedCase.Id, err = etag.EncodeEtag(etag.EtagRelatedCase, int64(id), relatedCase.Ver)
+		relatedCase.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, relatedCase.GetId(), relatedCase.Ver)
 		if err != nil {
 			return err
 		}
 
 		// Normalize primary case ID
 		if relatedCase.PrimaryCase != nil {
-			primaryCaseID, err := strconv.Atoi(relatedCase.PrimaryCase.GetId())
-			if err != nil {
-				return fmt.Errorf("failed encoding primary_case id: %w", err)
-			}
-			relatedCase.PrimaryCase.Id, err = etag.EncodeEtag(etag.EtagCase, int64(primaryCaseID), relatedCase.PrimaryCase.GetVer())
+
+			relatedCase.PrimaryCase.Etag, err = etag.EncodeEtag(etag.EtagCase, relatedCase.PrimaryCase.GetId(), relatedCase.PrimaryCase.GetVer())
 			if err != nil {
 				return err
 			}
@@ -394,11 +357,7 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 
 		// Normalize related case ID inside related case
 		if relatedCase.RelatedCase != nil {
-			relatedCaseID, err := strconv.Atoi(relatedCase.RelatedCase.Id)
-			if err != nil {
-				return fmt.Errorf("failed encoding related_case id: %w", err)
-			}
-			relatedCase.RelatedCase.Id, err = etag.EncodeEtag(etag.EtagCase, int64(relatedCaseID), relatedCase.RelatedCase.GetVer())
+			relatedCase.RelatedCase.Etag, err = etag.EncodeEtag(etag.EtagCase, relatedCase.RelatedCase.Id, relatedCase.RelatedCase.GetVer())
 			if err != nil {
 				return err
 			}

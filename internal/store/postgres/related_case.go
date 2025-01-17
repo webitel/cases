@@ -3,8 +3,6 @@ package postgres
 import (
 	"errors"
 	"fmt"
-	"strconv"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/lib/pq"
@@ -231,44 +229,36 @@ func (r *RelatedCaseStore) List(
 func ParseRelationTypeWithReversion(
 	rawType string,
 	parentID int64,
-	parentCase string,
-	relatedCase string,
+	parentCase int64,
+	relatedCase int64,
 ) (cases.RelationType, error) {
-	parentCaseID, err := strconv.Atoi(parentCase)
-	if err != nil {
-		return cases.RelationType_RELATION_TYPE_UNSPECIFIED, fmt.Errorf("failed to parse parent case id", err)
-	}
-	relatedCaseID, err := strconv.Atoi(relatedCase)
-	if err != nil {
-		return cases.RelationType_RELATION_TYPE_UNSPECIFIED, fmt.Errorf("failed to parse parent case id", err)
-	}
 	switch rawType {
 	case "DUPLICATES":
-		if parentID == int64(parentCaseID) {
+		if parentID == parentCase {
 			return cases.RelationType_DUPLICATES, nil
 		}
-		if parentID == int64(relatedCaseID) {
+		if parentID == relatedCase {
 			return cases.RelationType_IS_DUPLICATED_BY, nil
 		}
 	case "BLOCKS":
-		if parentID == int64(parentCaseID) {
+		if parentID == parentCase {
 			return cases.RelationType_BLOCKS, nil
 		}
-		if parentID == int64(relatedCaseID) {
+		if parentID == relatedCase {
 			return cases.RelationType_IS_BLOCKED_BY, nil
 		}
 	case "CAUSES":
-		if parentID == int64(parentCaseID) {
+		if parentID == parentCase {
 			return cases.RelationType_CAUSES, nil
 		}
-		if parentID == int64(relatedCaseID) {
+		if parentID == relatedCase {
 			return cases.RelationType_IS_CAUSED_BY, nil
 		}
 	case "IS_CHILD_OF":
-		if parentID == int64(parentCaseID) {
+		if parentID == parentCase {
 			return cases.RelationType_IS_CHILD_OF, nil
 		}
-		if parentID == int64(relatedCaseID) {
+		if parentID == relatedCase {
 			return cases.RelationType_IS_PARENT_OF, nil
 		}
 	case "RELATES_TO":

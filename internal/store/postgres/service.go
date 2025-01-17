@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/internal/store/scanner"
 	"strings"
 	"time"
 
@@ -33,16 +34,17 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 	query, args := s.buildCreateServiceQuery(rpc, add)
 
 	var (
-		createdByLookup, updatedByLookup cases.Lookup
-		createdAt, updatedAt             time.Time
-		groupLookup, assigneeLookup      cases.Lookup
+		createdByLookup, updatedByLookup, slaLookup cases.Lookup
+		createdAt, updatedAt                        time.Time
+		groupLookup                                 cases.ExtendedLookup
+		assigneeLookup                              cases.Lookup
 	)
 
 	err := db.QueryRow(rpc.Context, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Code, &add.State,
 		&createdAt, &updatedAt,
-		&add.Sla.Id, &add.Sla.Name,
-		&groupLookup.Id, &groupLookup.Name,
+		&slaLookup.Id, &slaLookup.Name,
+		&groupLookup.Id, &groupLookup.Name, &groupLookup.Type,
 		&assigneeLookup.Id, &assigneeLookup.Name,
 		&createdByLookup.Id, &createdByLookup.Name,
 		&updatedByLookup.Id, &updatedByLookup.Name,
@@ -59,6 +61,7 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 	add.UpdatedBy = &updatedByLookup
 	add.Group = &groupLookup
 	add.Assignee = &assigneeLookup
+	add.Sla = &slaLookup
 
 	// Return the created Service
 	return add, nil
@@ -139,7 +142,7 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 		}
 
 		if util.ContainsField(rpc.Fields, "group") {
-			service.Group = &cases.Lookup{}
+			service.Group = &cases.ExtendedLookup{}
 		}
 
 		if util.ContainsField(rpc.Fields, "assignee") {
@@ -172,7 +175,6 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 		// Assign the created and updated timestamp values
 		service.CreatedAt = util.Timestamp(createdAt)
 		service.UpdatedAt = util.Timestamp(updatedAt)
-
 		// Append the populated service object to the services slice
 		services = append(services, service)
 		lCount++
@@ -207,17 +209,22 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 		return nil, dberr.NewDBInternalError("postgres.service.update.query_build_error", err)
 	}
 
+	if lookup.Sla == nil {
+		lookup.Sla = &cases.Lookup{}
+	}
+
 	var (
 		createdByLookup, updatedByLookup cases.Lookup
 		createdAt, updatedAt             time.Time
-		groupLookup, assigneeLookup      cases.Lookup
+		groupLookup                      cases.ExtendedLookup
+		assigneeLookup                   cases.Lookup
 	)
 
 	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &lookup.Description,
 		&lookup.Code, &lookup.State, &lookup.Sla.Id,
-		&lookup.Sla.Name, &groupLookup.Id, &groupLookup.Name,
-		&assigneeLookup.Id, &assigneeLookup.Name, &createdByLookup.Id,
+		&lookup.Sla.Name, scanner.ScanInt64(&groupLookup.Id), scanner.ScanText(&groupLookup.Name), scanner.ScanText(&groupLookup.Type),
+		scanner.ScanInt64(&assigneeLookup.Id), scanner.ScanText(&assigneeLookup.Name), &createdByLookup.Id,
 		&createdByLookup.Name, &updatedByLookup.Id, &updatedByLookup.Name,
 		&createdAt, &updatedAt, &lookup.RootId,
 	)
@@ -243,15 +250,25 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 }
 
 func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *cases.Service) (string, []interface{}) {
+	var assignee, group, sla *int64
+	if add.Assignee != nil && add.Assignee.GetId() != 0 {
+		assignee = &add.Assignee.Id
+	}
+	if add.Group != nil && add.Group.GetId() != 0 {
+		group = &add.Group.Id
+	}
+	if add.Sla != nil && add.Sla.GetId() != 0 {
+		sla = &add.Sla.Id
+	}
 	args := []interface{}{
 		add.Name,                        // $1: name
 		add.Description,                 // $2: description (can be null)
 		add.Code,                        // $3: code (can be null)
 		rpc.Time,                        // $4: created_at, updated_at
 		rpc.GetAuthOpts().GetUserId(),   // $5: created_by, updated_by
-		add.Sla.Id,                      // $6: sla_id
-		add.Group.Id,                    // $7: group_id
-		add.Assignee.Id,                 // $8: assignee_id
+		sla,                             // $6: sla_id
+		group,                           // $7: group_id
+		assignee,                        // $8: assignee_id
 		add.State,                       // $9: state
 		rpc.GetAuthOpts().GetDomainId(), // $10: domain ID
 		add.RootId,                      // $11: root_id (can be null)
@@ -287,6 +304,7 @@ SELECT inserted_service.id,
        COALESCE(sla.name, '')                     AS sla_name,        -- Return empty string if null
        COALESCE(inserted_service.group_id, 0)     AS group_id,        -- Return 0 if null
        COALESCE(grp.name, '')                     AS group_name,      -- Return empty string if null
+       CASE WHEN inserted_service.group_id NOTNULL THEN(CASE WHEN inserted_service.group_id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE '' END AS group_type,
        COALESCE(inserted_service.assignee_id, 0)  AS assignee_id,     -- Return 0 if null
        COALESCE(assignee.given_name, '')          AS assignee_name,   -- Return empty string if null
        COALESCE(inserted_service.created_by, 0)   AS created_by,      -- Return 0 if null
@@ -335,7 +353,8 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 		"created_by":  "service.created_by",
 		"updated_by":  "service.updated_by",
 		"sla":         "COALESCE(service.sla_id, 0) AS sla_id, COALESCE(sla.name, '') AS sla_name",
-		"group":       "COALESCE(service.group_id, 0) AS group_id, COALESCE(grp.name, '') AS group_name",
+		"group":       "COALESCE(service.group_id, 0) AS group_id, COALESCE(grp.name, '') AS group_name, CASE WHEN service.group_id NOTNULL THEN(CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE NULL END AS group_type",
+		"assignee":    "COALESCE(service.assignee_id, 0) AS assignee_id, COALESCE(ass.common_name, '') AS assignee_name",
 	}
 
 	// Initialize query builder
@@ -355,6 +374,8 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 			queryBuilder = queryBuilder.LeftJoin("cases.sla ON sla.id = service.sla_id")
 		case "group":
 			queryBuilder = queryBuilder.LeftJoin("contacts.group AS grp ON grp.id = service.group_id")
+		case "assignee":
+			queryBuilder = queryBuilder.LeftJoin("contacts.contact AS ass ON ass.id = service.assignee_id")
 		case "created_by":
 			queryBuilder = queryBuilder.LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by").
 				Column("COALESCE(created_by_user.name, '') AS created_by_name")
@@ -419,11 +440,19 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc *model.UpdateOptions, lookup 
 			// Use NULLIF to store NULL if sla_id is 0
 			updateQueryBuilder = updateQueryBuilder.Set("sla_id", sq.Expr("NULLIF(?, 0)", lookup.Sla.Id))
 		case "group_id":
+			var val *int64
+			if lookup.Group != nil {
+				val = &lookup.Group.Id
+			}
 			// Use NULLIF to store NULL if group_id is 0
-			updateQueryBuilder = updateQueryBuilder.Set("group_id", sq.Expr("NULLIF(?, 0)", lookup.Group.Id))
+			updateQueryBuilder = updateQueryBuilder.Set("group_id", sq.Expr("NULLIF(?, 0)", val))
 		case "assignee_id":
+			var val *int64
+			if lookup.Assignee != nil {
+				val = &lookup.Assignee.Id
+			}
 			// Use NULLIF to store NULL if assignee_id is 0
-			updateQueryBuilder = updateQueryBuilder.Set("assignee_id", sq.Expr("NULLIF(?, 0)", lookup.Assignee.Id))
+			updateQueryBuilder = updateQueryBuilder.Set("assignee_id", sq.Expr("NULLIF(?, 0)", val))
 		case "state":
 			updateQueryBuilder = updateQueryBuilder.Set("state", lookup.State)
 		case "root_id":
@@ -438,6 +467,7 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc *model.UpdateOptions, lookup 
 	}
 
 	// Now build the select query with a static SQL using a WITH clause
+	// TODO: refactor group type
 	query := fmt.Sprintf(`
 WITH updated_service AS (%s
 			RETURNING id, name, description, code, state, sla_id, group_id, assignee_id, created_by, updated_by, created_at, updated_at, root_id)
@@ -450,6 +480,7 @@ SELECT service.id,
        COALESCE(sla.name, '')            AS sla_name,     -- Handle NULL SLA as empty string
        service.group_id,
        COALESCE(grp.name, '')            AS group_name,   -- Handle NULL group as empty string
+       CASE WHEN service.group_id NOTNULL THEN(CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE NULL END AS group_type,
        service.assignee_id,
        COALESCE(assignee.given_name, '') AS assignee_name, -- Handle NULL assignee as empty string
        service.created_by,
@@ -501,9 +532,9 @@ func (s *ServiceStore) buildServiceScanArgs(
 		},
 		"group": func() {
 			if service.Group == nil {
-				service.Group = &cases.Lookup{}
+				service.Group = &cases.ExtendedLookup{}
 			}
-			scanArgs = append(scanArgs, &service.Group.Id, &service.Group.Name)
+			scanArgs = append(scanArgs, &service.Group.Id, &service.Group.Name, scanner.ScanText(&service.Group.Type))
 		},
 		"assignee": func() {
 			if service.Assignee == nil {
