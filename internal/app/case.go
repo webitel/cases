@@ -72,6 +72,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
 	if err != nil {
+		slog.Error(err.Error(), logAttributes)
 		return nil, cerror.NewBadRequestError("app.case.search_cases.parse_ids.invalid", err.Error())
 	}
 	for column, value := range req.GetFilters() {
@@ -102,6 +103,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	id, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
 	if err != nil {
+		slog.Error(err.Error(), logAttributes)
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
 	}
 	searchOpts.IDs = id
@@ -205,7 +207,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()))
 	newCase, err = c.app.Store.Case().Create(createOpts, newCase)
 	if err != nil {
-		return nil, err
+		slog.Error(err.Error(), logAttributes)
+		return nil, AppDatabaseError
 	}
 
 	// Encode etag from the case ID and version
@@ -259,6 +262,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Etag)
 	if err != nil {
+		slog.Error(err.Error())
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
@@ -298,7 +302,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case.update_case.store_update_failed", err.Error())
+		slog.Error(err.Error())
+		return nil, AppDatabaseError
 	}
 
 	err = c.NormalizeResponseCase(updatedCase, req)

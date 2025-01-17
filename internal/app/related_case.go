@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	authmodel "github.com/webitel/cases/auth/model"
 	"log/slog"
 	"strconv"
@@ -42,7 +41,7 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.invalid_id", "Invalid ID")
 	}
-	caseTid, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseId())
+	caseTid, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.invalid_primary_id", "Invalid ID")
 	}
@@ -259,7 +258,7 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.invalid_etag", "Invalid etag")
 	}
-	caseEtag, err := etag.EtagOrId(etag.EtagCase, req.Id)
+	caseEtag, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.invalid_etag", "Invalid etag")
 	}

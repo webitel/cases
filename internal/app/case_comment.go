@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	cases "github.com/webitel/cases/api/cases"
+	authmodel "github.com/webitel/cases/auth/model"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"

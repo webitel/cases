@@ -119,7 +119,7 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.unlink_communication.invalid_etag", "Invalid communication etag")
 	}
-	caseTag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
+	caseTag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.unlink_communication.invalid_etag", "Invalid case etag")
 	}

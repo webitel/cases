@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	cases "github.com/webitel/cases/api/cases"
+	authmodel "github.com/webitel/cases/auth/model"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -45,7 +46,7 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
 
-	caseEtg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseId())
+	caseEtg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_case_etag.error", err.Error())
 	}
@@ -156,7 +157,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.link_etag.parse.error", err.Error())
 	}
-	caseTID, err := etag.EtagOrId(etag.EtagCase, req.GetCaseId())
+	caseTID, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
@@ -208,7 +209,7 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.link_etag.parse.error", err.Error())
 	}
-	caseTID, err := etag.EtagOrId(etag.EtagCase, req.GetCaseId())
+	caseTID, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
 	}
