@@ -943,23 +943,20 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 			params["name"] = "%" + strings.Join(util.Substring(name), "%") + "%"
 		}
 
-		// Add hasSubservicesFilter to the search query directly
-		searchQ = fmt.Sprintf(`
-			search_catalog AS (
-				SELECT
-					catalog.id AS catalog_id,
-					catalog.catalog_id AS service_catalog_id,
-					CASE
-						WHEN catalog.catalog_id IS NULL THEN catalog.id
-						ELSE catalog.catalog_id
-					END AS target_catalog_id,
-					catalog.id AS searched_id
-				FROM cases.service_catalog catalog
-				WHERE catalog.name ILIKE :name
-				%s -- Conditionally include hasSubservicesFilter
-			),`, hasSubservicesFilter)
-
-		searchCondition = "OR id IN (SELECT target_catalog_id FROM search_catalog)"
+		searchQ = `
+		search_catalog AS (
+			SELECT
+				catalog.id AS catalog_id,
+				catalog.catalog_id AS service_catalog_id,
+				CASE
+					WHEN catalog.catalog_id IS NULL THEN catalog.id
+					ELSE catalog.catalog_id
+				END AS target_catalog_id,
+				catalog.id AS searched_id
+			FROM cases.service_catalog catalog
+			WHERE catalog.name ILIKE :name
+		),`
+		searchCondition = "AND id IN (SELECT target_catalog_id FROM search_catalog)"
 	}
 
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
