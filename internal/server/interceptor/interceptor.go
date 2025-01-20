@@ -34,17 +34,17 @@ func AuthUnaryServerInterceptor(authManager auth.AuthManager) grpc.UnaryServerIn
 		}
 
 		// // Retrieve authorization details
-		// objClass, _, action := objClassWithAction(info)
+		objClass, licenses, action := objClassWithAction(info)
 
 		// // License validation
-		// if missingLicenses := checkLicenses(session, licenses); len(missingLicenses) > 0 {
-		// 	return nil, autherror.NewUnauthorizedError("auth.license.missing", fmt.Sprintf("Missing required licenses: %v", missingLicenses))
-		// }
+		if missingLicenses := checkLicenses(session, licenses); len(missingLicenses) > 0 {
+			return nil, autherror.NewUnauthorizedError("auth.license.missing", fmt.Sprintf("Missing required licenses: %v", missingLicenses))
+		}
 
 		// Permission validation
-		// if ok, _ := validateSessionPermission(session, objClass, action); !ok {
-		// 	return nil, autherror.NewUnauthorizedError("auth.permission.denied", "Permission denied for the requested action")
-		// }
+		if ok, _ := validateSessionPermission(session, objClass, action); !ok {
+			return nil, autherror.NewUnauthorizedError("auth.permission.denied", "Permission denied for the requested action")
+		}
 
 		ctx = context.WithValue(ctx, SessionHeader, session)
 
@@ -84,7 +84,7 @@ func objClassWithAction(info *grpc.UnaryServerInfo) (string, []string, model.Acc
 		accessMode = model.Delete
 	}
 
-	return objClass, append(licenses, "Cases"), accessMode
+	return objClass, licenses, accessMode
 }
 
 // checkLicenses verifies that the session has all required licenses.
