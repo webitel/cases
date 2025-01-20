@@ -232,6 +232,7 @@ func (s *CatalogStore) List(
 	rpc *model.SearchOptions,
 	depth int64,
 	subfields []string,
+	hasSubservices bool,
 ) (*cases.CatalogList, error) {
 	// 1. Connect to DB
 	db, dbErr := s.storage.Database()
@@ -243,7 +244,7 @@ func (s *CatalogStore) List(
 	rpc.Fields = DeduplicateFields(rpc.Fields)
 
 	// 3. Build SQL query
-	query, args, err := s.buildSearchCatalogQuery(rpc, depth, subfields)
+	query, args, err := s.buildSearchCatalogQuery(rpc, depth, subfields, hasSubservices)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.list.query_build_error", err)
 	}
@@ -793,6 +794,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	rpc *model.SearchOptions,
 	depth int64,
 	subfields []string,
+	hasSubservices bool,
 ) (string, []interface{}, error) {
 	// Catalog-level field map (removed "services": "" entry)
 	fieldMap := map[string]string{
@@ -923,6 +925,8 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	// Search CTE
 	var searchQ string
 	var searchCondition string
+	var hasSubservicesFilter string
+
 	if selectFlags["search"] {
 		if name, ok := rpc.Filter["name"].(string); ok {
 			params["name"] = "%" + strings.Join(util.Substring(name), "%") + "%"
@@ -946,16 +950,27 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
-	// Prefix query
-	prefixQuery := `
-		limited_catalogs AS (
-			SELECT *
-			FROM cases.service_catalog
-			WHERE root_id IS NULL
-			%s -- Conditionally include the search condition
-		),
+	// Define hasSubservicesFilter conditionally
+	if hasSubservices {
+		hasSubservicesFilter = `
+		AND EXISTS (
+			SELECT 1
+			FROM cases.service_catalog lc
+			WHERE lc.root_id = catalog.id
+		)
 	`
-	prefixQuery = fmt.Sprintf(prefixQuery, searchCondition)
+	}
+
+	// Prefix query
+	prefixQuery := fmt.Sprintf(`
+	limited_catalogs AS (
+		SELECT *
+		FROM cases.service_catalog catalog
+		WHERE root_id IS NULL
+		%s -- Conditionally include the search condition
+		%s -- Conditionally include hasSubservicesFilter
+	),
+`, searchCondition, hasSubservicesFilter)
 
 	// Add the prefix query with or without search_catalog based on search condition
 	if selectFlags["search"] {

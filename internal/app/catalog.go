@@ -186,7 +186,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 	t := time.Now()
 	searchOptions := &model.SearchOptions{
 		IDs: req.Id, // TODO check placholders in DB layer
-		//Session: session,
+		// Session: session,
 		Context: ctx,
 		Sort:    req.Sort,
 		Fields:  req.Fields,
@@ -202,7 +202,12 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		req.Fields = append(req.Fields, "searched")
 	}
 
-	catalogs, e := s.app.Store.Catalog().List(searchOptions, req.Depth, req.SubFields)
+	catalogs, e := s.app.Store.Catalog().List(
+		searchOptions,
+		req.Depth,
+		req.SubFields,
+		req.HasSubservices,
+	)
 	if e != nil {
 		return nil, cerror.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
 	}
