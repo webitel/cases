@@ -47,3 +47,8 @@ alter table contacts.dynamic_group
 
 alter table cases.service_catalog
     rename column close_reason_id to close_reason_group_id;
+
+
+ALTER TABLE cases.status_condition
+ADD CONSTRAINT check_initial_final
+CHECK (NOT (initial = TRUE AND final = TRUE));
