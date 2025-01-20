@@ -927,39 +927,42 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	var searchCondition string
 	var hasSubservicesFilter string
 
+	// Define hasSubservicesFilter conditionally
+	if hasSubservices {
+		hasSubservicesFilter = `
+			AND EXISTS (
+				SELECT 1
+				FROM cases.service_catalog lc
+				WHERE lc.root_id = catalog.id
+			)
+		`
+	}
+
 	if selectFlags["search"] {
 		if name, ok := rpc.Filter["name"].(string); ok {
 			params["name"] = "%" + strings.Join(util.Substring(name), "%") + "%"
 		}
 
-		searchQ = `
-		search_catalog AS (
-			SELECT
-				catalog.id AS catalog_id,
-				catalog.catalog_id AS service_catalog_id,
-				CASE
-					WHEN catalog.catalog_id IS NULL THEN catalog.id
-					ELSE catalog.catalog_id
-				END AS target_catalog_id,
-				catalog.id AS searched_id
-			FROM cases.service_catalog catalog
-			WHERE catalog.name ILIKE :name
-		),`
+		// Add hasSubservicesFilter to the search query directly
+		searchQ = fmt.Sprintf(`
+			search_catalog AS (
+				SELECT
+					catalog.id AS catalog_id,
+					catalog.catalog_id AS service_catalog_id,
+					CASE
+						WHEN catalog.catalog_id IS NULL THEN catalog.id
+						ELSE catalog.catalog_id
+					END AS target_catalog_id,
+					catalog.id AS searched_id
+				FROM cases.service_catalog catalog
+				WHERE catalog.name ILIKE :name
+				%s -- Conditionally include hasSubservicesFilter
+			),`, hasSubservicesFilter)
+
 		searchCondition = "OR id IN (SELECT target_catalog_id FROM search_catalog)"
 	}
 
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
-
-	// Define hasSubservicesFilter conditionally
-	if hasSubservices {
-		hasSubservicesFilter = `
-		AND EXISTS (
-			SELECT 1
-			FROM cases.service_catalog lc
-			WHERE lc.root_id = catalog.id
-		)
-	`
-	}
 
 	// Prefix query
 	prefixQuery := fmt.Sprintf(`
