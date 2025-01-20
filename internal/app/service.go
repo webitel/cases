@@ -66,6 +66,7 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 
 	// Define create options
 	createOpts := model.CreateOptions{
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 		Context: ctx,
 		Time:    t,
 	}
@@ -152,7 +153,7 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 	searchOptions := &model.SearchOptions{
 		Fields: req.Fields,
 		IDs:    req.Id,
-		//Session: session,
+		// Session: session,
 		Context: ctx,
 		Sort:    req.Sort,
 		Page:    int(page),

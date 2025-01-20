@@ -2,9 +2,10 @@ package postgres
 
 import (
 	"fmt"
-	"github.com/webitel/cases/internal/store/scanner"
 	"strings"
 	"time"
+
+	"github.com/webitel/cases/internal/store/scanner"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
