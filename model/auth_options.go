@@ -57,6 +57,9 @@ type DefaultScope struct {
 }
 
 func newSessionObjectScope(scope *authmodel.Scope) ObjectScope {
+	if scope == nil {
+		return nil
+	}
 	return &DefaultScope{
 		rbac:    scope.IsRbacUsed(),
 		obac:    scope.IsObacUsed(),
