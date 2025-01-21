@@ -7,26 +7,25 @@ import (
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
-	"github.com/webitel/webitel-go-kit/errors"
 	"github.com/webitel/webitel-go-kit/etag"
 	"log/slog"
 )
 
-var CaseCommentMetadata = model.NewObjectMetadata(
-	"case_comments",
-	[]*model.Field{
-		{Name: "id", Default: false},
-		{Name: "etag", Default: true},
-		{Name: "ver", Default: false},
-		{Name: "created_at", Default: true},
-		{Name: "created_by", Default: true},
-		{Name: "updated_at", Default: true},
-		{Name: "updated_by", Default: false},
-		{Name: "text", Default: true},
-		{Name: "edited", Default: true},
-		{Name: "can_edit", Default: true},
-		{Name: "author", Default: true},
-	})
+const caseCommentsObjScope = "case_comments"
+
+var CaseCommentMetadata = model.NewObjectMetadata(caseCommentsObjScope, caseObjScope, []*model.Field{
+	{Name: "id", Default: false},
+	{Name: "etag", Default: true},
+	{Name: "ver", Default: false},
+	{Name: "created_at", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "updated_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "text", Default: true},
+	{Name: "edited", Default: true},
+	{Name: "can_edit", Default: true},
+	{Name: "author", Default: true},
+})
 
 type CaseCommentService struct {
 	app *App
@@ -209,7 +208,7 @@ func (c *CaseCommentService) PublishComment(
 	}
 	createOpts.ParentID = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
-	if createOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetMainScopeName()).IsRbacUsed() {
+	if createOpts.GetAuthOpts().GetObjectScope(CaseCommentMetadata.GetParentScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), authmodel.Edit, createOpts.ParentID)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
@@ -223,7 +222,7 @@ func (c *CaseCommentService) PublishComment(
 	comment, err := c.app.Store.CaseComment().Publish(createOpts, &cases.CaseComment{Text: req.Input.Text})
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
-		return nil, errors.NewInternalError("app.case_comment.publish_comment.database.exec", "database error")
+		return nil, AppDatabaseError
 	}
 
 	err = NormalizeCommentsResponse(comment, req)

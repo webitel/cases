@@ -16,18 +16,16 @@ type CaseFileService struct {
 	cases.UnimplementedCaseFilesServer
 }
 
-var CaseFileMetadata = model.NewObjectMetadata(
-	"cases",
-	[]*model.Field{
-		{Name: "id", Default: true},
-		{Name: "size", Default: true},
-		{Name: "mime", Default: true},
-		{Name: "name", Default: true},
-		{Name: "created_at", Default: true},
-		{Name: "created_by", Default: true},
-		{Name: "url", Default: true},
-		{Name: "author", Default: true},
-	})
+var CaseFileMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
+	{Name: "id", Default: true},
+	{Name: "size", Default: true},
+	{Name: "mime", Default: true},
+	{Name: "name", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "url", Default: true},
+	{Name: "author", Default: true},
+})
 
 func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesRequest) (*cases.CaseFileList, error) {
 	if req.CaseEtag == "" {

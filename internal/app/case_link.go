@@ -19,21 +19,19 @@ type CaseLinkService struct {
 	cases.UnimplementedCaseLinksServer
 }
 
-var CaseLinkMetadata = model.NewObjectMetadata(
-	"cases",
-	[]*model.Field{
-		{"etag", true},
-		{"id", false},
-		{"ver", false},
-		{"created_by", true},
-		{"created_at", true},
-		{"updated_by", false},
-		{"updated_at", false},
-		{"author", true},
-		{"name", true},
-		{"url", true},
-		{"case_id", false},
-	})
+var CaseLinkMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
+	{"etag", true},
+	{"id", false},
+	{"ver", false},
+	{"created_by", true},
+	{"created_at", true},
+	{"updated_by", false},
+	{"updated_at", false},
+	{"author", true},
+	{"name", true},
+	{"url", true},
+	{"case_id", false},
+})
 
 func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkRequest) (*cases.CaseLink, error) {
 	// Validate required fields

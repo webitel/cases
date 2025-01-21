@@ -17,17 +17,16 @@ var defaultFieldsPriority = []string{
 	"id", "name", "description", "color",
 }
 
-var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary,
-	[]*model.Field{
-		{"id", true},
-		{"created_by", false},
-		{"created_at", false},
-		{"updated_by", false},
-		{"updated_at", false},
-		{"name", true},
-		{"description", true},
-		{"color", true},
-	})
+var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
+	{"id", true},
+	{"created_by", false},
+	{"created_at", false},
+	{"updated_by", false},
+	{"updated_at", false},
+	{"name", true},
+	{"description", true},
+	{"color", true},
+})
 
 type PriorityService struct {
 	app *App

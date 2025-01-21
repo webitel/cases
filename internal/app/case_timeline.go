@@ -11,13 +11,11 @@ import (
 	"time"
 )
 
-var CaseTimelineMetadata = model.NewObjectMetadata(
-	"cases",
-	[]*model.Field{
-		{"calls", true},
-		{"chats", true},
-		{"emails", true},
-	})
+var CaseTimelineMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
+	{"calls", true},
+	{"chats", true},
+	{"emails", true},
+})
 
 type CaseTimelineService struct {
 	app *App

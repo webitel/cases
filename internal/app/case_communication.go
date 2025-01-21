@@ -13,15 +13,13 @@ import (
 	"log/slog"
 )
 
-var CaseCommunicationMetadata = model.NewObjectMetadata(
-	"cases",
-	[]*model.Field{
-		{Name: "etag", Default: true},
-		{Name: "ver", Default: false},
-		{"id", true},
-		{"communication_type", true},
-		{"communication_id", true},
-	})
+var CaseCommunicationMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
+	{Name: "etag", Default: true},
+	{Name: "ver", Default: false},
+	{"id", true},
+	{"communication_type", true},
+	{"communication_id", true},
+})
 
 type CaseCommunicationService struct {
 	app *App
@@ -41,7 +39,7 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 	searchOpts.ParentId = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("case_id", tag.GetOid()), slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 
-	if searchOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetMainScopeName()).IsRbacUsed() {
+	if searchOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
@@ -86,7 +84,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	createOpts.ParentID = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", createOpts.ParentID))
 
-	if createOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetMainScopeName()).IsRbacUsed() {
+	if createOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), authmodel.Edit, createOpts.ParentID)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
@@ -131,7 +129,7 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 	deleteOpts.IDs = []int64{tag.GetOid()}
 	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()))
 
-	if deleteOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetMainScopeName()).IsRbacUsed() {
+	if deleteOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), authmodel.Edit, caseTag.GetOid())
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)

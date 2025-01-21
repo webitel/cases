@@ -4,16 +4,22 @@ type ObjectMetadatter interface {
 	GetDefaultFields() []string
 	GetAllFields() []string
 	GetMainScopeName() string
+	GetParentScopeName() string
 	GetChildScopeNames() []string
 	GetAllScopeNames() []string
 }
 
 type ObjectMetadata struct {
-	fields               []string
-	defFields            []string
-	requiredObjClassName string
-	childObjScopes       []string
-	childMetadata        []ObjectMetadatter
+	fields             []string
+	defFields          []string
+	mainObjClassName   string
+	parentObjClassName string
+	childObjScopes     []string
+	childMetadata      []ObjectMetadatter
+}
+
+func (o *ObjectMetadata) GetParentScopeName() string {
+	return o.parentObjClassName
 }
 
 func (o *ObjectMetadata) GetChildScopeNames() []string {
@@ -21,7 +27,7 @@ func (o *ObjectMetadata) GetChildScopeNames() []string {
 }
 
 func (o *ObjectMetadata) GetAllScopeNames() []string {
-	return append(o.childObjScopes, o.requiredObjClassName)
+	return append(o.childObjScopes, o.mainObjClassName, o.parentObjClassName)
 }
 
 func (o *ObjectMetadata) GetAllFields() []string {
@@ -36,7 +42,7 @@ func (o *ObjectMetadata) GetDefaultFields() []string {
 	return res
 }
 func (o *ObjectMetadata) GetMainScopeName() string {
-	return o.requiredObjClassName
+	return o.mainObjClassName
 }
 
 type Field struct {
@@ -44,8 +50,8 @@ type Field struct {
 	Default bool
 }
 
-func NewObjectMetadata(requiredScope string, fields []*Field, childMetadata ...ObjectMetadatter) ObjectMetadatter {
-	res := &ObjectMetadata{requiredObjClassName: requiredScope, childMetadata: childMetadata}
+func NewObjectMetadata(mainScope string, parentScope string, fields []*Field, childMetadata ...ObjectMetadatter) ObjectMetadatter {
+	res := &ObjectMetadata{mainObjClassName: mainScope, parentObjClassName: parentScope, childMetadata: childMetadata}
 	for _, field := range fields {
 		res.fields = append(res.fields, field.Name)
 		if field.Default {

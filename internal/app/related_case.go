@@ -18,19 +18,17 @@ type RelatedCaseService struct {
 	cases.UnimplementedRelatedCasesServer
 }
 
-var RelatedCaseMetadata = model.NewObjectMetadata(
-	"cases",
-	[]*model.Field{
-		{Name: "id", Default: true},
-		{Name: "ver", Default: true},
-		{Name: "created_at", Default: true},
-		{Name: "created_by", Default: true},
-		{Name: "updated_at", Default: false},
-		{Name: "updated_by", Default: false},
-		{Name: "related_case", Default: true},
-		{Name: "primary_case", Default: true},
-		{Name: "relation", Default: true},
-	})
+var RelatedCaseMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
+	{Name: "id", Default: true},
+	{Name: "ver", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "updated_at", Default: false},
+	{Name: "updated_by", Default: false},
+	{Name: "related_case", Default: true},
+	{Name: "primary_case", Default: true},
+	{Name: "relation", Default: true},
+})
 
 func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.LocateRelatedCaseRequest) (*cases.RelatedCase, error) {
 	if req.GetEtag() == "" {

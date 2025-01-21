@@ -9,6 +9,9 @@ import (
 	otelsdk "github.com/webitel/webitel-go-kit/otel/sdk"
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel/sdk/resource"
+
+	_ "github.com/webitel/webitel-go-kit/otel/sdk/log/otlp"
+	_ "github.com/webitel/webitel-go-kit/otel/sdk/log/stdout"
 )
 
 // Setup initializes OpenTelemetry with slog logging and returns a shutdown function
