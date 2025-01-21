@@ -169,7 +169,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 	searchOptions := model.SearchOptions{
 		ParentId: req.SlaId,
 		IDs:      req.Id,
-		//Session:  session,
+		// Session:  session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -205,8 +205,6 @@ func (s *SLAConditionService) LocateSLACondition(ctx context.Context, req *cases
 		SlaId:  req.SlaId,
 		Id:     []int64{req.Id},
 		Fields: req.Fields,
-		Page:   1,
-		Size:   1, // We only need one item
 	}
 
 	// Call the ListSLAConditions method
