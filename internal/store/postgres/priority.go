@@ -138,13 +138,16 @@ func (p *Priority) buildDeletePriorityQuery(
 }
 
 // List implements store.PriorityStore.
-func (p *Priority) List(rpc *model.SearchOptions) (*api.PriorityList, error) {
+func (p *Priority) List(
+	rpc *model.SearchOptions,
+	notInSla int64,
+) (*api.PriorityList, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.database_connection_error", dbErr)
 	}
 
-	selectBuilder, plan, err := p.buildListPriorityQuery(rpc)
+	selectBuilder, plan, err := p.buildListPriorityQuery(rpc, notInSla)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.build_query_error", err)
 	}
@@ -153,6 +156,7 @@ func (p *Priority) List(rpc *model.SearchOptions) (*api.PriorityList, error) {
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.query_build_error", err)
 	}
+	query = store.CompactSQL(query)
 
 	rows, err := d.Query(rpc.Context, query, args...)
 	if err != nil {
@@ -191,6 +195,7 @@ func (p *Priority) List(rpc *model.SearchOptions) (*api.PriorityList, error) {
 
 func (p *Priority) buildListPriorityQuery(
 	rpc *model.SearchOptions,
+	notInSla int64,
 ) (sq.SelectBuilder, []PriorityScan, error) {
 	rpc.Fields = util.EnsureIdField(rpc.Fields)
 
@@ -209,6 +214,18 @@ func (p *Priority) buildListPriorityQuery(
 		substr := util.Substring(name)
 		combinedLike := strings.Join(substr, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"cp.name": combinedLike})
+	}
+
+	// Add NOT IN SLA condition if `notInSla` is not 0
+	if notInSla != 0 {
+		queryBuilder = queryBuilder.Where(sq.Expr(`
+				NOT EXISTS (
+					SELECT 1
+					FROM cases.sla_condition sc
+					JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+					WHERE sc.sla_id = ? AND psc.priority_id = cp.id
+				)
+			`, notInSla))
 	}
 
 	// -------- Apply sorting ----------

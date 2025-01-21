@@ -185,7 +185,7 @@ type PriorityStore interface {
 	// Create a new priority lookup
 	Create(rpc *model.CreateOptions, add *_go.Priority) (*_go.Priority, error)
 	// List priority lookup
-	List(rpc *model.SearchOptions) (*_go.PriorityList, error)
+	List(rpc *model.SearchOptions, notInSla int64) (*_go.PriorityList, error)
 	// Delete priority lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update priority lookup
