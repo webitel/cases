@@ -63,7 +63,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	searchOpts, err := model.NewSearchOptions(ctx, req, CaseMetadata)
 	if err != nil {
 		slog.Error(err.Error())
-		return nil, AppForbiddenError
+		return nil, AppInternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
@@ -94,7 +94,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	searchOpts, err := model.NewLocateOptions(ctx, req, CaseMetadata)
 	if err != nil {
 		slog.Error(err.Error())
-		return nil, AppForbiddenError
+		return nil, AppInternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	id, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
@@ -106,6 +106,9 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		return nil, err
+	}
+	if len(list.Items) == 0 {
+		return nil, cerror.NewBadRequestError("app.case_link.locate.not_found", "entity not found")
 	}
 	err = c.NormalizeResponseCases(list, req, nil)
 	if err != nil {

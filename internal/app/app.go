@@ -28,7 +28,7 @@ var (
 	AppDatabaseError            = errors.NewInternalError("app.process_api.database.perform_query.error", "database error occurred")
 	AppResponseNormalizingError = errors.NewInternalError("app.process_api.response.normalize.error", "error occurred while normalizing response")
 	AppForbiddenError           = errors.NewForbiddenError("app.process_api.response.access.error", "unable access resource")
-	AppInternalError            = errors.NewForbiddenError("app.process_api.execution.error", "error occurred while processing request")
+	AppInternalError            = errors.NewInternalError("app.process_api.execution.error", "error occurred while processing request")
 )
 
 type App struct {
