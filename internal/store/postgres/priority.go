@@ -347,7 +347,7 @@ func buildPrioritySelectColumnsAndPlan(
 				return &priority.Name
 			})
 		case "description":
-			base = base.Column(store.Ident(prioLeft, "description"))
+			base = base.Column(fmt.Sprintf("COALESCE(%s.description, '') AS description", prioLeft))
 			plan = append(plan, func(priority *api.Priority) any {
 				return &priority.Description
 			})
