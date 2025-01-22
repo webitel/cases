@@ -8,8 +8,7 @@ import (
 
 	api "github.com/webitel/cases/api/cases"
 
-	"github.com/webitel/cases/auth"
-	"github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/auth/user_auth"
 	autherror "github.com/webitel/cases/internal/error"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -25,7 +24,7 @@ const (
 var reg = regexp.MustCompile(`^(.*\.)`)
 
 // AuthUnaryServerInterceptor authenticates and authorizes unary RPCs.
-func AuthUnaryServerInterceptor(authManager auth.AuthManager) grpc.UnaryServerInterceptor {
+func AuthUnaryServerInterceptor(authManager user_auth.AuthManager) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		// Authorize session with the token
 		session, err := authManager.AuthorizeFromContext(ctx)
@@ -66,29 +65,29 @@ func tokenFromContext(ctx context.Context) (string, error) {
 	return token[0], nil
 }
 
-func objClassWithAction(info *grpc.UnaryServerInfo) (string, []string, model.AccessMode) {
+func objClassWithAction(info *grpc.UnaryServerInfo) (string, []string, user_auth.AccessMode) {
 	serviceName, methodName := splitFullMethodName(info.FullMethod)
 	service := api.WebitelAPI[serviceName]
 	objClass := service.ObjClass
 	licenses := service.AdditionalLicenses
 	action := service.WebitelMethods[methodName].Access
-	var accessMode model.AccessMode
+	var accessMode user_auth.AccessMode
 	switch action {
 	case 0:
-		accessMode = model.Add
+		accessMode = user_auth.Add
 	case 1:
-		accessMode = model.Read
+		accessMode = user_auth.Read
 	case 2:
-		accessMode = model.Edit
+		accessMode = user_auth.Edit
 	case 3:
-		accessMode = model.Delete
+		accessMode = user_auth.Delete
 	}
 
 	return objClass, licenses, accessMode
 }
 
 // checkLicenses verifies that the session has all required licenses.
-func checkLicenses(session *model.Session, licenses []string) []string {
+func checkLicenses(session *user_auth.UserAuthSession, licenses []string) []string {
 	var missing []string
 	for _, license := range licenses {
 		if !session.HasPermission(license) {
@@ -99,7 +98,7 @@ func checkLicenses(session *model.Session, licenses []string) []string {
 }
 
 // validateSessionPermission checks if the session has the required permissions.
-func validateSessionPermission(session *model.Session, objClass string, accessMode model.AccessMode) (bool, bool) {
+func validateSessionPermission(session *user_auth.UserAuthSession, objClass string, accessMode user_auth.AccessMode) (bool, bool) {
 	scope := session.GetScope(objClass)
 	if scope == nil {
 		return false, false

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	cases "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -60,7 +60,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		Name: session.GetUserName(),
 	}
 
-	// Create a new Catalog model
+	// Create a new Catalog user_auth
 	catalog := &cases.Catalog{
 		Name:             req.Name,
 		Description:      req.Description,
@@ -186,7 +186,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 	t := time.Now()
 	searchOptions := &model.SearchOptions{
 		IDs: req.Id, // TODO check placholders in DB layer
-		// Session: session,
+		// UserAuthSession: session,
 		Context: ctx,
 		Sort:    req.Sort,
 		Fields:  req.Fields,

@@ -5,7 +5,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/scanner"

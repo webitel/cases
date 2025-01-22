@@ -6,7 +6,7 @@ import (
 	"time"
 
 	cases "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/util"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -57,7 +57,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 		Name: session.GetUserName(),
 	}
 
-	// Create a new SLA model
+	// Create a new SLA user_auth
 	sla := &cases.SLA{
 		Name:           req.Name,
 		Description:    req.Description,
@@ -160,7 +160,7 @@ func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*
 	t := time.Now()
 	searchOptions := model.SearchOptions{
 		IDs: req.Id,
-		//Session: session,
+		//UserAuthSession: session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -238,7 +238,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		Name: session.GetUserName(),
 	}
 
-	// Update SLA model
+	// Update SLA user_auth
 	sla := &cases.SLA{
 		Id:             req.Id,
 		Name:           req.Input.Name,

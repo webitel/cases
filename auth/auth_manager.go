@@ -1,9 +1,4 @@
-package model
-
-const (
-	AuthTokenName      = "X-Webitel-Access"
-	RequestContextName = "grpc_ctx"
-)
+package auth
 
 type AccessMode uint8
 
@@ -27,3 +22,18 @@ const (
 	SuperCreatePermission = "add"
 	SuperDeletePermission = "delete"
 )
+
+type Auther interface {
+	GetRoles() []int64
+	GetUserId() int64
+	GetDomainId() int64
+	GetPermissions() []string
+	GetObjectScope(string) ObjectScoper
+}
+
+type ObjectScoper interface {
+	IsRbacUsed() bool
+	IsObacUsed() bool
+	CheckObacAccess(access uint8) bool
+	GetObjectName() string
+}

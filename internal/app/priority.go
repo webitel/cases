@@ -6,7 +6,7 @@ import (
 	"time"
 
 	api "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/util"
 
 	cerror "github.com/webitel/cases/internal/error"

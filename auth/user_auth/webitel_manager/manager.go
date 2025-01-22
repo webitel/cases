@@ -3,21 +3,20 @@ package webitel_manager
 import (
 	"context"
 
-	iface "github.com/webitel/cases/auth"
-	"github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/auth/user_auth"
 	autherror "github.com/webitel/cases/internal/error"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
-var _ iface.AuthManager = &WebitelAppAuthManager{}
+var _ user_auth.AuthManager = &WebitelAppAuthManager{}
 
 type WebitelAppAuthManager struct {
-	client *iface.AuthorizationClient
+	client *user_auth.AuthorizationClient
 }
 
-func NewWebitelAppAuthManager(conn *grpc.ClientConn) (iface.AuthManager, error) {
-	cli, err := iface.NewAuthorizationClient(conn)
+func NewWebitelAppAuthManager(conn *grpc.ClientConn) (user_auth.AuthManager, error) {
+	cli, err := user_auth.NewAuthorizationClient(conn)
 	if err != nil {
 		return nil, err
 	}
@@ -26,12 +25,12 @@ func NewWebitelAppAuthManager(conn *grpc.ClientConn) (iface.AuthManager, error) 
 	return manager, nil
 }
 
-func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*model.Session, error) {
+func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*user_auth.UserAuthSession, error) {
 	var token []string
 	var info metadata.MD
 	var ok bool
 
-	v := ctx.Value(model.RequestContextName)
+	v := ctx.Value(user_auth.RequestContextName)
 	info, ok = v.(metadata.MD)
 
 	if !ok {
@@ -41,7 +40,7 @@ func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*mode
 	if !ok {
 		return nil, autherror.NewForbiddenError("internal.grpc.get_context", "Not found")
 	} else {
-		token = info.Get(model.AuthTokenName)
+		token = info.Get(user_auth.AuthTokenName)
 	}
 	newContext := metadata.NewOutgoingContext(ctx, info)
 	if len(token) < 1 {
@@ -50,6 +49,6 @@ func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*mode
 	return i.Authorize(newContext, token[0])
 }
 
-func (i *WebitelAppAuthManager) Authorize(ctx context.Context, token string) (*model.Session, error) {
+func (i *WebitelAppAuthManager) Authorize(ctx context.Context, token string) (*user_auth.UserAuthSession, error) {
 	return i.client.UserInfo(ctx, token)
 }

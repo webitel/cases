@@ -6,7 +6,7 @@ import (
 	"time"
 
 	_go "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -43,7 +43,7 @@ func (s *CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.Cre
 		Name: session.GetUserName(),
 	}
 
-	// Create a new close reason model
+	// Create a new close reason user_auth
 	closeReason := &_go.CloseReason{
 		Name:               req.Name,
 		Description:        req.Description,
@@ -101,7 +101,7 @@ func (s *CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.List
 	t := time.Now()
 	searchOptions := &model.SearchOptions{
 		IDs: req.Id,
-		//Session: session,
+		//UserAuthSession: session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -149,7 +149,7 @@ func (s *CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.Upd
 		Name: session.GetUserName(),
 	}
 
-	// Update close reason model
+	// Update close reason user_auth
 	closeReason := &_go.CloseReason{
 		Id:                 req.Id,
 		CloseReasonGroupId: req.CloseReasonGroupId,

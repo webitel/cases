@@ -3,7 +3,7 @@ package store
 import (
 	"context"
 
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_go "github.com/webitel/cases/api/cases"

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	api "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -47,7 +47,7 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		Name: session.GetUserName(),
 	}
 
-	// Create a new Service model
+	// Create a new Service user_auth
 	service := &api.Service{
 		Name:        req.Name,
 		Description: req.Description,
@@ -153,7 +153,7 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 	searchOptions := &model.SearchOptions{
 		Fields: req.Fields,
 		IDs:    req.Id,
-		// Session: session,
+		// UserAuthSession: session,
 		Context: ctx,
 		Sort:    req.Sort,
 		Page:    int(page),

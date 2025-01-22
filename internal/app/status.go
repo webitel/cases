@@ -6,7 +6,7 @@ import (
 	"time"
 
 	_go "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -48,7 +48,7 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 		Name: session.GetUserName(),
 	}
 
-	// Create a new lookup model
+	// Create a new lookup user_auth
 	lookup := &_go.Status{
 		Name:        req.Name,
 		Description: req.Description,
@@ -106,7 +106,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 
 	searchOptions := model.SearchOptions{
 		IDs: req.Id,
-		//Session: session,
+		//UserAuthSession: session,
 		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
@@ -154,7 +154,7 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 		Name: session.GetUserName(),
 	}
 
-	// Update lookup model
+	// Update lookup user_auth
 	lookup := &_go.Status{
 		Id:          req.Id,
 		Name:        req.Input.Name,

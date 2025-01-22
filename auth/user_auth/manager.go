@@ -1,4 +1,4 @@
-package auth
+package user_auth
 
 import (
 	"context"
@@ -11,14 +11,13 @@ import (
 	// if not impoerted cause such error:
 	// ! failed to exit idle mode: invalid target address consul://10.9.8.111:8500/go.webitel.internal, error info: address consul://10.9.8.111:8500/go.webitel.internal:443: too many colons in address
 	_ "github.com/mbobakov/grpc-consul-resolver"
-	model "github.com/webitel/cases/auth/model"
 	autherror "github.com/webitel/cases/internal/error"
 	"google.golang.org/grpc"
 )
 
 type AuthManager interface {
-	Authorize(ctx context.Context, token string) (*model.Session, error)
-	AuthorizeFromContext(ctx context.Context) (*model.Session, error)
+	Authorize(ctx context.Context, token string) (*UserAuthSession, error)
+	AuthorizeFromContext(ctx context.Context) (*UserAuthSession, error)
 }
 
 type AuthorizationClient struct {
@@ -38,16 +37,16 @@ func NewAuthorizationClient(conn *grpc.ClientConn) (*AuthorizationClient, error)
 	}, nil
 }
 
-func (c *AuthorizationClient) UserInfo(ctx context.Context, token string) (*model.Session, error) {
+func (c *AuthorizationClient) UserInfo(ctx context.Context, token string) (*UserAuthSession, error) {
 	interfacedSession, err := c.Group.Do(token, func() (interface{}, error) {
 		info, err := c.Client.UserInfo(ctx, &authmodel.UserinfoRequest{AccessToken: token})
 		if err != nil {
 			return nil, err
 		}
-		return model.ConstructSessionFromUserInfo(info), nil
+		return ConstructSessionFromUserInfo(info), nil
 	})
 	if err != nil {
 		return nil, autherror.NewUnauthorizedError("auth.manager.user_info.do_request.error", err.Error())
 	}
-	return interfacedSession.(*model.Session), nil
+	return interfacedSession.(*UserAuthSession), nil
 }

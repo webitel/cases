@@ -6,7 +6,7 @@ import (
 	"time"
 
 	cases "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/util"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -60,7 +60,7 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 		Name: session.GetUserName(),
 	}
 
-	// Create a new SLACondition model
+	// Create a new SLACondition user_auth
 	slaCondition := &cases.SLACondition{
 		Name:           req.Name,
 		ReactionTime:   req.ReactionTime,
@@ -169,7 +169,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 	searchOptions := model.SearchOptions{
 		ParentId: req.SlaId,
 		IDs:      req.Id,
-		// Session:  session,
+		// UserAuthSession:  session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -178,7 +178,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 		Time:    t,
 		Filter:  make(map[string]interface{}),
 		ID:      req.PriorityId,
-		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
+		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
 	}
 
 	if req.Q != "" {
@@ -247,7 +247,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		Name: session.GetUserName(),
 	}
 
-	// Update SLACondition model
+	// Update SLACondition user_auth
 	slaCondition := &cases.SLACondition{
 		Id:             req.Id,
 		Name:           req.Input.Name,

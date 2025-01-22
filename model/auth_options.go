@@ -2,8 +2,9 @@ package model
 
 import (
 	"context"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/internal/server/interceptor"
+	"strings"
 )
 
 type Auther interface {
@@ -16,10 +17,11 @@ type Auther interface {
 type ObjectScope interface {
 	IsRbacUsed() bool
 	IsObacUsed() bool
+	CheckObacAccess(access uint8) bool
 	GetObjectName() string
 }
 
-func NewSessionAuthOptions(session *authmodel.Session, requiredScopes ...string) Auther {
+func NewSessionAuthOptions(session *authmodel.UserAuthSession, requiredScopes ...string) Auther {
 	if len(requiredScopes) == 0 || session == nil {
 		return nil
 	}
@@ -53,6 +55,7 @@ func (a *SessionAuthOptions) GetObjectScope(s string) ObjectScope {
 type DefaultScope struct {
 	rbac    bool
 	obac    bool
+	access  string
 	objName string
 }
 
@@ -64,6 +67,7 @@ func newSessionObjectScope(scope *authmodel.Scope) ObjectScope {
 		rbac:    scope.IsRbacUsed(),
 		obac:    scope.IsObacUsed(),
 		objName: scope.Name,
+		access:  scope.Access,
 	}
 }
 
@@ -81,10 +85,36 @@ func (d *DefaultScope) IsObacUsed() bool {
 	return d.obac
 }
 
+func (d *DefaultScope) CheckObacAccess(access uint8) bool {
+	var bypass, require string
+
+	switch access {
+	case Delete, Read | Delete:
+		require, bypass = "d", "delete"
+	case Edit, Read | Edit:
+		require, bypass = "w", "write"
+	case Read, NONE:
+		require, bypass = "r", "read"
+	case Add, Read | Add:
+		require, bypass = "x", "add"
+	}
+	if bypass != "" && s.HasPermission(bypass) {
+		return true
+	}
+	for i := len(require) - 1; i >= 0; i-- {
+		mode := require[i]
+		if strings.IndexByte(scope.Access, mode) < 0 {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (d *DefaultScope) GetObjectName() string {
 	return d.objName
 }
 
-func GetSessionOutOfContext(ctx context.Context) *authmodel.Session {
-	return ctx.Value(interceptor.SessionHeader).(*authmodel.Session)
+func GetSessionOutOfContext(ctx context.Context) *authmodel.UserAuthSession {
+	return ctx.Value(interceptor.SessionHeader).(*authmodel.UserAuthSession)
 }

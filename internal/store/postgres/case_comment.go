@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 
 	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
@@ -403,7 +403,7 @@ func convertToScanArgs(plan []func(comment *_go.CaseComment) any, comment *_go.C
 }
 
 // Helper function to build the select columns and scan plan based on the fields requested.
-// Session required to get some columns
+// UserAuthSession required to get some columns
 func buildCommentSelectColumnsAndPlan(
 	base sq.SelectBuilder,
 	left string,

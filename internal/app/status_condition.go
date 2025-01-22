@@ -6,7 +6,7 @@ import (
 	"time"
 
 	_go "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -48,7 +48,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 		Name: session.GetUserName(),
 	}
 
-	// Create a new status model
+	// Create a new status user_auth
 	status := &_go.StatusCondition{
 		Name:        req.Name,
 		Description: req.Description,
@@ -106,7 +106,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 	t := time.Now()
 	searchOptions := model.SearchOptions{
 		IDs: req.Id,
-		//Session: session,
+		//UserAuthSession: session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -154,7 +154,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 		Name: session.GetUserName(),
 	}
 
-	// Update status model
+	// Update status user_auth
 	status := &_go.StatusCondition{
 		Id:          req.Id,
 		StatusId:    req.StatusId,

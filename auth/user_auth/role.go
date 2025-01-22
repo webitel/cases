@@ -1,4 +1,4 @@
-package model
+package user_auth
 
 type Role struct {
 	Name string

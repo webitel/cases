@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	_go "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -50,7 +50,7 @@ func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRe
 		Name: session.GetUserName(),
 	}
 
-	// Create a new source model
+	// Create a new source user_auth
 	source := &_go.Source{
 		Name:        req.Name,
 		Description: req.Description,
@@ -103,7 +103,7 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 
 	searchOptions := model.SearchOptions{
 		IDs: req.Id,
-		//Session: session,
+		//UserAuthSession: session,
 		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
@@ -143,7 +143,7 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 	// }
 
 	// err = s.app.rabbit.Publish(
-	// 	model.APP_SERVICE_NAME,
+	// 	user_auth.APP_SERVICE_NAME,
 	// 	"list_sources_key",
 	// 	eventData,
 	// 	strconv.Itoa(int(session.GetUserId())),
@@ -180,7 +180,7 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 		Name: session.GetUserName(),
 	}
 
-	// Update source model
+	// Update source user_auth
 	source := &_go.Source{
 		Id:          req.Id,
 		Name:        req.Input.Name,

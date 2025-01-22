@@ -2,7 +2,7 @@ package app
 
 import (
 	"context"
-	authmodel "github.com/webitel/cases/auth/model"
+	authmodel "github.com/webitel/cases/auth/user_auth"
 	"log/slog"
 	"strconv"
 
