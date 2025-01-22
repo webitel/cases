@@ -132,8 +132,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 	}
 	defer rows.Close()
 
-	// Map to group SLAConditions by ID
-	slaConditionMap := make(map[int64]*cases.SLACondition)
+	// Prepare the result list
 	var slaConditionList []*cases.SLACondition
 	lCount := 0
 	next := false
@@ -149,36 +148,32 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 		var (
 			createdBy, updatedBy         cases.Lookup
 			tempCreatedAt, tempUpdatedAt time.Time
-			priorityID                   sql.NullInt64
-			priorityName                 sql.NullString
+			prioritiesJSON               []byte // JSON field for priorities
 		)
 
 		// Build scan arguments dynamically
 		scanArgs := s.buildScanArgs(
-			rpc.Fields, slaCondition, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt, &priorityID, &priorityName,
+			rpc.Fields, slaCondition, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt, &prioritiesJSON,
 		)
 
 		if err := rows.Scan(scanArgs...); err != nil {
 			return nil, dberr.NewDBInternalError("postgres.sla_condition.list.row_scan_error", err)
 		}
 
-		// Find or create SLACondition in the map
-		existingCondition, exists := slaConditionMap[slaCondition.Id]
-		if !exists {
-			// Populate SLACondition fields
-			s.populateSLAConditionFields(
-				rpc.Fields, slaCondition, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt,
-			)
-			slaCondition.Priorities = []*cases.Lookup{}
-			slaConditionMap[slaCondition.Id] = slaCondition
-			slaConditionList = append(slaConditionList, slaCondition)
-		} else {
-			slaCondition = existingCondition
+		// Populate SLACondition fields
+		s.populateSLAConditionFields(
+			rpc.Fields, slaCondition, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt,
+		)
+
+		// Parse JSON priorities into SLACondition.Priorities
+		if len(prioritiesJSON) > 0 {
+			if err := json.Unmarshal(prioritiesJSON, &slaCondition.Priorities); err != nil {
+				return nil, dberr.NewDBInternalError("postgres.sla_condition.list.priorities_parse_error", err)
+			}
 		}
 
-		// Populate priorities
-		s.populatePriorities(slaCondition, &priorityID, &priorityName)
-
+		// Add SLACondition to the result list
+		slaConditionList = append(slaConditionList, slaCondition)
 		lCount++
 	}
 
@@ -401,14 +396,15 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
 			groupByFields = append(groupByFields, "updated_by.id", "updated_by.name")
 		case "priorities":
-			// Include priority fields directly instead of JSON aggregation
 			queryBuilder = queryBuilder.
-				Column("p.id AS priority_id").
-				Column("p.name AS priority_name").
+				Column(`COALESCE(
+					JSON_AGG(
+						JSON_BUILD_OBJECT('id', p.id, 'name', p.name)
+					) FILTER (WHERE p.id IS NOT NULL),
+					'[]'
+				) AS priorities`).
 				LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
-				LeftJoin("cases.priority AS p ON p.id = ps.priority_id")
-			groupByFields = append(groupByFields, "p.id", "p.name") // Add priority fields to GROUP BY
-
+				LeftJoin("cases.priority AS p ON ps.priority_id = p.id")
 		}
 	}
 	if len(ids) > 0 {
@@ -557,8 +553,7 @@ func (s *SLAConditionStore) buildScanArgs(
 	slaCondition *cases.SLACondition,
 	createdBy, updatedBy *cases.Lookup,
 	createdAt, updatedAt *time.Time,
-	priorityID *sql.NullInt64,
-	priorityName *sql.NullString,
+	prioritiesJSON *[]byte,
 ) []interface{} {
 	var scanArgs []interface{}
 
@@ -583,7 +578,7 @@ func (s *SLAConditionStore) buildScanArgs(
 		case "updated_by":
 			scanArgs = append(scanArgs, &updatedBy.Id, &updatedBy.Name)
 		case "priorities":
-			scanArgs = append(scanArgs, priorityID, priorityName)
+			scanArgs = append(scanArgs, prioritiesJSON)
 		}
 	}
 
