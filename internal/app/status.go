@@ -6,8 +6,6 @@ import (
 	"time"
 
 	_go "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/user_auth"
-
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
@@ -30,22 +28,21 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 		return nil, cerror.NewBadRequestError("status.create_status.lookup.name.required", ErrLookupNameReq)
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("status.create_status.authorization.failed", err.Error())
-	}
+	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
 
-	// OBAC check
-	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
+	t := time.Now()
+
+	// Define create options
+	createOpts := model.CreateOptions{
+		Auth:    model.GetAutherOutOfContext(ctx),
+		Context: ctx,
+		Fields:  fields,
+		Time:    t,
 	}
 
 	// Define the current user as the creator and updater
 	currentU := &_go.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
+		Id: createOpts.GetAuthOpts().GetUserId(),
 	}
 
 	// Create a new lookup user_auth
@@ -54,18 +51,6 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 		Description: req.Description,
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
-	}
-
-	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
-
-	t := time.Now()
-
-	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
 	}
 
 	// Create the status in the store
@@ -79,17 +64,6 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 
 // ListStatuses implements api.StatusesServer.
 func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("status.list_status.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
 
 	fields := req.Fields
 	if len(fields) == 0 {
@@ -114,7 +88,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	if req.Q != "" {
@@ -136,32 +110,6 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 		return nil, cerror.NewBadRequestError("status.update_status.lookup.id.required", "Lookup ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("status.update_status.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	// Define the current user as the updater
-	currentU := &_go.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Update lookup user_auth
-	lookup := &_go.Status{
-		Id:          req.Id,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-		UpdatedBy:   currentU,
-	}
-
 	fields := []string{"id", "updated_at", "updated_by"}
 
 	for _, f := range req.XJsonMask {
@@ -180,10 +128,23 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
+	}
+
+	// Define the current user as the updater
+	currentU := &_go.Lookup{
+		Id: updateOpts.GetAuthOpts().GetUserId(),
+	}
+
+	// Update lookup user_auth
+	lookup := &_go.Status{
+		Id:          req.Id,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		UpdatedBy:   currentU,
 	}
 
 	// Update the lookup in the store
@@ -202,22 +163,10 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 		return nil, cerror.NewBadRequestError("status.delete_status.lookup.id.required", "Lookup ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("status.delete_status.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	t := time.Now()
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,

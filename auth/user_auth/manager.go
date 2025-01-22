@@ -2,6 +2,7 @@ package user_auth
 
 import (
 	"context"
+	"github.com/webitel/cases/auth"
 
 	authclient "buf.build/gen/go/webitel/webitel-go/grpc/go/_gogrpc"
 	authmodel "buf.build/gen/go/webitel/webitel-go/protocolbuffers/go"
@@ -16,8 +17,8 @@ import (
 )
 
 type AuthManager interface {
-	Authorize(ctx context.Context, token string) (*UserAuthSession, error)
-	AuthorizeFromContext(ctx context.Context) (*UserAuthSession, error)
+	Authorize(ctx context.Context, token string, mainObjClassName string, mainAccessMode auth.AccessMode) (*UserAuthSession, error)
+	AuthorizeFromContext(ctx context.Context, mainObjClassName string, mainAccessMode auth.AccessMode) (*UserAuthSession, error)
 }
 
 type AuthorizationClient struct {
@@ -37,13 +38,13 @@ func NewAuthorizationClient(conn *grpc.ClientConn) (*AuthorizationClient, error)
 	}, nil
 }
 
-func (c *AuthorizationClient) UserInfo(ctx context.Context, token string) (*UserAuthSession, error) {
+func (c *AuthorizationClient) UserInfo(ctx context.Context, token string, mainObjClassName string, mainAccessMode auth.AccessMode) (*UserAuthSession, error) {
 	interfacedSession, err := c.Group.Do(token, func() (interface{}, error) {
 		info, err := c.Client.UserInfo(ctx, &authmodel.UserinfoRequest{AccessToken: token})
 		if err != nil {
 			return nil, err
 		}
-		return ConstructSessionFromUserInfo(info), nil
+		return ConstructSessionFromUserInfo(info, mainObjClassName, mainAccessMode), nil
 	})
 	if err != nil {
 		return nil, autherror.NewUnauthorizedError("auth.manager.user_info.do_request.error", err.Error())

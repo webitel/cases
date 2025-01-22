@@ -29,11 +29,18 @@ type Auther interface {
 	GetDomainId() int64
 	GetPermissions() []string
 	GetObjectScope(string) ObjectScoper
+	GetAllObjectScopes() []ObjectScoper
+	CheckLicenseAccess(string) bool
+	CheckObacAccess(string, AccessMode) bool
+	IsRbacCheckRequired(string, AccessMode) bool
+
+	GetMainAccessMode() AccessMode
+	GetMainObjClassName() string
 }
 
 type ObjectScoper interface {
 	IsRbacUsed() bool
 	IsObacUsed() bool
-	CheckObacAccess(access uint8) bool
+	GetAccess() string
 	GetObjectName() string
 }

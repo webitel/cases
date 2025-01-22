@@ -3,6 +3,7 @@ package interceptor
 import (
 	"context"
 	"fmt"
+	"github.com/webitel/cases/auth"
 	"regexp"
 	"strings"
 
@@ -26,14 +27,15 @@ var reg = regexp.MustCompile(`^(.*\.)`)
 // AuthUnaryServerInterceptor authenticates and authorizes unary RPCs.
 func AuthUnaryServerInterceptor(authManager user_auth.AuthManager) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// Authorize session with the token
-		session, err := authManager.AuthorizeFromContext(ctx)
-		if err != nil {
-			return nil, autherror.NewUnauthorizedError("auth.session.invalid", fmt.Sprintf("Invalid session or expired token: %v", err))
-		}
 
 		// // Retrieve authorization details
 		objClass, licenses, action := objClassWithAction(info)
+
+		// Authorize session with the token
+		session, err := authManager.AuthorizeFromContext(ctx, objClass, action)
+		if err != nil {
+			return nil, autherror.NewUnauthorizedError("auth.session.invalid", fmt.Sprintf("Invalid session or expired token: %v", err))
+		}
 
 		// // License validation
 		if missingLicenses := checkLicenses(session, licenses); len(missingLicenses) > 0 {
@@ -41,7 +43,7 @@ func AuthUnaryServerInterceptor(authManager user_auth.AuthManager) grpc.UnarySer
 		}
 
 		// Permission validation
-		if ok, _ := validateSessionPermission(session, objClass, action); !ok {
+		if ok := validateSessionPermission(session, objClass, action); !ok {
 			return nil, autherror.NewUnauthorizedError("auth.permission.denied", "Permission denied for the requested action")
 		}
 
@@ -65,32 +67,32 @@ func tokenFromContext(ctx context.Context) (string, error) {
 	return token[0], nil
 }
 
-func objClassWithAction(info *grpc.UnaryServerInfo) (string, []string, user_auth.AccessMode) {
+func objClassWithAction(info *grpc.UnaryServerInfo) (string, []string, auth.AccessMode) {
 	serviceName, methodName := splitFullMethodName(info.FullMethod)
 	service := api.WebitelAPI[serviceName]
 	objClass := service.ObjClass
 	licenses := service.AdditionalLicenses
 	action := service.WebitelMethods[methodName].Access
-	var accessMode user_auth.AccessMode
+	var accessMode auth.AccessMode
 	switch action {
 	case 0:
-		accessMode = user_auth.Add
+		accessMode = auth.Add
 	case 1:
-		accessMode = user_auth.Read
+		accessMode = auth.Read
 	case 2:
-		accessMode = user_auth.Edit
+		accessMode = auth.Edit
 	case 3:
-		accessMode = user_auth.Delete
+		accessMode = auth.Delete
 	}
 
 	return objClass, licenses, accessMode
 }
 
 // checkLicenses verifies that the session has all required licenses.
-func checkLicenses(session *user_auth.UserAuthSession, licenses []string) []string {
+func checkLicenses(session auth.Auther, licenses []string) []string {
 	var missing []string
 	for _, license := range licenses {
-		if !session.HasPermission(license) {
+		if !session.CheckLicenseAccess(license) {
 			missing = append(missing, license)
 		}
 	}
@@ -98,12 +100,9 @@ func checkLicenses(session *user_auth.UserAuthSession, licenses []string) []stri
 }
 
 // validateSessionPermission checks if the session has the required permissions.
-func validateSessionPermission(session *user_auth.UserAuthSession, objClass string, accessMode user_auth.AccessMode) (bool, bool) {
-	scope := session.GetScope(objClass)
-	if scope == nil {
-		return false, false
-	}
-	return session.HasObacAccess(scope.Class, accessMode), scope.IsRbacUsed()
+func validateSessionPermission(session auth.Auther, objClass string, accessMode auth.AccessMode) bool {
+	return session.CheckObacAccess(objClass, accessMode)
+
 }
 
 // splitFullMethodName extracts service and method names from the full gRPC method name.

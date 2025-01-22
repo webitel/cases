@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 	"github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/user_auth"
+	"github.com/webitel/cases/auth"
 	errors "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/webitel-go-kit/etag"
@@ -44,7 +44,7 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 		slog.Int64("case_id", searchOpts.ParentId),
 	)
 	if searchOpts.GetAuthOpts().GetObjectScope(CaseTimelineMetadata.GetMainScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
@@ -68,7 +68,7 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline_counter.check_args.invalid_etag", "Invalid case etag")
 	}
-	searchOpts := &model.SearchOptions{Context: ctx, Fields: CaseTimelineMetadata.GetDefaultFields(), ParentId: tid.GetOid(), Auth: model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), CaseTimelineMetadata.GetAllScopeNames()...)}
+	searchOpts := &model.SearchOptions{Context: ctx, Fields: CaseTimelineMetadata.GetDefaultFields(), ParentId: tid.GetOid(), Auth: model.GetAutherOutOfContext(ctx)}
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
@@ -76,7 +76,7 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 		slog.Int64("case_id", searchOpts.ParentId),
 	)
 	if searchOpts.GetAuthOpts().GetObjectScope(CaseTimelineMetadata.GetMainScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError

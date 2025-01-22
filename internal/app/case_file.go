@@ -2,7 +2,7 @@ package app
 
 import (
 	"context"
-	authmodel "github.com/webitel/cases/auth/user_auth"
+	"github.com/webitel/cases/auth"
 	"log/slog"
 
 	cases "github.com/webitel/cases/api/cases"
@@ -45,7 +45,7 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 
 	if searchOpts.GetAuthOpts().GetObjectScope(CaseFileMetadata.GetMainScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError

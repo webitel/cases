@@ -6,8 +6,6 @@ import (
 	"time"
 
 	_go "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/user_auth"
-
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
@@ -24,32 +22,6 @@ func (s CloseReasonGroupService) CreateCloseReasonGroup(ctx context.Context, req
 		return nil, cerror.NewBadRequestError("close_reason_group_service.create_close_reason_group.name.required", "Lookup name is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("close_reason_group_service.create_close_reason_group.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	// Define the current user as the creator and updater
-	currentU := &_go.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Create a new lookup user_auth
-	lookup := &_go.CloseReasonGroup{
-		Name:        req.Name,
-		Description: req.Description,
-		CreatedBy:   currentU,
-		UpdatedBy:   currentU,
-	}
-
 	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
 
 	t := time.Now()
@@ -59,7 +31,20 @@ func (s CloseReasonGroupService) CreateCloseReasonGroup(ctx context.Context, req
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
+	}
+
+	// Define the current user as the creator and updater
+	currentU := &_go.Lookup{
+		Id: createOpts.GetAuthOpts().GetUserId(),
+	}
+
+	// Create a new lookup user_auth
+	lookup := &_go.CloseReasonGroup{
+		Name:        req.Name,
+		Description: req.Description,
+		CreatedBy:   currentU,
+		UpdatedBy:   currentU,
 	}
 
 	// Create the close reason group in the store
@@ -72,17 +57,6 @@ func (s CloseReasonGroupService) CreateCloseReasonGroup(ctx context.Context, req
 }
 
 func (s CloseReasonGroupService) ListCloseReasonGroups(ctx context.Context, req *_go.ListCloseReasonGroupsRequest) (*_go.CloseReasonGroupList, error) {
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("close_reason_group_service.list_close_reason_groups.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
 
 	fields := req.Fields
 	if len(fields) == 0 {
@@ -107,7 +81,7 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(ctx context.Context, req 
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	if req.Q != "" {
@@ -126,32 +100,6 @@ func (s CloseReasonGroupService) UpdateCloseReasonGroup(ctx context.Context, req
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("close_reason_group_service.update_close_reason_group.id.required", "Lookup ID is required")
-	}
-
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("close_reason_group_service.update_close_reason_group.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	// Define the current user as the updater
-	currentU := &_go.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Update lookup user_auth
-	lookup := &_go.CloseReasonGroup{
-		Id:          req.Id,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-		UpdatedBy:   currentU,
 	}
 
 	fields := []string{"id", "updated_at", "updated_by"}
@@ -175,7 +123,20 @@ func (s CloseReasonGroupService) UpdateCloseReasonGroup(ctx context.Context, req
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
+	}
+
+	// Define the current user as the updater
+	currentU := &_go.Lookup{
+		Id: updateOpts.GetAuthOpts().GetUserId(),
+	}
+
+	// Update lookup user_auth
+	lookup := &_go.CloseReasonGroup{
+		Id:          req.Id,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		UpdatedBy:   currentU,
 	}
 
 	// Update the lookup in the store
@@ -193,25 +154,13 @@ func (s CloseReasonGroupService) DeleteCloseReasonGroup(ctx context.Context, req
 		return nil, cerror.NewBadRequestError("close_reason_group_service.delete_close_reason_group.id.required", "Lookup ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("close_reason_group_service.delete_close_reason_group.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	t := time.Now()
 	// Define delete options
 	deleteOpts := &model.DeleteOptions{
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	// Delete the lookup in the store

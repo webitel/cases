@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/user_auth"
+	"github.com/webitel/cases/auth"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/scanner"
@@ -522,7 +522,7 @@ func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []int
 	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 	query := sq.Delete("cases.case").Where("id = ANY(?)", ids).Where("dc = ?", rpc.GetAuthOpts().GetDomainId())
-	query, err = addCaseRbacConditionForDelete(rpc.GetAuthOpts(), authmodel.Delete, query, "case.id")
+	query, err = addCaseRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, query, "case.id")
 	if err != nil {
 		return "", nil, err
 	}
@@ -568,7 +568,7 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 	return &res, nil
 }
 
-func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth model.Auther, access authmodel.AccessMode, caseId int64) (bool, error) {
+func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, access auth.AccessMode, caseId int64) (bool, error) {
 	if auth == nil {
 		return false, nil
 	}
@@ -694,9 +694,9 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		return base, nil, err
 	}
 
-	if auth := opts.GetAuthOpts(); auth != nil {
+	if sess := opts.GetAuthOpts(); sess != nil {
 		base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.GetAuthOpts().GetDomainId())
-		base, err = addCaseRbacCondition(auth, authmodel.Read, base, store.Ident(caseLeft, "id"))
+		base, err = addCaseRbacCondition(sess, auth.Read, base, store.Ident(caseLeft, "id"))
 	}
 	// pagination
 	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
@@ -762,7 +762,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			"dc":  rpc.GetAuthOpts().GetDomainId(),
 		})
 
-	updateBuilder, err = addCaseRbacConditionForUpdate(rpc.GetAuthOpts(), authmodel.Edit, updateBuilder, "case.id")
+	updateBuilder, err = addCaseRbacConditionForUpdate(rpc.GetAuthOpts(), auth.Edit, updateBuilder, "case.id")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1460,7 +1460,7 @@ func NewCaseStore(store store.Store) (store.CaseStore, error) {
 	return &CaseStore{storage: store, mainTable: "cases.case"}, nil
 }
 
-func addCaseRbacCondition(auth model.Auther, access authmodel.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
+func addCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
 	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
 		subquery := sq.Select("acl.object").From("cases.case_acl acl").
 			Where("acl.dc = ?", auth.GetDomainId()).
@@ -1474,7 +1474,7 @@ func addCaseRbacCondition(auth model.Auther, access authmodel.AccessMode, query 
 	return query, nil
 }
 
-func addCaseRbacConditionForDelete(auth model.Auther, access authmodel.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
+func addCaseRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
 	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
 		subquery := sq.Select("acl.object").From("cases.case_acl acl").
 			Where("acl.dc = ?", auth.GetDomainId()).
@@ -1488,7 +1488,7 @@ func addCaseRbacConditionForDelete(auth model.Auther, access authmodel.AccessMod
 	return query, nil
 }
 
-func addCaseRbacConditionForUpdate(auth model.Auther, access authmodel.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
+func addCaseRbacConditionForUpdate(auth auth.Auther, access auth.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
 	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
 		subquery := sq.Select("acl.object").From("cases.case_acl acl").
 			Where("acl.dc = ?", auth.GetDomainId()).
@@ -1502,7 +1502,7 @@ func addCaseRbacConditionForUpdate(auth model.Auther, access authmodel.AccessMod
 	return query, nil
 }
 
-func addCaseRbacConditionForInsert(auth model.Auther, access authmodel.AccessMode, query sq.InsertBuilder, caseId int64, alias string) (sq.InsertBuilder, error) {
+func addCaseRbacConditionForInsert(auth auth.Auther, access auth.AccessMode, query sq.InsertBuilder, caseId int64, alias string) (sq.InsertBuilder, error) {
 	var subquery sq.SelectBuilder
 	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
 		subquery = sq.Select("acl.object").From("cases.case_acl acl").

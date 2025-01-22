@@ -2,12 +2,9 @@ package app
 
 import (
 	"context"
-	"log/slog"
-	"time"
-
 	api "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/util"
+	"log/slog"
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -42,17 +39,6 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 		return nil, cerror.NewBadRequestError("app.priority.create_priority.color_required", "Color is required")
 	}
 
-	session, err := p.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("app.priority.create_priority.authorization_failed", err.Error())
-	}
-
-	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	lookup := &api.Priority{
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
@@ -81,41 +67,11 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 
 // ListPriorities implements api.PrioritiesServer.
 func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPriorityRequest) (*api.PriorityList, error) {
-	session, err := p.app.AuthorizeFromContext(ctx)
+	searchOptions, err := model.NewSearchOptions(ctx, req, PriorityMetadata)
 	if err != nil {
-		return nil, cerror.NewUnauthorizedError("app.priority.list_priorities.authorization_failed", err.Error())
+		slog.Error(err.Error())
+		return nil, AppInternalError
 	}
-
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = defaultFieldsPriority
-	}
-
-	page := req.Page
-	if page == 0 {
-		page = 1
-	}
-
-	t := time.Now()
-	searchOptions := &model.SearchOptions{
-		IDs: req.Id,
-		// Session: session,
-		Fields:  fields,
-		Context: ctx,
-		Sort:    req.Sort,
-		Page:    int(page),
-		Size:    int(req.Size),
-		Time:    t,
-		Filter:  make(map[string]interface{}),
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), PriorityMetadata.GetMainScopeName()),
-	}
-
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
 	}
@@ -132,30 +88,6 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePriorityRequest) (*api.Priority, error) {
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("app.priority.update_priority.id_required", "Priority ID is required")
-	}
-
-	session, err := p.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("app.priority.update_priority.authorization_failed", err.Error())
-	}
-
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	currentU := &api.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	lookup := &api.Priority{
-		Id:          req.Id,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-		UpdatedBy:   currentU,
-		Color:       req.Input.Color,
 	}
 
 	mask := []string{}
@@ -190,6 +122,14 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 	updateOpts.Fields = fields
 	updateOpts.Mask = mask
 
+	lookup := &api.Priority{
+		Id:          req.Id,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		UpdatedBy:   &api.Lookup{Id: updateOpts.GetAuthOpts().GetUserId()},
+		Color:       req.Input.Color,
+	}
+
 	l, err := p.app.Store.Priority().Update(updateOpts, lookup)
 	if err != nil {
 		return nil, cerror.NewInternalError("app.priority.update_priority.store_update_failed", err.Error())
@@ -203,18 +143,6 @@ func (p *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePri
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("app.priority.delete_priority.id_required", "Priority ID is required")
 	}
-
-	session, err := p.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("app.priority.delete_priority.authorization_failed", err.Error())
-	}
-
-	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	deleteOpts, err := model.NewDeleteOptions(ctx, PriorityMetadata)
 	if err != nil {
 		slog.Error(err.Error())

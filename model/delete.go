@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"github.com/webitel/cases/auth"
 	"time"
 )
 
@@ -13,15 +14,15 @@ type DeleteOptions struct {
 	IDs      []int64
 	ID       int64
 	ParentID int64
-	Auth     Auther
+	Auth     auth.Auther
 }
 
-func (s *DeleteOptions) SetAuthOpts(a Auther) *DeleteOptions {
+func (s *DeleteOptions) SetAuthOpts(a auth.Auther) *DeleteOptions {
 	s.Auth = a
 	return s
 }
 
-func (s *DeleteOptions) GetAuthOpts() Auther {
+func (s *DeleteOptions) GetAuthOpts() auth.Auther {
 	return s.Auth
 }
 
@@ -43,10 +44,8 @@ func NewDeleteOptions(ctx context.Context, metadatter ObjectMetadatter) (*Delete
 	}
 	deleteOpts.CurrentTime() // Set Time using CurrentTime
 
-	if sess := GetSessionOutOfContext(ctx); sess != nil {
-		deleteOpts.Auth = NewSessionAuthOptions(sess, metadatter.GetAllScopeNames()...)
-	} else if false {
-		// TODO: new authorization method without token
+	if sess := GetAutherOutOfContext(ctx); sess != nil {
+		deleteOpts.Auth = sess
 	} else {
 		return nil, errors.New("can't authorize user")
 	}

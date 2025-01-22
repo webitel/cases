@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"github.com/webitel/cases/auth"
 	"time"
 
 	"github.com/webitel/cases/model/graph"
@@ -23,15 +24,15 @@ type CreateOptions struct {
 	ParentID int64
 	// ChildID is the attribute to represent child object, that creation process connect
 	ChildID int64
-	Auth    Auther
+	Auth    auth.Auther
 }
 
-func (s *CreateOptions) SetAuthOpts(a Auther) *CreateOptions {
+func (s *CreateOptions) SetAuthOpts(a auth.Auther) *CreateOptions {
 	s.Auth = a
 	return s
 }
 
-func (s *CreateOptions) GetAuthOpts() Auther {
+func (s *CreateOptions) GetAuthOpts() auth.Auther {
 	return s.Auth
 }
 
@@ -55,10 +56,8 @@ func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMe
 
 	// set current time
 	createOpts.CurrentTime()
-	if sess := GetSessionOutOfContext(ctx); sess != nil {
-		createOpts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
-	} else if false {
-		// TODO: new authorization method without token
+	if sess := GetAutherOutOfContext(ctx); sess != nil {
+		createOpts.Auth = sess
 	} else {
 		return nil, errors.New("can't authorize user")
 	}

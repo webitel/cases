@@ -390,7 +390,7 @@ WHERE CASE
 
 	// Append the dynamic query arguments
 	args = append(args, updArgs...)
-	fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
+	//fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
 
 	return store.CompactSQL(query), args
 }

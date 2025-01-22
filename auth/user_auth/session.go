@@ -9,13 +9,19 @@ import (
 )
 
 type UserAuthSession struct {
-	user        *User
-	permissions []*Permission
-	scope       []*Scope
-	ifScopes    map[string]auth.ObjectScoper
-	roles       []*Role
-	domainId    int64
-	expiresAt   int64
+	user             *User
+	permissions      []string
+	scopes           map[string]*Scope
+	license          map[string]bool
+	roles            []*Role
+	domainId         int64
+	expiresAt        int64
+	superCreate      bool
+	superEdit        bool
+	superDelete      bool
+	superSelect      bool
+	mainAccess       auth.AccessMode
+	mainObjClassName string
 }
 
 // region Auther interface implementation
@@ -43,86 +49,63 @@ func (s *UserAuthSession) GetRoles() []int64 {
 }
 
 func (s *UserAuthSession) GetObjectScope(sc string) auth.ObjectScoper {
-	return s.ifScopes[sc]
+	return s.scopes[sc]
+}
+
+func (s *UserAuthSession) GetAllObjectScopes() []auth.ObjectScoper {
+	var res []auth.ObjectScoper
+	for _, scope := range s.scopes {
+		res = append(res, scope)
+	}
+	return res
 }
 
 func (s *UserAuthSession) GetPermissions() []string {
-	//TODO implement me
-	panic("implement me")
+	return s.permissions
 }
 
-// endregion
-
-func (s *UserAuthSession) HasScope(scopeName string) bool {
-	for _, scope := range s.scope {
-		if scope.Name == scopeName {
-			return true
-		}
+func (s *UserAuthSession) CheckLicenseAccess(name string) bool {
+	if legit, found := s.license[name]; found {
+		return legit
 	}
 	return false
 }
 
-func (s *UserAuthSession) GetScope(scopeName string) *Scope {
-	for _, scope := range s.scope {
-		if scope.Class == scopeName {
-			return scope
-		}
-	}
-	return nil
+func (s *UserAuthSession) GetMainAccessMode() auth.AccessMode {
+	return s.mainAccess
 }
 
-func (s *UserAuthSession) GetUserName() string {
-	if s.user == nil {
-		return ""
-	}
-	return s.user.Name
+func (s *UserAuthSession) GetMainObjClassName() string {
+	return s.mainObjClassName
 }
 
-func (s *UserAuthSession) GetUser() *User {
-	if s.user == nil {
-		return nil
-	}
-	clone := *s.user
-	return &clone
-}
-
-func (s *UserAuthSession) IsExpired() bool {
-	return time.Now().Unix() > s.expiresAt
-}
-
-func (s *UserAuthSession) HasPermission(permissionName string) bool {
-	for _, permission := range s.permissions {
-		if permission.Id == permissionName {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *UserAuthSession) HasObacAccess(scopeName string, accessType auth.AccessMode) bool {
-	scope := s.GetScope(scopeName)
+func (s *UserAuthSession) CheckObacAccess(scopeName string, accessType auth.AccessMode) bool {
+	scope := s.GetObjectScope(scopeName)
 	if scope == nil {
 		return false
 	}
 
-	var bypass, require string
+	var (
+		bypass  bool
+		require string
+	)
 
 	switch accessType {
 	case auth.Delete, auth.Read | auth.Delete:
-		require, bypass = "d", "delete"
+		require, bypass = "d", s.superDelete
 	case auth.Edit, auth.Read | auth.Edit:
-		require, bypass = "w", "write"
+		require, bypass = "w", s.superEdit
 	case auth.Read, auth.NONE:
-		require, bypass = "r", "read"
+		require, bypass = "r", s.superSelect
 	case auth.Add, auth.Read | auth.Add:
-		require, bypass = "x", "add"
+		require, bypass = "x", s.superCreate
 	}
-	if bypass != "" && s.HasPermission(bypass) {
+	if bypass {
 		return true
 	}
 	for i := len(require) - 1; i >= 0; i-- {
 		mode := require[i]
-		if strings.IndexByte(scope.Access, mode) < 0 {
+		if strings.IndexByte(scope.GetAccess(), mode) < 0 {
 			return false
 		}
 	}
@@ -130,7 +113,40 @@ func (s *UserAuthSession) HasObacAccess(scopeName string, accessType auth.Access
 	return true
 }
 
-func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo) *UserAuthSession {
+func (s *UserAuthSession) IsRbacCheckRequired(scopeName string, accessType auth.AccessMode) bool {
+	scope := s.GetObjectScope(scopeName)
+	if scope == nil {
+		return false
+	}
+	rbacEnabled := scope.IsRbacUsed()
+	if rbacEnabled {
+		var bypass bool
+
+		switch accessType {
+		case auth.Delete, auth.Read | auth.Delete:
+			bypass = s.superDelete
+		case auth.Edit, auth.Read | auth.Edit:
+			bypass = s.superEdit
+		case auth.Read, auth.NONE:
+			bypass = s.superSelect
+		case auth.Add, auth.Read | auth.Add:
+			bypass = s.superCreate
+		}
+		if bypass {
+			return false
+		}
+	}
+	return rbacEnabled
+
+}
+
+// endregion
+
+func (s *UserAuthSession) IsExpired() bool {
+	return time.Now().Unix() > s.expiresAt
+}
+
+func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo, mainObjClass string, mainAccess auth.AccessMode) *UserAuthSession {
 	session := &UserAuthSession{
 		user: &User{
 			Id:        userinfo.UserId,
@@ -138,23 +154,32 @@ func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo) *UserAuthSession
 			Username:  userinfo.Username,
 			Extension: userinfo.Extension,
 		},
-		expiresAt: userinfo.ExpiresAt,
-		domainId:  userinfo.Dc,
+		expiresAt:        userinfo.ExpiresAt,
+		domainId:         userinfo.Dc,
+		permissions:      make([]string, 0),
+		license:          map[string]bool{},
+		scopes:           map[string]*Scope{},
+		mainAccess:       mainAccess,
+		mainObjClassName: mainObjClass,
 	}
-	for i, permission := range userinfo.Permissions {
-		if i == 0 {
-			session.permissions = make([]*Permission, 0)
-		}
-		session.permissions = append(session.permissions, &Permission{
-			Id:   permission.GetId(),
-			Name: permission.GetName(),
-		})
+	for _, lic := range userinfo.License {
+		session.license[lic.Id] = lic.ExpiresAt > time.Now().UnixMilli()
 	}
-	for i, scope := range userinfo.Scope {
-		if i == 0 {
-			session.scope = make([]*Scope, 0)
+	for _, permission := range userinfo.Permissions {
+		switch permission.GetId() {
+		case auth.SuperCreatePermission:
+			session.superCreate = true
+		case auth.SuperDeletePermission:
+			session.superDelete = true
+		case auth.SuperEditPermission:
+			session.superEdit = true
+		case auth.SuperSelectPermission:
+			session.superSelect = true
 		}
-		session.scope = append(session.scope, &Scope{
+		session.permissions = append(session.permissions, permission.GetId())
+	}
+	for _, scope := range userinfo.Scope {
+		session.scopes[scope.Name] = &Scope{
 			Id:     scope.GetId(),
 			Name:   scope.GetName(),
 			Abac:   scope.Abac,
@@ -162,7 +187,7 @@ func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo) *UserAuthSession
 			Rbac:   scope.Rbac,
 			Class:  scope.Class,
 			Access: scope.Access,
-		})
+		}
 	}
 
 	for i, role := range userinfo.Roles {

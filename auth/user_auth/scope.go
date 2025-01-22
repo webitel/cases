@@ -10,6 +10,14 @@ type Scope struct {
 	Rbac   bool
 }
 
+func (s *Scope) GetObjectName() string {
+	return s.Name
+}
+
+func (s *Scope) GetAccess() string {
+	return s.Access
+}
+
 func (s *Scope) IsRbacUsed() bool {
 	if s == nil {
 		return false

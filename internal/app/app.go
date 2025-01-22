@@ -3,11 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/auth/user_auth/webitel_manager"
 	"github.com/webitel/webitel-go-kit/errors"
 	"log/slog"
 
-	authmodel "github.com/webitel/cases/auth/user_auth"
 	conf "github.com/webitel/cases/config"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/server"
@@ -36,7 +37,7 @@ type App struct {
 	server         *server.Server
 	exitChan       chan error
 	storageConn    *grpc.ClientConn
-	sessionManager authmodel.AuthManager
+	sessionManager user_auth.AuthManager
 	webitelAppConn *grpc.ClientConn
 	shutdown       func(ctx context.Context) error
 	log            *slog.Logger
@@ -138,8 +139,8 @@ func (a *App) Stop() error { // Change return type to standard error
 	return nil
 }
 
-func (a *App) AuthorizeFromContext(ctx context.Context) (*authmodel.UserAuthSession, error) { // Change return type to standard error
-	session, err := a.sessionManager.AuthorizeFromContext(ctx)
+func (a *App) AuthorizeFromContext(ctx context.Context) (*user_auth.UserAuthSession, error) { // Change return type to standard error
+	session, err := a.sessionManager.AuthorizeFromContext(ctx, "", auth.NONE)
 	if err != nil {
 		return nil, err
 	}

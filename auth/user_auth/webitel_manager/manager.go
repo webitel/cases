@@ -2,6 +2,7 @@ package webitel_manager
 
 import (
 	"context"
+	"github.com/webitel/cases/auth"
 
 	"github.com/webitel/cases/auth/user_auth"
 	autherror "github.com/webitel/cases/internal/error"
@@ -25,7 +26,7 @@ func NewWebitelAppAuthManager(conn *grpc.ClientConn) (user_auth.AuthManager, err
 	return manager, nil
 }
 
-func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*user_auth.UserAuthSession, error) {
+func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context, mainObjClassName string, mainAccessMode auth.AccessMode) (*user_auth.UserAuthSession, error) {
 	var token []string
 	var info metadata.MD
 	var ok bool
@@ -46,9 +47,9 @@ func (i *WebitelAppAuthManager) AuthorizeFromContext(ctx context.Context) (*user
 	if len(token) < 1 {
 		return nil, autherror.NewInternalError("webitel_manager.authorize_from_from_context.search_token.not_found", "token not found")
 	}
-	return i.Authorize(newContext, token[0])
+	return i.Authorize(newContext, token[0], mainObjClassName, mainAccessMode)
 }
 
-func (i *WebitelAppAuthManager) Authorize(ctx context.Context, token string) (*user_auth.UserAuthSession, error) {
-	return i.client.UserInfo(ctx, token)
+func (i *WebitelAppAuthManager) Authorize(ctx context.Context, token string, mainObjClassName string, mainAccessMode auth.AccessMode) (*user_auth.UserAuthSession, error) {
+	return i.client.UserInfo(ctx, token, mainObjClassName, mainAccessMode)
 }

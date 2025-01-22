@@ -6,7 +6,6 @@ import (
 	"time"
 
 	cases "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/util"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -39,37 +38,6 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.resolution_time.required", "Resolution time is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("sla_service.create_sla.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	// Define the current user as the creator and updater
-	currentU := &cases.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Create a new SLA user_auth
-	sla := &cases.SLA{
-		Name:           req.Name,
-		Description:    req.Description,
-		ValidFrom:      req.ValidFrom,
-		ValidTo:        req.ValidTo,
-		Calendar:       req.Calendar,
-		ReactionTime:   req.ReactionTime,
-		ResolutionTime: req.ResolutionTime,
-		CreatedBy:      currentU,
-		UpdatedBy:      currentU,
-	}
-
 	fields := []string{
 		"id", "lookup_id", "name", "description", "valid_from",
 		"valid_to", "calendar_id", "reaction_time", "resolution_time", "created_at", "updated_at",
@@ -83,7 +51,25 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
+	}
+
+	// Define the current user as the creator and updater
+	currentU := &cases.Lookup{
+		Id: createOpts.GetAuthOpts().GetUserId(),
+	}
+
+	// Create a new SLA user_auth
+	sla := &cases.SLA{
+		Name:           req.Name,
+		Description:    req.Description,
+		ValidFrom:      req.ValidFrom,
+		ValidTo:        req.ValidTo,
+		Calendar:       req.Calendar,
+		ReactionTime:   req.ReactionTime,
+		ResolutionTime: req.ResolutionTime,
+		CreatedBy:      currentU,
+		UpdatedBy:      currentU,
 	}
 
 	// Create the SLA in the store
@@ -102,22 +88,10 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.delete_sla.id.required", "SLA ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("sla_service.delete_sla.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	t := time.Now()
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,
@@ -134,17 +108,6 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 
 // ListSLAs implements cases.SLAsServer.
 func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*cases.SLAList, error) {
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("sla_service.list_slas.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
 
 	fields := req.Fields
 	if len(fields) == 0 {
@@ -168,7 +131,7 @@ func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	if req.Q != "" {
@@ -220,37 +183,6 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.update_sla.id.required", "SLA ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("sla_service.update_sla.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	// Define the current user as the updater
-	u := &cases.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Update SLA user_auth
-	sla := &cases.SLA{
-		Id:             req.Id,
-		Name:           req.Input.Name,
-		Description:    req.Input.Description,
-		ValidFrom:      req.Input.ValidFrom,
-		ValidTo:        req.Input.ValidTo,
-		Calendar:       req.Input.Calendar,
-		ReactionTime:   req.Input.ReactionTime,
-		ResolutionTime: req.Input.ResolutionTime,
-		UpdatedBy:      u,
-	}
-
 	fields := []string{"id"}
 
 	// Map XJsonMask fields to the corresponding SLA fields
@@ -288,10 +220,28 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
+	}
+
+	// Define the current user as the updater
+	u := &cases.Lookup{
+		Id: updateOpts.GetAuthOpts().GetUserId(),
+	}
+
+	// Update SLA user_auth
+	sla := &cases.SLA{
+		Id:             req.Id,
+		Name:           req.Input.Name,
+		Description:    req.Input.Description,
+		ValidFrom:      req.Input.ValidFrom,
+		ValidTo:        req.Input.ValidTo,
+		Calendar:       req.Input.Calendar,
+		ReactionTime:   req.Input.ReactionTime,
+		ResolutionTime: req.Input.ResolutionTime,
+		UpdatedBy:      u,
 	}
 
 	// Update the SLA in the store
