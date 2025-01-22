@@ -238,23 +238,33 @@ func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 	if len(requestedFields) == 0 {
 		requestedFields = CaseCommentMetadata.GetDefaultFields()
 	}
+	hasEtag, hasId, hasVer := util.FindEtagFields(requestedFields)
+	var err error
 	processComment := func(comment *cases.CaseComment) error {
-		err := util.NormalizeEtag(requestedFields, &comment.Etag, &comment.Id, &comment.Ver)
-		if err != nil {
-			return err
+		if hasEtag {
+			comment.Etag, err = etag.EncodeEtag(etag.EtagCaseComment, comment.Id, comment.Ver)
+			if err != nil {
+				return err
+			}
+			if !hasId {
+				comment.Id = 0
+			}
+			if !hasVer {
+				comment.Ver = 0
+			}
 		}
 		return nil
 	}
 
 	switch v := res.(type) {
 	case *cases.CaseComment:
-		err := processComment(v)
+		err = processComment(v)
 		if err != nil {
 			return err
 		}
 	case *cases.CaseCommentList:
 		for _, comment := range v.Items {
-			err := processComment(comment)
+			err = processComment(comment)
 			if err != nil {
 				return err
 			}
