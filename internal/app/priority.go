@@ -2,9 +2,10 @@ package app
 
 import (
 	"context"
+	"log/slog"
+
 	api "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/util"
-	"log/slog"
 
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -68,6 +69,7 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 // ListPriorities implements api.PrioritiesServer.
 func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPriorityRequest) (*api.PriorityList, error) {
 	searchOptions, err := model.NewSearchOptions(ctx, req, PriorityMetadata)
+	searchOptions.Sort = req.Sort
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, AppInternalError
