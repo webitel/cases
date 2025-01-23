@@ -28,14 +28,14 @@ CREATE TABLE cases."case" (
 	close_reason int8 NULL,
 	rating int8 NULL,
 	rating_comment varchar NULL,
-	resolved_at int8 NULL,
-	reacted_at int8 NULL,
 	service int8 NOT NULL,
 	sla int8 NOT NULL,
 	planned_reaction_at timestamp DEFAULT timezone('utc'::text, now()) NULL,
 	planned_resolve_at timestamp DEFAULT timezone('utc'::text, now()) NULL,
 	sla_condition_id int8 NULL,
 	contact_info text NULL,
+	reacted_at timestamp NULL,
+	resolved_at timestamp NULL,
 	CONSTRAINT case_fk UNIQUE (id, dc),
 	CONSTRAINT case_pk PRIMARY KEY (id)
 );
@@ -47,6 +47,12 @@ create trigger tg_case_rbac after
 insert
     on
     cases."case" for each row execute function directory.tg_obj_default_rbac('cases');
+create trigger trigger_update_case_timings before
+insert
+    or
+update
+    on
+    cases."case" for each row execute function cases.update_case_timings();
 
 
 -- cases.case_acl definition
@@ -116,6 +122,32 @@ CREATE UNIQUE INDEX case_comment_acl_object_subject_pk ON cases.case_comment_acl
 CREATE UNIQUE INDEX case_comment_acl_subject_object_uindex ON cases.case_comment_acl USING btree (subject, object);
 
 
+-- cases.case_communication definition
+
+-- Drop table
+
+-- DROP TABLE cases.case_communication;
+
+CREATE TABLE cases.case_communication (
+	id bigserial NOT NULL,
+	ver int4 DEFAULT 0 NOT NULL,
+	case_id int8 NOT NULL,
+	communication_type int4 NOT NULL, -- type of communication case connected to
+	communication_id text NOT NULL, -- Id of communication case connected to
+	dc int8 NOT NULL, -- Domain component
+	created_by int8 NULL,
+	created_at timestamp DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX unique_event_uindex ON cases.case_communication USING btree (communication_id, communication_type, case_id);
+COMMENT ON TABLE cases.case_communication IS 'Table connects case with other possible communications like chats, emails, calls';
+
+-- Column comments
+
+COMMENT ON COLUMN cases.case_communication.communication_type IS 'type of communication case connected to';
+COMMENT ON COLUMN cases.case_communication.communication_id IS 'Id of communication case connected to';
+COMMENT ON COLUMN cases.case_communication.dc IS 'Domain component';
+
+
 -- cases.case_link definition
 
 -- Drop table
@@ -150,7 +182,7 @@ CREATE INDEX link_case_dc ON cases.case_link USING btree (dc);
 CREATE TABLE cases.close_reason (
 	id int8 DEFAULT nextval('cases.reason_id'::regclass) NOT NULL,
 	"name" text NOT NULL,
-	description text NOT NULL,
+	description text NULL,
 	created_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL,
 	updated_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL,
 	created_by int8 NULL,
@@ -173,7 +205,7 @@ CREATE INDEX reason_source ON cases.close_reason USING btree (close_reason_id);
 CREATE TABLE cases.close_reason_group (
 	id int8 DEFAULT nextval('cases.close_reason_id'::regclass) NOT NULL,
 	"name" text NOT NULL,
-	description text NOT NULL,
+	description text NULL,
 	created_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL,
 	updated_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL,
 	created_by int8 NULL,
@@ -194,7 +226,7 @@ CREATE INDEX close_reason_dc ON cases.close_reason_group USING btree (dc);
 CREATE TABLE cases.priority (
 	id int8 DEFAULT nextval('cases.priority_id'::regclass) NOT NULL,
 	"name" text NOT NULL,
-	description text NOT NULL,
+	description text NULL,
 	created_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL,
 	updated_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL,
 	created_by int8 NULL,
@@ -245,14 +277,15 @@ CREATE TABLE cases.related_case (
 	updated_by int8 NULL,
 	updated_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL,
 	relation_type int2 NOT NULL,
-	parent_case_id int8 NOT NULL,
-	child_case_id int8 NOT NULL,
+	primary_case_id int8 NOT NULL,
+	related_case_id int8 NOT NULL,
 	CONSTRAINT related_case_fk UNIQUE (id, dc),
 	CONSTRAINT related_case_pk PRIMARY KEY (id)
 );
-CREATE INDEX idx_related_case_child_case ON cases.related_case USING btree (child_case_id);
-CREATE INDEX idx_related_case_parent_case ON cases.related_case USING btree (parent_case_id);
+CREATE INDEX idx_related_case_primary_case ON cases.related_case USING btree (primary_case_id);
+CREATE INDEX idx_related_case_related_case ON cases.related_case USING btree (related_case_id);
 CREATE INDEX related_case_dc ON cases.related_case USING btree (dc);
+CREATE UNIQUE INDEX unique_related_cases_relation ON cases.related_case USING btree (LEAST(primary_case_id, related_case_id), GREATEST(primary_case_id, related_case_id), relation_type);
 
 
 -- cases.service_catalog definition
@@ -266,7 +299,7 @@ CREATE TABLE cases.service_catalog (
 	root_id int8 NULL,
 	description text NULL,
 	code varchar(50) NULL,
-	prefix varchar(20) NOT NULL,
+	prefix varchar(20) NULL,
 	state bool DEFAULT true NOT NULL,
 	assignee_id int8 NULL,
 	created_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -276,10 +309,11 @@ CREATE TABLE cases.service_catalog (
 	dc int8 NOT NULL,
 	sla_id int8 NULL,
 	status_id int8 NULL,
-	close_reason_id int8 NULL,
+	close_reason_group_id int8 NULL,
 	group_id int4 NULL,
 	"name" text NOT NULL,
 	catalog_id int8 NULL,
+	CONSTRAINT chk_root_id_close_reason_id CHECK ((NOT ((root_id IS NULL) AND (close_reason_group_id IS NULL)))),
 	CONSTRAINT service_fk UNIQUE (id, dc),
 	CONSTRAINT service_pk PRIMARY KEY (id)
 );
@@ -478,7 +512,7 @@ ALTER TABLE cases."case" ADD CONSTRAINT case_updated_id_fk FOREIGN KEY (updated_
 ALTER TABLE cases.case_acl ADD CONSTRAINT case_acl_domain_fk FOREIGN KEY (dc) REFERENCES directory.wbt_domain(dc) ON DELETE CASCADE;
 ALTER TABLE cases.case_acl ADD CONSTRAINT case_acl_grantor_fk FOREIGN KEY (grantor,dc) REFERENCES directory.wbt_auth(id,dc) DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.case_acl ADD CONSTRAINT case_acl_grantor_id_fk FOREIGN KEY (grantor) REFERENCES directory.wbt_auth(id) ON DELETE SET NULL;
-ALTER TABLE cases.case_acl ADD CONSTRAINT case_acl_object_fk FOREIGN KEY ("object",dc) REFERENCES contacts."group"(id,dc) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.case_acl ADD CONSTRAINT case_acl_object_fk FOREIGN KEY ("object",dc) REFERENCES cases."case"(id,dc) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.case_acl ADD CONSTRAINT case_acl_subject_fk FOREIGN KEY (subject,dc) REFERENCES directory.wbt_auth(id,dc) ON DELETE CASCADE;
 
 
@@ -496,8 +530,15 @@ ALTER TABLE cases.case_comment ADD CONSTRAINT comment_case_updated_id_fk FOREIGN
 ALTER TABLE cases.case_comment_acl ADD CONSTRAINT case_comment_acl_domain_fk FOREIGN KEY (dc) REFERENCES directory.wbt_domain(dc) ON DELETE CASCADE;
 ALTER TABLE cases.case_comment_acl ADD CONSTRAINT case_comment_acl_grantor_fk FOREIGN KEY (grantor,dc) REFERENCES directory.wbt_auth(id,dc) DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.case_comment_acl ADD CONSTRAINT case_comment_acl_grantor_id_fk FOREIGN KEY (grantor) REFERENCES directory.wbt_auth(id) ON DELETE SET NULL;
-ALTER TABLE cases.case_comment_acl ADD CONSTRAINT case_comment_acl_object_fk FOREIGN KEY ("object",dc) REFERENCES contacts."group"(id,dc) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.case_comment_acl ADD CONSTRAINT case_comment_acl_object_fk FOREIGN KEY ("object",dc) REFERENCES cases.case_comment(id,dc) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.case_comment_acl ADD CONSTRAINT case_comment_acl_subject_fk FOREIGN KEY (subject,dc) REFERENCES directory.wbt_auth(id,dc) ON DELETE CASCADE;
+
+
+-- cases.case_communication foreign keys
+
+ALTER TABLE cases.case_communication ADD CONSTRAINT case_communication_case_id_fk FOREIGN KEY (case_id) REFERENCES cases."case"(id) ON DELETE CASCADE;
+ALTER TABLE cases.case_communication ADD CONSTRAINT case_communication_wbt_domain_dc_fk FOREIGN KEY (dc) REFERENCES directory.wbt_domain(dc) ON DELETE CASCADE;
+ALTER TABLE cases.case_communication ADD CONSTRAINT case_communication_wbt_user_id_fk FOREIGN KEY (created_by) REFERENCES directory.wbt_user(id);
 
 
 -- cases.case_link foreign keys
@@ -542,6 +583,7 @@ ALTER TABLE cases.priority ADD CONSTRAINT priority_updated_id_fk FOREIGN KEY (up
 ALTER TABLE cases.priority_sla_condition ADD CONSTRAINT priority_sla_condition_created_by_fk FOREIGN KEY (created_by) REFERENCES directory.wbt_user(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.priority_sla_condition ADD CONSTRAINT priority_sla_condition_created_dc_fk FOREIGN KEY (created_by,dc) REFERENCES directory.wbt_user(id,dc) DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.priority_sla_condition ADD CONSTRAINT priority_sla_condition_domain_fk FOREIGN KEY (dc) REFERENCES directory.wbt_domain(dc) ON DELETE CASCADE;
+ALTER TABLE cases.priority_sla_condition ADD CONSTRAINT priority_sla_condition_priority_fk FOREIGN KEY (priority_id,dc) REFERENCES cases.priority(id,dc) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.priority_sla_condition ADD CONSTRAINT priority_sla_condition_sla_condition_id_fk FOREIGN KEY (sla_condition_id) REFERENCES cases.sla_condition(id) ON DELETE CASCADE;
 ALTER TABLE cases.priority_sla_condition ADD CONSTRAINT priority_sla_condition_updated_by_fk FOREIGN KEY (updated_by) REFERENCES directory.wbt_user(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.priority_sla_condition ADD CONSTRAINT priority_sla_condition_updated_dc_fk FOREIGN KEY (updated_by,dc) REFERENCES directory.wbt_user(id,dc) DEFERRABLE INITIALLY DEFERRED;
@@ -549,10 +591,10 @@ ALTER TABLE cases.priority_sla_condition ADD CONSTRAINT priority_sla_condition_u
 
 -- cases.related_case foreign keys
 
-ALTER TABLE cases.related_case ADD CONSTRAINT related_case_child_case_fk FOREIGN KEY (child_case_id) REFERENCES cases."case"(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.related_case ADD CONSTRAINT related_case_created_dc_fk FOREIGN KEY (created_by,dc) REFERENCES directory.wbt_user(id,dc) DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.related_case ADD CONSTRAINT related_case_created_id_fk FOREIGN KEY (created_by) REFERENCES directory.wbt_user(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE cases.related_case ADD CONSTRAINT related_case_parent_case_fk FOREIGN KEY (parent_case_id) REFERENCES cases."case"(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.related_case ADD CONSTRAINT related_case_primary_case_fk FOREIGN KEY (primary_case_id) REFERENCES cases."case"(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.related_case ADD CONSTRAINT related_case_related_case_fk FOREIGN KEY (related_case_id) REFERENCES cases."case"(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.related_case ADD CONSTRAINT related_case_updated_dc_fk FOREIGN KEY (updated_by,dc) REFERENCES directory.wbt_user(id,dc) DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE cases.related_case ADD CONSTRAINT related_case_updated_id_fk FOREIGN KEY (updated_by) REFERENCES directory.wbt_user(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
 
@@ -588,12 +630,12 @@ ALTER TABLE cases.sla ADD CONSTRAINT sla_updated_id_fk FOREIGN KEY (updated_by) 
 
 -- cases.sla_condition foreign keys
 
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_created_dc_fk FOREIGN KEY (created_by,dc) REFERENCES directory.wbt_user(id,dc) DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_created_id_fk FOREIGN KEY (created_by) REFERENCES directory.wbt_user(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_domain_fk FOREIGN KEY (dc) REFERENCES directory.wbt_domain(dc) ON DELETE CASCADE;
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_sla_id_fk FOREIGN KEY (sla_id) REFERENCES cases.sla(id) ON DELETE CASCADE;
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_updated_dc_fk FOREIGN KEY (updated_by,dc) REFERENCES directory.wbt_user(id,dc) DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_updated_id_fk FOREIGN KEY (updated_by) REFERENCES directory.wbt_user(id) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_created_dc_fk FOREIGN KEY (created_by,dc) REFERENCES <?>() DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_created_id_fk FOREIGN KEY () REFERENCES <?>() ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_domain_fk FOREIGN KEY () REFERENCES <?>() ON DELETE CASCADE;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_sla_id_fk FOREIGN KEY () REFERENCES <?>() ON DELETE CASCADE;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_updated_dc_fk FOREIGN KEY () REFERENCES <?>() DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_updated_id_fk FOREIGN KEY () REFERENCES <?>() DEFERRABLE INITIALLY DEFERRED;
 
 
 -- cases."source" foreign keys
