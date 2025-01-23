@@ -84,7 +84,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	createOpts.ParentID = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", createOpts.ParentID))
 	accessMode := auth.Edit
-	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommentMetadata.GetParentScopeName(), accessMode) {
+	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommunicationMetadata.GetParentScopeName(), accessMode) {
 		slog.Error("user doesn't have required (EDIT) access to the case", logAttributes)
 		return nil, AppForbiddenError
 	}

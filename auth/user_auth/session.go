@@ -27,7 +27,7 @@ type UserAuthSession struct {
 // region Auther interface implementation
 
 func (s *UserAuthSession) GetUserId() int64 {
-	if s.user == nil {
+	if s.user == nil || s.user.Id <= 0 {
 		return 0
 	}
 	return s.user.Id
@@ -49,7 +49,11 @@ func (s *UserAuthSession) GetRoles() []int64 {
 }
 
 func (s *UserAuthSession) GetObjectScope(sc string) auth.ObjectScoper {
-	return s.scopes[sc]
+	scope, found := s.scopes[sc]
+	if !found {
+		return nil
+	}
+	return scope
 }
 
 func (s *UserAuthSession) GetAllObjectScopes() []auth.ObjectScoper {
@@ -85,28 +89,30 @@ func (s *UserAuthSession) CheckObacAccess(scopeName string, accessType auth.Acce
 		return false
 	}
 
-	var (
-		bypass  bool
-		require string
-	)
+	if scope.IsObacUsed() {
+		var (
+			bypass  bool
+			require string
+		)
 
-	switch accessType {
-	case auth.Delete, auth.Read | auth.Delete:
-		require, bypass = "d", s.superDelete
-	case auth.Edit, auth.Read | auth.Edit:
-		require, bypass = "w", s.superEdit
-	case auth.Read, auth.NONE:
-		require, bypass = "r", s.superSelect
-	case auth.Add, auth.Read | auth.Add:
-		require, bypass = "x", s.superCreate
-	}
-	if bypass {
-		return true
-	}
-	for i := len(require) - 1; i >= 0; i-- {
-		mode := require[i]
-		if strings.IndexByte(scope.GetAccess(), mode) < 0 {
-			return false
+		switch accessType {
+		case auth.Delete, auth.Read | auth.Delete:
+			require, bypass = "d", s.superDelete
+		case auth.Edit, auth.Read | auth.Edit:
+			require, bypass = "w", s.superEdit
+		case auth.Read, auth.NONE:
+			require, bypass = "r", s.superSelect
+		case auth.Add, auth.Read | auth.Add:
+			require, bypass = "x", s.superCreate
+		}
+		if bypass {
+			return true
+		}
+		for i := len(require) - 1; i >= 0; i-- {
+			mode := require[i]
+			if strings.IndexByte(scope.GetAccess(), mode) < 0 {
+				return false
+			}
 		}
 	}
 
