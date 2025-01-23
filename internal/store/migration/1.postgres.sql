@@ -4,6 +4,52 @@
 
 -- DROP TABLE cases."case";
 
+-- DROP FUNCTION cases.update_case_timings();
+
+CREATE OR REPLACE FUNCTION cases.update_case_timings()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+    -- Set reacted_at if status_condition is not initial
+    IF (NEW.status_condition IS NOT NULL) THEN
+        -- Check if the status_condition is initial
+        PERFORM initial
+        FROM cases.status_condition
+        WHERE id = NEW.status_condition AND initial = TRUE;
+
+        -- If no initial status found, set reacted_at
+        IF NOT FOUND THEN
+            NEW.reacted_at = timezone('utc', now());
+        END IF;
+    END IF;
+
+    -- Set resolved_at if status_condition is final
+    IF (NEW.status_condition IS NOT NULL) THEN
+        -- Check if the status_condition is final
+        PERFORM final
+        FROM cases.status_condition
+        WHERE id = NEW.status_condition AND final = TRUE;
+
+        -- If final status found, set resolved_at
+        IF FOUND THEN
+            NEW.resolved_at = timezone('utc', now());
+        ELSE
+            -- If no final status, reset resolved_at to NULL
+            NEW.resolved_at = NULL;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$function$
+;
+
+-- Permissions
+
+ALTER FUNCTION cases.update_case_timings() OWNER TO opensips;
+GRANT ALL ON FUNCTION cases.update_case_timings() TO opensips;
+
 CREATE TABLE cases."case" (
 	id int8 DEFAULT nextval('cases.case_id'::regclass) NOT NULL,
 	dc int8 NOT NULL,
@@ -54,6 +100,11 @@ update
     on
     cases."case" for each row execute function cases.update_case_timings();
 
+-- Permissions
+
+ALTER TABLE cases."case" OWNER TO opensips;
+GRANT ALL ON TABLE cases."case" TO opensips;
+
 
 -- cases.case_acl definition
 
@@ -71,6 +122,11 @@ CREATE TABLE cases.case_acl (
 CREATE INDEX case_acl_grantor_index ON cases.case_acl USING btree (grantor);
 CREATE UNIQUE INDEX case_acl_object_subject_pk ON cases.case_acl USING btree (object, subject);
 CREATE UNIQUE INDEX case_acl_subject_object_uindex ON cases.case_acl USING btree (subject, object);
+
+-- Permissions
+
+ALTER TABLE cases.case_acl OWNER TO opensips;
+GRANT ALL ON TABLE cases.case_acl TO opensips;
 
 
 -- cases.case_comment definition
@@ -103,6 +159,11 @@ insert
     on
     cases.case_comment for each row execute function directory.tg_obj_default_rbac('case_comments');
 
+-- Permissions
+
+ALTER TABLE cases.case_comment OWNER TO opensips;
+GRANT ALL ON TABLE cases.case_comment TO opensips;
+
 
 -- cases.case_comment_acl definition
 
@@ -120,6 +181,11 @@ CREATE TABLE cases.case_comment_acl (
 CREATE INDEX case_comment_acl_grantor_uindex ON cases.case_comment_acl USING btree (grantor);
 CREATE UNIQUE INDEX case_comment_acl_object_subject_pk ON cases.case_comment_acl USING btree (object, subject);
 CREATE UNIQUE INDEX case_comment_acl_subject_object_uindex ON cases.case_comment_acl USING btree (subject, object);
+
+-- Permissions
+
+ALTER TABLE cases.case_comment_acl OWNER TO opensips;
+GRANT ALL ON TABLE cases.case_comment_acl TO opensips;
 
 
 -- cases.case_communication definition
@@ -147,6 +213,11 @@ COMMENT ON COLUMN cases.case_communication.communication_type IS 'type of commun
 COMMENT ON COLUMN cases.case_communication.communication_id IS 'Id of communication case connected to';
 COMMENT ON COLUMN cases.case_communication.dc IS 'Domain component';
 
+-- Permissions
+
+ALTER TABLE cases.case_communication OWNER TO opensips;
+GRANT ALL ON TABLE cases.case_communication TO opensips;
+
 
 -- cases.case_link definition
 
@@ -172,6 +243,11 @@ CREATE TABLE cases.case_link (
 CREATE INDEX idx_comment_case_id ON cases.case_link USING btree (case_id);
 CREATE INDEX link_case_dc ON cases.case_link USING btree (dc);
 
+-- Permissions
+
+ALTER TABLE cases.case_link OWNER TO opensips;
+GRANT ALL ON TABLE cases.case_link TO opensips;
+
 
 -- cases.close_reason definition
 
@@ -195,6 +271,11 @@ CREATE TABLE cases.close_reason (
 CREATE INDEX reason_id_dc ON cases.close_reason USING btree (dc);
 CREATE INDEX reason_source ON cases.close_reason USING btree (close_reason_id);
 
+-- Permissions
+
+ALTER TABLE cases.close_reason OWNER TO opensips;
+GRANT ALL ON TABLE cases.close_reason TO opensips;
+
 
 -- cases.close_reason_group definition
 
@@ -215,6 +296,11 @@ CREATE TABLE cases.close_reason_group (
 	CONSTRAINT close_reason_pk PRIMARY KEY (id)
 );
 CREATE INDEX close_reason_dc ON cases.close_reason_group USING btree (dc);
+
+-- Permissions
+
+ALTER TABLE cases.close_reason_group OWNER TO opensips;
+GRANT ALL ON TABLE cases.close_reason_group TO opensips;
 
 
 -- cases.priority definition
@@ -238,6 +324,11 @@ CREATE TABLE cases.priority (
 );
 CREATE INDEX priority_dc ON cases.priority USING btree (dc);
 
+-- Permissions
+
+ALTER TABLE cases.priority OWNER TO opensips;
+GRANT ALL ON TABLE cases.priority TO opensips;
+
 
 -- cases.priority_sla_condition definition
 
@@ -260,6 +351,11 @@ CREATE TABLE cases.priority_sla_condition (
 CREATE UNIQUE INDEX idx_sla_condition_priority ON cases.priority_sla_condition USING btree (sla_condition_id, priority_id);
 CREATE INDEX priority_sla_condition_dc ON cases.priority_sla_condition USING btree (dc);
 CREATE INDEX priority_sla_condition_source ON cases.priority_sla_condition USING btree (sla_condition_id);
+
+-- Permissions
+
+ALTER TABLE cases.priority_sla_condition OWNER TO opensips;
+GRANT ALL ON TABLE cases.priority_sla_condition TO opensips;
 
 
 -- cases.related_case definition
@@ -286,6 +382,11 @@ CREATE INDEX idx_related_case_primary_case ON cases.related_case USING btree (pr
 CREATE INDEX idx_related_case_related_case ON cases.related_case USING btree (related_case_id);
 CREATE INDEX related_case_dc ON cases.related_case USING btree (dc);
 CREATE UNIQUE INDEX unique_related_cases_relation ON cases.related_case USING btree (LEAST(primary_case_id, related_case_id), GREATEST(primary_case_id, related_case_id), relation_type);
+
+-- Permissions
+
+ALTER TABLE cases.related_case OWNER TO opensips;
+GRANT ALL ON TABLE cases.related_case TO opensips;
 
 
 -- cases.service_catalog definition
@@ -319,6 +420,11 @@ CREATE TABLE cases.service_catalog (
 );
 CREATE INDEX service_dc ON cases.service_catalog USING btree (dc);
 
+-- Permissions
+
+ALTER TABLE cases.service_catalog OWNER TO opensips;
+GRANT ALL ON TABLE cases.service_catalog TO opensips;
+
 
 -- cases.skill_catalog definition
 
@@ -342,6 +448,11 @@ CREATE UNIQUE INDEX idx_catalog_id_skill_id ON cases.skill_catalog USING btree (
 CREATE UNIQUE INDEX idx_service_skill ON cases.skill_catalog USING btree (skill_id, catalog_id);
 CREATE INDEX skill_service_dc ON cases.skill_catalog USING btree (dc);
 CREATE INDEX skill_service_source ON cases.skill_catalog USING btree (catalog_id);
+
+-- Permissions
+
+ALTER TABLE cases.skill_catalog OWNER TO opensips;
+GRANT ALL ON TABLE cases.skill_catalog TO opensips;
 
 
 -- cases.sla definition
@@ -369,6 +480,11 @@ CREATE TABLE cases.sla (
 );
 CREATE INDEX sla_dc ON cases.sla USING btree (dc);
 
+-- Permissions
+
+ALTER TABLE cases.sla OWNER TO opensips;
+GRANT ALL ON TABLE cases.sla TO opensips;
+
 
 -- cases.sla_condition definition
 
@@ -393,6 +509,11 @@ CREATE TABLE cases.sla_condition (
 CREATE INDEX sla_condition_dc ON cases.sla_condition USING btree (dc);
 CREATE INDEX sla_condition_source ON cases.sla_condition USING btree (sla_id);
 
+-- Permissions
+
+ALTER TABLE cases.sla_condition OWNER TO opensips;
+GRANT ALL ON TABLE cases.sla_condition TO opensips;
+
 
 -- cases."source" definition
 
@@ -415,6 +536,11 @@ CREATE TABLE cases."source" (
 );
 CREATE INDEX source_dc ON cases.source USING btree (dc);
 
+-- Permissions
+
+ALTER TABLE cases."source" OWNER TO opensips;
+GRANT ALL ON TABLE cases."source" TO opensips;
+
 
 -- cases.status definition
 
@@ -435,6 +561,11 @@ CREATE TABLE cases.status (
 	CONSTRAINT status_pk PRIMARY KEY (id)
 );
 CREATE INDEX status_dc ON cases.status USING btree (dc);
+
+-- Permissions
+
+ALTER TABLE cases.status OWNER TO opensips;
+GRANT ALL ON TABLE cases.status TO opensips;
 
 
 -- cases.status_condition definition
@@ -461,6 +592,11 @@ CREATE TABLE cases.status_condition (
 CREATE INDEX status_condition_dc ON cases.status_condition USING btree (dc);
 CREATE INDEX status_condition_source ON cases.status_condition USING btree (status_id);
 
+-- Permissions
+
+ALTER TABLE cases.status_condition OWNER TO opensips;
+GRANT ALL ON TABLE cases.status_condition TO opensips;
+
 
 -- cases.team_catalog definition
 
@@ -484,6 +620,11 @@ CREATE UNIQUE INDEX idx_catalog_id_team_id ON cases.team_catalog USING btree (ca
 CREATE INDEX idx_service_team ON cases.team_catalog USING btree (catalog_id, team_id);
 CREATE INDEX team_service_dc ON cases.team_catalog USING btree (dc);
 CREATE INDEX team_service_source ON cases.team_catalog USING btree (catalog_id);
+
+-- Permissions
+
+ALTER TABLE cases.team_catalog OWNER TO opensips;
+GRANT ALL ON TABLE cases.team_catalog TO opensips;
 
 
 -- cases."case" foreign keys
@@ -630,12 +771,12 @@ ALTER TABLE cases.sla ADD CONSTRAINT sla_updated_id_fk FOREIGN KEY (updated_by) 
 
 -- cases.sla_condition foreign keys
 
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_created_dc_fk FOREIGN KEY (created_by,dc) REFERENCES <?>() DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_created_id_fk FOREIGN KEY () REFERENCES <?>() ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_domain_fk FOREIGN KEY () REFERENCES <?>() ON DELETE CASCADE;
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_sla_id_fk FOREIGN KEY () REFERENCES <?>() ON DELETE CASCADE;
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_updated_dc_fk FOREIGN KEY () REFERENCES <?>() DEFERRABLE INITIALLY DEFERRED;
-ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_updated_id_fk FOREIGN KEY () REFERENCES <?>() DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_created_dc_fk FOREIGN KEY (created_by,dc) REFERENCES directory.wbt_user(id,dc) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_created_id_fk FOREIGN KEY (created_by) REFERENCES directory.wbt_user(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_domain_fk FOREIGN KEY (dc) REFERENCES directory.wbt_domain(dc) ON DELETE CASCADE;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_sla_id_fk FOREIGN KEY (sla_id) REFERENCES cases.sla(id) ON DELETE CASCADE;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_updated_dc_fk FOREIGN KEY (updated_by,dc) REFERENCES directory.wbt_user(id,dc) DEFERRABLE INITIALLY DEFERRED;
+ALTER TABLE cases.sla_condition ADD CONSTRAINT sla_condition_updated_id_fk FOREIGN KEY (updated_by) REFERENCES directory.wbt_user(id) DEFERRABLE INITIALLY DEFERRED;
 
 
 -- cases."source" foreign keys

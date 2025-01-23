@@ -404,8 +404,9 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.id": rpc.IDs})
 	}
 
-	// Apply sorting and pagination
-	queryBuilder = queryBuilder.OrderBy("service.name ASC")
+	// Apply sorting dynamically
+	queryBuilder = applyServiceSorting(queryBuilder, rpc)
+
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Build the query
@@ -415,6 +416,46 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 	}
 
 	return store.CompactSQL(query), args, nil
+}
+
+func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.SelectBuilder {
+	sortableFields := map[string]string{
+		"name":        "service.name",
+		"code":        "service.code",
+		"description": "service.description",
+		"state":       "service.state",
+		"assignee":    "COALESCE(ass.common_name, '')", // Assuming 'assignee' is based on the contact's common_name
+		"group":       "COALESCE(grp.name, '')",        // Assuming 'group' is based on the group's name
+	}
+
+	sortApplied := false
+
+	// Loop through the provided sorting fields
+	for _, sortField := range rpc.Sort {
+		sortDirection := "ASC"
+		if len(sortField) > 0 {
+			switch sortField[0] {
+			case '-':
+				sortDirection = "DESC"
+				sortField = sortField[1:]
+			case '+':
+				sortField = sortField[1:]
+			}
+		}
+
+		// Apply sorting if the field is valid in the sortableFields map
+		if dbField, exists := sortableFields[sortField]; exists {
+			queryBuilder = queryBuilder.OrderBy(fmt.Sprintf("%s %s", dbField, sortDirection))
+			sortApplied = true
+		}
+	}
+
+	// Default sorting if no valid sort fields were applied
+	if !sortApplied {
+		queryBuilder = queryBuilder.OrderBy("service.name ASC")
+	}
+
+	return queryBuilder
 }
 
 // Helper method to build the combined update and select query for Service using Squirrel
