@@ -52,3 +52,11 @@ alter table cases.service_catalog
 ALTER TABLE cases.status_condition
 ADD CONSTRAINT check_initial_final
 CHECK (NOT (initial = TRUE AND final = TRUE));
+
+ALTER TABLE cases."case"
+ALTER COLUMN resolved_at TYPE TIMESTAMP
+USING TO_TIMESTAMP(resolved_at);
+
+ALTER TABLE cases."case"
+ALTER COLUMN reacted_at TYPE TIMESTAMP
+USING TO_TIMESTAMP(reacted_at);

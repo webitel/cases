@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"github.com/webitel/cases/auth"
 	"strings"
 	"time"
 
@@ -27,15 +28,15 @@ type UpdateOptions struct {
 	IDs      []int64
 	Etags    []*etag.Tid
 	// ID      int64
-	Auth Auther
+	Auth auth.Auther
 }
 
-func (s *UpdateOptions) SetAuthOpts(a Auther) *UpdateOptions {
+func (s *UpdateOptions) SetAuthOpts(a auth.Auther) *UpdateOptions {
 	s.Auth = a
 	return s
 }
 
-func (s *UpdateOptions) GetAuthOpts() Auther {
+func (s *UpdateOptions) GetAuthOpts() auth.Auther {
 	return s.Auth
 }
 
@@ -51,10 +52,8 @@ func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetada
 		Mask:    req.GetXJsonMask(),
 		Time:    time.Now(),
 	}
-	if sess := GetSessionOutOfContext(ctx); sess != nil {
-		opts.Auth = NewSessionAuthOptions(sess, objMetadata.GetAllScopeNames()...)
-	} else if false {
-		// TODO: new authorization method without token
+	if sess := GetAutherOutOfContext(ctx); sess != nil {
+		opts.Auth = sess
 	} else {
 		return nil, errors.New("can't authorize user")
 	}

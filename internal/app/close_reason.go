@@ -6,8 +6,6 @@ import (
 	"time"
 
 	_go "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
-
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
@@ -25,33 +23,6 @@ func (s *CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.Cre
 		return nil, cerror.NewBadRequestError("close_reason_service.create_close_reason.name.required", "Close reason name is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("close_reason_service.create_close_reason.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	// Define the current user as the creator and updater
-	currentU := &_go.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Create a new close reason model
-	closeReason := &_go.CloseReason{
-		Name:               req.Name,
-		Description:        req.Description,
-		CreatedBy:          currentU,
-		UpdatedBy:          currentU,
-		CloseReasonGroupId: req.CloseReasonGroupId,
-	}
-
 	fields := []string{"id", "lookup_id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
 
 	t := time.Now()
@@ -61,7 +32,19 @@ func (s *CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.Cre
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
+	}
+	// Define the current user as the creator and updater
+	currentU := &_go.Lookup{
+		Id: createOpts.GetAuthOpts().GetUserId(),
+	}
+	// Create a new close reason user_auth
+	closeReason := &_go.CloseReason{
+		Name:               req.Name,
+		Description:        req.Description,
+		CreatedBy:          currentU,
+		UpdatedBy:          currentU,
+		CloseReasonGroupId: req.CloseReasonGroupId,
 	}
 
 	// Create the close reason in the store
@@ -75,17 +58,6 @@ func (s *CloseReasonService) CreateCloseReason(ctx context.Context, req *_go.Cre
 
 // ListCloseReasons implements api.CloseReasonsServer.
 func (s *CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.ListCloseReasonRequest) (*_go.CloseReasonList, error) {
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("close_reason_service.list_close_reasons.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
 
 	fields := req.Fields
 	if len(fields) == 0 {
@@ -101,7 +73,7 @@ func (s *CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.List
 	t := time.Now()
 	searchOptions := &model.SearchOptions{
 		IDs: req.Id,
-		//Session: session,
+		//UserAuthSession: session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -109,7 +81,7 @@ func (s *CloseReasonService) ListCloseReasons(ctx context.Context, req *_go.List
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	if req.Q != "" {
@@ -129,33 +101,6 @@ func (s *CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.Upd
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("close_reason_service.update_close_reason.id.required", "Close reason ID is required")
-	}
-
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("close_reason_service.update_close_reason.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	// Define the current user as the updater
-	u := &_go.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Update close reason model
-	closeReason := &_go.CloseReason{
-		Id:                 req.Id,
-		CloseReasonGroupId: req.CloseReasonGroupId,
-		Name:               req.Input.Name,
-		Description:        req.Input.Description,
-		UpdatedBy:          u,
 	}
 
 	fields := []string{"id", "lookup_id"}
@@ -179,7 +124,19 @@ func (s *CloseReasonService) UpdateCloseReason(ctx context.Context, req *_go.Upd
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
+	}
+	// Define the current user as the updater
+	u := &_go.Lookup{
+		Id: updateOpts.GetAuthOpts().GetUserId(),
+	}
+	// Update close reason user_auth
+	closeReason := &_go.CloseReason{
+		Id:                 req.Id,
+		CloseReasonGroupId: req.CloseReasonGroupId,
+		Name:               req.Input.Name,
+		Description:        req.Input.Description,
+		UpdatedBy:          u,
 	}
 
 	// Update the close reason in the store
@@ -198,25 +155,13 @@ func (s *CloseReasonService) DeleteCloseReason(ctx context.Context, req *_go.Del
 		return nil, cerror.NewBadRequestError("close_reason_service.delete_close_reason.id.required", "Close reason ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("close_reason_service.delete_close_reason.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	t := time.Now()
 	// Define delete options
 	deleteOpts := &model.DeleteOptions{
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	// Delete the close reason in the store

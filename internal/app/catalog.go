@@ -6,7 +6,6 @@ import (
 	"time"
 
 	cases "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -41,26 +40,19 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	if req.CloseReasonGroup == nil || req.CloseReasonGroup.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.close_reason_group.required", "Close reason group is required")
 	}
-
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("catalog.create_catalog.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
+	// Define create options
+	createOpts := model.CreateOptions{
+		Auth:    model.GetAutherOutOfContext(ctx),
+		Context: ctx,
+		Time:    time.Now(),
 	}
 
 	// Define the current user as the creator and updater
 	currentU := &cases.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
+		Id: createOpts.GetAuthOpts().GetUserId(),
 	}
 
-	// Create a new Catalog model
+	// Create a new Catalog user_auth
 	catalog := &cases.Catalog{
 		Name:             req.Name,
 		Description:      req.Description,
@@ -85,15 +77,6 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		copy(catalog.Skills, req.Skills)
 	}
 
-	t := time.Now()
-
-	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
-		Context: ctx,
-		Time:    t,
-	}
-
 	// Create the Catalog in the store
 	r, e := s.app.Store.Catalog().Create(&createOpts, catalog)
 	if e != nil {
@@ -109,21 +92,9 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 		return nil, cerror.NewBadRequestError("catalog.delete_catalog.id.required", "Catalog ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("catalog.delete_catalog.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	t := time.Now()
 	deleteOpts := model.DeleteOptions{
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		IDs:     req.Id,
 		Time:    t,
@@ -146,18 +117,6 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 
 // ListCatalogs implements cases.CatalogsServer.
 func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalogRequest) (*cases.CatalogList, error) {
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("catalog.list_catalogs.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	page := req.Page
 	if page == 0 {
 		page = 1
@@ -186,7 +145,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 	t := time.Now()
 	searchOptions := &model.SearchOptions{
 		IDs: req.Id, // TODO check placholders in DB layer
-		// Session: session,
+		// UserAuthSession: session,
 		Context: ctx,
 		Sort:    req.Sort,
 		Fields:  req.Fields,
@@ -194,7 +153,7 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	if req.Query != "" {
@@ -246,48 +205,8 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("catalog.update_catalog.id.required", "Catalog ID is required")
 	}
-
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("catalog.update_catalog.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	u := &cases.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Build catalog from the request input
-	catalog := &cases.Catalog{
-		Id:               req.Id,
-		Name:             req.Input.Name,
-		Description:      req.Input.Description,
-		Prefix:           req.Input.Prefix,
-		Code:             req.Input.Code,
-		State:            req.Input.State,
-		Sla:              req.Input.Sla,
-		Status:           req.Input.Status,
-		CloseReasonGroup: req.Input.CloseReasonGroup,
-		UpdatedBy:        u,
-	}
-
-	// Add teams if provided
-	if len(req.Input.Teams) > 0 {
-		catalog.Teams = make([]*cases.Lookup, len(req.Input.Teams))
-		copy(catalog.Teams, req.Input.Teams)
-	}
-
-	// Add skills if provided
-	if len(req.Input.Skills) > 0 {
-		catalog.Skills = make([]*cases.Lookup, len(req.Input.Skills))
-		copy(catalog.Skills, req.Input.Skills)
+	if req.Input == nil {
+		// TODO: what if input nil? reset all fields?
 	}
 
 	// List of fields to update
@@ -358,15 +277,37 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		}
 	}
 
-	// Capture current time
-	t := time.Now()
-
 	// Build update options
 	updateOpts := model.UpdateOptions{
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Fields:  fields,
-		Time:    t,
+		Time:    time.Now(),
+	}
+
+	// Build catalog from the request input
+	catalog := &cases.Catalog{
+		Id:               req.Id,
+		Name:             req.Input.Name,
+		Description:      req.Input.Description,
+		Prefix:           req.Input.Prefix,
+		Code:             req.Input.Code,
+		State:            req.Input.State,
+		Sla:              req.Input.Sla,
+		Status:           req.Input.Status,
+		CloseReasonGroup: req.Input.CloseReasonGroup,
+		UpdatedBy: &cases.Lookup{
+			Id: updateOpts.GetAuthOpts().GetUserId(),
+		},
+	}
+	// Add teams if provided
+	if len(req.Input.Teams) > 0 {
+		catalog.Teams = req.Input.Teams
+	}
+
+	// Add skills if provided
+	if len(req.Input.Skills) > 0 {
+		catalog.Skills = req.Input.Skills
 	}
 
 	// Update the catalog

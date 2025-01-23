@@ -6,7 +6,6 @@ import (
 	"time"
 
 	api "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -29,25 +28,21 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		return nil, cerror.NewBadRequestError("service.create_service.root_id.required", "Root ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("service.create_service.authorization.failed", err.Error())
-	}
+	t := time.Now()
 
-	// OBAC check
-	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
+	// Define create options
+	createOpts := model.CreateOptions{
+		Auth:    model.GetAutherOutOfContext(ctx),
+		Context: ctx,
+		Time:    t,
 	}
 
 	// Define the current user as the creator and updater
 	currentU := &api.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
+		Id: createOpts.GetAuthOpts().GetUserId(),
 	}
 
-	// Create a new Service model
+	// Create a new Service user_auth
 	service := &api.Service{
 		Name:        req.Name,
 		Description: req.Description,
@@ -60,15 +55,6 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		State:       req.State,
 		RootId:      req.RootId,
 		CatalogId:   req.CatalogId,
-	}
-
-	t := time.Now()
-
-	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
-		Context: ctx,
-		Time:    t,
 	}
 
 	// Create the Service in the store
@@ -86,23 +72,12 @@ func (s *ServiceService) DeleteService(ctx context.Context, req *api.DeleteServi
 		return nil, cerror.NewBadRequestError("service.delete_service.id.required", "Service ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("service.delete_service.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	t := time.Now()
 	deleteOpts := model.DeleteOptions{
 		Context: ctx,
 		IDs:     req.Id,
 		Time:    t,
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	e := s.app.Store.Service().Delete(&deleteOpts)
@@ -122,18 +97,6 @@ func (s *ServiceService) DeleteService(ctx context.Context, req *api.DeleteServi
 
 // ListServices implements cases.ServicesServer.
 func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceRequest) (*api.ServiceList, error) {
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("service.list_services.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	page := req.Page
 	if page == 0 {
 		page = 1
@@ -153,14 +116,14 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 	searchOptions := &model.SearchOptions{
 		Fields: req.Fields,
 		IDs:    req.Id,
-		// Session: session,
+		// UserAuthSession: session,
 		Context: ctx,
 		Sort:    req.Sort,
 		Page:    int(page),
 		Size:    int(req.Size),
 		Time:    t,
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewSessionAuthOptions(session, s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	if req.Q != "" {
@@ -224,36 +187,6 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		return nil, cerror.NewBadRequestError("service.update_service.id.required", "Service ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("service.update_service.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	u := &api.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	service := &api.Service{
-		Id:          req.Id,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-		Code:        req.Input.Code,
-		Sla:         req.Input.Sla,
-		Group:       req.Input.Group,
-		Assignee:    req.Input.Assignee,
-		UpdatedBy:   u,
-		State:       req.Input.State,
-		RootId:      req.Input.RootId,
-	}
-
 	fields := []string{"id"}
 
 	for _, f := range req.XJsonMask {
@@ -303,7 +236,24 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
+	}
+
+	u := &api.Lookup{
+		Id: updateOpts.GetAuthOpts().GetUserId(),
+	}
+
+	service := &api.Service{
+		Id:          req.Id,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		Code:        req.Input.Code,
+		Sla:         req.Input.Sla,
+		Group:       req.Input.Group,
+		Assignee:    req.Input.Assignee,
+		UpdatedBy:   u,
+		State:       req.Input.State,
+		RootId:      req.Input.RootId,
 	}
 
 	r, e := s.app.Store.Service().Update(&updateOpts, service)

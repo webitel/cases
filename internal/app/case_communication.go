@@ -5,7 +5,7 @@ import (
 	defErr "errors"
 	"fmt"
 	"github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/auth"
 	errors "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -40,7 +40,7 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 	logAttributes := slog.Group("context", slog.Int64("case_id", tag.GetOid()), slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 
 	if searchOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), authmodel.Read, searchOpts.ParentId)
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
@@ -83,9 +83,13 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	}
 	createOpts.ParentID = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", createOpts.ParentID))
-
+	accessMode := auth.Edit
+	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommunicationMetadata.GetParentScopeName(), accessMode) {
+		slog.Error("user doesn't have required (EDIT) access to the case", logAttributes)
+		return nil, AppForbiddenError
+	}
 	if createOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), authmodel.Edit, createOpts.ParentID)
+		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
@@ -130,7 +134,7 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()))
 
 	if deleteOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), authmodel.Edit, caseTag.GetOid())
+		access, err := c.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), auth.Edit, caseTag.GetOid())
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError

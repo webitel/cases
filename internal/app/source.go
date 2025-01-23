@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	_go "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
-
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
 )
@@ -32,40 +30,27 @@ func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRe
 		return nil, cerror.NewBadRequestError("source_service.create_source.type.required", "Source type is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("source_service.create_source.authorization.failed", err.Error())
-	}
+	fields := []string{"id", "name", "description", "type", "created_at", "updated_at", "created_by", "updated_by"}
 
-	// OBAC check
-	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
+	// Define create options
+	createOpts := model.CreateOptions{
+		Auth:    model.GetAutherOutOfContext(ctx),
+		Context: ctx,
+		Fields:  fields,
 	}
 
 	// Define the current user as the creator and updater
 	currentU := &_go.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
+		Id: createOpts.GetAuthOpts().GetUserId(),
 	}
 
-	// Create a new source model
+	// Create a new source user_auth
 	source := &_go.Source{
 		Name:        req.Name,
 		Description: req.Description,
 		Type:        req.Type,
 		CreatedBy:   currentU,
 		UpdatedBy:   currentU,
-	}
-
-	fields := []string{"id", "name", "description", "type", "created_at", "updated_at", "created_by", "updated_by"}
-
-	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
-		Context: ctx,
-		Fields:  fields,
 	}
 
 	// Create the source in the store
@@ -78,18 +63,6 @@ func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRe
 }
 
 func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceRequest) (*_go.SourceList, error) {
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("source_service.list_sources.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	fields := req.Fields
 	if len(fields) == 0 {
 		fields = strings.Split(defaultSourceFields, ", ")
@@ -103,14 +76,14 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 
 	searchOptions := model.SearchOptions{
 		IDs: req.Id,
-		//Session: session,
+		//UserAuthSession: session,
 		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),
 		Sort:    req.Sort,
 		Size:    int(req.Size),
 		Filter:  make(map[string]interface{}),
-		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	if req.Q != "" {
@@ -143,7 +116,7 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 	// }
 
 	// err = s.app.rabbit.Publish(
-	// 	model.APP_SERVICE_NAME,
+	// 	user_auth.APP_SERVICE_NAME,
 	// 	"list_sources_key",
 	// 	eventData,
 	// 	strconv.Itoa(int(session.GetUserId())),
@@ -160,33 +133,6 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("source_service.update_source.id.required", "Source ID is required")
-	}
-
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("source_service.update_source.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	// Define the current user as the updater
-	currentU := &_go.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Update source model
-	source := &_go.Source{
-		Id:          req.Id,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-		Type:        req.Input.Type,
-		UpdatedBy:   currentU,
 	}
 
 	// Fields to update
@@ -216,9 +162,23 @@ func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRe
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Fields:  fields,
+	}
+
+	// Define the current user as the updater
+	currentU := &_go.Lookup{
+		Id: updateOpts.GetAuthOpts().GetUserId(),
+	}
+
+	// Update source user_auth
+	source := &_go.Source{
+		Id:          req.Id,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		Type:        req.Input.Type,
+		UpdatedBy:   currentU,
 	}
 
 	// Update the source in the store
@@ -236,21 +196,9 @@ func (s SourceService) DeleteSource(ctx context.Context, req *_go.DeleteSourceRe
 		return nil, cerror.NewBadRequestError("source_service.delete_source.id.required", "Lookup ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("source_service.delete_source.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		IDs:     []int64{req.Id},
 	}

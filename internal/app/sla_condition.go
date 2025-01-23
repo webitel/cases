@@ -6,7 +6,6 @@ import (
 	"time"
 
 	cases "github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
 	"github.com/webitel/cases/util"
 
 	cerror "github.com/webitel/cases/internal/error"
@@ -42,34 +41,6 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.sla_id.required", "SLA ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("sla_condition_service.create_sla_condition.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Add
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	// Define the current user as the creator and updater
-	currentU := &cases.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Create a new SLACondition model
-	slaCondition := &cases.SLACondition{
-		Name:           req.Name,
-		ReactionTime:   req.ReactionTime,
-		ResolutionTime: req.ResolutionTime,
-		SlaId:          req.SlaId,
-		CreatedBy:      currentU,
-		UpdatedBy:      currentU,
-	}
-
 	fields := []string{
 		"id", "name", "reaction_time", "resolution_time", "sla_id",
 		"created_at", "updated_at", "created_by", "updated_by",
@@ -87,11 +58,26 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 
 	// Define create options
 	createOpts := model.CreateOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
 		Ids:     priorityIDs,
+	}
+
+	// Define the current user as the creator and updater
+	currentU := &cases.Lookup{
+		Id: createOpts.GetAuthOpts().GetUserId(),
+	}
+
+	// Create a new SLACondition user_auth
+	slaCondition := &cases.SLACondition{
+		Name:           req.Name,
+		ReactionTime:   req.ReactionTime,
+		ResolutionTime: req.ResolutionTime,
+		SlaId:          req.SlaId,
+		CreatedBy:      currentU,
+		UpdatedBy:      currentU,
 	}
 
 	// Create the SLACondition in the store
@@ -110,22 +96,10 @@ func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases
 		return nil, cerror.NewBadRequestError("sla_condition_service.delete_sla_condition.id.required", "SLA Condition ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("sla_condition_service.delete_sla_condition.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Delete
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
 	t := time.Now()
 	// Define delete options
 	deleteOpts := model.DeleteOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		IDs:     []int64{req.Id},
 		Time:    t,
@@ -142,17 +116,6 @@ func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases
 
 // ListSLAConditions implements cases.SLAConditionsServer.
 func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.ListSLAConditionRequest) (*cases.SLAConditionList, error) {
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("sla_condition_service.list_sla_conditions.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Read
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
 
 	fields := req.Fields
 	if len(fields) == 0 {
@@ -169,7 +132,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 	searchOptions := model.SearchOptions{
 		ParentId: req.SlaId,
 		IDs:      req.Id,
-		// Session:  session,
+		// UserAuthSession:  session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -178,7 +141,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 		Time:    t,
 		Filter:  make(map[string]interface{}),
 		ID:      req.PriorityId,
-		Auth:    model.NewSessionAuthOptions(session, "dictionaries"),
+		Auth:    model.GetAutherOutOfContext(ctx),
 	}
 
 	if req.Q != "" {
@@ -229,34 +192,6 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		return nil, cerror.NewBadRequestError("sla_condition_service.update_sla_condition.id.required", "SLA Condition ID is required")
 	}
 
-	session, err := s.app.AuthorizeFromContext(ctx)
-	if err != nil {
-		return nil, cerror.NewUnauthorizedError("sla_condition_service.update_sla_condition.authorization.failed", err.Error())
-	}
-
-	// OBAC check
-	accessMode := authmodel.Edit
-	scope := session.GetScope(model.ScopeDictionary)
-	if !session.HasObacAccess(scope.Class, accessMode) {
-		return nil, cerror.MakeScopeError(session.GetUserId(), scope.Class, int(accessMode))
-	}
-
-	// Define the current user as the updater
-	u := &cases.Lookup{
-		Id:   session.GetUserId(),
-		Name: session.GetUserName(),
-	}
-
-	// Update SLACondition model
-	slaCondition := &cases.SLACondition{
-		Id:             req.Id,
-		Name:           req.Input.Name,
-		ReactionTime:   req.Input.ReactionTime,
-		ResolutionTime: req.Input.ResolutionTime,
-		SlaId:          req.Input.SlaId,
-		UpdatedBy:      u,
-	}
-
 	fields := []string{"id"}
 
 	for _, f := range req.XJsonMask {
@@ -293,11 +228,26 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 
 	// Define update options
 	updateOpts := model.UpdateOptions{
-		Auth:    model.NewSessionAuthOptions(model.GetSessionOutOfContext(ctx), s.objClassName),
+		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,
 		IDs:     priorityIDs,
+	}
+
+	// Define the current user as the updater
+	u := &cases.Lookup{
+		Id: updateOpts.GetAuthOpts().GetUserId(),
+	}
+
+	// Update SLACondition user_auth
+	slaCondition := &cases.SLACondition{
+		Id:             req.Id,
+		Name:           req.Input.Name,
+		ReactionTime:   req.Input.ReactionTime,
+		ResolutionTime: req.Input.ResolutionTime,
+		SlaId:          req.Input.SlaId,
+		UpdatedBy:      u,
 	}
 
 	// Update the SLACondition in the store

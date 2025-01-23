@@ -2,10 +2,10 @@ package server
 
 import (
 	"fmt"
+	"github.com/webitel/cases/auth/user_auth"
 	"net"
 
 	"github.com/bufbuild/protovalidate-go"
-	"github.com/webitel/cases/auth"
 	conf "github.com/webitel/cases/config"
 	grpcerr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/server/interceptor"
@@ -25,7 +25,7 @@ type Server struct {
 }
 
 // BuildServer constructs and configures a new gRPC server with interceptors.
-func BuildServer(config *conf.ConsulConfig, authManager auth.AuthManager, exitChan chan error) (*Server, error) {
+func BuildServer(config *conf.ConsulConfig, authManager user_auth.AuthManager, exitChan chan error) (*Server, error) {
 	// Initialize protovalidate validator
 	val, err := protovalidate.New(protovalidate.WithFailFast(true))
 	if err != nil {

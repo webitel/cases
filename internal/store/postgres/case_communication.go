@@ -5,7 +5,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/webitel/cases/api/cases"
-	authmodel "github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/auth"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/scanner"
@@ -150,7 +150,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 	var caseSubquery squirrel.Sqlizer
 	if caseRbac {
 		caseSubquery = squirrel.Expr(`(SELECT object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = ? AND acl.subject = any(?::int[]) AND acl.access & ? = ?)`,
-			dc, caseId, roles, authmodel.Edit, authmodel.Edit)
+			dc, caseId, roles, auth.Edit, auth.Edit)
 	} else {
 		caseSubquery = squirrel.Expr(`?`, caseId)
 	}
@@ -175,7 +175,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 					communication.CommunicationId,
 					dc, userId, roles,
 					dc, userId, roles,
-					dc, authmodel.Read, roles,
+					dc, auth.Read, roles,
 					roles)
 			} else {
 				callsSubquery = squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`)

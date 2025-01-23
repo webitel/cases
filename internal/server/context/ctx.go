@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	"github.com/webitel/cases/auth/model"
+	"github.com/webitel/cases/auth/user_auth"
 )
 
 // grpcContextKey is a unique type for context keys to avoid collisions.
@@ -11,7 +11,7 @@ type grpcContextKey struct{}
 
 // GRPCServerContext holds the custom context data for gRPC requests.
 type GRPCServerContext struct {
-	SignedInUser *model.User
+	SignedInUser *user_auth.User
 	RequestId    string
 }
 
@@ -25,7 +25,7 @@ func FromContext(ctx context.Context) *GRPCServerContext {
 }
 
 // SetUser adds a SignedInUser to the GRPCServerContext and returns a new context with this data.
-func SetUser(ctx context.Context, user *model.User) context.Context {
+func SetUser(ctx context.Context, user *user_auth.User) context.Context {
 	grpcCtx := FromContext(ctx)
 	if grpcCtx == nil {
 		grpcCtx = &GRPCServerContext{}
