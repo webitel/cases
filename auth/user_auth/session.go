@@ -185,7 +185,7 @@ func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo, mainObjClass str
 		session.permissions = append(session.permissions, permission.GetId())
 	}
 	for _, scope := range userinfo.Scope {
-		session.scopes[scope.Name] = &Scope{
+		session.scopes[scope.Class] = &Scope{
 			Id:     scope.GetId(),
 			Name:   scope.GetName(),
 			Abac:   scope.Abac,
