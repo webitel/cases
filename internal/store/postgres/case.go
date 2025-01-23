@@ -203,7 +203,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		closeResult *string
 	)
 	if cl := caseItem.GetClose(); cl != nil {
-		if cl.CloseReason != nil && cl.CloseReason.GetId() >= 0 {
+		if cl.CloseReason != nil && cl.CloseReason.GetId() > 0 {
 			closeReason = &cl.CloseReason.Id
 		}
 		if cl.CloseResult != "" {
