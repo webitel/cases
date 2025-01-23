@@ -197,7 +197,19 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	slaCondition int,
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	// Parameters for the main case and nested JSON arrays
-	var reporter *int64
+	var (
+		reporter    *int64
+		closeReason *int64
+		closeResult *string
+	)
+	if cl := caseItem.GetClose(); cl != nil {
+		if cl.CloseReason != nil && cl.CloseReason.GetId() >= 0 {
+			closeReason = &cl.CloseReason.Id
+		}
+		if cl.CloseResult != "" {
+			closeResult = &cl.CloseResult
+		}
+	}
 	if caseItem.Reporter.GetId() != 0 {
 		reporter = &caseItem.Reporter.Id
 	}
@@ -215,8 +227,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"source":              caseItem.Source.GetId(),
 		"contact_group":       caseItem.Group.GetId(),
 		"close_reason_group":  caseItem.CloseReasonGroup.GetId(),
-		"close_result":        caseItem.Close.GetCloseResult(),
-		"close_reason":        caseItem.Close.GetCloseReason().GetId(),
+		"close_result":        closeResult,
+		"close_reason":        closeReason,
 		"subject":             caseItem.Subject,
 		"planned_reaction_at": util.LocalTime(caseItem.PlannedReactionAt),
 		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),
