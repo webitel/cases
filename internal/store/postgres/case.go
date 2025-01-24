@@ -533,7 +533,7 @@ func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []int
 	var err error
 	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
-	query := sq.Delete("cases.case").Where("id = ANY(?)", ids).Where("dc = ?", rpc.GetAuthOpts().GetDomainId())
+	query := sq.Delete("cases.case").Where("id = ANY(?)", ids).Where("dc = ?", rpc.GetAuthOpts().GetDomainId()).PlaceholderFormat(sq.Dollar)
 	query, err = addCaseRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, query, "case.id")
 	if err != nil {
 		return "", nil, err
@@ -541,11 +541,6 @@ func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []int
 
 	return query.ToSql()
 }
-
-var deleteCaseQuery = store.CompactSQL(`
-	DELETE FROM cases.case
-	WHERE id = ANY($1) AND dc = $2
-`)
 
 // List implements store.CaseStore.
 func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
@@ -747,7 +742,7 @@ func (c *CaseStore) Update(
 
 	if err := db.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, dberr.NewDBNotFoundError("postgres.case.update.update.scan_ver.not_found", "Case not found")
+			return nil, dberr.NewDBNoRowsError("postgres.case.update.update.scan_ver.not_found")
 		}
 		return nil, dberr.NewDBInternalError("postgres.case.update.update.execution_error", err)
 	}

@@ -262,7 +262,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Etag)
 	if err != nil {
 		slog.Error(err.Error())
-		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
+		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
 	}
 
 	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseMetadata)
@@ -301,6 +301,10 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
 	if err != nil {
+		switch err.(type) {
+		case *cerror.DBNoRowsError:
+			return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
+		}
 		slog.Error(err.Error())
 		return nil, AppDatabaseError
 	}
@@ -333,6 +337,10 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 
 	err = c.app.Store.Case().Delete(deleteOpts)
 	if err != nil {
+		switch err.(type) {
+		case *cerror.DBNoRowsError:
+			return nil, cerror.NewBadRequestError("app.case.delete.invalid_etag", "Invalid etag")
+		}
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
