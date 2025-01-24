@@ -69,6 +69,8 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 // ListPriorities implements api.PrioritiesServer.
 func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPriorityRequest) (*api.PriorityList, error) {
 	searchOptions, err := model.NewSearchOptions(ctx, req, PriorityMetadata)
+	searchOptions.IDs = req.Id
+
 	searchOptions.Sort = req.Sort
 	if err != nil {
 		slog.Error(err.Error())
