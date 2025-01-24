@@ -196,14 +196,6 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 		return nil, dberr.NewDBInternalError("postgres.service.update.database_connection_error", dbErr)
 	}
 
-	// Start a transaction using the TxManager
-	tx, err := db.Begin(rpc.Context)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.update.transaction_start_error", err)
-	}
-	txManager := store.NewTxManager(tx)   // Create a new TxManager instance
-	defer txManager.Rollback(rpc.Context) // Ensure rollback on error
-
 	// Build the update query for the Service
 	query, args, err := s.buildUpdateServiceQuery(rpc, lookup)
 	if err != nil {
@@ -215,13 +207,12 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 	}
 
 	var (
-		createdByLookup, updatedByLookup cases.Lookup
-		createdAt, updatedAt             time.Time
-		groupLookup                      cases.ExtendedLookup
-		assigneeLookup                   cases.Lookup
+		createdByLookup, updatedByLookup, assigneeLookup cases.Lookup
+		createdAt, updatedAt                             time.Time
+		groupLookup                                      cases.ExtendedLookup
 	)
 
-	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
+	err = db.QueryRow(rpc.Context, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &lookup.Description,
 		&lookup.Code, &lookup.State, &lookup.Sla.Id,
 		&lookup.Sla.Name, scanner.ScanInt64(&groupLookup.Id), scanner.ScanText(&groupLookup.Name), scanner.ScanText(&groupLookup.Type),
@@ -231,11 +222,6 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 	)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.service.update.execution_error", err)
-	}
-
-	// Commit the transaction
-	if err := txManager.Commit(rpc.Context); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.update.transaction_commit_error", err)
 	}
 
 	// Prepare the updated Service to return
@@ -518,7 +504,7 @@ SELECT service.id,
        COALESCE(service.description, '') AS description,  -- Use COALESCE to return an empty string if description is NULL
        COALESCE(service.code, '')        AS code,         -- Use COALESCE to return an empty string if code is NULL
        service.state,
-       service.sla_id,
+       COALESCE(service.sla_id, 0)       AS sla_id,
        COALESCE(sla.name, '')            AS sla_name,     -- Handle NULL SLA as empty string
        service.group_id,
        COALESCE(grp.name, '')            AS group_name,   -- Handle NULL group as empty string
