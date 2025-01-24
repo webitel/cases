@@ -228,6 +228,11 @@ func (p *Priority) buildListPriorityQuery(
 			`, notInSla))
 	}
 
+	// Filter by IDs
+	if len(rpc.IDs) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cp.id": rpc.IDs})
+	}
+
 	// -------- Apply sorting ----------
 	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, priorityDefaultSort)
 
