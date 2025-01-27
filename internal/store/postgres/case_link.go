@@ -299,7 +299,7 @@ func buildCreateLinkQuery(rpc *model.CreateOptions, add *_go.InputCaseLink) (squ
 		Suffix("RETURNING *")
 	// select
 	query, args, _ := store.FormAsCTE(insert, insertAlias)
-	base := squirrel.Select().From(insertAlias).Prefix(query, args...).PlaceholderFormat(squirrel.Dollar).Where("i.created_by = ?", 10454)
+	base := squirrel.Select().From(insertAlias).Prefix(query, args...).PlaceholderFormat(squirrel.Dollar)
 	// build plan from columns
 	return buildLinkSelectColumnsAndPlan(base, insertAlias, rpc.Fields)
 }
