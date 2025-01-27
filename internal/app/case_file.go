@@ -43,9 +43,9 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 	}
 	searchOpts.ParentId = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
-
-	if searchOpts.GetAuthOpts().GetObjectScope(CaseFileMetadata.GetMainScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
+	accessMode := auth.Read
+	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseFileMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError

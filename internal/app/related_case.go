@@ -56,8 +56,9 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("case_id", searchOpts.ParentId),
 	)
-	if searchOpts.GetAuthOpts().GetObjectScope(RelatedCaseMetadata.GetMainScopeName()).IsRbacUsed() {
-		access, err := r.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
+	accessMode := auth.Read
+	if searchOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
+		access, err := r.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
@@ -121,19 +122,27 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		slog.Int64("parent_id", createOpts.ParentID),
 		slog.Int64("child_id", createOpts.ChildID),
 	)
-	if createOpts.GetAuthOpts().GetObjectScope(RelatedCaseMetadata.GetMainScopeName()).IsRbacUsed() {
-		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), auth.Edit, createOpts.ParentID)
+	primaryAccessMode := auth.Edit
+	if createOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), primaryAccessMode) {
+		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), primaryAccessMode, createOpts.ParentID)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
-		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), auth.Read, createOpts.ChildID)
+		if !primaryAccess {
+			slog.Error("user doesn't have required access to the primary case", logAttributes)
+			return nil, AppForbiddenError
+		}
+	}
+	secondaryAccessMode := auth.Read
+	if createOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), secondaryAccessMode) {
+		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), secondaryAccessMode, createOpts.ChildID)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
-		if !(primaryAccess && secondaryAccess) {
-			slog.Error("user doesn't have required (EDIT) access to case", logAttributes)
+		if !secondaryAccess {
+			slog.Error("user doesn't have required access to the secondary case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
@@ -217,19 +226,27 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("parent_id", updateOpts.ParentID),
 	)
-	if updateOpts.GetAuthOpts().GetObjectScope(RelatedCaseMetadata.GetMainScopeName()).IsRbacUsed() {
-		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), auth.Edit, primaryId)
+	primaryAccessMode := auth.Edit
+	if updateOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), primaryAccessMode) {
+		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), primaryAccessMode, primaryId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
-		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), auth.Read, relatedId)
+		if !primaryAccess {
+			slog.Error("user doesn't have required access to the primary case", logAttributes)
+			return nil, AppForbiddenError
+		}
+	}
+	secondaryAccessMode := auth.Read
+	if updateOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), secondaryAccessMode) {
+		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), secondaryAccessMode, relatedId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
-		if !(primaryAccess && secondaryAccess) {
-			slog.Error("user doesn't have required access to case", logAttributes)
+		if !secondaryAccess {
+			slog.Error("user doesn't have required access to the secondary case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
@@ -274,18 +291,18 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("parent_id", deleteOpts.ParentID),
 	)
-	if deleteOpts.GetAuthOpts().GetObjectScope(RelatedCaseMetadata.GetMainScopeName()).IsRbacUsed() {
-		if deleteOpts.GetAuthOpts().GetObjectScope(RelatedCaseMetadata.GetMainScopeName()).IsRbacUsed() {
-			access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), auth.Edit, deleteOpts.ParentID)
-			if err != nil {
-				slog.Error(err.Error(), logAttributes)
-				return nil, AppForbiddenError
-			}
-			if !access {
-				slog.Error("user doesn't have required (READ) access to the case", logAttributes)
-				return nil, AppForbiddenError
-			}
+	accessMode := auth.Edit
+	if deleteOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
+		access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), accessMode, deleteOpts.ParentID)
+		if err != nil {
+			slog.Error(err.Error(), logAttributes)
+			return nil, AppForbiddenError
 		}
+		if !access {
+			slog.Error("user doesn't have required (READ) access to the case", logAttributes)
+			return nil, AppForbiddenError
+		}
+
 	}
 
 	err = r.app.Store.RelatedCase().Delete(deleteOpts)

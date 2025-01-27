@@ -63,9 +63,9 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 		slog.Int64("id", searchOpts.IDs[0]),
 		slog.Int64("case_id", searchOpts.ParentId),
 	)
-
-	if searchOpts.GetAuthOpts().GetObjectScope(CaseLinkMetadata.GetMainScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
+	accessMode := auth.Read
+	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
@@ -118,9 +118,9 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("case_id", createOpts.ParentID),
 	)
-
-	if createOpts.GetAuthOpts().GetObjectScope(CaseLinkMetadata.GetMainScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), auth.Edit, createOpts.ParentID)
+	accessMode := auth.Edit
+	if createOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
@@ -173,8 +173,8 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		slog.Int64("id", linkTID.GetOid()),
 		slog.Int64("case_id", updateOpts.ParentID),
 	)
-
-	if updateOpts.GetAuthOpts().GetObjectScope(CaseLinkMetadata.GetMainScopeName()).IsRbacUsed() {
+	accessMode := auth.Edit
+	if updateOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), auth.Edit, updateOpts.ParentID)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
@@ -225,7 +225,8 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 		slog.Int64("id", deleteOpts.ID),
 		slog.Int64("case_id", deleteOpts.ParentID),
 	)
-	if deleteOpts.GetAuthOpts().GetObjectScope(CaseLinkMetadata.GetMainScopeName()).IsRbacUsed() {
+	accessMode := auth.Edit
+	if deleteOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), auth.Edit, deleteOpts.ParentID)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
@@ -275,8 +276,9 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		slog.Int64("id", searchOpts.ID),
 		slog.Int64("case_id", searchOpts.ParentId),
 	)
-	if searchOpts.GetAuthOpts().GetObjectScope(CaseLinkMetadata.GetMainScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
+	accessMode := auth.Read
+	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError

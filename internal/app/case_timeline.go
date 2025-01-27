@@ -43,8 +43,9 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("case_id", searchOpts.ParentId),
 	)
-	if searchOpts.GetAuthOpts().GetObjectScope(CaseTimelineMetadata.GetMainScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
+	accessMode := auth.Read
+	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseTimelineMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError
@@ -75,8 +76,9 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("case_id", searchOpts.ParentId),
 	)
-	if searchOpts.GetAuthOpts().GetObjectScope(CaseTimelineMetadata.GetMainScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
+	accessMode := auth.Read
+	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseTimelineMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
 			slog.Error(err.Error(), logAttributes)
 			return nil, AppForbiddenError

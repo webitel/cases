@@ -81,29 +81,29 @@ func (s *SearchOptions) GetAuthOpts() auth.Auther {
 	return s.Auth
 }
 
-func (rpc *SearchOptions) GetSize() int {
-	if rpc == nil {
+func (s *SearchOptions) GetSize() int {
+	if s == nil {
 		return DefaultSearchSize
 	}
 	switch {
-	case rpc.Size < 0:
+	case s.Size < 0:
 		return -1
-	case rpc.Size > 0:
+	case s.Size > 0:
 		// CHECK for too big values !
-		return rpc.Size
-	case rpc.Size == 0:
+		return s.Size
+	case s.Size == 0:
 		return DefaultSearchSize
 	}
 	panic("unreachable code")
 }
 
-func (rpc *SearchOptions) GetPage() int {
-	if rpc != nil {
+func (s *SearchOptions) GetPage() int {
+	if s != nil {
 		// Limited ? either: manual -or- default !
-		if rpc.GetSize() > 0 {
+		if s.GetSize() > 0 {
 			// Valid ?page= specified ?
-			if rpc.Page > 0 {
-				return rpc.Page
+			if s.Page > 0 {
+				return s.Page
 			}
 			// default: always the first one !
 			return 1
@@ -113,15 +113,15 @@ func (rpc *SearchOptions) GetPage() int {
 	return 0
 }
 
-func (rpc *SearchOptions) GetSort() []string {
-	return rpc.Sort
+func (s *SearchOptions) GetSort() []string {
+	return s.Sort
 }
 
-func (rpc *SearchOptions) CurrentTime() time.Time {
-	ts := rpc.Time
+func (s *SearchOptions) CurrentTime() time.Time {
+	ts := s.Time
 	if ts.IsZero() {
 		ts = time.Now().UTC()
-		rpc.Time = ts
+		s.Time = ts
 	}
 	return ts
 }

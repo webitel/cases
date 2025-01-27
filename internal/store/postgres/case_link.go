@@ -95,7 +95,7 @@ func (l *CaseLinkStore) Delete(opts *model.DeleteOptions) error {
 		return dberr.NewDBError("postgres.case_link.delete.execute.error", err.Error())
 	}
 	if affected := res.RowsAffected(); affected == 0 || affected > 1 {
-		return dberr.NewDBError("postgres.case_link.delete.final_check.rows", "wrong filters for deleting")
+		return dberr.NewDBNoRowsError("postgres.case_link.delete.final_check.rows")
 	}
 	return nil
 }
@@ -179,7 +179,7 @@ func (l *CaseLinkStore) Update(opts *model.UpdateOptions, upd *_go.InputCaseLink
 	res, err := l.scanLink(row, plan)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, dberr.NewDBNotFoundError("postgres.case_link.update.scan_ver.not_found", "Link not found")
+			return nil, dberr.NewDBNoRowsError("postgres.case_link.update.scan_ver.not_found")
 		}
 		return nil, err
 	}
