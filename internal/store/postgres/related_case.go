@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/lib/pq"
@@ -233,28 +234,28 @@ func ParseRelationTypeWithReversion(
 	relatedCase int64,
 ) (cases.RelationType, error) {
 	switch rawType {
-	case "DUPLICATES":
+	case "DUPLICATES", "IS_DUPLICATED_BY":
 		if parentID == parentCase {
 			return cases.RelationType_DUPLICATES, nil
 		}
 		if parentID == relatedCase {
 			return cases.RelationType_IS_DUPLICATED_BY, nil
 		}
-	case "BLOCKS":
+	case "BLOCKS", "IS_BLOCKED_BY":
 		if parentID == parentCase {
 			return cases.RelationType_BLOCKS, nil
 		}
 		if parentID == relatedCase {
 			return cases.RelationType_IS_BLOCKED_BY, nil
 		}
-	case "CAUSES":
+	case "CAUSES", "IS_CAUSED_BY":
 		if parentID == parentCase {
 			return cases.RelationType_CAUSES, nil
 		}
 		if parentID == relatedCase {
 			return cases.RelationType_IS_CAUSED_BY, nil
 		}
-	case "IS_CHILD_OF":
+	case "IS_CHILD_OF", "IS_PARENT_OF":
 		if parentID == parentCase {
 			return cases.RelationType_IS_CHILD_OF, nil
 		}
