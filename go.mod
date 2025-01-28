@@ -8,16 +8,21 @@ require (
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250121132426-2c80753dfee6.1
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.23.0
 	github.com/jackc/pgtype v1.14.4
-	github.com/webitel/logger v0.0.0-20250127150718-6b428f3264f9
+	github.com/webitel/logger v0.0.0-20250128124150-37ecb9bd0b0d
 	google.golang.org/genproto/googleapis/api v0.0.0-20241104194629-dd2ea8efbc28
-	google.golang.org/protobuf v1.36.1
+	google.golang.org/protobuf v1.36.4
 )
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 // indirect
+	buf.build/gen/go/grpc-ecosystem/grpc-gateway/protocolbuffers/go v1.36.1-20240502201324-7530ea77434f.1 // indirect
+	buf.build/gen/go/webitel/engine/protocolbuffers/go v1.34.1-20240402125447-cb375844242f.1 // indirect
 	buf.build/gen/go/webitel/logger/grpc/go v1.5.1-20240911114117-1d910a772b4f.1 // indirect
-	buf.build/gen/go/webitel/logger/protocolbuffers/go v1.34.2-20240911114117-1d910a772b4f.2 // indirect
+	buf.build/gen/go/webitel/logger/protocolbuffers/go v1.36.4-20250128105802-aaacc0377b27.1 // indirect
+	buf.build/gen/go/webitel/storage/grpc/go v1.4.0-20240527133229-1d3ffabec5d4.1 // indirect
+	buf.build/gen/go/webitel/storage/protocolbuffers/go v1.34.1-20240527133229-1d3ffabec5d4.1 // indirect
 	cel.dev/expr v0.18.0 // indirect
+	github.com/BoRuDar/configuration/v4 v4.2.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -28,6 +33,7 @@ require (
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
+	github.com/uptrace/opentelemetry-go-extra/otelsql v0.3.1 // indirect
 	github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218 // indirect
 	go.opentelemetry.io/contrib/propagators/jaeger v1.28.0 // indirect
 	go.opentelemetry.io/contrib/samplers/jaegerremote v0.22.0 // indirect
