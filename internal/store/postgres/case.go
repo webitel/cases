@@ -200,6 +200,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	// Parameters for the main case and nested JSON arrays
 	var (
 		reporter    *int64
+		assignee    *int64
 		closeReason *int64
 		closeResult *string
 	)
@@ -211,8 +212,11 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			closeResult = &cl.CloseResult
 		}
 	}
-	if caseItem.Reporter.GetId() != 0 {
+	if caseItem.Reporter != nil && caseItem.Reporter.GetId() > 0 {
 		reporter = &caseItem.Reporter.Id
+	}
+	if caseItem.Assignee != nil && caseItem.Assignee.GetId() > 0 {
+		assignee = &caseItem.Assignee.Id
 	}
 	params := map[string]interface{}{
 		// Case-level parameters
@@ -236,7 +240,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"reporter":            reporter,
 		"impacted":            caseItem.Impacted.GetId(),
 		"description":         caseItem.Description,
-		"assignee":            caseItem.Assignee.GetId(),
+		"assignee":            assignee,
 		//-------------------------------------------------//
 		//------ CASE One-to-Many ( 1 : n ) Attributes ----//
 		//-------------------------------------------------//
