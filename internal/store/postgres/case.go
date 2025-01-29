@@ -254,10 +254,16 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		)`
 
 	prefixCTE := `
+	    service_cte AS(
+		SELECT catalog_id
+		FROM cases.service_catalog
+			WHERE id = :service
+			LIMIT 1
+		),
 		prefix_cte AS (
 			SELECT prefix
 			FROM cases.service_catalog
-			WHERE id = :service
+			WHERE id = any(SELECT catalog_id FROM service_cte)
 			LIMIT 1
 		), id_cte AS (
 			SELECT nextval('cases.case_id'::regclass) AS id
