@@ -377,6 +377,9 @@ func (s *CatalogStore) List(
 				if id, ok := raw["id"].(float64); ok {
 					service.Id = int64(id)
 				}
+				if code, ok := raw["code"].(string); ok {
+					service.Code = code
+				}
 				if name, ok := raw["name"].(string); ok {
 					service.Name = name
 				}
@@ -1027,6 +1030,9 @@ COALESCE(
 	}
 	if util.ContainsField(subfields, "name") {
 		jsonFields.WriteString("'name', service_hierarchy.name,\n")
+	}
+	if util.ContainsField(subfields, "code") {
+		jsonFields.WriteString("'code', service_hierarchy.code,\n")
 	}
 	if util.ContainsField(subfields, "description") {
 		jsonFields.WriteString("'description', service_hierarchy.description,\n")
