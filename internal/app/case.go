@@ -3,10 +3,11 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"github.com/webitel/webitel-go-kit/errors"
 	"log/slog"
 	"strconv"
 	"time"
+
+	"github.com/webitel/webitel-go-kit/errors"
 
 	cases "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/model"
@@ -188,7 +189,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Reporter:         req.Input.Reporter,
 		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
 		Impacted:         req.Input.Impacted,
-		Group:            req.Input.Group,
+		Group:            &cases.ExtendedLookup{Id: req.Input.Group.GetId()},
 		Status:           req.Input.Status,
 		Close:            (*cases.CloseInfo)(req.Input.GetClose()),
 		CloseReasonGroup: req.Input.GetCloseReasonGroup(),
@@ -285,7 +286,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Assignee:         req.Input.GetAssignee(),
 		Reporter:         req.Input.GetReporter(),
 		Impacted:         req.Input.GetImpacted(),
-		Group:            req.Input.GetGroup(),
+		Group:            &cases.ExtendedLookup{Id: req.Input.GetGroup().GetId()},
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
 		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
 		Close: &cases.CloseInfo{

@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
@@ -16,9 +20,6 @@ import (
 	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type CaseStore struct {
@@ -604,7 +605,6 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 		return true, nil
 	}
 	return false, nil
-
 }
 
 func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
@@ -901,7 +901,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			base = base.Column(fmt.Sprintf(
 				"(SELECT ROW(g.id, g.name)::text FROM contacts.group g WHERE g.id = %s.contact_group) AS contact_group", caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanRowLookup(&caseItem.Group)
+				return scanner.ScanRowExtendedLookup(&caseItem.Group)
 			})
 		case "source":
 			base = base.Column(fmt.Sprintf(
@@ -1518,7 +1518,6 @@ func addCaseRbacConditionForInsert(auth auth.Auther, access auth.AccessMode, que
 			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
 			Where("acl.access & ? = ?", int64(access), int64(access)).
 			Limit(1)
-
 	} else {
 		subquery = sq.Select("id").From("cases.case").Where("id = ?")
 	}
