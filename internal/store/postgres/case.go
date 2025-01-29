@@ -899,7 +899,17 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "group":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(g.id, g.name)::text FROM contacts.group g WHERE g.id = %s.contact_group) AS contact_group", caseLeft))
+				`(
+					SELECT
+						ROW(g.id, g.name,
+							CASE
+								WHEN g.id IN (SELECT id FROM contacts.dynamic_group) THEN 'dynamic'
+								ELSE 'static'
+							END
+						)::text
+					FROM contacts.group g
+					WHERE g.id = %s.contact_group
+				) AS contact_group`, caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowExtendedLookup(&caseItem.Group)
 			})
