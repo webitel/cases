@@ -234,6 +234,8 @@ func ParseRelationTypeWithReversion(
 	relatedCase int64,
 ) (cases.RelationType, error) {
 	switch rawType {
+	case "RELATION_TYPE_UNSPECIFIED":
+		return cases.RelationType_RELATION_TYPE_UNSPECIFIED, nil
 	case "DUPLICATES", "IS_DUPLICATED_BY":
 		if parentID == parentCase {
 			return cases.RelationType_DUPLICATES, nil
