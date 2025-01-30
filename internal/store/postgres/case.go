@@ -486,8 +486,8 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 		return fmt.Errorf("failed to calculate planned resolution time: %w", err)
 	}
 
-	caseItem.PlannedReactionAt = util.Timestamp(reactionTimestamp)
-	caseItem.PlannedResolveAt = util.Timestamp(resolveTimestamp)
+	caseItem.PlannedReactionAt = reactionTimestamp.UnixMilli()
+	caseItem.PlannedResolveAt = resolveTimestamp.UnixMilli()
 
 	return nil
 }
