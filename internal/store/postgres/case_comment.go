@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+
 	"github.com/webitel/cases/auth"
 
 	"github.com/jackc/pgx"
@@ -70,9 +71,7 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 ) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
 	// Ensure "id" and "ver" are in the fields list
 	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
-	var (
-		err error
-	)
+	var err error
 	// Build the insert query with a RETURNING clause
 	insertBuilder := sq.
 		Insert("cases.case_comment").
@@ -332,7 +331,7 @@ func (c *CaseCommentStore) Update(
 	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Explicitly indicate that the user is not the creator
-			return nil, dberr.NewDBNotFoundError("postgres.case_comment.update.scan_ver.not_found", "Comment not found")
+			return nil, dberr.NewDBNoRowsError("postgres.case_comment.update.scan_ver.not_found")
 		}
 		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.execution_error", err)
 	}

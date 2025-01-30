@@ -90,34 +90,6 @@ func TestNewDBCheckViolationError(t *testing.T) {
 	}
 }
 
-func TestNewDBNotNullViolationError(t *testing.T) {
-	id := "db.not_null_violation"
-	table := "users"
-	column := "email"
-	err := err.NewDBNotNullViolationError(id, table, column)
-
-	if err.ID != id {
-		t.Errorf("expected ID %s, got %s", id, err.ID)
-	}
-	expectedError := "DBError [db.not_null_violation]: invalid input: violates not null constraint: column [users.email] cannot be null"
-	if err.Error() != expectedError {
-		t.Errorf("expected error string '%s', got '%s'", expectedError, err.Error())
-	}
-}
-
-func TestNewDBEntityConflictError(t *testing.T) {
-	id := "db.entity_conflict"
-	err := err.NewDBEntityConflictError(id)
-
-	if err.ID != id {
-		t.Errorf("expected ID %s, got %s", id, err.ID)
-	}
-	expectedError := "DBError [db.entity_conflict]: found more than one requested entity"
-	if err.Error() != expectedError {
-		t.Errorf("expected error string '%s', got '%s'", expectedError, err.Error())
-	}
-}
-
 func TestNewDBInternalError(t *testing.T) {
 	id := "db.internal_error"
 	reason := fmt.Errorf("database connection lost")

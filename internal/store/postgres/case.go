@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
@@ -16,9 +20,6 @@ import (
 	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type CaseStore struct {
@@ -199,6 +200,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	// Parameters for the main case and nested JSON arrays
 	var (
 		reporter    *int64
+		assignee    *int64
 		closeReason *int64
 		closeResult *string
 	)
@@ -213,6 +215,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	if caseItem.Reporter.GetId() != 0 {
 		reporter = &caseItem.Reporter.Id
 	}
+
+	if caseItem.Assignee.GetId() == 0 {
+		assignee = nil // Set to nil if assignee is 0, so it will be inserted as NULL
+	} else {
+		assignee = &caseItem.Assignee.Id
+	}
+
 	params := map[string]interface{}{
 		// Case-level parameters
 		"date":                rpc.CurrentTime(),
@@ -235,7 +244,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"reporter":            reporter,
 		"impacted":            caseItem.Impacted.GetId(),
 		"description":         caseItem.Description,
-		"assignee":            caseItem.Assignee.GetId(),
+		"assignee":            assignee,
 		//-------------------------------------------------//
 		//------ CASE One-to-Many ( 1 : n ) Attributes ----//
 		//-------------------------------------------------//
@@ -253,10 +262,16 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		)`
 
 	prefixCTE := `
+	    service_cte AS(
+		SELECT catalog_id
+		FROM cases.service_catalog
+			WHERE id = :service
+			LIMIT 1
+		),
 		prefix_cte AS (
 			SELECT prefix
 			FROM cases.service_catalog
-			WHERE id = :service
+			WHERE id = any(SELECT catalog_id FROM service_cte)
 			LIMIT 1
 		), id_cte AS (
 			SELECT nextval('cases.case_id'::regclass) AS id
@@ -604,7 +619,6 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 		return true, nil
 	}
 	return false, nil
-
 }
 
 func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
@@ -795,7 +809,11 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
 			updateBuilder = updateBuilder.Set("sla", sq.Expr("(SELECT sla_id FROM cases.service_catalog WHERE id = ? LIMIT 1)", upd.Service.GetId()))
 		case "assignee":
-			updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
+			if upd.Assignee.GetId() == 0 {
+				updateBuilder = updateBuilder.Set("assignee", nil)
+			} else {
+				updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
+			}
 		case "reporter":
 			updateBuilder = updateBuilder.Set("reporter", upd.Reporter.GetId())
 		case "contact_info":
@@ -899,9 +917,19 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "group":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(g.id, g.name)::text FROM contacts.group g WHERE g.id = %s.contact_group) AS contact_group", caseLeft))
+				`(
+					SELECT
+						ROW(g.id, g.name,
+							CASE
+								WHEN g.id IN (SELECT id FROM contacts.dynamic_group) THEN 'dynamic'
+								ELSE 'static'
+							END
+						)::text
+					FROM contacts.group g
+					WHERE g.id = %s.contact_group
+				) AS contact_group`, caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanRowLookup(&caseItem.Group)
+				return scanner.ScanRowExtendedLookup(&caseItem.Group)
 			})
 		case "source":
 			base = base.Column(fmt.Sprintf(
@@ -1518,7 +1546,6 @@ func addCaseRbacConditionForInsert(auth auth.Auther, access auth.AccessMode, que
 			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
 			Where("acl.access & ? = ?", int64(access), int64(access)).
 			Limit(1)
-
 	} else {
 		subquery = sq.Select("id").From("cases.case").Where("id = ?")
 	}

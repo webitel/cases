@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -187,6 +188,10 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &st.StatusId,
 	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Explicitly indicate that the user is not the creator
+			return nil, dberr.NewDBNoRowsError("postgres.status_condition.update.execution_error")
+		}
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.execution_error", err)
 	}
 
@@ -390,7 +395,7 @@ WHERE CASE
 
 	// Append the dynamic query arguments
 	args = append(args, updArgs...)
-	//fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
+	// fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
 
 	return store.CompactSQL(query), args
 }

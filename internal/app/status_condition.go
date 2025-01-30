@@ -79,7 +79,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 	t := time.Now()
 	searchOptions := model.SearchOptions{
 		IDs: req.Id,
-		//UserAuthSession: session,
+		// UserAuthSession: session,
 		Fields:  fields,
 		Context: ctx,
 		Sort:    req.Sort,
@@ -156,9 +156,9 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	status.UpdatedBy = u
 
 	// Update the status in the store
-	st, e := s.app.Store.StatusCondition().Update(&updateOpts, status)
-	if e != nil {
-		return nil, cerror.NewInternalError("status_condition.update_status_condition.store.update.failed", e.Error())
+	st, err := s.app.Store.StatusCondition().Update(&updateOpts, status)
+	if err != nil {
+		return nil, err
 	}
 
 	return st, nil

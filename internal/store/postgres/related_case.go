@@ -133,7 +133,7 @@ func (r *RelatedCaseStore) Delete(
 
 	// Check if any rows were affected
 	if res.RowsAffected() == 0 {
-		return dberr.NewDBNotFoundError("store.related_case.delete.not_found", "Related case not found")
+		return dberr.NewDBNoRowsError("store.related_case.delete.not_found")
 	}
 
 	return nil
@@ -344,7 +344,7 @@ func (r *RelatedCaseStore) Update(
 	// Execute query and scan the result
 	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, dberr.NewDBNotFoundError("store.related_case.update.not_found", "Related case not found")
+			return nil, dberr.NewDBNoRowsError("store.related_case.update.not_found")
 		}
 		return nil, dberr.NewDBInternalError("store.related_case.update.execution_error", err)
 	}
