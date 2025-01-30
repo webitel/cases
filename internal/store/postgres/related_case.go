@@ -276,6 +276,8 @@ func ParseRelationTypeWithReversion(
 func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 	rpc *model.SearchOptions,
 ) (sq.SelectBuilder, func(*cases.RelatedCase) []any, *dberr.DBError) {
+	rpc.Fields = util.EnsureFields(rpc.Fields, "created_at")
+
 	// Start building the base query
 	queryBuilder := sq.Select().
 		From("cases.related_case AS rc").
