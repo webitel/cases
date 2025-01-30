@@ -22,9 +22,11 @@ type RelatedCaseStore struct {
 const (
 	relatedCaseLeft           = "rc"
 	relatedCaseAlias          = "rca"
+	relatedCasePriorityAlias  = "rcpa"
 	primaryCaseAlias          = "pca"
-	relatedCaseCreatedByAlias = "cb" // Alias for created_by
-	relatedCaseUpdatedByAlias = "ub" // Alias for updated_by
+	primaryCasePriorityAlias  = "pcpa"
+	relatedCaseCreatedByAlias = "cb"
+	relatedCaseUpdatedByAlias = "ub"
 )
 
 // Create implements store.RelatedCaseStore for creating a new related case.
@@ -415,10 +417,14 @@ func buildRelatedCasesSelectColumnsAndPlan(
 			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.updated_by", relatedCaseUpdatedByAlias, left))
 		}
 		joinRelatedCase = func() {
-			base = base.LeftJoin(fmt.Sprintf("cases.case %s ON %[1]s.id = %s.related_case_id", relatedCaseAlias, left))
+			base = base.
+				LeftJoin(fmt.Sprintf("cases.case %s ON %[1]s.id = %s.related_case_id", relatedCaseAlias, left)).
+				LeftJoin(fmt.Sprintf("cases.priority %s ON %[1]s.id = %s.priority", relatedCasePriorityAlias, relatedCaseAlias))
 		}
 		joinPrimaryCase = func() {
-			base = base.LeftJoin(fmt.Sprintf("cases.case %s ON %[1]s.id = %s.primary_case_id", primaryCaseAlias, left))
+			base = base.
+				LeftJoin(fmt.Sprintf("cases.case %s ON %[1]s.id = %s.primary_case_id", primaryCaseAlias, left)).
+				LeftJoin(fmt.Sprintf("cases.priority %s ON %[1]s.id = %s.priority", primaryCasePriorityAlias, primaryCaseAlias))
 		}
 	)
 
@@ -463,13 +469,17 @@ func buildRelatedCasesSelectColumnsAndPlan(
 			})
 		case "related_case":
 			joinRelatedCase()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name, %[1]s.subject, %[1]s.ver)::text related_case", relatedCaseAlias))
+			base = base.Column(fmt.Sprintf(
+				"ROW(%[1]s.id, %[1]s.name, %[1]s.subject, %[1]s.ver, %[2]s.color)::text related_case",
+				relatedCaseAlias, relatedCasePriorityAlias))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanRelatedCaseLookup(&rc.RelatedCase)
 			})
 		case "primary_case":
 			joinPrimaryCase()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name, %[1]s.subject, %[1]s.ver)::text primary_case", primaryCaseAlias))
+			base = base.Column(fmt.Sprintf(
+				"ROW(%[1]s.id, %[1]s.name, %[1]s.subject, %[1]s.ver, %[2]s.color)::text primary_case",
+				primaryCaseAlias, primaryCasePriorityAlias))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanRelatedCaseLookup(&rc.PrimaryCase)
 			})
