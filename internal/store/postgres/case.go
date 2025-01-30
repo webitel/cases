@@ -412,10 +412,8 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	caseItem *_go.Case,
 ) error {
 	rows, err := txManager.Query(rpc.Context, `
-		SELECT day, start_time_of_day, end_time_of_day, special, disabled, tz.utc_offset
-		FROM flow.calendar cl 
-		    LEFT JOIN flow.calendar_timezones tz ON tz.id = cl.timezone_id,
-	        UNNEST(accepts::flow.calendar_accept_time[]) x
+		SELECT day, start_time_of_day, end_time_of_day, special, disabled
+		FROM flow.calendar cl,  UNNEST(accepts::flow.calendar_accept_time[]) x
 		WHERE cl.id = $1
 		ORDER BY day, start_time_of_day`, calendarID)
 	if err != nil {
@@ -429,7 +427,6 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 		EndTimeOfDay   int
 		Special        bool
 		Disabled       bool
-		UtcOffset      time.Duration
 	}
 	for rows.Next() {
 		var entry struct {
@@ -438,7 +435,6 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 			EndTimeOfDay   int
 			Special        bool
 			Disabled       bool
-			UtcOffset      time.Duration
 		}
 		if err = rows.Scan(
 			&entry.Day,
@@ -446,7 +442,6 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 			&entry.EndTimeOfDay,
 			&entry.Special,
 			&entry.Disabled,
-			&entry.UtcOffset,
 		); err != nil {
 			return fmt.Errorf("failed to scan calendar entry: %w", err)
 		}
@@ -473,15 +468,15 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	reactionMinutes := reactionTime / 60
 	resolutionMinutes := resolutionTime / 60
 
-	currentTime := rpc.CurrentTime().UTC().Add(offset)
-	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, reactionMinutes, calendar)
+	currentTime := rpc.CurrentTime()
+	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, reactionMinutes, calendar)
 	if err != nil {
 		return fmt.Errorf("failed to calculate planned reaction time: %w", err)
 	}
 
 	//?? TODO
 	// resolveTimestamp, err := calculateTimestampFromCalendar(reactionTimestamp, resolutionMinutes, calendar)
-	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, resolutionMinutes, calendar)
+	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, resolutionMinutes, calendar)
 	if err != nil {
 		return fmt.Errorf("failed to calculate planned resolution time: %w", err)
 	}
@@ -494,6 +489,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 
 func calculateTimestampFromCalendar(
 	startTime time.Time,
+	calendarOffset time.Duration,
 	requiredMinutes int,
 	calendar []struct {
 		Day            int
@@ -501,7 +497,6 @@ func calculateTimestampFromCalendar(
 		EndTimeOfDay   int
 		Special        bool
 		Disabled       bool
-		UtcOffset      time.Duration
 	},
 ) (time.Time, error) {
 	remainingMinutes := requiredMinutes
@@ -515,17 +510,19 @@ func calculateTimestampFromCalendar(
 
 	for {
 		for _, slot := range calendar {
+			slotStartOfTheDayUtc := int((time.Duration(slot.StartTimeOfDay)*time.Minute - calendarOffset).Minutes())
+			slotEndOfTheDayUtc := int((time.Duration(slot.EndTimeOfDay)*time.Minute - calendarOffset).Minutes())
 			// Match the current day and ensure the slot is in the future
-			if slot.Day == currentDay && slot.EndTimeOfDay > currentTimeInMinutes {
+			if slot.Day == currentDay && slotEndOfTheDayUtc > currentTimeInMinutes {
 				if startDayProcessed {
-					currentTimeInMinutes = slot.StartTimeOfDay
+					currentTimeInMinutes = slotStartOfTheDayUtc
 				}
-				if currentTimeInMinutes < slot.StartTimeOfDay {
-					startingAtMinutes = slot.StartTimeOfDay
+				if currentTimeInMinutes < slotStartOfTheDayUtc {
+					startingAtMinutes = slotStartOfTheDayUtc
 				} else {
 					startingAtMinutes = currentTimeInMinutes
 				}
-				availableMinutes := slot.EndTimeOfDay - startingAtMinutes
+				availableMinutes := slotEndOfTheDayUtc - startingAtMinutes
 				if availableMinutes >= remainingMinutes {
 					// if we need to add days, then we should add minutes from the start of the working day
 					if addDays != 0 {
@@ -533,7 +530,7 @@ func calculateTimestampFromCalendar(
 						// Add days required
 						startDate = startDate.Add(time.Duration(24*addDays) * time.Hour)
 						// Add minutes to the start of the working day
-						startDate = startDate.Add(time.Duration(slot.StartTimeOfDay) * time.Minute)
+						startDate = startDate.Add(time.Duration(slotStartOfTheDayUtc) * time.Minute)
 						// Add remaining minutes to the start of the working day
 						startDate = startDate.Add(time.Duration(remainingMinutes) * time.Minute)
 						return startDate, nil
