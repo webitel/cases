@@ -234,6 +234,8 @@ func ParseRelationTypeWithReversion(
 	relatedCase int64,
 ) (cases.RelationType, error) {
 	switch rawType {
+	case "RELATION_TYPE_UNSPECIFIED":
+		return cases.RelationType_RELATION_TYPE_UNSPECIFIED, nil
 	case "DUPLICATES", "IS_DUPLICATED_BY":
 		if parentID == parentCase {
 			return cases.RelationType_DUPLICATES, nil
@@ -274,6 +276,8 @@ func ParseRelationTypeWithReversion(
 func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 	rpc *model.SearchOptions,
 ) (sq.SelectBuilder, func(*cases.RelatedCase) []any, *dberr.DBError) {
+	rpc.Fields = util.EnsureFields(rpc.Fields, "created_at")
+
 	// Start building the base query
 	queryBuilder := sq.Select().
 		From("cases.related_case AS rc").
