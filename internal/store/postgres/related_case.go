@@ -6,7 +6,6 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
-	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
@@ -142,17 +141,14 @@ func (r *RelatedCaseStore) Delete(
 }
 
 func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc *model.DeleteOptions) (string, []interface{}, *dberr.DBError) {
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
-	ids := util.FieldsFunc(convertedIds, util.InlineFields)
-
 	query := deleteRelatedCaseQuery
-	args := []interface{}{pq.Array(ids), rpc.GetAuthOpts().GetDomainId()}
+	args := []interface{}{rpc.ID, rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
 }
 
 var deleteRelatedCaseQuery = store.CompactSQL(`
 	DELETE FROM cases.related_case
-	WHERE id = ANY($1) AND dc = $2
+	WHERE id = $1 AND dc = $2
 `)
 
 // List implements store.RelatedCaseStore for fetching related cases.
