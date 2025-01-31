@@ -39,6 +39,7 @@ func BuildServer(config *conf.ConsulConfig, authManager user_auth.AuthManager, e
 			otelgrpc.WithMessageEvents(otelgrpc.SentEvents, otelgrpc.ReceivedEvents),
 		)),
 		grpc.ChainUnaryInterceptor(
+			interceptor.OuterInterceptor(),
 			interceptor.AuthUnaryServerInterceptor(authManager),
 			interceptor.ValidateUnaryServerInterceptor(val),
 			interceptor.LoggingUnaryServerInterceptor(),

@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/webitel/webitel-go-kit/errors"
-
 	cases "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -81,7 +79,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
-		return nil, errors.NewInternalError("app.case_communication.search_cases.database.error", "database error")
+		return nil, AppDatabaseError
 	}
 	err = c.NormalizeResponseCases(list, req, nil)
 	if err != nil {

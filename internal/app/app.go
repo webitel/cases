@@ -6,7 +6,6 @@ import (
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/auth/user_auth/webitel_manager"
-	"github.com/webitel/webitel-go-kit/errors"
 	"log/slog"
 
 	conf "github.com/webitel/cases/config"
@@ -25,10 +24,10 @@ const (
 )
 
 var (
-	AppDatabaseError            = errors.NewInternalError("app.process_api.database.perform_query.error", "database error occurred")
-	AppResponseNormalizingError = errors.NewInternalError("app.process_api.response.normalize.error", "error occurred while normalizing response")
-	AppForbiddenError           = errors.NewForbiddenError("app.process_api.response.access.error", "unable access resource")
-	AppInternalError            = errors.NewInternalError("app.process_api.execution.error", "error occurred while processing request")
+	AppDatabaseError            = cerror.NewInternalError("app.process_api.database.perform_query.error", "database error occurred")
+	AppResponseNormalizingError = cerror.NewInternalError("app.process_api.response.normalize.error", "error occurred while normalizing response")
+	AppForbiddenError           = cerror.NewForbiddenError("app.process_api.response.access.error", "unable access resource")
+	AppInternalError            = cerror.NewInternalError("app.process_api.execution.error", "error occurred while processing request")
 )
 
 type App struct {
