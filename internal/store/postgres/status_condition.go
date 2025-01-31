@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -132,23 +133,14 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 		return dberr.NewDBInternalError("postgres.status_condition.delete.database_connection_error", err)
 	}
 
-	rows, err := db.Query(rpc.Context, query, args...)
+	res, err := db.Exec(rpc.Context, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.status_condition.delete.execution_error", err)
 	}
-	defer rows.Close()
 
-	var deletedIds []int64
-	for rows.Next() {
-		var deletedId int64
-		if err := rows.Scan(&deletedId); err != nil {
-			return dberr.NewDBInternalError("postgres.status_condition.delete.scan_error", err)
-		}
-		deletedIds = append(deletedIds, deletedId)
-	}
-
-	if len(deletedIds) == 0 {
-		return dberr.NewDBError("postgres.status_condition.delete.constraint_violation", "operation would violate constraints: at least one initial and one final record must remain")
+	// Check if any rows were affected
+	if res.RowsAffected() == 0 {
+		return dberr.NewDBCheckViolationError("postgres.status_condition.delete.not_found", "delete not allowed")
 	}
 
 	return nil
@@ -160,17 +152,11 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.database_connection_error", err)
 	}
 
-	tx, err := db.BeginTx(rpc.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.update.transaction_begin_error", err)
-	}
-	defer s.handleTx(rpc.Context, tx, &err)
-
 	for _, field := range rpc.Fields {
 		switch field {
 		case "initial":
 			if !st.Initial {
-				return nil, dberr.NewDBError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
+				return nil, dberr.NewDBCheckViolationError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
 			}
 		}
 	}
@@ -182,11 +168,15 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		createdAt, updatedAt time.Time
 	)
 
-	err = tx.QueryRow(rpc.Context, query, args...).Scan(
-		&st.Id, &st.Name, &createdAt, &updatedAt, &st.Description, &st.Initial, &st.Final,
-		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &st.StatusId,
-	)
-	if err != nil {
+	if err := db.QueryRow(rpc.Context, query, args...).Scan(
+		&st.Id, &st.Name, &createdAt,
+		&updatedAt, &st.Description, &st.Initial, &st.Final,
+		&createdBy.Id, &createdBy.Name, &updatedBy.Id,
+		&updatedBy.Name, &st.StatusId,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, dberr.NewDBNotFoundError("postgres.status_condition.update.execution_error.not_found", "Status condition not found")
+		}
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.execution_error", err)
 	}
 
@@ -390,7 +380,7 @@ WHERE CASE
 
 	// Append the dynamic query arguments
 	args = append(args, updArgs...)
-	//fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
+	// fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
 
 	return store.CompactSQL(query), args
 }
