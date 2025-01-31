@@ -3,13 +3,14 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/auth/user_auth/webitel_manager"
-	"log/slog"
 
 	conf "github.com/webitel/cases/config"
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/server"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"

@@ -8,7 +8,7 @@ import (
 	"github.com/webitel/cases/auth"
 
 	cases "github.com/webitel/cases/api/cases"
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"

@@ -12,7 +12,7 @@ import (
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 )
 
 const caseObjScope = "cases"

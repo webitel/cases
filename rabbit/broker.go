@@ -7,7 +7,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	conf "github.com/webitel/cases/config"
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 )
 
 const MaxReconnectAttempts = 100

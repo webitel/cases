@@ -15,7 +15,7 @@ import (
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
@@ -456,7 +456,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	var offset time.Duration
 	offsetRow := txManager.QueryRow(rpc.Context, `
 		SELECT tz.utc_offset
-		FROM flow.calendar cl 
+		FROM flow.calendar cl
 		    LEFT JOIN flow.calendar_timezones tz ON tz.id = cl.timezone_id
 		WHERE cl.id = $1`, calendarID)
 	err = offsetRow.Scan(&offset)

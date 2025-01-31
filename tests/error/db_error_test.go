@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	err "github.com/webitel/cases/internal/error"
+	err "github.com/webitel/cases/internal/errors"
 )
 
 func TestNewDBError(t *testing.T) {

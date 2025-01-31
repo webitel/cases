@@ -2,10 +2,11 @@ package webitel_manager
 
 import (
 	"context"
+
 	"github.com/webitel/cases/auth"
 
 	"github.com/webitel/cases/auth/user_auth"
-	autherror "github.com/webitel/cases/internal/error"
+	autherror "github.com/webitel/cases/internal/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )

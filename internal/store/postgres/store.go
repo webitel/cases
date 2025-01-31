@@ -6,7 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	conf "github.com/webitel/cases/config"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	otelpgx "github.com/webitel/webitel-go-kit/tracing/pgx"
 )
@@ -110,6 +110,7 @@ func (s *Store) CaseCommunication() store.CaseCommunicationStore {
 	}
 	return s.caseCommunicationStore
 }
+
 func (s *Store) RelatedCase() store.RelatedCaseStore {
 	if s.relatedCaseStore == nil {
 		relatedCase, err := NewRelatedCaseStore(s)

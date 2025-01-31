@@ -8,7 +8,7 @@ import (
 
 	"github.com/bufbuild/protovalidate-go"
 	conf "github.com/webitel/cases/config"
-	grpcerr "github.com/webitel/cases/internal/error"
+	grpcerr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/server/interceptor"
 	"github.com/webitel/cases/registry"
 	"github.com/webitel/cases/registry/consul"

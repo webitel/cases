@@ -7,7 +7,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"

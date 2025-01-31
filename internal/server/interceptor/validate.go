@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto" // Required for proto.Message type assertion
 
-	cerr "github.com/webitel/cases/internal/error"
+	cerr "github.com/webitel/cases/internal/errors"
 )
 
 // ValidateUnaryServerInterceptor returns a gRPC interceptor for request validation.

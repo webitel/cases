@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	cerr "github.com/webitel/cases/internal/error"
+	cerr "github.com/webitel/cases/internal/errors"
 )
 
 type AppConfig struct {

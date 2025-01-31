@@ -13,7 +13,7 @@ import (
 
 	api "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth/user_auth"
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
