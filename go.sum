@@ -1736,6 +1736,8 @@ github.com/webitel/logger v0.0.0-20250127150718-6b428f3264f9 h1:i5N4PpAjYjPPZUfT
 github.com/webitel/logger v0.0.0-20250127150718-6b428f3264f9/go.mod h1:83hogU0E3JQo824E/cY/abQNvviWaJx8mGssYnVLa4M=
 github.com/webitel/logger v0.0.0-20250128124150-37ecb9bd0b0d h1:BMAvVn2puGcvQEGWj8Hg+oHWUpJwllk4yGpEERHUjoI=
 github.com/webitel/logger v0.0.0-20250128124150-37ecb9bd0b0d/go.mod h1:YoEwlpSUESlyW7h5SqYsoyN96eyHFdOQdWp2/We4sB8=
+github.com/webitel/logger v0.0.0-20250131114845-d3141d923206 h1:2VLc7uDdbv07C82MsRpooEkBgZrKzeejPIGO6914cEg=
+github.com/webitel/logger v0.0.0-20250131114845-d3141d923206/go.mod h1:YoEwlpSUESlyW7h5SqYsoyN96eyHFdOQdWp2/We4sB8=
 github.com/webitel/webitel-go-kit v0.0.21-0.20250109110208-ce50be3e96ea h1:2p3u5SX4djPdHrgiArc7QpbYIhbTKIwC24ec1jwh0Mw=
 github.com/webitel/webitel-go-kit v0.0.21-0.20250109110208-ce50be3e96ea/go.mod h1:CMnTRWZ9NoMAPdDyj9d19O3tC/kYJmub6qEDVPV59FM=
 github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218 h1:5Jn9KhUMjqAUdVMi7EvFJrJlJGrwndhKFbz7FZ7woL0=

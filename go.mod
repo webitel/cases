@@ -8,7 +8,7 @@ require (
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250121132426-2c80753dfee6.1
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.23.0
 	github.com/jackc/pgtype v1.14.4
-	github.com/webitel/logger v0.0.0-20250128124150-37ecb9bd0b0d
+	github.com/webitel/logger v0.0.0-20250131114845-d3141d923206
 	google.golang.org/genproto/googleapis/api v0.0.0-20241104194629-dd2ea8efbc28
 	google.golang.org/protobuf v1.36.4
 )
