@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -140,7 +139,7 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 
 	// Check if any rows were affected
 	if res.RowsAffected() == 0 {
-		return dberr.NewDBCheckViolationError("postgres.status_condition.delete.not_found", "delete not allowed")
+		return dberr.NewBadRequestError("postgres.status_condition.delete.not_found", "delete not allowed")
 	}
 
 	return nil
@@ -156,7 +155,7 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		switch field {
 		case "initial":
 			if !st.Initial {
-				return nil, dberr.NewDBCheckViolationError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
+				return nil, dberr.NewBadRequestError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
 			}
 		}
 	}
@@ -174,10 +173,7 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id,
 		&updatedBy.Name, &st.StatusId,
 	); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, dberr.NewDBNotFoundError("postgres.status_condition.update.execution_error.not_found", "Status condition not found")
-		}
-		return nil, dberr.NewDBInternalError("postgres.status_condition.update.execution_error", err)
+		return nil, err
 	}
 
 	st.CreatedAt = util.Timestamp(createdAt)

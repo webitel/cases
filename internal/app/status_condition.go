@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/model"
@@ -158,6 +160,9 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	// Update the status in the store
 	st, err := s.app.Store.StatusCondition().Update(&updateOpts, status)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, cerror.NewBadRequestError("status_condition.delete_status_condition.not_found", "Status condition not found")
+		}
 		return nil, err
 	}
 

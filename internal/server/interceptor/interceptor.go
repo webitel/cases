@@ -73,11 +73,14 @@ func logAndReturnGRPCError(ctx context.Context, err error, info *grpc.UnaryServe
 	switch e := err.(type) {
 	case cerror.AppError:
 		return status.Error(httpCodeToGrpc(e.GetStatusCode()), e.ToJson())
+	case cerror.AuthError:
+		c := e.ToJson()
+		print(c)
+		return status.Error(httpCodeToGrpc(e.GetStatusCode()), e.ToJson())
 	default:
 		slog.ErrorContext(ctx, fmt.Sprintf("not app err returned: %s", err.Error()))
 		return status.Error(codes.Internal, cerror.NewInternalError("app.interceptor.parse.error", http.StatusText(http.StatusInternalServerError)).ToJson())
 	}
-
 }
 
 // httpCodeToGrpc maps HTTP status codes to gRPC error codes.

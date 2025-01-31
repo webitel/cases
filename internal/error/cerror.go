@@ -145,37 +145,6 @@ func NewForbiddenError(id string, details string) AppError {
 	return newAppError(id, details).SetStatusCode(http.StatusForbidden)
 }
 
-func NewCustomCodeError(id string, details string, code int) AppError {
-	if code > 511 || code < 100 {
-		code = http.StatusInternalServerError
-	}
-	return newAppError(id, details).SetStatusCode(code)
-}
-
 func newAppError(id string, details string) AppError {
 	return &ApplicationError{Id: id, Status: id, DetailedError: details}
-}
-
-func AppErrorFromJson(js string) *ApplicationError {
-	var err ApplicationError
-	json.Unmarshal([]byte(js), &err)
-	if err.Id == "" {
-		return nil
-	}
-	return &err
-}
-
-func MakePermissionError(userID int64) AppError {
-	return NewForbiddenError(
-		"internal.permissions.check_access.denied",
-		fmt.Sprintf("userId=%d, access denied", userID),
-	)
-}
-
-// MakeScopeError returns an AppError when a user lacks the required scope access.
-func MakeScopeError(userID int64, scopeName string, access int) AppError {
-	return NewForbiddenError(
-		"internal.scope.check_access.denied",
-		fmt.Sprintf("access denied for user %d on scope '%s' with access level %d", userID, scopeName, access),
-	)
 }

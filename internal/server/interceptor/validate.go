@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto" // Required for proto.Message type assertion
 
-	grpcerror "github.com/webitel/cases/internal/error"
+	cerr "github.com/webitel/cases/internal/error"
 )
 
 // ValidateUnaryServerInterceptor returns a gRPC interceptor for request validation.
@@ -24,14 +24,13 @@ func ValidateUnaryServerInterceptor(val *protovalidate.Validator) grpc.UnaryServ
 				// Check if the error is a ValidationError
 				if errors.As(err, &ve) && len(ve.Violations) > 0 {
 					violation := ve.Violations[0]
-					return nil, grpcerror.NewValidationError(
-						violation.GetFieldPath(),
+					return nil, cerr.NewInternalError(
 						violation.GetConstraintId(),
 						violation.GetMessage(),
 					)
 				}
 				// Return generic validation error if no specific violations found
-				return nil, grpcerror.NewValidationError("general", "unknown", err.Error())
+				return nil, cerr.NewInternalError("unknown", err.Error())
 			}
 		}
 		// Proceed to handler if validation passes
