@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+
 	"github.com/webitel/cases/auth"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -184,7 +185,7 @@ type PriorityStore interface {
 	// Create a new priority lookup
 	Create(rpc *model.CreateOptions, add *_go.Priority) (*_go.Priority, error)
 	// List priority lookup
-	List(rpc *model.SearchOptions, notInSla int64) (*_go.PriorityList, error)
+	List(rpc *model.SearchOptions, notInSla int64, inSla int64) (*_go.PriorityList, error)
 	// Delete priority lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update priority lookup

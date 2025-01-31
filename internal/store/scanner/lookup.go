@@ -291,7 +291,7 @@ func ScanRelatedCaseLookup(value **_go.RelatedCaseLookup) any {
 					if err != nil {
 						return err
 					}
-					res.Colour = str.String
+					res.Color = str.String
 					ok = ok || str.String != ""
 					return nil
 				}),

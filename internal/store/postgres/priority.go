@@ -141,13 +141,14 @@ func (p *Priority) buildDeletePriorityQuery(
 func (p *Priority) List(
 	rpc *model.SearchOptions,
 	notInSla int64,
+	inSla int64,
 ) (*api.PriorityList, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.database_connection_error", dbErr)
 	}
 
-	selectBuilder, plan, err := p.buildListPriorityQuery(rpc, notInSla)
+	selectBuilder, plan, err := p.buildListPriorityQuery(rpc, notInSla, inSla)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.build_query_error", err)
 	}
@@ -196,6 +197,7 @@ func (p *Priority) List(
 func (p *Priority) buildListPriorityQuery(
 	rpc *model.SearchOptions,
 	notInSla int64,
+	inSla int64,
 ) (sq.SelectBuilder, []PriorityScan, error) {
 	rpc.Fields = util.EnsureIdField(rpc.Fields)
 
@@ -226,6 +228,18 @@ func (p *Priority) buildListPriorityQuery(
 					WHERE sc.sla_id = ? AND psc.priority_id = cp.id
 				)
 			`, notInSla))
+	}
+
+	// Add NOT IN SLA condition if `notInSla` is not 0
+	if inSla != 0 {
+		queryBuilder = queryBuilder.Where(sq.Expr(`
+					 EXISTS (
+						SELECT 1
+						FROM cases.sla_condition sc
+						JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+						WHERE sc.sla_id = ? AND psc.priority_id = cp.id
+					)
+				`, notInSla))
 	}
 
 	// Filter by IDs

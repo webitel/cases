@@ -80,7 +80,7 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 		searchOptions.Filter["name"] = req.Q
 	}
 
-	prios, err := p.app.Store.Priority().List(searchOptions, req.NotInSla)
+	prios, err := p.app.Store.Priority().List(searchOptions, req.NotInSla, req.InSla)
 	if err != nil {
 		return nil, cerror.NewInternalError("app.priority.list_priorities.store_list_failed", err.Error())
 	}
