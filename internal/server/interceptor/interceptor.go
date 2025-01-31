@@ -3,16 +3,22 @@ package interceptor
 import (
 	"context"
 	"fmt"
-	"github.com/webitel/cases/auth"
+	"log/slog"
+	"net/http"
 	"regexp"
 	"strings"
 
-	api "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/auth"
+	"go.opentelemetry.io/otel/trace"
 
+	api "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth/user_auth"
 	autherror "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/error"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // Define a header constant for the token
@@ -27,7 +33,6 @@ var reg = regexp.MustCompile(`^(.*\.)`)
 // AuthUnaryServerInterceptor authenticates and authorizes unary RPCs.
 func AuthUnaryServerInterceptor(authManager user_auth.AuthManager) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-
 		// // Retrieve authorization details
 		objClass, licenses, action := objClassWithAction(info)
 
@@ -50,7 +55,81 @@ func AuthUnaryServerInterceptor(authManager user_auth.AuthManager) grpc.UnarySer
 		ctx = context.WithValue(ctx, SessionHeader, session)
 
 		// Proceed with handler after successful validation
-		return handler(ctx, req)
+		resp, err := handler(ctx, req)
+		if err != nil {
+			return nil, logAndReturnGRPCError(ctx, err, info)
+		}
+
+		return resp, nil
+	}
+}
+
+// logAndReturnGRPCError logs the error and converts it to a gRPC error response.
+func logAndReturnGRPCError(ctx context.Context, err error, info *grpc.UnaryServerInfo) error {
+	slog.WarnContext(ctx, fmt.Sprintf("method %s, error: %v", info.FullMethod, err.Error()))
+	span := trace.SpanFromContext(ctx) // OpenTelemetry tracing
+	span.RecordError(err)
+
+	// Determine the correct gRPC error response
+	switch e := err.(type) {
+	case *autherror.UnauthorizedError: // Handle Authentication Errors
+		// Assuming UnauthorizedError has an associated HTTP code
+		return status.Error(httpCodeToGrpc(http.StatusUnauthorized), e.Error())
+
+	case *dberr.DBNoRowsError: // Handle Database "Not Found" errors
+		return status.Error(httpCodeToGrpc(http.StatusNotFound), e.Error())
+
+	case *dberr.DBUniqueViolationError: // Handle Unique Constraint Violation
+		return status.Error(httpCodeToGrpc(http.StatusConflict), e.Error())
+
+	case *dberr.DBForbiddenError: // Handle Forbidden Database Actions
+		return status.Error(httpCodeToGrpc(http.StatusForbidden), e.Error())
+
+	case *dberr.DBConflictError: // Handle Version Conflict
+		return status.Error(httpCodeToGrpc(http.StatusConflict), e.Error())
+
+	case *dberr.DBCheckViolationError: // Handle DB Check Violation
+		return status.Error(httpCodeToGrpc(http.StatusBadRequest), e.Error())
+
+	case *dberr.DBInternalError: // Handle Internal Database Errors
+		return status.Error(httpCodeToGrpc(http.StatusInternalServerError), e.Error())
+
+	default:
+		return status.Error(codes.Internal, "internal server error")
+	}
+}
+
+// httpCodeToGrpc maps HTTP status codes to gRPC error codes.
+func httpCodeToGrpc(c int) codes.Code {
+	switch c {
+	case http.StatusOK:
+		return codes.OK
+	case http.StatusBadRequest:
+		return codes.InvalidArgument
+	case http.StatusUnauthorized:
+		return codes.Unauthenticated
+	case http.StatusForbidden:
+		return codes.PermissionDenied
+	case http.StatusNotFound:
+		return codes.NotFound
+	case http.StatusRequestTimeout:
+		return codes.DeadlineExceeded
+	case http.StatusConflict:
+		return codes.Aborted
+	case http.StatusGone:
+		return codes.NotFound
+	case http.StatusTooManyRequests:
+		return codes.ResourceExhausted
+	case http.StatusInternalServerError:
+		return codes.Internal
+	case http.StatusNotImplemented:
+		return codes.Unimplemented
+	case http.StatusServiceUnavailable:
+		return codes.Unavailable
+	case http.StatusGatewayTimeout:
+		return codes.DeadlineExceeded
+	default:
+		return codes.Unknown
 	}
 }
 
@@ -102,7 +181,6 @@ func checkLicenses(session auth.Auther, licenses []string) []string {
 // validateSessionPermission checks if the session has the required permissions.
 func validateSessionPermission(session auth.Auther, objClass string, accessMode auth.AccessMode) bool {
 	return session.CheckObacAccess(objClass, accessMode)
-
 }
 
 // splitFullMethodName extracts service and method names from the full gRPC method name.

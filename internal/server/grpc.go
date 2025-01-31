@@ -2,8 +2,9 @@ package server
 
 import (
 	"fmt"
-	"github.com/webitel/cases/auth/user_auth"
 	"net"
+
+	"github.com/webitel/cases/auth/user_auth"
 
 	"github.com/bufbuild/protovalidate-go"
 	conf "github.com/webitel/cases/config"
@@ -38,9 +39,9 @@ func BuildServer(config *conf.ConsulConfig, authManager user_auth.AuthManager, e
 			otelgrpc.WithMessageEvents(otelgrpc.SentEvents, otelgrpc.ReceivedEvents),
 		)),
 		grpc.ChainUnaryInterceptor(
-			interceptor.LoggingUnaryServerInterceptor(),
 			interceptor.AuthUnaryServerInterceptor(authManager),
 			interceptor.ValidateUnaryServerInterceptor(val),
+			interceptor.LoggingUnaryServerInterceptor(),
 		),
 	)
 
@@ -87,72 +88,3 @@ func (s *Server) Stop() {
 	}
 	s.Server.Stop()
 }
-
-// package server
-
-// import (
-// 	"net"
-
-// 	conf "github.com/webitel/cases/internal/config"
-// 	grpcerror "github.com/webitel/cases/internal/error"
-// 	server "github.com/webitel/cases/internal/server/interceptor"
-// 	"github.com/webitel/cases/registry"
-// 	"github.com/webitel/cases/registry/consul"
-// 	otelgrpc "github.com/webitel/webitel-go-kit/tracing/grpc"
-// 	"google.golang.org/grpc"
-// )
-
-// type Server struct {
-// 	Server   *grpc.Server
-// 	listener net.Listener
-// 	config   *conf.ConsulConfig
-// 	exitChan chan error
-// 	registry registry.ServiceRegistrator
-// }
-
-// func BuildServer(config *conf.ConsulConfig, exitChan chan error) (*Server, error) {
-// 	// Build grpc server
-// 	server := grpc.NewServer(
-// 		grpc.StatsHandler(otelgrpc.NewServerHandler(
-// 			otelgrpc.WithMessageEvents(otelgrpc.SentEvents, otelgrpc.ReceivedEvents),
-// 		)),
-// 		grpc.UnaryInterceptor(server.UnaryInterceptor),
-// 	)
-
-// 	// Open TCP connection
-// 	listener, err := net.Listen("tcp", config.PublicAddress)
-// 	if err != nil {
-// 		return nil, grpcerror.NewInternalError("server.build.listen.error", err.Error())
-// 	}
-
-// 	reg, err := consul.NewConsulRegistry(config)
-// 	if err != nil {
-// 		return nil, grpcerror.NewInternalError("server.build.consul_registry.error", err.Error())
-// 	}
-
-// 	return &Server{
-// 		Server:   server,
-// 		listener: listener,
-// 		exitChan: exitChan,
-// 		config:   config,
-// 		registry: reg,
-// 	}, nil
-// }
-
-// func (s *Server) Start() {
-// 	if err := s.registry.Register(); err != nil {
-// 		s.exitChan <- err
-// 		return
-// 	}
-// 	if err := s.Server.Serve(s.listener); err != nil {
-// 		s.exitChan <- grpcerror.NewInternalError("server.start.serve.error", err.Error())
-// 	}
-// }
-
-// func (s *Server) Stop() {
-// 	if err := s.registry.Deregister(); err != nil {
-// 		s.exitChan <- err
-// 		return
-// 	}
-// 	s.Server.Stop()
-// }
