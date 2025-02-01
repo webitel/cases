@@ -2,11 +2,9 @@ package app
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
@@ -160,10 +158,22 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	// Update the status in the store
 	st, err := s.app.Store.StatusCondition().Update(&updateOpts, status)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, cerror.NewBadRequestError("status_condition.delete_status_condition.not_found", "Status condition not found")
+		switch err.(type) {
+		case *cerror.DBCheckViolationError:
+			return nil, cerror.NewBadRequestError(
+				"app.status_condition.update.initial_false_not_allowed",
+				"update not allowed: there must be at least one initial = TRUE for the given dc and status_id",
+			)
+		case *cerror.DBInternalError:
+			return nil, cerror.NewBadRequestError(
+				"app.status_condition.update.error",
+				err.Error(),
+			)
 		}
-		return nil, err
+		return nil, cerror.NewInternalError(
+			"app.status_condition.update.error",
+			err.Error(),
+		)
 	}
 
 	return st, nil
@@ -188,7 +198,17 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 	// Delete the status in the store
 	err := s.app.Store.StatusCondition().Delete(&deleteOpts, req.StatusId)
 	if err != nil {
-		return nil, err
+		switch err.(type) {
+		case *cerror.DBNoRowsError:
+			return nil, cerror.NewBadRequestError(
+				"status_condition.delete_status_condition.not_found",
+				"delete not allowed",
+			)
+		}
+		return nil, cerror.NewInternalError(
+			"status_condition.delete_status_condition.error",
+			err.Error(),
+		)
 	}
 
 	return &(_go.StatusCondition{Id: req.Id}), nil

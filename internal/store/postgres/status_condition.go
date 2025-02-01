@@ -139,7 +139,7 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 
 	// Check if any rows were affected
 	if res.RowsAffected() == 0 {
-		return dberr.NewBadRequestError("postgres.status_condition.delete.not_found", "delete not allowed")
+		return dberr.NewDBNoRowsError("postgres.status_condition.delete.not_found")
 	}
 
 	return nil
@@ -151,11 +151,17 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.database_connection_error", err)
 	}
 
+	tx, err := db.BeginTx(rpc.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.status_condition.update.transaction_begin_error", err)
+	}
+	defer s.handleTx(rpc.Context, tx, &err)
+
 	for _, field := range rpc.Fields {
 		switch field {
 		case "initial":
 			if !st.Initial {
-				return nil, dberr.NewBadRequestError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
+				return nil, dberr.NewDBCheckViolationError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
 			}
 		}
 	}
@@ -167,13 +173,12 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		createdAt, updatedAt time.Time
 	)
 
-	if err := db.QueryRow(rpc.Context, query, args...).Scan(
-		&st.Id, &st.Name, &createdAt,
-		&updatedAt, &st.Description, &st.Initial, &st.Final,
-		&createdBy.Id, &createdBy.Name, &updatedBy.Id,
-		&updatedBy.Name, &st.StatusId,
-	); err != nil {
-		return nil, err
+	err = tx.QueryRow(rpc.Context, query, args...).Scan(
+		&st.Id, &st.Name, &createdAt, &updatedAt, &st.Description, &st.Initial, &st.Final,
+		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &st.StatusId,
+	)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.status_condition.update.execution_error", err)
 	}
 
 	st.CreatedAt = util.Timestamp(createdAt)
