@@ -1495,10 +1495,10 @@ SELECT subservice.id,
 		// etc. for code, state, etc. if you want them in anchor
 		sb.WriteString(`
        ,CASE
-           WHEN subservice.id IN (SELECT searched_id FROM search_catalog)
-               THEN true
-           ELSE parent.searched
-       END AS searched
+    WHEN subservice.id IN (SELECT searched_id FROM search_catalog)
+        THEN true
+    ELSE false
+END AS searched
 	`)
 	} else {
 		// Add "searched" column for subservices
