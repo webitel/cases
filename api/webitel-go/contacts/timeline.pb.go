@@ -7,7 +7,7 @@
 package contacts
 
 import (
-	_ "github.com/webitel/protos/chat/messages"
+	_ "github.com/webitel/cases/api/webitel-go/messages"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"

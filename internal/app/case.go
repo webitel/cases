@@ -3,55 +3,67 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 
+	"google.golang.org/grpc/metadata"
+
 	cases "github.com/webitel/cases/api/cases"
+	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
+	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
-
-	cerror "github.com/webitel/cases/internal/errors"
 )
 
-const caseObjScope = "cases"
+const (
+	dynamicGroup = "dynamic"
+	caseObjScope = "cases"
+)
 
-var CaseMetadata = model.NewObjectMetadata(caseObjScope, "", []*model.Field{
-	{Name: "etag", Default: true},
-	{Name: "id", Default: false},
-	{Name: "ver", Default: false},
-	{Name: "created_by", Default: true},
-	{Name: "created_at", Default: true},
-	{Name: "updated_by", Default: false},
-	{Name: "updated_at", Default: false},
-	{Name: "assignee", Default: true},
-	{Name: "reporter", Default: true},
-	{Name: "name", Default: true},
-	{Name: "subject", Default: true},
-	{Name: "description", Default: true},
-	{Name: "source", Default: true},
-	{Name: "priority", Default: true},
-	{Name: "impacted", Default: true},
-	{Name: "author", Default: true},
-	{Name: "planned_reaction_at", Default: true},
-	{Name: "planned_resolve_at", Default: true},
-	{Name: "status", Default: true},
-	{Name: "close_reason_group", Default: true},
-	{Name: "group", Default: true},
-	{Name: "close", Default: true},
-	{Name: "rate", Default: true},
-	{Name: "sla_condition", Default: true},
-	{Name: "service", Default: true},
-	{Name: "status_condition", Default: true},
-	{Name: "sla", Default: true},
-	{Name: "comments", Default: false},
-	{Name: "links", Default: false},
-	{Name: "files", Default: false},
-	{Name: "related", Default: false},
-	{Name: "timing", Default: true},
-	{Name: "contact_info", Default: true},
-}, CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata)
+var (
+	dynamicGroupFields = []string{"id", "name", "type", "conditions", "default_group"}
+	groupXJsonMask     = []string{"group", "assignee"}
+
+	CaseMetadata = model.NewObjectMetadata(caseObjScope, "", []*model.Field{
+		{Name: "etag", Default: true},
+		{Name: "id", Default: false},
+		{Name: "ver", Default: false},
+		{Name: "created_by", Default: true},
+		{Name: "created_at", Default: true},
+		{Name: "updated_by", Default: false},
+		{Name: "updated_at", Default: false},
+		{Name: "assignee", Default: true},
+		{Name: "reporter", Default: true},
+		{Name: "name", Default: true},
+		{Name: "subject", Default: true},
+		{Name: "description", Default: true},
+		{Name: "source", Default: true},
+		{Name: "priority", Default: true},
+		{Name: "impacted", Default: true},
+		{Name: "author", Default: true},
+		{Name: "planned_reaction_at", Default: true},
+		{Name: "planned_resolve_at", Default: true},
+		{Name: "status", Default: true},
+		{Name: "close_reason_group", Default: true},
+		{Name: "group", Default: true},
+		{Name: "close", Default: true},
+		{Name: "rate", Default: true},
+		{Name: "sla_condition", Default: true},
+		{Name: "service", Default: true},
+		{Name: "status_condition", Default: true},
+		{Name: "sla", Default: true},
+		{Name: "comments", Default: false},
+		{Name: "links", Default: false},
+		{Name: "files", Default: false},
+		{Name: "related", Default: false},
+		{Name: "timing", Default: true},
+		{Name: "contact_info", Default: true},
+	}, CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata)
+)
 
 type CaseService struct {
 	app *App
@@ -197,7 +209,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Related:          related,
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CaseMetadata)
+	createOpts, err := model.NewCreateOptions(ctx, req, CaseMetadata.SetAllFieldsToTrue())
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, AppInternalError
@@ -215,6 +227,13 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
+
+	// Handle dynamic group update if applicable
+	newCase, err = c.handleDynamicGroupUpdate(ctx, newCase)
+	if err != nil {
+		return nil, err
+	}
+
 	userId := createOpts.GetAuthOpts().GetUserId()
 
 	// Publish an event to RabbitMQ
@@ -264,7 +283,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseMetadata)
+	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseMetadata.SetAllFieldsToTrue())
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, AppInternalError
@@ -284,7 +303,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Assignee:         req.Input.GetAssignee(),
 		Reporter:         req.Input.GetReporter(),
 		Impacted:         req.Input.GetImpacted(),
-		Group:            &cases.ExtendedLookup{Id: req.Input.GetGroup().GetId()},
+		Group:            &cases.ExtendedLookup{Id: req.Input.Group.GetId()},
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
 		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
 		Close: &cases.CloseInfo{
@@ -308,12 +327,261 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, AppDatabaseError
 	}
 
+	// Handle dynamic group update if applicable
+	updatedCase, err = c.handleDynamicGroupUpdate(ctx, updatedCase)
+	if err != nil {
+		return nil, err
+	}
+
 	err = c.NormalizeResponseCase(updatedCase, req)
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return updatedCase, nil
+}
+
+// handleDynamicGroupUpdate checks if a dynamic group is needed and updates the case accordingly.
+func (c *CaseService) handleDynamicGroupUpdate(
+	ctx context.Context,
+	input *cases.Case,
+) (*cases.Case, error) {
+	// *Check if the group is dynamic
+	if input.Group.Type == dynamicGroup {
+
+		var info metadata.MD
+		var ok bool
+
+		info, ok = metadata.FromIncomingContext(ctx)
+		if !ok {
+			return nil, cerror.NewForbiddenError("internal.grpc.get_context", "Not found")
+		}
+		newCtx := metadata.NewOutgoingContext(ctx, info)
+
+		id := strconv.Itoa(int(input.Group.GetId()))
+		res, err := c.app.webitelgoClient.LocateGroup(
+			newCtx,
+			&webitelgo.LocateGroupRequest{
+				Id:     id,
+				Fields: dynamicGroupFields,
+			})
+		if err != nil {
+			return nil, err
+		}
+
+		// Resolve dynamic group and update the case
+		input, err = c.resolveDynamicContactGroup(ctx, input, res)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Return the potentially updated case
+	return input, nil
+}
+
+func (c *CaseService) resolveDynamicContactGroup(
+	ctx context.Context,
+	inputCase *cases.Case,
+	inputGroup *webitelgo.LocateGroupResponse,
+) (*cases.Case, error) {
+	// Convert the case object to a map for dynamic evaluation
+	caseMap, err := caseToMap(inputCase)
+	if err != nil {
+		fmt.Printf("Error converting case to map: %v\n", err)
+		return nil, err
+	}
+
+	etag, ok := caseMap["case.etag"].(string)
+	if !ok {
+		return nil, AppForbiddenError
+	}
+
+	// Iterate over all dynamic conditions in the group
+	for _, condition := range inputGroup.Group.Conditions {
+		// Evaluate the condition against the case map
+		if evaluateComplexCondition(caseMap, condition.Expression) {
+
+			groupID, err := strconv.Atoi(condition.Group.GetId())
+			if err != nil {
+				return nil, AppResponseNormalizingError
+			}
+
+			var assigneeID int
+			if condition.Assignee != nil {
+				assigneeID, err = strconv.Atoi(condition.Assignee.GetId())
+				if err != nil {
+					return nil, AppResponseNormalizingError
+				}
+			} else {
+				assigneeID = 0
+			}
+
+			// Build request for Case Update API
+			req := &cases.UpdateCaseRequest{
+				XJsonMask: groupXJsonMask,
+				Input: &cases.InputCase{
+					Group:    &cases.Lookup{Id: int64(groupID)},
+					Assignee: &cases.Lookup{Id: int64(assigneeID)},
+					Etag:     etag,
+				},
+			}
+
+			updCase, err := c.UpdateCase(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+
+			return updCase, nil
+		}
+	}
+
+	groupID, err := strconv.Atoi(inputGroup.Group.DefaultGroup.GetId())
+	if err != nil {
+		return nil, fmt.Errorf("app.case.resolveDynamicContactGroup: failed to convert group ID to integer: %w", err)
+	}
+
+	req := &cases.UpdateCaseRequest{
+		XJsonMask: groupXJsonMask,
+		Input: &cases.InputCase{
+			Group: &cases.Lookup{Id: int64(groupID)},
+			Etag:  etag,
+		},
+	}
+	// Final update if a default group was assigned
+	updCase, err := c.UpdateCase(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return updCase, nil
+}
+
+// Parses a string ID into an int64
+func parseID(idStr string) int64 {
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		fmt.Printf("Error parsing ID: %v\n", err)
+		return 0
+	}
+	return id
+}
+
+// Converts a Case object to map[string]interface{} with "case." prefixed keys and lowercase values (except case.etag)
+func caseToMap(caseObj interface{}) (map[string]interface{}, error) {
+	caseJSON, err := json.Marshal(caseObj)
+	if err != nil {
+		return nil, err
+	}
+
+	var caseMap map[string]interface{}
+	err = json.Unmarshal(caseJSON, &caseMap)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a new map with "case." prefixed keys, handling nested fields
+	prefixedMap := make(map[string]interface{})
+	addPrefixedKeys(prefixedMap, caseMap, "case")
+
+	return prefixedMap, nil
+}
+
+// Recursively adds prefixed keys for nested maps (all keys and values converted to lowercase except case.etag)
+func addPrefixedKeys(dest map[string]interface{}, source map[string]interface{}, prefix string) {
+	for key, value := range source {
+		fullKey := strings.ToLower(prefix + "." + key)
+
+		switch v := value.(type) {
+		case map[string]interface{}:
+			// Recursively process nested maps
+			addPrefixedKeys(dest, v, fullKey)
+		case string:
+			// Keep "case.etag" value unchanged, lowercase everything else
+			if fullKey == "case.etag" {
+				dest[fullKey] = v
+			} else {
+				dest[fullKey] = strings.ToLower(v)
+			}
+		default:
+			dest[fullKey] = value // Keep non-string values unchanged
+		}
+	}
+}
+
+// Evaluates complex condition strings with support for AND (&&) and OR (||) operators using bitwise operations
+func evaluateComplexCondition(caseMap map[string]interface{}, condition string) bool {
+	// Convert condition to lowercase to ensure case-insensitive matching
+	condition = strings.ToLower(condition)
+
+	// Split conditions by OR (||)
+	orConditions := strings.Split(condition, "||")
+	for _, orCondition := range orConditions {
+		// Split each OR condition into AND (&&) conditions
+		andConditions := strings.Split(orCondition, "&&")
+		// Use a bitmask to track whether all AND conditions are met
+		var andMask uint = 0
+		for i, andCondition := range andConditions {
+			andCondition = strings.TrimSpace(andCondition)
+			if evaluateSingleCondition(caseMap, andCondition) {
+				// Set the corresponding bit in the mask
+				andMask |= 1 << i
+			}
+		}
+		// Check if all AND conditions are met (all bits set in the mask)
+		if andMask == (1<<len(andConditions) - 1) {
+			return true
+		}
+	}
+	return false
+}
+
+// Evaluates a single condition string, e.g., "case.assignee.name == 'volodia'"
+func evaluateSingleCondition(caseMap map[string]interface{}, condition string) bool {
+	// Convert condition to lowercase
+	condition = strings.ToLower(condition)
+
+	// Parse condition into field, operator, and value
+	var field, operator, value string
+	if strings.Contains(condition, "==") {
+		parts := strings.Split(condition, "==")
+		field, operator, value = strings.TrimSpace(parts[0]), "==", strings.TrimSpace(parts[1])
+	} else if strings.Contains(condition, "!=") {
+		parts := strings.Split(condition, "!=")
+		field, operator, value = strings.TrimSpace(parts[0]), "!=", strings.TrimSpace(parts[1])
+	} else {
+		fmt.Printf("Unsupported operator in condition: %s\n", condition)
+		return false
+	}
+
+	// Remove quotes around the value if present and convert to lowercase
+	value = strings.Trim(value, `"'`)
+
+	// Resolve the field path in the caseMap (keys and values are already lowercase)
+	fieldValue := resolveFieldPath(caseMap, field)
+
+	// Compare the field value with the condition value
+	switch operator {
+	case "==":
+		return fmt.Sprintf("%v", fieldValue) == value
+	case "!=":
+		return fmt.Sprintf("%v", fieldValue) != value
+	default:
+		fmt.Printf("Unsupported operator: %s\n", operator)
+		return false
+	}
+}
+
+// Resolves a field path (e.g., "case.assignee.name") to its value in the map
+func resolveFieldPath(data map[string]interface{}, path string) interface{} {
+	// Convert path to lowercase to match map keys
+	path = strings.ToLower(path)
+
+	// Direct lookup
+	if value, exists := data[path]; exists {
+		return value
+	}
+
+	return nil
 }
 
 func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseRequest) (*cases.Case, error) {

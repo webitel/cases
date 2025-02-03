@@ -215,9 +215,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	if caseItem.Reporter != nil && caseItem.Reporter.GetId() > 0 {
 		reporter = &caseItem.Reporter.Id
 	}
-	if caseItem.Assignee != nil && caseItem.Assignee.GetId() > 0 {
+
+	if caseItem.Assignee.GetId() == 0 {
+		assignee = nil // Set to nil if assignee is 0, so it will be inserted as NULL
+	} else {
 		assignee = &caseItem.Assignee.Id
 	}
+
 	params := map[string]interface{}{
 		// Case-level parameters
 		"date":                rpc.CurrentTime(),
@@ -845,7 +849,11 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
 			updateBuilder = updateBuilder.Set("sla", sq.Expr("(SELECT sla_id FROM cases.service_catalog WHERE id = ? LIMIT 1)", upd.Service.GetId()))
 		case "assignee":
-			updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
+			if upd.Assignee.GetId() == 0 {
+				updateBuilder = updateBuilder.Set("assignee", nil)
+			} else {
+				updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
+			}
 		case "reporter":
 			updateBuilder = updateBuilder.Set("reporter", upd.Reporter.GetId())
 		case "contact_info":
