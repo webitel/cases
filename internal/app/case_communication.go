@@ -14,7 +14,7 @@ import (
 	"github.com/webitel/webitel-go-kit/etag"
 )
 
-var CaseCommunicationMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
+var CaseCommunicationMetadata = model.NewObjectMetadata("", model.ScopeCase, []*model.Field{
 	{Name: "etag", Default: true},
 	{Name: "ver", Default: false},
 	{"id", true},

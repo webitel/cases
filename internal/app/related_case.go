@@ -19,7 +19,7 @@ type RelatedCaseService struct {
 	cases.UnimplementedRelatedCasesServer
 }
 
-var RelatedCaseMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
+var RelatedCaseMetadata = model.NewObjectMetadata("", model.ScopeCase, []*model.Field{
 	{Name: "id", Default: true},
 	{Name: "ver", Default: true},
 	{Name: "created_at", Default: true},

@@ -14,7 +14,7 @@ import (
 
 const caseCommentsObjScope = "case_comments"
 
-var CaseCommentMetadata = model.NewObjectMetadata(caseCommentsObjScope, caseObjScope, []*model.Field{
+var CaseCommentMetadata = model.NewObjectMetadata(model.ScopeCaseComment, model.ScopeCase, []*model.Field{
 	{Name: "id", Default: false},
 	{Name: "etag", Default: true},
 	{Name: "ver", Default: false},

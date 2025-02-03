@@ -16,7 +16,7 @@ type CaseFileService struct {
 	cases.UnimplementedCaseFilesServer
 }
 
-var CaseFileMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
+var CaseFileMetadata = model.NewObjectMetadata("", model.ScopeCase, []*model.Field{
 	{Name: "id", Default: true},
 	{Name: "size", Default: true},
 	{Name: "mime", Default: true},

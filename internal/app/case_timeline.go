@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var CaseTimelineMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
+var CaseTimelineMetadata = model.NewObjectMetadata("", model.ScopeCase, []*model.Field{
 	{"calls", true},
 	{"chats", true},
 	{"emails", true},

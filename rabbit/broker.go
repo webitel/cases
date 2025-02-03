@@ -270,7 +270,6 @@ func (l *RabbitBroker) Publish(
 		amqp.Publishing{
 			ContentType: "application/json",
 			Body:        body,
-			UserId:      userId,
 			Timestamp:   t,
 		},
 	)
@@ -279,4 +278,22 @@ func (l *RabbitBroker) Publish(
 	}
 	slog.Info(fmtBrokerLog("cases message published"), slog.String("exchange", exchange), slog.String("routingKey", routingKey))
 	return nil
+}
+
+// Implement Publisher method on fts client
+func (l *RabbitBroker) Send(
+	exchange string,
+	routingKey string,
+	body []byte,
+) error {
+	return l.channel.Publish(
+		exchange,
+		routingKey,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+		},
+	)
 }

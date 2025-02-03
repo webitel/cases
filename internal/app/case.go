@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"google.golang.org/grpc/metadata"
 	"log/slog"
 	"strconv"
 	"strings"
-	"time"
-
-	"google.golang.org/grpc/metadata"
 
 	cases "github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
@@ -21,14 +19,13 @@ import (
 
 const (
 	dynamicGroup = "dynamic"
-	caseObjScope = "cases"
 )
 
 var (
 	dynamicGroupFields = []string{"id", "name", "type", "conditions", "default_group"}
 	groupXJsonMask     = []string{"group", "assignee"}
 
-	CaseMetadata = model.NewObjectMetadata(caseObjScope, "", []*model.Field{
+	CaseMetadata = model.NewObjectMetadata(model.ScopeCase, "", []*model.Field{
 		{Name: "etag", Default: true},
 		{Name: "id", Default: false},
 		{Name: "ver", Default: false},
@@ -234,33 +231,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, err
 	}
 
-	userId := createOpts.GetAuthOpts().GetUserId()
-
-	// Publish an event to RabbitMQ
-	event := map[string]interface{}{
-		"action":    "CreateCase",
-		"user":      userId,
-		"case_id":   newCase.Id,
-		"case_etag": newCase.Etag,
-		"case_ver":  newCase.Ver,
-		"case_name": newCase.Name,
-	}
-
-	eventData, err := json.Marshal(event)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case.create_case.event_marshal.failed", err.Error())
-	}
-
-	err = c.app.rabbit.Publish(
-		model.APP_SERVICE_NAME,
-		"create_case_key",
-		eventData,
-		strconv.Itoa(int(userId)),
-		time.Now(),
-	)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case.create_case.event_publish.failed", err.Error())
-	}
+	c.app.ftsClient.Create(createOpts.GetAuthOpts().GetDomainId(), model.ScopeCase, newCase.Id)
 
 	if newCase.Reporter == nil && util.ContainsField(createOpts.Fields, "reporter") {
 		newCase.Reporter = &cases.Lookup{

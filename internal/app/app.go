@@ -16,10 +16,9 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
 	broker "github.com/webitel/cases/rabbit"
+	ftsclient "github.com/webitel/webitel-fts/pkg/client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	internalftsclient "github.com/webitel/cases/ftsclient"
-	ftsclient "github.com/webitel/webitel-fts/pkg/client"
 )
 
 const (
@@ -93,7 +92,7 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	}
 
 	// --------- Full Text Search Client ---------
-	app.ftsClient = internalftsclient.NewFtsClient(app.rabbit.)
+	app.ftsClient = ftsclient.New(app.rabbit)
 
 	// --------- gRPC Server Initialization ---------
 	s, err := server.BuildServer(app.config.Consul, app.sessionManager, app.exitChan)
