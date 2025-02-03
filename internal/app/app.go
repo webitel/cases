@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/webitel/webitel-go-kit/errors"
 	"log/slog"
 
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
@@ -15,10 +16,10 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
 	broker "github.com/webitel/cases/rabbit"
-	"github.com/webitel/webitel-go-kit/errors"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	internalftsclient "github.com/webitel/cases/ftsclient"
+	ftsclient "github.com/webitel/webitel-fts/pkg/client"
 )
 
 const (
@@ -46,6 +47,7 @@ type App struct {
 	rabbit          *broker.RabbitBroker
 	rabbitExitChan  chan cerror.AppError
 	webitelgoClient webitelgo.GroupsClient
+	ftsClient       *ftsclient.Client
 }
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
@@ -89,6 +91,9 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	if err != nil {
 		return nil, err
 	}
+
+	// --------- Full Text Search Client ---------
+	app.ftsClient = internalftsclient.NewFtsClient(app.rabbit.)
 
 	// --------- gRPC Server Initialization ---------
 	s, err := server.BuildServer(app.config.Consul, app.sessionManager, app.exitChan)
