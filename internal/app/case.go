@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	dynamicGroupFields = []string{"id", "name", "type", "conditions"}
+	dynamicGroupFields = []string{"id", "name", "type", "conditions", "default_group"}
 	groupXJsonMask     = []string{"group", "assignee"}
 
 	CaseMetadata = model.NewObjectMetadata(caseObjScope, "", []*model.Field{
@@ -271,13 +271,84 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	return newCase, nil
 }
 
+func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.Case, error) {
+	// Validate input
+	appErr := c.ValidateUpdateInput(req.Input, req.XJsonMask)
+	if appErr != nil {
+		return nil, appErr
+	}
+
+	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Etag)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
+	}
+
+	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseMetadata)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil, AppInternalError
+	}
+	updateOpts.Etags = []*etag.Tid{&tag}
+	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+
+	upd := &cases.Case{
+		Id:               tag.GetOid(),
+		Ver:              tag.GetVer(),
+		Subject:          req.Input.GetSubject(),
+		Description:      req.Input.GetDescription(),
+		ContactInfo:      req.Input.GetContactInfo(),
+		Status:           req.Input.GetStatus(),
+		StatusCondition:  req.Input.GetStatusCondition(),
+		CloseReasonGroup: req.Input.GetCloseReason(),
+		Assignee:         req.Input.GetAssignee(),
+		Reporter:         req.Input.GetReporter(),
+		Impacted:         req.Input.GetImpacted(),
+		Group:            &cases.ExtendedLookup{Id: req.Input.Group.GetId()},
+		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
+		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
+		Close: &cases.CloseInfo{
+			CloseResult: req.Input.Close.GetCloseResult(),
+			CloseReason: req.Input.Close.GetCloseReason(),
+		},
+		Rate: &cases.RateInfo{
+			Rating:        req.Input.Rate.GetRating(),
+			RatingComment: req.Input.Rate.GetRatingComment(),
+		},
+		Service: req.Input.GetService(),
+	}
+
+	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
+	if err != nil {
+		switch err.(type) {
+		case *cerror.DBNoRowsError:
+			return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
+		}
+		slog.Error(err.Error())
+		return nil, AppDatabaseError
+	}
+
+	// Handle dynamic group update if applicable
+	updatedCase, err = c.handleDynamicGroupUpdate(ctx, updatedCase)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.NormalizeResponseCase(updatedCase, req)
+	if err != nil {
+		slog.Error(err.Error(), logAttributes)
+		return nil, AppResponseNormalizingError
+	}
+	return updatedCase, nil
+}
+
 // handleDynamicGroupUpdate checks if a dynamic group is needed and updates the case accordingly.
 func (c *CaseService) handleDynamicGroupUpdate(
 	ctx context.Context,
 	input *cases.Case,
 ) (*cases.Case, error) {
-	// Check if the case has no assignee and the group is dynamic
-	if input.Assignee == nil && input.Group.Type == dynamicGroup {
+	// *Check if the group is dynamic
+	if input.Group.Type == dynamicGroup {
 
 		var info metadata.MD
 		var ok bool
@@ -289,10 +360,12 @@ func (c *CaseService) handleDynamicGroupUpdate(
 		newCtx := metadata.NewOutgoingContext(ctx, info)
 
 		id := strconv.Itoa(int(input.Group.GetId()))
-		res, err := c.app.webitelgoClient.LocateGroup(newCtx, &webitelgo.LocateGroupRequest{
-			Id:     id,
-			Fields: dynamicGroupFields,
-		})
+		res, err := c.app.webitelgoClient.LocateGroup(
+			newCtx,
+			&webitelgo.LocateGroupRequest{
+				Id:     id,
+				Fields: dynamicGroupFields,
+			})
 		if err != nil {
 			return nil, err
 		}
@@ -366,8 +439,9 @@ func (c *CaseService) resolveDynamicContactGroup(
 
 	groupID, err := strconv.Atoi(inputGroup.Group.DefaultGroup.GetId())
 	if err != nil {
-		return nil, AppResponseNormalizingError
+		return nil, fmt.Errorf("app.case.resolveDynamicContactGroup: failed to convert group ID to integer: %w", err)
 	}
+
 	req := &cases.UpdateCaseRequest{
 		XJsonMask: groupXJsonMask,
 		Input: &cases.InputCase{
@@ -509,77 +583,6 @@ func resolveFieldPath(data map[string]interface{}, path string) interface{} {
 	}
 
 	return nil
-}
-
-func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.Case, error) {
-	// Validate input
-	appErr := c.ValidateUpdateInput(req.Input, req.XJsonMask)
-	if appErr != nil {
-		return nil, appErr
-	}
-
-	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Etag)
-	if err != nil {
-		slog.Error(err.Error())
-		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
-	}
-
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseMetadata)
-	if err != nil {
-		slog.Error(err.Error())
-		return nil, AppInternalError
-	}
-	updateOpts.Etags = []*etag.Tid{&tag}
-	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
-
-	upd := &cases.Case{
-		Id:               tag.GetOid(),
-		Ver:              tag.GetVer(),
-		Subject:          req.Input.GetSubject(),
-		Description:      req.Input.GetDescription(),
-		ContactInfo:      req.Input.GetContactInfo(),
-		Status:           req.Input.GetStatus(),
-		StatusCondition:  req.Input.GetStatusCondition(),
-		CloseReasonGroup: req.Input.GetCloseReason(),
-		Assignee:         req.Input.GetAssignee(),
-		Reporter:         req.Input.GetReporter(),
-		Impacted:         req.Input.GetImpacted(),
-		Group:            &cases.ExtendedLookup{Id: req.Input.Group.GetId()},
-		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
-		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
-		Close: &cases.CloseInfo{
-			CloseResult: req.Input.Close.GetCloseResult(),
-			CloseReason: req.Input.Close.GetCloseReason(),
-		},
-		Rate: &cases.RateInfo{
-			Rating:        req.Input.Rate.GetRating(),
-			RatingComment: req.Input.Rate.GetRatingComment(),
-		},
-		Service: req.Input.GetService(),
-	}
-
-	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
-	if err != nil {
-		switch err.(type) {
-		case *cerror.DBNoRowsError:
-			return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
-		}
-		slog.Error(err.Error())
-		return nil, AppDatabaseError
-	}
-
-	// Handle dynamic group update if applicable
-	updatedCase, err = c.handleDynamicGroupUpdate(ctx, updatedCase)
-	if err != nil {
-		return nil, err
-	}
-
-	err = c.NormalizeResponseCase(updatedCase, req)
-	if err != nil {
-		slog.Error(err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
-	}
-	return updatedCase, nil
 }
 
 func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseRequest) (*cases.Case, error) {
