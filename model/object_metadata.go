@@ -7,10 +7,14 @@ type ObjectMetadatter interface {
 	GetParentScopeName() string
 	GetChildScopeNames() []string
 	GetAllScopeNames() []string
+	SetAllFieldsToTrue() *ObjectMetadata
 }
-
+type Field struct {
+	Name    string
+	Default bool
+}
 type ObjectMetadata struct {
-	fields             []string
+	fields             []*Field
 	defFields          []string
 	mainObjClassName   string
 	parentObjClassName string
@@ -31,29 +35,30 @@ func (o *ObjectMetadata) GetAllScopeNames() []string {
 }
 
 func (o *ObjectMetadata) GetAllFields() []string {
-	res := make([]string, len(o.fields))
-	copy(res, o.fields)
+	var res []string
+	for _, field := range o.fields {
+		res = append(res, field.Name)
+	}
 	return res
 }
 
 func (o *ObjectMetadata) GetDefaultFields() []string {
-	res := make([]string, len(o.defFields))
-	copy(res, o.defFields)
+	var res []string
+	for _, field := range o.defFields {
+		res = append(res, field)
+	}
 	return res
 }
+
 func (o *ObjectMetadata) GetMainScopeName() string {
 	return o.mainObjClassName
 }
 
-type Field struct {
-	Name    string
-	Default bool
-}
-
+// NewObjectMetadata creates a new ObjectMetadata instance
 func NewObjectMetadata(mainScope string, parentScope string, fields []*Field, childMetadata ...ObjectMetadatter) ObjectMetadatter {
 	res := &ObjectMetadata{mainObjClassName: mainScope, parentObjClassName: parentScope, childMetadata: childMetadata}
 	for _, field := range fields {
-		res.fields = append(res.fields, field.Name)
+		res.fields = append(res.fields, field)
 		if field.Default {
 			res.defFields = append(res.defFields, field.Name)
 		}
@@ -69,4 +74,15 @@ func NewObjectMetadata(mainScope string, parentScope string, fields []*Field, ch
 	}
 
 	return res
+}
+
+// SetAllFieldsToTrue sets all fields' Default property to true
+func (o *ObjectMetadata) SetAllFieldsToTrue() *ObjectMetadata {
+	// Loop through all fields and set Default to true
+	for _, field := range o.fields {
+		field.Default = true // Set the Default to true for each field
+	}
+
+	// Return the updated ObjectMetadata
+	return o
 }

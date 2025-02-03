@@ -210,7 +210,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Related:          related,
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CaseMetadata)
+	createOpts, err := model.NewCreateOptions(ctx, req, CaseMetadata.SetAllFieldsToTrue())
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, AppInternalError
@@ -284,7 +284,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseMetadata)
+	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseMetadata.SetAllFieldsToTrue())
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, AppInternalError
