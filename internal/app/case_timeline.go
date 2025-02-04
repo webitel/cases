@@ -33,7 +33,7 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 	}
 	searchOpts, err := model.NewSearchOptions(ctx, request, CaseTimelineMetadata)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	searchOpts.ParentId = tid.GetOid()
@@ -47,17 +47,17 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseTimelineMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
-			slog.Error(err.Error(), logAttributes)
+			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Error("user doesn't have required (READ) access to the case", logAttributes)
+			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
 	res, err := c.app.Store.CaseTimeline().Get(searchOpts)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 	return res, nil
@@ -80,17 +80,17 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseTimelineMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
-			slog.Error(err.Error(), logAttributes)
+			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Error("user doesn't have required (READ) access to the case", logAttributes)
+			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
 	eventTypeCounters, err := c.app.Store.CaseTimeline().GetCounter(searchOpts)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 	if len(eventTypeCounters) == 0 {

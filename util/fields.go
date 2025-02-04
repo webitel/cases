@@ -248,11 +248,11 @@ func EnsureFields(fields []string, requiredFields ...string) []string {
 }
 
 // NormalizeEtag normalizes etag, id, ver fields visibility for the response depending on what fields were requested.
-func NormalizeEtag(fields []string, etg *string, id *int64, ver *int32) error {
+func NormalizeEtag(etagType etag.EtagType, fields []string, etg *string, id *int64, ver *int32) error {
 	var err error
 	hasEtag, hasId, hasVer := FindEtagFields(fields)
 	if hasEtag {
-		*etg, err = etag.EncodeEtag(etag.EtagCase, *id, *ver)
+		*etg, err = etag.EncodeEtag(etagType, *id, *ver)
 		if err != nil {
 			return err
 		}

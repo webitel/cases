@@ -38,7 +38,7 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 	// Build search options
 	searchOpts, err := model.NewSearchOptions(ctx, req, CaseFileMetadata)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	searchOpts.ParentId = tag.GetOid()
@@ -47,17 +47,17 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseFileMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
-			slog.Error(err.Error(), logAttributes)
+			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, AppForbiddenError
 		}
 		if !access {
-			slog.Error("user doesn't have required (READ) access to the case", logAttributes)
+			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
 			return nil, AppForbiddenError
 		}
 	}
 	files, err := c.app.Store.CaseFile().List(searchOpts)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 	return files, nil

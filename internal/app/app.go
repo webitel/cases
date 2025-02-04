@@ -10,6 +10,9 @@ import (
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/auth/user_auth/webitel_manager"
+	"google.golang.org/grpc/metadata"
+	"strings"
+
 	conf "github.com/webitel/cases/config"
 	ftspublisher "github.com/webitel/cases/fts_client"
 	cerror "github.com/webitel/cases/internal/errors"
@@ -17,6 +20,7 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
 	broker "github.com/webitel/cases/rabbit"
+	wlogger "github.com/webitel/logger/pkg/client/v2"
 	ftsclient "github.com/webitel/webitel-fts/pkg/client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -34,6 +38,23 @@ var (
 	AppInternalError            = errors.NewInternalError("app.process_api.execution.error", "error occurred while processing request")
 )
 
+func getClientIp(ctx context.Context) string {
+	v := ctx.Value("grpc_ctx")
+	info, ok := v.(metadata.MD)
+	if !ok {
+		info, ok = metadata.FromIncomingContext(ctx)
+	}
+	if !ok {
+		return ""
+	}
+	ip := strings.Join(info.Get("x-real-ip"), ",")
+	if ip == "" {
+		ip = strings.Join(info.Get("x-forwarded-for"), ",")
+	}
+
+	return ip
+}
+
 type App struct {
 	config          *conf.AppConfig
 	Store           store.Store
@@ -48,6 +69,7 @@ type App struct {
 	rabbitExitChan  chan cerror.AppError
 	webitelgoClient webitelgo.GroupsClient
 	ftsClient       *ftsclient.Client
+	wtelLogger      *wlogger.LoggerClient
 }
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
@@ -82,6 +104,12 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	)
 	app.webitelgoClient = webitelgo.NewGroupsClient(app.webitelAppConn)
 
+	if err != nil {
+		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
+	}
+
+	// --------- Webitel Logger gRPC Connection ---------
+	app.wtelLogger, err = wlogger.NewLoggerClient(wlogger.WithAmqpConnectionString(app.config.Rabbit.Url), wlogger.WithGrpcConsulAddress(config.Consul.Address))
 	if err != nil {
 		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
 	}
