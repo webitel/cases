@@ -212,6 +212,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
+	err = c.NormalizeResponseCase(newCase, req)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+		return nil, AppResponseNormalizingError
+	}
 	userId := createOpts.GetAuthOpts().GetUserId()
 
 	// Publish an event to RabbitMQ
