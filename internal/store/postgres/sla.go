@@ -10,6 +10,7 @@ import (
 	cases "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
@@ -244,15 +245,12 @@ func (s SLAStore) buildSearchSLAQuery(rpc *model.SearchOptions) (string, []inter
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "created_at", "updated_at":
+		case "id", "name", "created_at", "updated_at", "description":
 			queryBuilder = queryBuilder.Column("g." + field)
 		case "reaction_time":
 			queryBuilder = queryBuilder.Column("g.reaction_time AS reaction_time")
 		case "resolution_time":
 			queryBuilder = queryBuilder.Column("g.resolution_time AS resolution_time")
-		case "description":
-			// Use COALESCE to handle null values for description
-			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")
 		case "valid_from":
 			// Use COALESCE to handle null values for valid_from
 			queryBuilder = queryBuilder.Column("COALESCE(g.valid_from, null) AS valid_from")
@@ -458,7 +456,7 @@ func (s *SLAStore) buildScanArgs(fields []string,
 		case "name":
 			scanArgs = append(scanArgs, &sla.Name)
 		case "description":
-			scanArgs = append(scanArgs, &sla.Description)
+			scanArgs = append(scanArgs, scanner.ScanText(&sla.Description))
 		case "valid_from":
 			scanArgs = append(scanArgs, tempValidFrom)
 		case "valid_to":

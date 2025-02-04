@@ -13,6 +13,7 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
@@ -213,11 +214,8 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "initial", "final", "created_at", "updated_at":
+		case "id", "name", "initial", "final", "created_at", "updated_at", "description":
 			queryBuilder = queryBuilder.Column("s." + field)
-		case "description":
-			// Separate case for description: return '' if NULL
-			queryBuilder = queryBuilder.Column("COALESCE(s.description, '') AS description")
 		case "created_by":
 			// Handle nulls using COALESCE for created_by
 			queryBuilder = queryBuilder.
@@ -419,7 +417,7 @@ func (s StatusConditionStore) buildScanArgs(fields []string, st *_go.StatusCondi
 		case "name":
 			scanArgs = append(scanArgs, &st.Name)
 		case "description":
-			scanArgs = append(scanArgs, &st.Description)
+			scanArgs = append(scanArgs, scanner.ScanText(&st.Description))
 		case "initial":
 			scanArgs = append(scanArgs, &st.Initial)
 		case "final":

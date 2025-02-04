@@ -10,6 +10,7 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/scanner"
 
 	"github.com/webitel/cases/model"
 
@@ -103,7 +104,7 @@ func (s CloseReasonGroup) List(rpc *model.SearchOptions) (*_go.CloseReasonGroupL
 			case "name":
 				scanArgs = append(scanArgs, &l.Name)
 			case "description":
-				scanArgs = append(scanArgs, &l.Description)
+				scanArgs = append(scanArgs, scanner.ScanText(&l.Description))
 			case "created_at":
 				scanArgs = append(scanArgs, &tempCreatedAt)
 			case "updated_at":
@@ -222,10 +223,8 @@ func (s CloseReasonGroup) buildSearchCloseReasonGroupQuery(rpc *model.SearchOpti
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "created_at", "updated_at":
+		case "id", "name", "created_at", "updated_at", "description":
 			queryBuilder = queryBuilder.Column("g." + field)
-		case "description":
-			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")
 		case "created_by":
 			queryBuilder = queryBuilder.
 				Column("COALESCE(created_by.id, 0) AS cbi").

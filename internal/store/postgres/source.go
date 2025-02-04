@@ -11,6 +11,7 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	db "github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/scanner"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
@@ -114,7 +115,7 @@ func (s Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 			case "name":
 				scanArgs = append(scanArgs, &l.Name)
 			case "description":
-				scanArgs = append(scanArgs, &l.Description)
+				scanArgs = append(scanArgs, scanner.ScanText(&l.Description))
 			case "type":
 				scanArgs = append(scanArgs, &tempType)
 			case "created_at":
@@ -256,10 +257,8 @@ func (s Source) buildSearchSourceQuery(rpc *model.SearchOptions) (string, []inte
 	// Adding columns based on fields
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "type", "created_at", "updated_at", "source":
+		case "id", "name", "type", "created_at", "updated_at", "source", "description":
 			queryBuilder = queryBuilder.Column("g." + field)
-		case "description":
-			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")
 		case "created_by":
 			// Handle nulls using COALESCE for created_by
 			queryBuilder = queryBuilder.
