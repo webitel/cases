@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -208,8 +209,14 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Links:            links,
 		Related:          related,
 	}
+	// Type assert CaseMetadata to *ObjectMetadata before passing to SetAllFieldsToTrue
+	caseMD, ok := CaseMetadata.(*model.ObjectMetadata)
+	if !ok {
+		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
+	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CaseMetadata.SetAllFieldsToTrue())
+	fullMD := model.SetAllFieldsToTrue(*caseMD)
+	createOpts, err := model.NewCreateOptions(ctx, req, &fullMD)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, AppInternalError
@@ -282,8 +289,14 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		slog.Error(err.Error())
 		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
 	}
+	// Type assert CaseMetadata to *ObjectMetadata before passing to SetAllFieldsToTrue
+	caseMD, ok := CaseMetadata.(*model.ObjectMetadata)
+	if !ok {
+		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
+	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseMetadata.SetAllFieldsToTrue())
+	fullMD := model.SetAllFieldsToTrue(*caseMD)
+	updateOpts, err := model.NewUpdateOptions(ctx, req, &fullMD)
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, AppInternalError
@@ -774,5 +787,3 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 	}
 	return nil
 }
-
-// endregion

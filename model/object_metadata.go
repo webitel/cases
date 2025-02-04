@@ -7,14 +7,10 @@ type ObjectMetadatter interface {
 	GetParentScopeName() string
 	GetChildScopeNames() []string
 	GetAllScopeNames() []string
-	SetAllFieldsToTrue() *ObjectMetadata
 }
-type Field struct {
-	Name    string
-	Default bool
-}
+
 type ObjectMetadata struct {
-	fields             []*Field
+	fields             []string
 	defFields          []string
 	mainObjClassName   string
 	parentObjClassName string
@@ -35,16 +31,14 @@ func (o *ObjectMetadata) GetAllScopeNames() []string {
 }
 
 func (o *ObjectMetadata) GetAllFields() []string {
-	var res []string
-	for _, field := range o.fields {
-		res = append(res, field.Name)
-	}
+	res := make([]string, len(o.fields))
+	copy(res, o.fields)
 	return res
 }
 
 func (o *ObjectMetadata) GetDefaultFields() []string {
-	var res []string
-	res = append(res, o.defFields...)
+	res := make([]string, len(o.defFields))
+	copy(res, o.defFields)
 	return res
 }
 
@@ -52,11 +46,15 @@ func (o *ObjectMetadata) GetMainScopeName() string {
 	return o.mainObjClassName
 }
 
-// NewObjectMetadata creates a new ObjectMetadata instance
+type Field struct {
+	Name    string
+	Default bool
+}
+
 func NewObjectMetadata(mainScope string, parentScope string, fields []*Field, childMetadata ...ObjectMetadatter) ObjectMetadatter {
 	res := &ObjectMetadata{mainObjClassName: mainScope, parentObjClassName: parentScope, childMetadata: childMetadata}
 	for _, field := range fields {
-		res.fields = append(res.fields, field)
+		res.fields = append(res.fields, field.Name)
 		if field.Default {
 			res.defFields = append(res.defFields, field.Name)
 		}
@@ -74,13 +72,19 @@ func NewObjectMetadata(mainScope string, parentScope string, fields []*Field, ch
 	return res
 }
 
-// SetAllFieldsToTrue sets all fields' Default property to true
-func (o *ObjectMetadata) SetAllFieldsToTrue() *ObjectMetadata {
-	// Loop through all fields and set Default to true
-	for _, field := range o.fields {
-		field.Default = true // Set the Default to true for each field
+// SetAllFieldsToTrue returns a copy of ObjectMetadata with all fields set as default (true)
+func SetAllFieldsToTrue(o ObjectMetadata) ObjectMetadata {
+	// Create a deep copy of ObjectMetadata
+	newMetadata := ObjectMetadata{
+		mainObjClassName:   o.mainObjClassName,
+		parentObjClassName: o.parentObjClassName,
+		childObjScopes:     append([]string{}, o.childObjScopes...),          // Copy slice
+		childMetadata:      append([]ObjectMetadatter{}, o.childMetadata...), // Copy slice
 	}
 
-	// Return the updated ObjectMetadata
-	return o
+	// Copy and modify fields
+	newMetadata.fields = append([]string{}, o.fields...)    // Copy field names
+	newMetadata.defFields = append([]string{}, o.fields...) // Set all fields as default
+
+	return newMetadata
 }
