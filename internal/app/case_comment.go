@@ -2,17 +2,15 @@ package app
 
 import (
 	"context"
-	"log/slog"
-
+	"errors"
 	cases "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	"log/slog"
 )
-
-const caseCommentsObjScope = "case_comments"
 
 var CaseCommentMetadata = model.NewObjectMetadata(model.ScopeCaseComment, model.ScopeCase, []*model.Field{
 	{Name: "id", Default: false},
@@ -26,6 +24,7 @@ var CaseCommentMetadata = model.NewObjectMetadata(model.ScopeCaseComment, model.
 	{Name: "edited", Default: true},
 	{Name: "can_edit", Default: true},
 	{Name: "author", Default: true},
+	{Name: "case_id", Default: false},
 })
 
 type CaseCommentService struct {
@@ -90,7 +89,7 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseCommentMetadata)
+	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseCommentMetadata.SetAllFieldsToTrue())
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, AppInternalError
@@ -110,6 +109,15 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewInternalError("app.case_comment.update_comment.store_update_failed", "database error")
 	}
 
+	if ftsModel, ftsErr := ConvertCaseCommentToFtsModel(updatedComment); ftsErr == nil {
+		ftsErr = c.app.ftsClient.Update(updateOpts.GetAuthOpts().GetDomainId(), CaseCommentMetadata.GetMainScopeName(), updatedComment.Id, ftsModel)
+		if ftsErr != nil {
+			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+		}
+	} else {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	}
+
 	err = NormalizeCommentsResponse(updatedComment, req)
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
@@ -126,7 +134,7 @@ func (c *CaseCommentService) DeleteComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.etag_required", "Etag is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommentMetadata)
+	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommentMetadata.SetAllFieldsToTrue())
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, AppInternalError
@@ -142,6 +150,11 @@ func (c *CaseCommentService) DeleteComment(
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppDatabaseError
+	}
+
+	ftsErr := c.app.ftsClient.Delete(deleteOpts.GetAuthOpts().GetDomainId(), CaseMetadata.GetMainScopeName(), tag.GetOid())
+	if ftsErr != nil {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 	return nil, nil
 }
@@ -197,7 +210,7 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CaseCommentMetadata)
+	createOpts, err := model.NewCreateOptions(ctx, req, CaseCommentMetadata.SetAllFieldsToTrue())
 	if err != nil {
 		slog.Error(err.Error())
 		return nil, AppInternalError
@@ -230,6 +243,15 @@ func (c *CaseCommentService) PublishComment(
 	if err != nil {
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppDatabaseError
+	}
+
+	if ftsModel, ftsErr := ConvertCaseCommentToFtsModel(comment); ftsErr == nil {
+		ftsErr = c.app.ftsClient.Create(createOpts.GetAuthOpts().GetDomainId(), CaseCommentMetadata.GetMainScopeName(), comment.Id, ftsModel)
+		if ftsErr != nil {
+			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+		}
+	} else {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
 	err = NormalizeCommentsResponse(comment, req)
@@ -278,6 +300,21 @@ func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 		}
 	}
 	return nil
+}
+
+func ConvertCaseCommentToFtsModel(re *cases.CaseComment) (*model.FtsCaseComment, error) {
+	if re == nil {
+		return nil, errors.New("input empty")
+	}
+	if re.CaseId == 0 {
+		return nil, errors.New("case id required")
+	}
+	res := &model.FtsCaseComment{
+		ParentId: re.CaseId,
+		Comment:  re.Text,
+	}
+
+	return res, nil
 }
 
 func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {

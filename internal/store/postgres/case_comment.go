@@ -495,7 +495,11 @@ func buildCommentSelectColumnsAndPlan(
 					return &comment.CanEdit
 				})
 			}
-
+		case "case_id":
+			base = base.Column(store.Ident(left, "case_id"))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return &comment.CaseId
+			})
 		default:
 			return base, nil, dberr.NewDBError("postgres.case_comment.build_comment_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))
 		}

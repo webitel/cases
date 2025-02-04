@@ -8,4 +8,6 @@ type FtsCase struct {
 }
 
 type FtsCaseComment struct {
+	ParentId int64  `json:"parentId,omitempty"`
+	Comment  string `json:"comment,omitempty"`
 }

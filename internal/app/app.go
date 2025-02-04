@@ -11,6 +11,7 @@ import (
 	"github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/auth/user_auth/webitel_manager"
 	conf "github.com/webitel/cases/config"
+	ftspublisher "github.com/webitel/cases/fts_client"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/server"
 	"github.com/webitel/cases/internal/store"
@@ -92,7 +93,10 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	}
 
 	// --------- Full Text Search Client ---------
-	app.ftsClient = ftsclient.New(app.rabbit)
+	app.ftsClient, err = ftspublisher.NewFtsClient(app.rabbit.GetChannel())
+	if err != nil {
+		return nil, err
+	}
 
 	// --------- gRPC Server Initialization ---------
 	s, err := server.BuildServer(app.config.Consul, app.sessionManager, app.exitChan)
@@ -136,6 +140,8 @@ func (a *App) Stop() error { // Change return type to standard error
 	a.server.Stop()
 	// close store connection
 	a.Store.Close()
+	// close rabbit connection
+	a.rabbit.Stop()
 	// close grpc connections
 	a.storageConn.Close()
 	a.webitelAppConn.Close()

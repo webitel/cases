@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"google.golang.org/grpc/metadata"
 	"log/slog"
@@ -231,7 +232,14 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, err
 	}
 
-	c.app.ftsClient.Create(createOpts.GetAuthOpts().GetDomainId(), model.ScopeCase, newCase.Id)
+	if ftsModel, ftsErr := ConvertCaseToFtsModel(newCase); ftsErr == nil {
+		ftsErr = c.app.ftsClient.Create(createOpts.GetAuthOpts().GetDomainId(), CaseMetadata.GetMainScopeName(), newCase.Id, ftsModel)
+		if ftsErr != nil {
+			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+		}
+	} else {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	}
 
 	if newCase.Reporter == nil && util.ContainsField(createOpts.Fields, "reporter") {
 		newCase.Reporter = &cases.Lookup{
@@ -302,6 +310,15 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	updatedCase, err = c.handleDynamicGroupUpdate(ctx, updatedCase)
 	if err != nil {
 		return nil, err
+	}
+
+	if ftsModel, ftsErr := ConvertCaseToFtsModel(updatedCase); ftsErr == nil {
+		ftsErr = c.app.ftsClient.Update(updateOpts.GetAuthOpts().GetDomainId(), CaseMetadata.GetMainScopeName(), updatedCase.Id, ftsModel)
+		if ftsErr != nil {
+			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+		}
+	} else {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
 	err = c.NormalizeResponseCase(updatedCase, req)
@@ -582,6 +599,11 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		slog.Error(err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
+
+	ftsErr := c.app.ftsClient.Delete(deleteOpts.GetAuthOpts().GetDomainId(), CaseMetadata.GetMainScopeName(), tag.GetOid())
+	if ftsErr != nil {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	}
 	return nil, nil
 }
 
@@ -744,6 +766,27 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 		}
 	}
 	return nil
+}
+
+func ConvertCaseToFtsModel(re *cases.Case) (*model.FtsCase, error) {
+	if re == nil {
+		return nil, errors.New("input empty")
+	}
+	res := &model.FtsCase{
+		Description: re.Description,
+	}
+	if re.Id == 0 {
+		return nil, errors.New("id required")
+	}
+	res.Id = strconv.FormatInt(re.Id, 10)
+	if cl := re.Close; cl != nil {
+		res.CloseResult = cl.CloseResult
+	}
+	if rt := re.Rate; rt != nil {
+		res.RatingComment = rt.RatingComment
+	}
+
+	return res, nil
 }
 
 // endregion

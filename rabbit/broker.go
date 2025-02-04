@@ -280,20 +280,6 @@ func (l *RabbitBroker) Publish(
 	return nil
 }
 
-// Implement Publisher method on fts client
-func (l *RabbitBroker) Send(
-	exchange string,
-	routingKey string,
-	body []byte,
-) error {
-	return l.channel.Publish(
-		exchange,
-		routingKey,
-		false,
-		false,
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        body,
-		},
-	)
+func (l *RabbitBroker) GetChannel() *amqp.Channel {
+	return l.channel
 }
