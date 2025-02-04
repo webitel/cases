@@ -8,7 +8,7 @@ import (
 	cases "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/util"
 
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 )
 

@@ -2,12 +2,13 @@ package postgres
 
 import (
 	"fmt"
+
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 )
 
@@ -158,9 +159,8 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (squirrel.Sqlizer, []fun
 
 				// context:
 				// [row] -- fields requested
-				var (
-					size = len(rows.Elements)
-				)
+
+				size := len(rows.Elements)
 
 				if size == 0 {
 					return nil
@@ -208,9 +208,7 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (squirrel.Sqlizer, []fun
 					return err
 				}
 
-				var (
-					node *cases.Event
-				)
+				var node *cases.Event
 
 				// DECODE
 				for r, elem := range rows.Elements {
@@ -271,8 +269,8 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (squirrel.Sqlizer, []fun
 		},
 	}
 	return query, plan, nil
-
 }
+
 func buildTimelineChatsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline **cases.Event) any, dbError *dberr.DBError) {
 	if caseId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_chats_column.check_args.case_id.empty", "case id required")
@@ -335,6 +333,7 @@ func buildTimelineChatsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 		})
 	return
 }
+
 func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline **cases.Event) any, dbError *dberr.DBError) {
 	if caseId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_calls_column.check_args.case_id.empty", "case id required")
@@ -409,28 +408,26 @@ func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 					return inErr
 				}
 
-				var (
-					scanPlan = []func(file *cases.CallFile) any{
-						// id
-						func(file *cases.CallFile) any {
-							return scanner.ScanInt64(&file.Id)
-						},
-						// size
-						func(file *cases.CallFile) any {
-							return scanner.ScanInt64(&file.Size)
-						},
-						// mime type
-						func(file *cases.CallFile) any {
-							return scanner.ScanText(&file.MimeType)
-						},
-						func(file *cases.CallFile) any {
-							return scanner.ScanText(&file.Name)
-						},
-						func(file *cases.CallFile) any {
-							return scanner.ScanInt64(&file.CreatedAt)
-						},
-					}
-				)
+				scanPlan := []func(file *cases.CallFile) any{
+					// id
+					func(file *cases.CallFile) any {
+						return scanner.ScanInt64(&file.Id)
+					},
+					// size
+					func(file *cases.CallFile) any {
+						return scanner.ScanInt64(&file.Size)
+					},
+					// mime type
+					func(file *cases.CallFile) any {
+						return scanner.ScanText(&file.MimeType)
+					},
+					func(file *cases.CallFile) any {
+						return scanner.ScanText(&file.Name)
+					},
+					func(file *cases.CallFile) any {
+						return scanner.ScanInt64(&file.CreatedAt)
+					},
+				}
 
 				var err error
 				for _, element := range array.Elements {
@@ -463,22 +460,20 @@ func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 					return inErr
 				}
 
-				var (
-					scanPlan = []func(*cases.TranscriptLookup) any{
-						// id
-						func(transcript *cases.TranscriptLookup) any {
-							return scanner.ScanInt64(&transcript.Id)
-						},
-						// size
-						func(transcript *cases.TranscriptLookup) any {
-							return scanner.ScanText(&transcript.Locale)
-						},
-						// file
-						func(transcript *cases.TranscriptLookup) any {
-							return scanner.ScanRowLookup(&transcript.File)
-						},
-					}
-				)
+				scanPlan := []func(*cases.TranscriptLookup) any{
+					// id
+					func(transcript *cases.TranscriptLookup) any {
+						return scanner.ScanInt64(&transcript.Id)
+					},
+					// size
+					func(transcript *cases.TranscriptLookup) any {
+						return scanner.ScanText(&transcript.Locale)
+					},
+					// file
+					func(transcript *cases.TranscriptLookup) any {
+						return scanner.ScanRowLookup(&transcript.File)
+					},
+				}
 
 				var err error
 				for _, element := range array.Elements {
@@ -501,6 +496,7 @@ func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 	)
 	return
 }
+
 func buildTimelineEmailsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline **cases.Event) any, dbError *dberr.DBError) {
 	if caseId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_emails_column.check_args.case_id.empty", "case id required")
@@ -575,25 +571,23 @@ func buildTimelineEmailsColumn(caseId int64) (base squirrel.Sqlizer, plan []func
 					return inErr
 				}
 
-				var (
-					scanPlan = []func(file *cases.Attachment) any{
-						// id
-						func(file *cases.Attachment) any {
-							return scanner.ScanInt64(&file.Id)
-						},
-						// mime type
-						func(file *cases.Attachment) any {
-							return scanner.ScanText(&file.Mime)
-						},
-						func(file *cases.Attachment) any {
-							return scanner.ScanText(&file.Name)
-						},
-						// size
-						func(file *cases.Attachment) any {
-							return scanner.ScanInt64(&file.Size)
-						},
-					}
-				)
+				scanPlan := []func(file *cases.Attachment) any{
+					// id
+					func(file *cases.Attachment) any {
+						return scanner.ScanInt64(&file.Id)
+					},
+					// mime type
+					func(file *cases.Attachment) any {
+						return scanner.ScanText(&file.Mime)
+					},
+					func(file *cases.Attachment) any {
+						return scanner.ScanText(&file.Name)
+					},
+					// size
+					func(file *cases.Attachment) any {
+						return scanner.ScanInt64(&file.Size)
+					},
+				}
 
 				var err error
 				for _, element := range array.Elements {
@@ -620,7 +614,6 @@ func buildTimelineEmailsColumn(caseId int64) (base squirrel.Sqlizer, plan []func
 		})
 
 	return
-
 }
 
 // endregion

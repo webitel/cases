@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	cases "github.com/webitel/cases/api/cases"
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/webitel-go-kit/etag"
 )
@@ -23,7 +23,7 @@ var CaseFileMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
 	{Name: "name", Default: true},
 	{Name: "created_at", Default: true},
 	{Name: "created_by", Default: true},
-	{Name: "url", Default: true},
+	//{Name: "url", Default: true},
 	{Name: "author", Default: true},
 })
 

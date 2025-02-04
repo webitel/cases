@@ -2,6 +2,7 @@ package user_auth
 
 import (
 	"context"
+
 	"github.com/webitel/cases/auth"
 
 	authclient "buf.build/gen/go/webitel/webitel-go/grpc/go/_gogrpc"
@@ -12,7 +13,7 @@ import (
 	// if not impoerted cause such error:
 	// ! failed to exit idle mode: invalid target address consul://10.9.8.111:8500/go.webitel.internal, error info: address consul://10.9.8.111:8500/go.webitel.internal:443: too many colons in address
 	_ "github.com/mbobakov/grpc-consul-resolver"
-	autherror "github.com/webitel/cases/internal/error"
+	autherror "github.com/webitel/cases/internal/errors"
 	"google.golang.org/grpc"
 )
 

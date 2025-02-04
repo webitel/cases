@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+
+	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/auth/user_auth/webitel_manager"
@@ -12,7 +14,7 @@ import (
 	"strings"
 
 	conf "github.com/webitel/cases/config"
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/server"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
@@ -30,6 +32,7 @@ const (
 var (
 	AppDatabaseError            = errors.NewInternalError("app.process_api.database.perform_query.error", "database error occurred")
 	AppResponseNormalizingError = errors.NewInternalError("app.process_api.response.normalize.error", "error occurred while normalizing response")
+	AppMapParsingError          = errors.NewInternalError("app.process_api.map_parsing.error", "error occurred while parsing map")
 	AppForbiddenError           = errors.NewForbiddenError("app.process_api.response.access.error", "unable access resource")
 	AppInternalError            = errors.NewInternalError("app.process_api.execution.error", "error occurred while processing request")
 )
@@ -52,18 +55,19 @@ func getClientIp(ctx context.Context) string {
 }
 
 type App struct {
-	config         *conf.AppConfig
-	Store          store.Store
-	server         *server.Server
-	exitChan       chan error
-	storageConn    *grpc.ClientConn
-	sessionManager user_auth.AuthManager
-	webitelAppConn *grpc.ClientConn
-	shutdown       func(ctx context.Context) error
-	log            *slog.Logger
-	rabbit         *broker.RabbitBroker
-	rabbitExitChan chan cerror.AppError
-	wtelLogger     *wlogger.LoggerClient
+	config          *conf.AppConfig
+	Store           store.Store
+	server          *server.Server
+	exitChan        chan error
+	storageConn     *grpc.ClientConn
+	sessionManager  user_auth.AuthManager
+	webitelAppConn  *grpc.ClientConn
+	shutdown        func(ctx context.Context) error
+	log             *slog.Logger
+	rabbit          *broker.RabbitBroker
+	rabbitExitChan  chan cerror.AppError
+	webitelgoClient webitelgo.GroupsClient
+	wtelLogger      *wlogger.LoggerClient
 }
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
@@ -96,6 +100,8 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
+	app.webitelgoClient = webitelgo.NewGroupsClient(app.webitelAppConn)
+
 	if err != nil {
 		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
 	}

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 )
 
 type rabbitQueueConsumer struct {

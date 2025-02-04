@@ -2,12 +2,13 @@ package app
 
 import (
 	"context"
-	"github.com/webitel/cases/auth"
 	"log/slog"
 	"strconv"
 
+	"github.com/webitel/cases/auth"
+
 	cases "github.com/webitel/cases/api/cases"
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
@@ -273,10 +274,6 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.invalid_etag", "Invalid etag")
 	}
-	caseEtag, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.invalid_etag", "Invalid etag")
-	}
 
 	deleteOpts, err := model.NewDeleteOptions(ctx, RelatedCaseMetadata)
 	if err != nil {
@@ -284,7 +281,6 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		return nil, AppInternalError
 	}
 	deleteOpts.ID = tag.GetOid()
-	deleteOpts.ParentID = caseEtag.GetOid()
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()),

@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	err "github.com/webitel/cases/internal/error"
+	err "github.com/webitel/cases/internal/errors"
 )
 
 func TestNewInternalError(t *testing.T) {

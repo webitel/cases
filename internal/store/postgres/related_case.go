@@ -6,11 +6,10 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
-	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
@@ -22,9 +21,11 @@ type RelatedCaseStore struct {
 const (
 	relatedCaseLeft           = "rc"
 	relatedCaseAlias          = "rca"
+	relatedCasePriorityAlias  = "rcpa"
 	primaryCaseAlias          = "pca"
-	relatedCaseCreatedByAlias = "cb" // Alias for created_by
-	relatedCaseUpdatedByAlias = "ub" // Alias for updated_by
+	primaryCasePriorityAlias  = "pcpa"
+	relatedCaseCreatedByAlias = "cb"
+	relatedCaseUpdatedByAlias = "ub"
 )
 
 // Create implements store.RelatedCaseStore for creating a new related case.
@@ -140,17 +141,14 @@ func (r *RelatedCaseStore) Delete(
 }
 
 func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc *model.DeleteOptions) (string, []interface{}, *dberr.DBError) {
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
-	ids := util.FieldsFunc(convertedIds, util.InlineFields)
-
 	query := deleteRelatedCaseQuery
-	args := []interface{}{pq.Array(ids), rpc.GetAuthOpts().GetDomainId()}
+	args := []interface{}{rpc.ID, rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
 }
 
 var deleteRelatedCaseQuery = store.CompactSQL(`
 	DELETE FROM cases.related_case
-	WHERE id = ANY($1) AND dc = $2
+	WHERE id = $1 AND dc = $2
 `)
 
 // List implements store.RelatedCaseStore for fetching related cases.
@@ -234,6 +232,8 @@ func ParseRelationTypeWithReversion(
 	relatedCase int64,
 ) (cases.RelationType, error) {
 	switch rawType {
+	case "RELATION_TYPE_UNSPECIFIED":
+		return cases.RelationType_RELATION_TYPE_UNSPECIFIED, nil
 	case "DUPLICATES", "IS_DUPLICATED_BY":
 		if parentID == parentCase {
 			return cases.RelationType_DUPLICATES, nil
@@ -274,6 +274,8 @@ func ParseRelationTypeWithReversion(
 func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 	rpc *model.SearchOptions,
 ) (sq.SelectBuilder, func(*cases.RelatedCase) []any, *dberr.DBError) {
+	rpc.Fields = util.EnsureFields(rpc.Fields, "created_at")
+
 	// Start building the base query
 	queryBuilder := sq.Select().
 		From("cases.related_case AS rc").
@@ -411,10 +413,14 @@ func buildRelatedCasesSelectColumnsAndPlan(
 			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.updated_by", relatedCaseUpdatedByAlias, left))
 		}
 		joinRelatedCase = func() {
-			base = base.LeftJoin(fmt.Sprintf("cases.case %s ON %[1]s.id = %s.related_case_id", relatedCaseAlias, left))
+			base = base.
+				LeftJoin(fmt.Sprintf("cases.case %s ON %[1]s.id = %s.related_case_id", relatedCaseAlias, left)).
+				LeftJoin(fmt.Sprintf("cases.priority %s ON %[1]s.id = %s.priority", relatedCasePriorityAlias, relatedCaseAlias))
 		}
 		joinPrimaryCase = func() {
-			base = base.LeftJoin(fmt.Sprintf("cases.case %s ON %[1]s.id = %s.primary_case_id", primaryCaseAlias, left))
+			base = base.
+				LeftJoin(fmt.Sprintf("cases.case %s ON %[1]s.id = %s.primary_case_id", primaryCaseAlias, left)).
+				LeftJoin(fmt.Sprintf("cases.priority %s ON %[1]s.id = %s.priority", primaryCasePriorityAlias, primaryCaseAlias))
 		}
 	)
 
@@ -459,13 +465,17 @@ func buildRelatedCasesSelectColumnsAndPlan(
 			})
 		case "related_case":
 			joinRelatedCase()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name, %[1]s.subject, %[1]s.ver)::text related_case", relatedCaseAlias))
+			base = base.Column(fmt.Sprintf(
+				"ROW(%[1]s.id, %[1]s.name, %[1]s.subject, %[1]s.ver, %[2]s.color)::text related_case",
+				relatedCaseAlias, relatedCasePriorityAlias))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanRelatedCaseLookup(&rc.RelatedCase)
 			})
 		case "primary_case":
 			joinPrimaryCase()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name, %[1]s.subject, %[1]s.ver)::text primary_case", primaryCaseAlias))
+			base = base.Column(fmt.Sprintf(
+				"ROW(%[1]s.id, %[1]s.name, %[1]s.subject, %[1]s.ver, %[2]s.color)::text primary_case",
+				primaryCaseAlias, primaryCasePriorityAlias))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanRelatedCaseLookup(&rc.PrimaryCase)
 			})

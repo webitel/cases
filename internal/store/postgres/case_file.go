@@ -6,9 +6,9 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
@@ -21,7 +21,7 @@ const (
 	// Alias for the storage.files table
 	fileAlias              = "cf"
 	channel                = "case"
-	fileDefaultSort        = "created_at"
+	fileDefaultSort        = "uploaded_at"
 	caseFileAuthorAlias    = "au"
 	caseFileCreatedByAlias = "cb"
 )
@@ -147,7 +147,7 @@ func buildFilesSelectColumnsAndPlan(
 				return
 			}
 			createdByAlias = caseFileCreatedByAlias
-			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.created_by", caseFileCreatedByAlias, left))
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.uploaded_by", caseFileCreatedByAlias, left))
 		}
 		authorAlias string
 		joinAuthor  = func() {
@@ -193,11 +193,11 @@ func buildFilesSelectColumnsAndPlan(
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Name
 			})
-		case "url":
-			base = base.Column(store.Ident(left, "url"))
-			plan = append(plan, func(file *cases.File) any {
-				return &file.Url
-			})
+		// case "url":
+		//	base = base.Column(store.Ident(left, "url"))
+		//	plan = append(plan, func(file *cases.File) any {
+		//		return &file.Url
+		//	})
 		case "author":
 			joinAuthor()
 			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, %[1]s.common_name)::text author`, caseFileAuthorAlias))

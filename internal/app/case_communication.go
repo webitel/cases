@@ -4,13 +4,14 @@ import (
 	"context"
 	defErr "errors"
 	"fmt"
+	"log/slog"
+
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
-	errors "github.com/webitel/cases/internal/error"
+	errors "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
-	"log/slog"
 )
 
 var CaseCommunicationMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{

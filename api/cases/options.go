@@ -205,7 +205,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "RelatedCase",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/{primary_case_etag}/related/{etag}",
+						Path:   "/cases/related/{etag}",
 						Method: "DELETE",
 					},
 				},

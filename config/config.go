@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	conferr "github.com/webitel/cases/internal/error"
+	cerr "github.com/webitel/cases/internal/errors"
 )
 
 type AppConfig struct {
@@ -71,19 +71,19 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 
 	// Check if any required field is missing
 	if appConfig.Database.Url == "" {
-		return nil, conferr.NewConfigError("cases.main.missing_data_source", "Data source is required")
+		return nil, cerr.NewInternalError("cases.main.missing_data_source", "Data source is required")
 	}
 	if appConfig.Consul.Id == "" {
-		return nil, conferr.NewConfigError("cases.main.missing_id", "Service id is required")
+		return nil, cerr.NewInternalError("cases.main.missing_id", "Service id is required")
 	}
 	if appConfig.Consul.Address == "" {
-		return nil, conferr.NewConfigError("cases.main.missing_consul", "Consul address is required")
+		return nil, cerr.NewInternalError("cases.main.missing_consul", "Consul address is required")
 	}
 	if appConfig.Consul.PublicAddress == "" {
-		return nil, conferr.NewConfigError("cases.main.missing_grpc_addr", "gRPC address is required")
+		return nil, cerr.NewInternalError("cases.main.missing_grpc_addr", "gRPC address is required")
 	}
 	if appConfig.Rabbit.Url == "" {
-		return nil, conferr.NewConfigError("cases.main.missing_rabbit_url", "Rabbit URL is required")
+		return nil, cerr.NewInternalError("cases.main.missing_rabbit_url", "Rabbit URL is required")
 	}
 
 	return &appConfig, nil

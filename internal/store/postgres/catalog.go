@@ -10,8 +10,10 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	cases "github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/postgres/transaction"
+
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
@@ -376,6 +378,9 @@ func (s *CatalogStore) List(
 				// Directly assign simple fields
 				if id, ok := raw["id"].(float64); ok {
 					service.Id = int64(id)
+				}
+				if code, ok := raw["code"].(string); ok {
+					service.Code = code
 				}
 				if name, ok := raw["name"].(string); ok {
 					service.Name = name
@@ -1028,6 +1033,9 @@ COALESCE(
 	if util.ContainsField(subfields, "name") {
 		jsonFields.WriteString("'name', service_hierarchy.name,\n")
 	}
+	if util.ContainsField(subfields, "code") {
+		jsonFields.WriteString("'code', service_hierarchy.code,\n")
+	}
 	if util.ContainsField(subfields, "description") {
 		jsonFields.WriteString("'description', service_hierarchy.description,\n")
 	}
@@ -1489,10 +1497,10 @@ SELECT subservice.id,
 		// etc. for code, state, etc. if you want them in anchor
 		sb.WriteString(`
        ,CASE
-           WHEN subservice.id IN (SELECT searched_id FROM search_catalog)
-               THEN true
-           ELSE parent.searched
-       END AS searched
+    WHEN subservice.id IN (SELECT searched_id FROM search_catalog)
+        THEN true
+    ELSE false
+END AS searched
 	`)
 	} else {
 		// Add "searched" column for subservices
@@ -1617,8 +1625,8 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.update.transaction_start_error", err)
 	}
-	txManager := store.NewTxManager(tx)   // Create a new TxManager instance
-	defer txManager.Rollback(rpc.Context) // Ensure rollback on error
+	txManager := transaction.NewTxManager(tx) // Create a new TxManager instance
+	defer txManager.Rollback(rpc.Context)     // Ensure rollback on error
 
 	// Check if rpc.Fields contains team_ids or skill_ids
 	updateTeams := false

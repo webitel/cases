@@ -8,7 +8,7 @@ import (
 	"unicode/utf8"
 
 	goerrors "github.com/pkg/errors"
-	errors "github.com/webitel/cases/internal/error"
+	errors "github.com/webitel/cases/internal/errors"
 )
 
 // type FieldsQ map[string]*Query

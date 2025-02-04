@@ -6,9 +6,9 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	api "github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
@@ -141,13 +141,14 @@ func (p *Priority) buildDeletePriorityQuery(
 func (p *Priority) List(
 	rpc *model.SearchOptions,
 	notInSla int64,
+	inSla int64,
 ) (*api.PriorityList, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.database_connection_error", dbErr)
 	}
 
-	selectBuilder, plan, err := p.buildListPriorityQuery(rpc, notInSla)
+	selectBuilder, plan, err := p.buildListPriorityQuery(rpc, notInSla, inSla)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.build_query_error", err)
 	}
@@ -196,6 +197,7 @@ func (p *Priority) List(
 func (p *Priority) buildListPriorityQuery(
 	rpc *model.SearchOptions,
 	notInSla int64,
+	inSla int64,
 ) (sq.SelectBuilder, []PriorityScan, error) {
 	rpc.Fields = util.EnsureIdField(rpc.Fields)
 
@@ -226,6 +228,18 @@ func (p *Priority) buildListPriorityQuery(
 					WHERE sc.sla_id = ? AND psc.priority_id = cp.id
 				)
 			`, notInSla))
+	}
+
+	// Add NOT IN SLA condition if `notInSla` is not 0
+	if inSla != 0 {
+		queryBuilder = queryBuilder.Where(sq.Expr(`
+					 EXISTS (
+						SELECT 1
+						FROM cases.sla_condition sc
+						JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+						WHERE sc.sla_id = ? AND psc.priority_id = cp.id
+					)
+				`, notInSla))
 	}
 
 	// Filter by IDs
@@ -352,9 +366,9 @@ func buildPrioritySelectColumnsAndPlan(
 				return &priority.Name
 			})
 		case "description":
-			base = base.Column(fmt.Sprintf("COALESCE(%s.description, '') AS description", prioLeft))
+			base = base.Column(store.Ident(prioLeft, "description"))
 			plan = append(plan, func(priority *api.Priority) any {
-				return &priority.Description
+				return scanner.ScanText(&priority.Description)
 			})
 		case "created_at":
 			base = base.Column(store.Ident(prioLeft, "created_at"))

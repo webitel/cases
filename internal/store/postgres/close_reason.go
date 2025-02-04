@@ -8,8 +8,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
@@ -198,10 +199,8 @@ func (s CloseReason) buildSearchCloseReasonQuery(rpc *model.SearchOptions, close
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "created_at", "updated_at":
+		case "id", "name", "created_at", "updated_at", "description":
 			queryBuilder = queryBuilder.Column("g." + field)
-		case "description":
-			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")
 		case "created_by":
 			queryBuilder = queryBuilder.
 				Column("COALESCE(created_by.id, 0) AS cbi").
@@ -336,7 +335,7 @@ func (s CloseReason) buildScanArgs(fields []string, r *_go.CloseReason, createdB
 		case "name":
 			scanArgs = append(scanArgs, &r.Name)
 		case "description":
-			scanArgs = append(scanArgs, &r.Description)
+			scanArgs = append(scanArgs, scanner.ScanText(&r.Description))
 		case "created_at":
 			scanArgs = append(scanArgs, tempCreatedAt)
 		case "updated_at":

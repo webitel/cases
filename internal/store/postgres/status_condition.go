@@ -11,8 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_go "github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
@@ -132,23 +133,14 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 		return dberr.NewDBInternalError("postgres.status_condition.delete.database_connection_error", err)
 	}
 
-	rows, err := db.Query(rpc.Context, query, args...)
+	res, err := db.Exec(rpc.Context, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.status_condition.delete.execution_error", err)
 	}
-	defer rows.Close()
 
-	var deletedIds []int64
-	for rows.Next() {
-		var deletedId int64
-		if err := rows.Scan(&deletedId); err != nil {
-			return dberr.NewDBInternalError("postgres.status_condition.delete.scan_error", err)
-		}
-		deletedIds = append(deletedIds, deletedId)
-	}
-
-	if len(deletedIds) == 0 {
-		return dberr.NewDBError("postgres.status_condition.delete.constraint_violation", "operation would violate constraints: at least one initial and one final record must remain")
+	// Check if any rows were affected
+	if res.RowsAffected() == 0 {
+		return dberr.NewDBNoRowsError("postgres.status_condition.delete.not_found")
 	}
 
 	return nil
@@ -170,7 +162,7 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		switch field {
 		case "initial":
 			if !st.Initial {
-				return nil, dberr.NewDBError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
+				return nil, dberr.NewDBCheckViolationError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
 			}
 		}
 	}
@@ -222,11 +214,8 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "initial", "final", "created_at", "updated_at":
+		case "id", "name", "initial", "final", "created_at", "updated_at", "description":
 			queryBuilder = queryBuilder.Column("s." + field)
-		case "description":
-			// Separate case for description: return '' if NULL
-			queryBuilder = queryBuilder.Column("COALESCE(s.description, '') AS description")
 		case "created_by":
 			// Handle nulls using COALESCE for created_by
 			queryBuilder = queryBuilder.
@@ -390,7 +379,7 @@ WHERE CASE
 
 	// Append the dynamic query arguments
 	args = append(args, updArgs...)
-	//fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
+	// fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
 
 	return store.CompactSQL(query), args
 }
@@ -428,7 +417,7 @@ func (s StatusConditionStore) buildScanArgs(fields []string, st *_go.StatusCondi
 		case "name":
 			scanArgs = append(scanArgs, &st.Name)
 		case "description":
-			scanArgs = append(scanArgs, &st.Description)
+			scanArgs = append(scanArgs, scanner.ScanText(&st.Description))
 		case "initial":
 			scanArgs = append(scanArgs, &st.Initial)
 		case "final":

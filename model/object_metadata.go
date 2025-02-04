@@ -41,6 +41,7 @@ func (o *ObjectMetadata) GetDefaultFields() []string {
 	copy(res, o.defFields)
 	return res
 }
+
 func (o *ObjectMetadata) GetMainScopeName() string {
 	return o.mainObjClassName
 }
@@ -69,4 +70,21 @@ func NewObjectMetadata(mainScope string, parentScope string, fields []*Field, ch
 	}
 
 	return res
+}
+
+// SetAllFieldsToTrue returns a copy of ObjectMetadata with all fields set as default (true)
+func SetAllFieldsToTrue(o ObjectMetadata) ObjectMetadata {
+	// Create a deep copy of ObjectMetadata
+	newMetadata := ObjectMetadata{
+		mainObjClassName:   o.mainObjClassName,
+		parentObjClassName: o.parentObjClassName,
+		childObjScopes:     append([]string{}, o.childObjScopes...),          // Copy slice
+		childMetadata:      append([]ObjectMetadatter{}, o.childMetadata...), // Copy slice
+	}
+
+	// Copy and modify fields
+	newMetadata.fields = append([]string{}, o.fields...)    // Copy field names
+	newMetadata.defFields = append([]string{}, o.fields...) // Set all fields as default
+
+	return newMetadata
 }

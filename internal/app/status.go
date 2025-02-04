@@ -6,7 +6,7 @@ import (
 	"time"
 
 	_go "github.com/webitel/cases/api/cases"
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 )
 
@@ -64,7 +64,6 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 
 // ListStatuses implements api.StatusesServer.
 func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
-
 	fields := req.Fields
 	if len(fields) == 0 {
 		fields = strings.Split(defaultFields, ", ")
@@ -80,7 +79,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 
 	searchOptions := model.SearchOptions{
 		IDs: req.Id,
-		//UserAuthSession: session,
+		// UserAuthSession: session,
 		Fields:  fields,
 		Context: ctx,
 		Page:    int(page),

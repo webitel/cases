@@ -5,20 +5,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
+	"github.com/webitel/cases/internal/store/postgres/transaction"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type CaseStore struct {
@@ -50,7 +52,7 @@ func (c *CaseStore) Create(
 		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", err)
 	}
 	defer tx.Rollback(rpc.Context)
-	txManager := store.NewTxManager(tx)
+	txManager := transaction.NewTxManager(tx)
 
 	// Scan SLA details
 	// Sla_id
@@ -104,7 +106,7 @@ func (c *CaseStore) Create(
 // ScanSla fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
 func (c *CaseStore) ScanSla(
 	rpc *model.CreateOptions,
-	txManager *store.TxManager,
+	txManager *transaction.TxManager,
 	serviceID int64,
 	priorityID int64,
 ) (
@@ -199,6 +201,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	// Parameters for the main case and nested JSON arrays
 	var (
 		reporter    *int64
+		assignee    *int64
 		closeReason *int64
 		closeResult *string
 	)
@@ -210,9 +213,16 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			closeResult = &cl.CloseResult
 		}
 	}
-	if caseItem.Reporter.GetId() != 0 {
+	if caseItem.Reporter != nil && caseItem.Reporter.GetId() > 0 {
 		reporter = &caseItem.Reporter.Id
 	}
+
+	if caseItem.Assignee.GetId() == 0 {
+		assignee = nil // Set to nil if assignee is 0, so it will be inserted as NULL
+	} else {
+		assignee = &caseItem.Assignee.Id
+	}
+
 	params := map[string]interface{}{
 		// Case-level parameters
 		"date":                rpc.CurrentTime(),
@@ -235,7 +245,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"reporter":            reporter,
 		"impacted":            caseItem.Impacted.GetId(),
 		"description":         caseItem.Description,
-		"assignee":            caseItem.Assignee.GetId(),
+		"assignee":            assignee,
 		//-------------------------------------------------//
 		//------ CASE One-to-Many ( 1 : n ) Attributes ----//
 		//-------------------------------------------------//
@@ -253,10 +263,16 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		)`
 
 	prefixCTE := `
+	    service_cte AS(
+		SELECT catalog_id
+		FROM cases.service_catalog
+			WHERE id = :service
+			LIMIT 1
+		),
 		prefix_cte AS (
 			SELECT prefix
 			FROM cases.service_catalog
-			WHERE id = :service
+			WHERE id = any(SELECT catalog_id FROM service_cte)
 			LIMIT 1
 		), id_cte AS (
 			SELECT nextval('cases.case_id'::regclass) AS id
@@ -397,13 +413,13 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	calendarID int,
 	reactionTime int,
 	resolutionTime int,
-	txManager *store.TxManager,
+	txManager *transaction.TxManager,
 	caseItem *_go.Case,
 ) error {
 	rows, err := txManager.Query(rpc.Context, `
 		SELECT day, start_time_of_day, end_time_of_day, special, disabled
-		FROM flow.calendar, UNNEST(accepts::flow.calendar_accept_time[]) x
-		WHERE id = $1
+		FROM flow.calendar cl,  UNNEST(accepts::flow.calendar_accept_time[]) x
+		WHERE cl.id = $1
 		ORDER BY day, start_time_of_day`, calendarID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch calendar details: %w", err)
@@ -442,31 +458,43 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 		return fmt.Errorf("error iterating over calendar rows: %w", err)
 	}
 
+	var offset time.Duration
+	offsetRow := txManager.QueryRow(rpc.Context, `
+		SELECT tz.utc_offset
+		FROM flow.calendar cl
+		    LEFT JOIN flow.calendar_timezones tz ON tz.id = cl.timezone_id
+		WHERE cl.id = $1`, calendarID)
+	err = offsetRow.Scan(&offset)
+	if err != nil {
+		return fmt.Errorf("failed to fetch calendar offset details: %w", err)
+	}
+
 	// Convert reaction and resolution times from milliseconds to minutes
-	reactionMinutes := reactionTime / 60000
-	resolutionMinutes := resolutionTime / 60000
+	reactionMinutes := reactionTime / 60
+	resolutionMinutes := resolutionTime / 60
 
 	currentTime := rpc.CurrentTime()
-	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, reactionMinutes, calendar)
+	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, reactionMinutes, calendar)
 	if err != nil {
 		return fmt.Errorf("failed to calculate planned reaction time: %w", err)
 	}
 
 	//?? TODO
 	// resolveTimestamp, err := calculateTimestampFromCalendar(reactionTimestamp, resolutionMinutes, calendar)
-	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, resolutionMinutes, calendar)
+	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, resolutionMinutes, calendar)
 	if err != nil {
 		return fmt.Errorf("failed to calculate planned resolution time: %w", err)
 	}
 
-	caseItem.PlannedReactionAt = util.Timestamp(reactionTimestamp)
-	caseItem.PlannedResolveAt = util.Timestamp(resolveTimestamp)
+	caseItem.PlannedReactionAt = reactionTimestamp.UnixMilli()
+	caseItem.PlannedResolveAt = resolveTimestamp.UnixMilli()
 
 	return nil
 }
 
 func calculateTimestampFromCalendar(
 	startTime time.Time,
+	calendarOffset time.Duration,
 	requiredMinutes int,
 	calendar []struct {
 		Day            int
@@ -479,25 +507,53 @@ func calculateTimestampFromCalendar(
 	remainingMinutes := requiredMinutes
 	currentDay := int(startTime.Weekday())
 	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute()
+	var (
+		startingAtMinutes int
+		startDayProcessed bool
+		addDays           int
+	)
 
 	for {
 		for _, slot := range calendar {
+			slotStartOfTheDayUtc := int((time.Duration(slot.StartTimeOfDay)*time.Minute - calendarOffset).Minutes())
+			slotEndOfTheDayUtc := int((time.Duration(slot.EndTimeOfDay)*time.Minute - calendarOffset).Minutes())
 			// Match the current day and ensure the slot is in the future
-			if slot.Day == currentDay && slot.StartTimeOfDay >= currentTimeInMinutes {
-				availableMinutes := slot.EndTimeOfDay - slot.StartTimeOfDay
+			if slot.Day == currentDay && slotEndOfTheDayUtc > currentTimeInMinutes {
+				if startDayProcessed {
+					currentTimeInMinutes = slotStartOfTheDayUtc
+				}
+				if currentTimeInMinutes < slotStartOfTheDayUtc {
+					startingAtMinutes = slotStartOfTheDayUtc
+				} else {
+					startingAtMinutes = currentTimeInMinutes
+				}
+				availableMinutes := slotEndOfTheDayUtc - startingAtMinutes
 				if availableMinutes >= remainingMinutes {
+					// if we need to add days, then we should add minutes from the start of the working day
+					if addDays != 0 {
+						startDate := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, startTime.Location())
+						// Add days required
+						startDate = startDate.Add(time.Duration(24*addDays) * time.Hour)
+						// Add minutes to the start of the working day
+						startDate = startDate.Add(time.Duration(slotStartOfTheDayUtc) * time.Minute)
+						// Add remaining minutes to the start of the working day
+						startDate = startDate.Add(time.Duration(remainingMinutes) * time.Minute)
+						return startDate, nil
+					}
 					// Calculate the exact timestamp
 					return startTime.Add(time.Duration(remainingMinutes) * time.Minute), nil
 				}
+				if slot.Day == currentDay && !startDayProcessed {
+					startDayProcessed = true
+				}
 				remainingMinutes -= availableMinutes
-				currentTimeInMinutes = slot.EndTimeOfDay // Move to the end of the current slot
 			}
+
 		}
 
 		// If no slots available, move to the next day
-		currentDay = (currentDay + 1) % 7 // Wrap around to the start of the week if necessary
-		currentTimeInMinutes = 0          // Reset to start of the day
-		startTime = startTime.Add(24 * time.Hour)
+		currentDay = (currentDay + 1) % len(calendar) // Wrap around to the start of the week if necessary
+		addDays++
 	}
 }
 
@@ -604,7 +660,6 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 		return true, nil
 	}
 	return false, nil
-
 }
 
 func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
@@ -795,7 +850,11 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
 			updateBuilder = updateBuilder.Set("sla", sq.Expr("(SELECT sla_id FROM cases.service_catalog WHERE id = ? LIMIT 1)", upd.Service.GetId()))
 		case "assignee":
-			updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
+			if upd.Assignee.GetId() == 0 {
+				updateBuilder = updateBuilder.Set("assignee", nil)
+			} else {
+				updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
+			}
 		case "reporter":
 			updateBuilder = updateBuilder.Set("reporter", upd.Reporter.GetId())
 		case "contact_info":
@@ -899,9 +958,19 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "group":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(g.id, g.name)::text FROM contacts.group g WHERE g.id = %s.contact_group) AS contact_group", caseLeft))
+				`(
+					SELECT
+						ROW(g.id, g.name,
+							CASE
+								WHEN g.id IN (SELECT id FROM contacts.dynamic_group) THEN 'dynamic'
+								ELSE 'static'
+							END
+						)::text
+					FROM contacts.group g
+					WHERE g.id = %s.contact_group
+				) AS contact_group`, caseLeft))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanRowLookup(&caseItem.Group)
+				return scanner.ScanRowExtendedLookup(&caseItem.Group)
 			})
 		case "source":
 			base = base.Column(fmt.Sprintf(
@@ -1518,7 +1587,6 @@ func addCaseRbacConditionForInsert(auth auth.Auther, access auth.AccessMode, que
 			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
 			Where("acl.access & ? = ?", int64(access), int64(access)).
 			Limit(1)
-
 	} else {
 		subquery = sq.Select("id").From("cases.case").Where("id = ?")
 	}

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	guid "github.com/google/uuid"
-	cerror "github.com/webitel/cases/internal/error"
+	cerror "github.com/webitel/cases/internal/errors"
 )
 
 type BrokerRecordLogMessage struct {

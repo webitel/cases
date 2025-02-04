@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lib/pq"
-	dberr "github.com/webitel/cases/internal/error"
+	dberr "github.com/webitel/cases/internal/errors"
 	db "github.com/webitel/cases/internal/store"
 )
 
