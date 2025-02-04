@@ -12,6 +12,8 @@ import (
 	cases "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/postgres/transaction"
+
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
@@ -202,7 +204,7 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 	}
 	defer tx.Rollback(rpc.Context) // Ensure rollback on error
 
-	txManager := store.NewTxManager(tx)
+	txManager := transaction.NewTxManager(tx)
 
 	// Update priorities first if there are any IDs
 

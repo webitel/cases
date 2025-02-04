@@ -11,6 +11,7 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
@@ -113,7 +114,7 @@ func (s Status) List(rpc *model.SearchOptions) (*_go.StatusList, error) {
 			case "name":
 				scanArgs = append(scanArgs, &l.Name)
 			case "description":
-				scanArgs = append(scanArgs, &l.Description)
+				scanArgs = append(scanArgs, scanner.ScanText(&l.Description))
 			case "created_at":
 				scanArgs = append(scanArgs, &tempCreatedAt)
 			case "updated_at":
@@ -242,11 +243,8 @@ func (s Status) buildSearchStatusQuery(rpc *model.SearchOptions) (string, []inte
 
 	for _, field := range rpc.Fields {
 		switch field {
-		case "id", "name", "created_at", "updated_at":
+		case "id", "name", "created_at", "updated_at", "description":
 			queryBuilder = queryBuilder.Column("g." + field)
-		case "description":
-			// Use COALESCE to handle null values for description
-			queryBuilder = queryBuilder.Column("COALESCE(g.description, '') AS description")
 		case "created_by":
 			// Handle nulls using COALESCE for created_by
 			queryBuilder = queryBuilder.

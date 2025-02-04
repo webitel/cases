@@ -23,7 +23,7 @@ var CaseFileMetadata = model.NewObjectMetadata("", model.ScopeCase, []*model.Fie
 	{Name: "name", Default: true},
 	{Name: "created_at", Default: true},
 	{Name: "created_by", Default: true},
-	{Name: "url", Default: true},
+	//{Name: "url", Default: true},
 	{Name: "author", Default: true},
 })
 

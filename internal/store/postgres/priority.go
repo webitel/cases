@@ -8,7 +8,7 @@ import (
 	api "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
@@ -366,9 +366,9 @@ func buildPrioritySelectColumnsAndPlan(
 				return &priority.Name
 			})
 		case "description":
-			base = base.Column(fmt.Sprintf("COALESCE(%s.description, '') AS description", prioLeft))
+			base = base.Column(store.Ident(prioLeft, "description"))
 			plan = append(plan, func(priority *api.Priority) any {
-				return &priority.Description
+				return scanner.ScanText(&priority.Description)
 			})
 		case "created_at":
 			base = base.Column(store.Ident(prioLeft, "created_at"))

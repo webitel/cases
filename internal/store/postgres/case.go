@@ -17,7 +17,8 @@ import (
 	"github.com/webitel/cases/auth"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
+	"github.com/webitel/cases/internal/store/postgres/transaction"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
@@ -51,7 +52,7 @@ func (c *CaseStore) Create(
 		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", err)
 	}
 	defer tx.Rollback(rpc.Context)
-	txManager := store.NewTxManager(tx)
+	txManager := transaction.NewTxManager(tx)
 
 	// Scan SLA details
 	// Sla_id
@@ -105,7 +106,7 @@ func (c *CaseStore) Create(
 // ScanSla fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
 func (c *CaseStore) ScanSla(
 	rpc *model.CreateOptions,
-	txManager *store.TxManager,
+	txManager *transaction.TxManager,
 	serviceID int64,
 	priorityID int64,
 ) (
@@ -412,7 +413,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	calendarID int,
 	reactionTime int,
 	resolutionTime int,
-	txManager *store.TxManager,
+	txManager *transaction.TxManager,
 	caseItem *_go.Case,
 ) error {
 	rows, err := txManager.Query(rpc.Context, `

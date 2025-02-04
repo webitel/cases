@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
@@ -330,9 +330,9 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 	fieldMap := map[string]string{
 		"id":          "service.id",
 		"name":        "service.name",
-		"description": "COALESCE(service.description, '') AS description",
+		"description": "service.description",
 		"root_id":     "service.root_id",
-		"code":        "COALESCE(service.code, '') AS code",
+		"code":        "service.code",
 		"state":       "service.state",
 		"created_at":  "service.created_at",
 		"updated_at":  "service.updated_at",
@@ -541,8 +541,8 @@ func (s *ServiceStore) buildServiceScanArgs(
 	fieldMap := map[string][]any{
 		"id":          {&service.Id},
 		"name":        {&service.Name},
-		"description": {&service.Description},
-		"code":        {&service.Code},
+		"description": {scanner.ScanText(&service.Description)},
+		"code":        {scanner.ScanText(&service.Code)},
 		"state":       {&service.State},
 		"created_at":  {createdAt},
 		"updated_at":  {updatedAt},
