@@ -2,13 +2,14 @@ package postgres
 
 import (
 	"fmt"
+
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 )
 
@@ -102,7 +103,6 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(options *mode
 	base := squirrel.Select().From(fmt.Sprintf("%s %s", c.mainTable, alias)).PlaceholderFormat(squirrel.Dollar)
 	base = store.ApplyPaging(options.GetPage(), options.GetSize(), base)
 	return c.buildSelectColumnsAndPlan(base, alias, options.Fields)
-
 }
 
 func (c *CaseCommunicationStore) scanCommunications(rows pgx.Rows, plan []func(*cases.CaseCommunication) any) ([]*cases.CaseCommunication, *dberr.DBError) {
@@ -158,9 +158,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 	for _, communication := range communications {
 		switch communication.CommunicationType {
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CALL:
-			var (
-				callsSubquery squirrel.Sqlizer
-			)
+			var callsSubquery squirrel.Sqlizer
 			if callsRbac {
 				callsSubquery = squirrel.Expr(`(SELECT c.id::text
 															 FROM call_center.cc_calls_history c
@@ -196,7 +194,6 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 	}
 	base := squirrel.Select().From(insertAlias).Prefix(insertCte, args...).PlaceholderFormat(squirrel.Dollar)
 	return c.buildSelectColumnsAndPlan(base, insertAlias, options.Fields)
-
 }
 
 func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fields []string) (query squirrel.SelectBuilder, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
@@ -241,7 +238,6 @@ func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(options *mo
 	}
 	del := squirrel.Delete(c.mainTable).Where("id = ANY(?)", options.IDs)
 	return del, nil
-
 }
 
 var s store.CaseCommunicationStore = &CaseCommunicationStore{}

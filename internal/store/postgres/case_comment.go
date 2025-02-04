@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+
 	"github.com/webitel/cases/auth"
 
 	"github.com/jackc/pgx"
@@ -12,7 +13,7 @@ import (
 	"github.com/lib/pq"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
@@ -70,9 +71,7 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 ) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
 	// Ensure "id" and "ver" are in the fields list
 	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
-	var (
-		err error
-	)
+	var err error
 	// Build the insert query with a RETURNING clause
 	insertBuilder := sq.
 		Insert("cases.case_comment").

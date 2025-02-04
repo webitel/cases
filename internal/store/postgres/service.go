@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"

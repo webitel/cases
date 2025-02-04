@@ -8,7 +8,7 @@ import (
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/scanner"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
@@ -193,7 +193,7 @@ func buildFilesSelectColumnsAndPlan(
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Name
 			})
-		//case "url":
+		// case "url":
 		//	base = base.Column(store.Ident(left, "url"))
 		//	plan = append(plan, func(file *cases.File) any {
 		//		return &file.Url

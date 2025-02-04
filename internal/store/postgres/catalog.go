@@ -12,6 +12,8 @@ import (
 	cases "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/postgres/transaction"
+
 	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
@@ -1623,8 +1625,8 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.update.transaction_start_error", err)
 	}
-	txManager := store.NewTxManager(tx)   // Create a new TxManager instance
-	defer txManager.Rollback(rpc.Context) // Ensure rollback on error
+	txManager := transaction.NewTxManager(tx) // Create a new TxManager instance
+	defer txManager.Rollback(rpc.Context)     // Ensure rollback on error
 
 	// Check if rpc.Fields contains team_ids or skill_ids
 	updateTeams := false
