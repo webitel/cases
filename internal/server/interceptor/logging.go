@@ -39,7 +39,7 @@ func LoggingUnaryServerInterceptor() grpc.UnaryServerInterceptor {
 		// Log the end of the request with the duration
 		duration := time.Since(start)
 		if err != nil {
-			slog.Error("gRPC request error",
+			slog.ErrorContext(ctx, "gRPC request error",
 				slog.String("method", info.FullMethod),
 				slog.String("client_ip", ip),
 				slog.Duration("duration", duration),

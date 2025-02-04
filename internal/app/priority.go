@@ -53,7 +53,7 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 
 	createOpts, err := model.NewCreateOptions(ctx, req, PriorityMetadata)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	createOpts.Fields = fields
@@ -73,7 +73,7 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 
 	searchOptions.Sort = req.Sort
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	if req.Q != "" {
@@ -120,7 +120,7 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 
 	updateOpts, err := model.NewUpdateOptions(ctx, req, PriorityMetadata)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	updateOpts.Fields = fields
@@ -149,7 +149,7 @@ func (p *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePri
 	}
 	deleteOpts, err := model.NewDeleteOptions(ctx, PriorityMetadata)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	deleteOpts.IDs = []int64{req.Id}

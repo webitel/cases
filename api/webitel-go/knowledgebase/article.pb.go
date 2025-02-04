@@ -1106,7 +1106,7 @@ func (x *ArticleVersion) GetVer() int32 {
 
 type ArticleVersionList struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Data []*ArticleVersion `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+	Data  []*ArticleVersion      `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
 	// The page number of the partial result.
 	Page int32 `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
 	// Indicates that this is a partial result.

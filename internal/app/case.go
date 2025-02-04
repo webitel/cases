@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"log"
 	"log/slog"
 	"strconv"
@@ -69,18 +70,19 @@ var (
 type CaseService struct {
 	app *App
 	cases.UnimplementedCasesServer
+	logger *wlogger.ObjectedLogger
 }
 
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
 	searchOpts, err := model.NewSearchOptions(ctx, req, CaseMetadata)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, cerror.NewBadRequestError("app.case.search_cases.parse_ids.invalid", err.Error())
 	}
 	for column, value := range req.GetFilters() {
@@ -91,27 +93,28 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	searchOpts.IDs = ids
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
 	err = c.NormalizeResponseCases(list, req, nil)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
+
 	return list, nil
 }
 
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
 	searchOpts, err := model.NewLocateOptions(ctx, req, CaseMetadata)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	id, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
 	}
 	searchOpts.IDs = id
@@ -124,7 +127,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	}
 	err = c.NormalizeResponseCases(list, req, nil)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 	return list.Items[0], nil
@@ -218,20 +221,18 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	fullMD := model.SetAllFieldsToTrue(*caseMD)
 	createOpts, err := model.NewCreateOptions(ctx, req, &fullMD)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()))
 	newCase, err = c.app.Store.Case().Create(createOpts, newCase)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
-
-	// Encode etag from the case ID and version
-	newCase.Etag, err = etag.EncodeEtag(etag.EtagCase, newCase.Id, newCase.Ver)
+	err = c.NormalizeResponseCase(newCase, req)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 
@@ -274,6 +275,21 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			Name: AnonymousName,
 		}
 	}
+
+	log, err := wlogger.NewCreateMessage(createOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), newCase.Id, newCase)
+	if err != nil {
+		return nil, err
+	}
+	err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), log)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+	}
+
+	err = c.NormalizeResponseCase(newCase, req)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+		return nil, AppResponseNormalizingError
+	}
 	return newCase, nil
 }
 
@@ -286,7 +302,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Etag)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
 	}
 	// Type assert CaseMetadata to *ObjectMetadata before passing to SetAllFieldsToTrue
@@ -298,7 +314,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	fullMD := model.SetAllFieldsToTrue(*caseMD)
 	updateOpts, err := model.NewUpdateOptions(ctx, req, &fullMD)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	updateOpts.Etags = []*etag.Tid{&tag}
@@ -336,7 +352,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		case *cerror.DBNoRowsError:
 			return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
 		}
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppDatabaseError
 	}
 
@@ -345,12 +361,20 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if err != nil {
 		return nil, err
 	}
-
+	log, err := wlogger.NewCreateMessage(updateOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), updatedCase.Id, updatedCase)
+	if err != nil {
+		return nil, err
+	}
+	err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), log)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+	}
 	err = c.NormalizeResponseCase(updatedCase, req)
 	if err != nil {
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
+
 	return updatedCase, nil
 }
 
@@ -604,7 +628,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 
 	deleteOpts, err := model.NewDeleteOptions(ctx, CaseMetadata)
 	if err != nil {
-		slog.Error(err.Error())
+		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 
@@ -621,8 +645,16 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		case *cerror.DBNoRowsError:
 			return nil, cerror.NewBadRequestError("app.case.delete.invalid_etag", "Invalid etag")
 		}
-		slog.Error(err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
+	}
+	log, err := wlogger.NewDeleteMessage(deleteOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), tag.GetOid())
+	if err != nil {
+		return nil, err
+	}
+	err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), log)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
 	}
 	return nil, nil
 }
@@ -631,7 +663,7 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewBadRequestError("app.case.new_case_service.check_args.app", "unable to init case service, app is nil")
 	}
-	return &CaseService{app: app}, nil
+	return &CaseService{app: app, logger: app.wtelLogger.GetObjectedLogger(CaseMetadata.GetMainScopeName())}, nil
 }
 
 func (c *CaseService) ValidateUpdateInput(
@@ -778,12 +810,40 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()
 	}
-	util.NormalizeEtag(fields, &re.Etag, &re.Id, &re.Ver)
+	err := util.NormalizeEtag(etag.EtagCase, fields, &re.Etag, &re.Id, &re.Ver)
+	if err != nil {
+		return err
+	}
 
 	if re.Reporter == nil && util.ContainsField(fields, "reporter") {
 		re.Reporter = &cases.Lookup{
 			Name: AnonymousName,
 		}
 	}
+	if re.Comments != nil {
+		for _, com := range re.Comments.Items {
+			err = util.NormalizeEtags(etag.EtagCaseComment, true, false, false, &com.Etag, &com.Id, &com.Ver)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if re.Links != nil {
+		for _, link := range re.Links.Items {
+			err = util.NormalizeEtags(etag.EtagCaseLink, true, false, false, &link.Etag, &link.Id, &link.Ver)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if re.Related != nil {
+		for _, related := range re.Related.Data {
+			err = util.NormalizeEtags(etag.EtagRelatedCase, true, false, false, &related.Etag, &related.Id, &related.Ver)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
