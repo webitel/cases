@@ -89,7 +89,7 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseCommentMetadata.SetAllFieldsToTrue())
+	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
@@ -134,7 +134,7 @@ func (c *CaseCommentService) DeleteComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.etag_required", "Etag is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommentMetadata.SetAllFieldsToTrue())
+	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
@@ -210,7 +210,7 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CaseCommentMetadata.SetAllFieldsToTrue())
+	createOpts, err := model.NewCreateOptions(ctx, req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError

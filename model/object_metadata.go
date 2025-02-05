@@ -7,7 +7,7 @@ type ObjectMetadatter interface {
 	GetParentScopeName() string
 	GetChildScopeNames() []string
 	GetAllScopeNames() []string
-	SetAllFieldsToTrue(o ObjectMetadata) *ObjectMetadata
+	CopyWithAllFieldsSetToDefault() ObjectMetadatter
 }
 
 type ObjectMetadata struct {
@@ -74,10 +74,13 @@ func NewObjectMetadata(mainScope string, parentScope string, fields []*Field, ch
 }
 
 // SetAllFieldsToTrue implements ObjectMetadatter.
-func (*ObjectMetadata) SetAllFieldsToTrue(o ObjectMetadata) *ObjectMetadata {
-	// Copy and modify fields
-	o.fields = append([]string{}, o.fields...)
-	o.defFields = append([]string{}, o.fields...)
-
-	return &o
+func (o *ObjectMetadata) CopyWithAllFieldsSetToDefault() ObjectMetadatter {
+	return &ObjectMetadata{
+		fields:             o.GetAllFields(),
+		defFields:          o.GetAllFields(),
+		mainObjClassName:   o.GetMainScopeName(),
+		parentObjClassName: o.GetParentScopeName(),
+		childObjScopes:     o.childObjScopes,
+		childMetadata:      o.childMetadata,
+	}
 }
