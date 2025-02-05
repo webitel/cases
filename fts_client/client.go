@@ -27,8 +27,7 @@ func (f *FtsClient) Send(exchange string, rk string, body []byte) error {
 		return amqp.ErrClosed
 	}
 	err := f.channel.Publish(exchange, rk, false, false, amqp.Publishing{
-		Body:    body,
-		Headers: amqp.Table{"content-type": "application/json"},
+		Body: body,
 	})
 	if err != nil {
 		// Add message to the queue
@@ -39,15 +38,14 @@ func (f *FtsClient) Send(exchange string, rk string, body []byte) error {
 		})
 		return err
 	}
-	// Try to clear the queue
+	// Try to process the queue
 	if f.queue.Len() > 0 {
 		for el := f.queue.PopFront(); f.queue.Len() > 0; {
 			err = f.channel.Publish(el.exchange, el.rk, false, false, amqp.Publishing{
-				Body:    el.body,
-				Headers: amqp.Table{"content-type": "application/json"},
+				Body: el.body,
 			})
 			if err != nil {
-				// error occured whil clearing the queue
+				// error occurred while clearing the queue
 				// push get back the element to the front
 				f.queue.PushFront(el)
 				return err

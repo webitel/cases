@@ -1,13 +1,16 @@
 package model
 
 type FtsCase struct {
-	Id            string `json:"id,omitempty"`
-	Description   string `json:"description,omitempty"`
-	CloseResult   string `json:"closeResult,omitempty"`
-	RatingComment string `json:"ratingComment,omitempty"`
+	Description   string  `json:"description,omitempty"`
+	CloseResult   string  `json:"close_result,omitempty"`
+	RatingComment string  `json:"rating_comment,omitempty"`
+	RoleIds       []int64 `json:"_role_ids,omitempty"`
+	Subject       string  `json:"subject,omitempty"`
+	ContactInfo   string  `json:"contact_info,omitempty"`
 }
 
 type FtsCaseComment struct {
-	ParentId int64  `json:"parentId,omitempty"`
-	Comment  string `json:"comment,omitempty"`
+	ParentId int64   `json:"parent_id,omitempty"`
+	Comment  string  `json:"comment,omitempty"`
+	RoleIds  []int64 `json:"_role_ids,omitempty"`
 }

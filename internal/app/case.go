@@ -61,6 +61,7 @@ var (
 		{Name: "related", Default: false},
 		{Name: "timing", Default: true},
 		{Name: "contact_info", Default: true},
+		{Name: "role_ids", Default: true},
 	}, CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata)
 )
 
@@ -232,23 +233,26 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		return nil, err
 	}
+	// save id before normalizing
+	newCaseId := newCase.GetId()
+	roles := newCase.GetRoleIds()
 
-	if ftsModel, ftsErr := ConvertCaseToFtsModel(newCase); ftsErr == nil {
-		ftsErr = c.app.ftsClient.Create(createOpts.GetAuthOpts().GetDomainId(), CaseMetadata.GetMainScopeName(), newCase.Id, ftsModel)
+	err = c.NormalizeResponseCase(newCase, req)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+		return nil, AppResponseNormalizingError
+	}
+
+	// send all events after normalizing
+	if ftsModel, ftsErr := ConvertCaseToFtsModel(newCase, roles); ftsErr == nil {
+		ftsErr = c.app.ftsClient.Create(createOpts.GetAuthOpts().GetDomainId(), CaseMetadata.GetMainScopeName(), newCaseId, ftsModel)
 		if ftsErr != nil {
 			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 		}
 	} else {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
-
-	if newCase.Reporter == nil && util.ContainsField(createOpts.Fields, "reporter") {
-		newCase.Reporter = &cases.Lookup{
-			Name: AnonymousName,
-		}
-	}
-
-	log, err := wlogger.NewCreateMessage(createOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), newCase.Id, newCase)
+	log, err := wlogger.NewCreateMessage(createOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), newCaseId, newCase)
 	if err != nil {
 		return nil, err
 	}
@@ -257,11 +261,6 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 	}
 
-	err = c.NormalizeResponseCase(newCase, req)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
-	}
 	return newCase, nil
 }
 
@@ -327,27 +326,32 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, err
 	}
 
-	if ftsModel, ftsErr := ConvertCaseToFtsModel(updatedCase); ftsErr == nil {
-		ftsErr = c.app.ftsClient.Update(updateOpts.GetAuthOpts().GetDomainId(), CaseMetadata.GetMainScopeName(), updatedCase.Id, ftsModel)
+	roleIds := updatedCase.GetRoleIds()
+
+	err = c.NormalizeResponseCase(updatedCase, req)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+		return nil, AppResponseNormalizingError
+	}
+
+	// send all events after normalizing
+	if ftsModel, ftsErr := ConvertCaseToFtsModel(updatedCase, roleIds); ftsErr == nil {
+		ftsErr = c.app.ftsClient.Update(updateOpts.GetAuthOpts().GetDomainId(), CaseMetadata.GetMainScopeName(), tag.GetOid(), ftsModel)
 		if ftsErr != nil {
 			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 		}
+		updatedCase.RoleIds = nil
 	} else {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
-	log, err := wlogger.NewCreateMessage(updateOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), updatedCase.Id, updatedCase)
+	log, err := wlogger.NewCreateMessage(updateOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), tag.GetOid(), updatedCase)
 	if err != nil {
 		return nil, err
 	}
 	err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), log)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-	}
-	err = c.NormalizeResponseCase(updatedCase, req)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
 	}
 
 	return updatedCase, nil
@@ -742,6 +746,9 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 	fields = util.FieldsFunc(fields, util.InlineFields)
 
 	for _, item := range res.Items {
+		// always hide
+		item.RoleIds = nil
+
 		err = util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &item.Etag, &item.Id, &item.Ver)
 		if err != nil {
 			return err
@@ -751,10 +758,6 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 				Name: AnonymousName,
 			}
 		}
-
-	}
-
-	for _, item := range res.Items {
 		if item.Comments != nil {
 			for _, com := range item.Comments.Items {
 				err = util.NormalizeEtags(etag.EtagCaseComment, true, false, false, &com.Etag, &com.Id, &com.Ver)
@@ -795,6 +798,9 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 		return err
 	}
 
+	// always hide
+	re.RoleIds = nil
+
 	if re.Reporter == nil && util.ContainsField(fields, "reporter") {
 		re.Reporter = &cases.Lookup{
 			Name: AnonymousName,
@@ -828,17 +834,16 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 	return nil
 }
 
-func ConvertCaseToFtsModel(re *cases.Case) (*model.FtsCase, error) {
+func ConvertCaseToFtsModel(re *cases.Case, roles []int64) (*model.FtsCase, error) {
 	if re == nil {
 		return nil, errors.New("input empty")
 	}
 	res := &model.FtsCase{
 		Description: re.Description,
+		Subject:     re.Subject,
+		ContactInfo: re.ContactInfo,
+		RoleIds:     roles,
 	}
-	if re.Id == 0 {
-		return nil, errors.New("id required")
-	}
-	res.Id = strconv.FormatInt(re.Id, 10)
 	if cl := re.Close; cl != nil {
 		res.CloseResult = cl.CloseResult
 	}

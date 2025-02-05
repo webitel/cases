@@ -1320,6 +1320,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Assignee)
 			})
+		case "role_ids":
+			base = base.Column(fmt.Sprintf(
+				"(SELECT ARRAY_AGG(DISTINCT subject) rbac_r FROM cases.case_acl WHERE object = %s.id AND access & 4 = 4) role_ids", caseLeft))
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return &caseItem.RoleIds
+			})
 
 		case "reporter":
 			base = base.Column(fmt.Sprintf(

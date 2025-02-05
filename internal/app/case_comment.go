@@ -25,6 +25,7 @@ var CaseCommentMetadata = model.NewObjectMetadata(model.ScopeCaseComment, model.
 	{Name: "can_edit", Default: true},
 	{Name: "author", Default: true},
 	{Name: "case_id", Default: false},
+	{Name: "role_ids", Default: false},
 })
 
 type CaseCommentService struct {
@@ -108,9 +109,19 @@ func (c *CaseCommentService) UpdateComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, cerror.NewInternalError("app.case_comment.update_comment.store_update_failed", "database error")
 	}
+	// save id before normalizing
+	commentId := updatedComment.GetId()
+	roles := updatedComment.GetRoleIds()
 
-	if ftsModel, ftsErr := ConvertCaseCommentToFtsModel(updatedComment); ftsErr == nil {
-		ftsErr = c.app.ftsClient.Update(updateOpts.GetAuthOpts().GetDomainId(), CaseCommentMetadata.GetMainScopeName(), updatedComment.Id, ftsModel)
+	err = NormalizeCommentsResponse(updatedComment, req)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+		return nil, AppResponseNormalizingError
+	}
+
+	// send all events
+	if ftsModel, ftsErr := ConvertCaseCommentToFtsModel(updatedComment, roles); ftsErr == nil {
+		ftsErr = c.app.ftsClient.Update(updateOpts.GetAuthOpts().GetDomainId(), CaseCommentMetadata.GetMainScopeName(), commentId, ftsModel)
 		if ftsErr != nil {
 			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 		}
@@ -118,11 +129,6 @@ func (c *CaseCommentService) UpdateComment(
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
-	err = NormalizeCommentsResponse(updatedComment, req)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
-	}
 	return updatedComment, nil
 }
 
@@ -244,9 +250,18 @@ func (c *CaseCommentService) PublishComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
+	// save comment id before normalizing
+	commentId := comment.GetId()
+	roles := comment.GetRoleIds()
 
-	if ftsModel, ftsErr := ConvertCaseCommentToFtsModel(comment); ftsErr == nil {
-		ftsErr = c.app.ftsClient.Create(createOpts.GetAuthOpts().GetDomainId(), CaseCommentMetadata.GetMainScopeName(), comment.Id, ftsModel)
+	err = NormalizeCommentsResponse(comment, req)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+		return nil, AppResponseNormalizingError
+	}
+
+	if ftsModel, ftsErr := ConvertCaseCommentToFtsModel(comment, roles); ftsErr == nil {
+		ftsErr = c.app.ftsClient.Create(createOpts.GetAuthOpts().GetDomainId(), CaseCommentMetadata.GetMainScopeName(), commentId, ftsModel)
 		if ftsErr != nil {
 			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 		}
@@ -254,11 +269,6 @@ func (c *CaseCommentService) PublishComment(
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
-	err = NormalizeCommentsResponse(comment, req)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
-	}
 	return comment, nil
 }
 
@@ -271,6 +281,7 @@ func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 	var err error
 	processComment := func(comment *cases.CaseComment) error {
 		if hasEtag {
+			comment.RoleIds = nil
 			comment.Etag, err = etag.EncodeEtag(etag.EtagCaseComment, comment.Id, comment.Ver)
 			if err != nil {
 				return err
@@ -302,7 +313,7 @@ func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 	return nil
 }
 
-func ConvertCaseCommentToFtsModel(re *cases.CaseComment) (*model.FtsCaseComment, error) {
+func ConvertCaseCommentToFtsModel(re *cases.CaseComment, role []int64) (*model.FtsCaseComment, error) {
 	if re == nil {
 		return nil, errors.New("input empty")
 	}
@@ -312,6 +323,7 @@ func ConvertCaseCommentToFtsModel(re *cases.CaseComment) (*model.FtsCaseComment,
 	res := &model.FtsCaseComment{
 		ParentId: re.CaseId,
 		Comment:  re.Text,
+		RoleIds:  role,
 	}
 
 	return res, nil

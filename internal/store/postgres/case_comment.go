@@ -28,7 +28,7 @@ const (
 	caseCommentLeft              = "cc"
 	caseCommentAuthorAlias       = "au"
 	caseCommentCreatedByAlias    = "cb"
-	caseCommentUpdatedByAlias    = "cb"
+	caseCommentUpdatedByAlias    = "ub"
 	caseCommentObjClassScopeName = "case_comments"
 )
 
@@ -498,6 +498,12 @@ func buildCommentSelectColumnsAndPlan(
 			base = base.Column(store.Ident(left, "case_id"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.CaseId
+			})
+		case "role_ids":
+			base = base.Column(fmt.Sprintf(
+				"(SELECT ARRAY_AGG(DISTINCT subject) rbac_r FROM cases.case_comment_acl WHERE object = %s.id AND access & 4 = 4) role_ids", left))
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return &comment.RoleIds
 			})
 		default:
 			return base, nil, dberr.NewDBError("postgres.case_comment.build_comment_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))
