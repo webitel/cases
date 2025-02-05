@@ -1387,9 +1387,9 @@ LEFT JOIN directory.wbt_user AS service_updated_by_user2
 
 	// Ensure depth is valid and set defaults
 	if depth == 0 {
-		depth = 3 // Default depth
+		depth = 100
 	} else if depth > 100 {
-		depth = 100 // Maximum depth
+		depth = 100
 	}
 
 	sb.WriteString(`
