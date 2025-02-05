@@ -216,8 +216,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
 	}
 
-	fullMD := model.SetAllFieldsToTrue(*caseMD)
-	createOpts, err := model.NewCreateOptions(ctx, req, &fullMD)
+	fullMD := caseMD.SetAllFieldsToTrue(*caseMD)
+	createOpts, err := model.NewCreateOptions(ctx, req, fullMD)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
@@ -290,8 +290,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
 	}
 
-	fullMD := model.SetAllFieldsToTrue(*caseMD)
-	updateOpts, err := model.NewUpdateOptions(ctx, req, &fullMD)
+	fullMD := caseMD.SetAllFieldsToTrue(*caseMD)
+	updateOpts, err := model.NewUpdateOptions(ctx, req, fullMD)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
