@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -415,9 +414,16 @@ func (s *CatalogStore) List(
 				// Map Group to Lookup
 				if groupID, ok := raw["group_id"].(float64); ok {
 					if groupName, ok := raw["group_name"].(string); ok {
-						service.Group = &cases.ExtendedLookup{
-							Id:   int64(groupID),
-							Name: groupName,
+						if groupType, ok := raw["group_type"].(string); ok {
+							if groupID == 0 {
+								service.Group = nil
+							} else {
+								service.Group = &cases.ExtendedLookup{
+									Id:   int64(groupID),
+									Name: groupName,
+									Type: strings.ToUpper(groupType),
+								}
+							}
 						}
 					}
 				}
@@ -587,183 +593,6 @@ func (s *CatalogStore) buildCatalogScanArgs(
 	}
 
 	return scanArgs, nil
-}
-
-func (s *CatalogStore) parsePartialService(
-	serviceFields []string,
-	placeholders []interface{},
-) *cases.Service {
-	svc := &cases.Service{}
-
-	// Use an index to walk through placeholders;
-	// some fields (two-column lookups) consume two placeholders.
-	var idx int
-
-	for _, field := range serviceFields {
-		// Prevent out-of-bounds
-		if idx >= len(placeholders) {
-			break
-		}
-
-		switch field {
-
-		//----------------------------------------------------------------------
-		// Single-placeholder fields (one sql.Null* per field)
-		//----------------------------------------------------------------------
-		case "id":
-			if ph, ok := placeholders[idx].(*sql.NullInt64); ok && ph != nil && ph.Valid {
-				svc.Id = ph.Int64
-			}
-			idx++
-
-		case "name":
-			if ph, ok := placeholders[idx].(*sql.NullString); ok && ph != nil && ph.Valid {
-				svc.Name = ph.String
-			}
-			idx++
-
-		case "description":
-			if ph, ok := placeholders[idx].(*sql.NullString); ok && ph != nil && ph.Valid {
-				svc.Description = ph.String
-			}
-			idx++
-
-		case "code":
-			if ph, ok := placeholders[idx].(*sql.NullString); ok && ph != nil && ph.Valid {
-				svc.Code = ph.String
-			}
-			idx++
-
-		case "state":
-			if ph, ok := placeholders[idx].(*sql.NullBool); ok && ph != nil && ph.Valid {
-				svc.State = ph.Bool
-			}
-			idx++
-
-		case "root_id":
-			if ph, ok := placeholders[idx].(*sql.NullInt64); ok && ph != nil && ph.Valid {
-				svc.RootId = ph.Int64
-			}
-			idx++
-
-		case "created_at":
-			if ph, ok := placeholders[idx].(*sql.NullTime); ok && ph != nil && ph.Valid {
-				svc.CreatedAt = util.Timestamp(ph.Time)
-			}
-			idx++
-
-		case "updated_at":
-			if ph, ok := placeholders[idx].(*sql.NullTime); ok && ph != nil && ph.Valid {
-				svc.UpdatedAt = util.Timestamp(ph.Time)
-			}
-			idx++
-
-		//----------------------------------------------------------------------
-		// Two-placeholder lookups: each consumes two sql.Null* placeholders
-		//----------------------------------------------------------------------
-		case "sla":
-			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
-			if idx+1 < len(placeholders) {
-				idPh, _ := placeholders[idx].(*sql.NullInt64)
-				namePh, _ := placeholders[idx+1].(*sql.NullString)
-
-				if idPh != nil && idPh.Valid {
-					svc.Sla = &cases.Lookup{Id: idPh.Int64}
-				}
-				if namePh != nil && namePh.Valid {
-					if svc.Sla == nil {
-						svc.Sla = &cases.Lookup{}
-					}
-					svc.Sla.Name = namePh.String
-				}
-				idx += 2
-			} else {
-				idx++
-			}
-
-		case "group":
-			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
-			if idx+1 < len(placeholders) {
-				idPh, _ := placeholders[idx].(*sql.NullInt64)
-				namePh, _ := placeholders[idx+1].(*sql.NullString)
-
-				if idPh != nil && idPh.Valid {
-					svc.Group = &cases.ExtendedLookup{Id: idPh.Int64}
-				}
-				if namePh != nil && namePh.Valid {
-					if svc.Group == nil {
-						svc.Group = &cases.ExtendedLookup{}
-					}
-					svc.Group.Name = namePh.String
-				}
-				idx += 2
-			} else {
-				idx++
-			}
-
-		case "assignee":
-			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
-			if idx+1 < len(placeholders) {
-				idPh, _ := placeholders[idx].(*sql.NullInt64)
-				namePh, _ := placeholders[idx+1].(*sql.NullString)
-
-				if idPh != nil && idPh.Valid {
-					svc.Assignee = &cases.Lookup{Id: idPh.Int64}
-				}
-				if namePh != nil && namePh.Valid {
-					if svc.Assignee == nil {
-						svc.Assignee = &cases.Lookup{}
-					}
-					svc.Assignee.Name = namePh.String
-				}
-				idx += 2
-			} else {
-				idx++
-			}
-
-		case "created_by":
-			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
-			if idx+1 < len(placeholders) {
-				idPh, _ := placeholders[idx].(*sql.NullInt64)
-				namePh, _ := placeholders[idx+1].(*sql.NullString)
-
-				if idPh != nil && idPh.Valid {
-					svc.CreatedBy = &cases.Lookup{Id: idPh.Int64}
-				}
-				if namePh != nil && namePh.Valid {
-					if svc.CreatedBy == nil {
-						svc.CreatedBy = &cases.Lookup{}
-					}
-					svc.CreatedBy.Name = namePh.String
-				}
-				idx += 2
-			} else {
-				idx++
-			}
-
-		case "updated_by":
-			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
-			if idx+1 < len(placeholders) {
-				idPh, _ := placeholders[idx].(*sql.NullInt64)
-				namePh, _ := placeholders[idx+1].(*sql.NullString)
-
-				if idPh != nil && idPh.Valid {
-					svc.UpdatedBy = &cases.Lookup{Id: idPh.Int64}
-				}
-				if namePh != nil && namePh.Valid {
-					if svc.UpdatedBy == nil {
-						svc.UpdatedBy = &cases.Lookup{}
-					}
-					svc.UpdatedBy.Name = namePh.String
-				}
-				idx += 2
-			} else {
-				idx++
-			}
-		}
-	}
-
-	return svc
 }
 
 func (s *CatalogStore) nestServicesByRootID(
@@ -1046,6 +875,7 @@ COALESCE(
 	if util.ContainsField(subfields, "group") {
 		jsonFields.WriteString("'group_id', COALESCE(service_hierarchy.group_id, 0),\n")
 		jsonFields.WriteString("'group_name', COALESCE(service_hierarchy.group_name, ''),\n")
+		jsonFields.WriteString("'group_type', COALESCE(service_hierarchy.group_type, ''),\n")
 	}
 	if util.ContainsField(subfields, "assignee") {
 		jsonFields.WriteString("'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),\n")
@@ -1345,7 +1175,11 @@ SELECT catalog.id,
 	if util.ContainsField(serviceFields, "group") {
 		sb.WriteString(`,
        COALESCE(catalog.group_id, 0) AS group_id,
-       COALESCE(service_group.name, '') AS group_name
+       COALESCE(service_group.name, '') AS group_name,
+       CASE
+           WHEN catalog.group_id IN (SELECT id FROM contacts.dynamic_group) THEN 'dynamic'
+           ELSE 'static'
+       END AS group_type
 `)
 	}
 
@@ -1468,12 +1302,18 @@ SELECT subservice.id,
        COALESCE(service_sla2.name, '') AS sla_name
 `)
 	}
+	// If user wants "group"
 	if util.ContainsField(serviceFields, "group") {
 		sb.WriteString(`,
        COALESCE(subservice.group_id, 0) AS group_id,
-       COALESCE(service_group2.name, '') AS group_name
+       COALESCE(service_group2.name, '') AS group_name,
+       CASE
+           WHEN subservice.group_id IN (SELECT id FROM contacts.dynamic_group) THEN 'dynamic'
+           ELSE 'static'
+       END AS group_type
 `)
 	}
+
 	if util.ContainsField(serviceFields, "assignee") {
 		sb.WriteString(`,
        COALESCE(subservice.assignee_id, 0) AS assignee_id,
