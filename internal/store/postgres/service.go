@@ -389,8 +389,8 @@ func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions
 		"code":        "service.code",
 		"description": "service.description",
 		"state":       "service.state",
-		"assignee":    "COALESCE(ass.common_name, '')", // Assuming 'assignee' is based on the contact's common_name
-		"group":       "COALESCE(grp.name, '')",        // Assuming 'group' is based on the group's name
+		"assignee":    "ass.common_name",
+		"group":       "grp.name",
 	}
 
 	sortApplied := false
