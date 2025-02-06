@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CaseFiles_ListFiles_FullMethodName = "/webitel.cases.CaseFiles/ListFiles"
+	CaseFiles_ListFiles_FullMethodName  = "/webitel.cases.CaseFiles/ListFiles"
+	CaseFiles_DeleteFile_FullMethodName = "/webitel.cases.CaseFiles/DeleteFile"
 )
 
 // CaseFilesClient is the client API for CaseFiles service.
@@ -30,6 +31,8 @@ const (
 type CaseFilesClient interface {
 	// Retrieves a list of files associated with a specific case.
 	ListFiles(ctx context.Context, in *ListFilesRequest, opts ...grpc.CallOption) (*CaseFileList, error)
+	// RPC method to delete a file.
+	DeleteFile(ctx context.Context, in *DeleteFileRequest, opts ...grpc.CallOption) (*File, error)
 }
 
 type caseFilesClient struct {
@@ -50,6 +53,16 @@ func (c *caseFilesClient) ListFiles(ctx context.Context, in *ListFilesRequest, o
 	return out, nil
 }
 
+func (c *caseFilesClient) DeleteFile(ctx context.Context, in *DeleteFileRequest, opts ...grpc.CallOption) (*File, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(File)
+	err := c.cc.Invoke(ctx, CaseFiles_DeleteFile_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CaseFilesServer is the server API for CaseFiles service.
 // All implementations must embed UnimplementedCaseFilesServer
 // for forward compatibility.
@@ -58,6 +71,8 @@ func (c *caseFilesClient) ListFiles(ctx context.Context, in *ListFilesRequest, o
 type CaseFilesServer interface {
 	// Retrieves a list of files associated with a specific case.
 	ListFiles(context.Context, *ListFilesRequest) (*CaseFileList, error)
+	// RPC method to delete a file.
+	DeleteFile(context.Context, *DeleteFileRequest) (*File, error)
 	mustEmbedUnimplementedCaseFilesServer()
 }
 
@@ -70,6 +85,9 @@ type UnimplementedCaseFilesServer struct{}
 
 func (UnimplementedCaseFilesServer) ListFiles(context.Context, *ListFilesRequest) (*CaseFileList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListFiles not implemented")
+}
+func (UnimplementedCaseFilesServer) DeleteFile(context.Context, *DeleteFileRequest) (*File, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteFile not implemented")
 }
 func (UnimplementedCaseFilesServer) mustEmbedUnimplementedCaseFilesServer() {}
 func (UnimplementedCaseFilesServer) testEmbeddedByValue()                   {}
@@ -110,6 +128,24 @@ func _CaseFiles_ListFiles_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CaseFiles_DeleteFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CaseFilesServer).DeleteFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CaseFiles_DeleteFile_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CaseFilesServer).DeleteFile(ctx, req.(*DeleteFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CaseFiles_ServiceDesc is the grpc.ServiceDesc for CaseFiles service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -120,6 +156,10 @@ var CaseFiles_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListFiles",
 			Handler:    _CaseFiles_ListFiles_Handler,
+		},
+		{
+			MethodName: "DeleteFile",
+			Handler:    _CaseFiles_DeleteFile_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

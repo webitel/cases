@@ -2,8 +2,9 @@ package app
 
 import (
 	"context"
-	"github.com/webitel/cases/auth"
 	"log/slog"
+
+	"github.com/webitel/cases/auth"
 
 	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
@@ -61,6 +62,72 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		return nil, AppDatabaseError
 	}
 	return files, nil
+}
+
+func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileRequest) (*cases.File, error) {
+	if req.Id == 0 {
+		return nil, cerror.NewBadRequestError("app.case_file.delete_file.file_id_required", "File ID is required")
+	}
+
+	deleteOpts, err := model.NewDeleteOptions(ctx, CaseFileMetadata)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, AppInternalError
+	}
+
+	caseTID, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case_file.delete.case_etag.parse.error", err.Error())
+	}
+
+	deleteOpts.ID = req.Id
+	deleteOpts.ParentID = caseTID.GetOid()
+
+	logAttributes := slog.Group(
+		"context",
+		slog.Int64(
+			"user_id",
+			deleteOpts.GetAuthOpts().GetUserId(),
+		),
+		slog.Int64(
+			"domain_id",
+			deleteOpts.GetAuthOpts().GetDomainId(),
+		))
+	// Check if the user has permission to delete the file
+	accessMode := auth.Delete
+	if deleteOpts.GetAuthOpts().IsRbacCheckRequired(CaseFileMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(
+			deleteOpts,
+			deleteOpts.GetAuthOpts(),
+			accessMode,
+			deleteOpts.ParentID,
+		)
+		if err != nil {
+			slog.ErrorContext(ctx, err.Error(), logAttributes)
+			return nil, AppForbiddenError
+		}
+		if !access {
+			slog.ErrorContext(ctx, "user doesn't have required (DELETE) access to the case", logAttributes)
+			return nil, AppForbiddenError
+		}
+	}
+
+	// Delete the file from the database
+	err = c.app.Store.CaseFile().Delete(deleteOpts)
+	if err != nil {
+		switch err.(type) {
+		case *cerror.DBNoRowsError:
+			return nil, cerror.NewBadRequestError(
+				"app.case_file.delete.not_found",
+				"delete not allowed",
+			)
+		default:
+			slog.ErrorContext(ctx, err.Error(), logAttributes)
+			return nil, AppDatabaseError
+		}
+	}
+
+	return &cases.File{}, nil
 }
 
 func NewCaseFileService(app *App) (*CaseFileService, cerror.AppError) {
