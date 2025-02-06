@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgtype"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 
 	sq "github.com/Masterminds/squirrel"
@@ -137,45 +138,23 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 
 		// Initialize service and related lookup objects conditionally
 		service := &cases.Service{}
-
-		if util.ContainsField(rpc.Fields, "sla") {
-			service.Sla = &cases.Lookup{}
-		}
-
-		if util.ContainsField(rpc.Fields, "group") {
-			service.Group = &cases.ExtendedLookup{}
-		}
-
-		if util.ContainsField(rpc.Fields, "assignee") {
-			service.Assignee = &cases.Lookup{}
-		}
-
-		if util.ContainsField(rpc.Fields, "created_by") {
-			service.CreatedBy = &cases.Lookup{}
-		}
-
-		if util.ContainsField(rpc.Fields, "updated_by") {
-			service.UpdatedBy = &cases.Lookup{}
-		}
-
 		var createdAt, updatedAt time.Time
 
 		// Build the scan arguments for the current row
-		scanArgs := s.buildServiceScanArgs(
-			service,
-			&createdAt, &updatedAt,
-			rpc.Fields,
-		)
+		scanArgs, postScanHandler := s.buildServiceScanArgs(service, &createdAt, &updatedAt, rpc.Fields)
 
 		// Scan the row into the service object
-		err = rows.Scan(scanArgs...)
-		if err != nil {
+		if err := rows.Scan(scanArgs...); err != nil {
 			return nil, dberr.NewDBInternalError("postgres.service.list.scan_error", err)
 		}
+
+		// Execute post-processing assignments (handle nullable fields properly)
+		postScanHandler()
 
 		// Assign the created and updated timestamp values
 		service.CreatedAt = util.Timestamp(createdAt)
 		service.UpdatedAt = util.Timestamp(updatedAt)
+
 		// Append the populated service object to the services slice
 		services = append(services, service)
 		lCount++
@@ -339,9 +318,9 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 		"catalog_id":  "service.catalog_id",
 		"created_by":  "service.created_by",
 		"updated_by":  "service.updated_by",
-		"sla":         "COALESCE(service.sla_id, 0) AS sla_id, COALESCE(sla.name, '') AS sla_name",
-		"group":       "COALESCE(service.group_id, 0) AS group_id, COALESCE(grp.name, '') AS group_name, CASE WHEN service.group_id NOTNULL THEN(CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE NULL END AS group_type",
-		"assignee":    "COALESCE(service.assignee_id, 0) AS assignee_id, COALESCE(ass.common_name, '') AS assignee_name",
+		"sla":         "service.sla_id AS sla_id, sla.name AS sla_name",
+		"group":       "service.group_id AS group_id, grp.name AS group_name, CASE WHEN service.group_id NOTNULL THEN (CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE NULL END AS group_type",
+		"assignee":    "service.assignee_id AS assignee_id, ass.common_name AS assignee_name",
 	}
 
 	// Initialize query builder
@@ -530,12 +509,17 @@ FROM updated_service AS service
 	return store.CompactSQL(query), args, nil
 }
 
+// buildServiceScanArgs builds scan arguments dynamically and returns a post-processing function.
 func (s *ServiceStore) buildServiceScanArgs(
 	service *cases.Service, // The service object to populate
-	createdAt, updatedAt *time.Time, // Temporary variables for created_at and updated_at
+	createdAt, updatedAt *time.Time, // Temporary variables for timestamps
 	rpcFields []string, // Fields to scan dynamically
-) []interface{} {
+) ([]interface{}, func()) {
 	scanArgs := []interface{}{}
+
+	// Temporary variables for nullable fields
+	var slaID, assigneeID, groupID, createdByID, updatedByID pgtype.Int8
+	var slaName, assigneeName, groupName, groupType, createdByName, updatedByName pgtype.Text
 
 	// Field map for dynamic scanning
 	fieldMap := map[string][]any{
@@ -552,36 +536,11 @@ func (s *ServiceStore) buildServiceScanArgs(
 
 	// Lookup fields that require initialization
 	lookupFields := map[string]func(){
-		"sla": func() {
-			if service.Sla == nil {
-				service.Sla = &cases.Lookup{}
-			}
-			scanArgs = append(scanArgs, &service.Sla.Id, &service.Sla.Name)
-		},
-		"group": func() {
-			if service.Group == nil {
-				service.Group = &cases.ExtendedLookup{}
-			}
-			scanArgs = append(scanArgs, &service.Group.Id, &service.Group.Name, scanner.ScanText(&service.Group.Type))
-		},
-		"assignee": func() {
-			if service.Assignee == nil {
-				service.Assignee = &cases.Lookup{}
-			}
-			scanArgs = append(scanArgs, &service.Assignee.Id, &service.Assignee.Name)
-		},
-		"created_by": func() {
-			if service.CreatedBy == nil {
-				service.CreatedBy = &cases.Lookup{}
-			}
-			scanArgs = append(scanArgs, &service.CreatedBy.Id, &service.CreatedBy.Name)
-		},
-		"updated_by": func() {
-			if service.UpdatedBy == nil {
-				service.UpdatedBy = &cases.Lookup{}
-			}
-			scanArgs = append(scanArgs, &service.UpdatedBy.Id, &service.UpdatedBy.Name)
-		},
+		"sla":        func() { scanArgs = append(scanArgs, &slaID, &slaName) },
+		"group":      func() { scanArgs = append(scanArgs, &groupID, &groupName, &groupType) },
+		"assignee":   func() { scanArgs = append(scanArgs, &assigneeID, &assigneeName) },
+		"created_by": func() { scanArgs = append(scanArgs, &createdByID, &createdByName) },
+		"updated_by": func() { scanArgs = append(scanArgs, &updatedByID, &updatedByName) },
 	}
 
 	// Add scan arguments for regular fields
@@ -593,7 +552,53 @@ func (s *ServiceStore) buildServiceScanArgs(
 		}
 	}
 
-	return scanArgs
+	// Function to assign scanned values after scanning
+	postScanHandler := func() {
+		// Set Sla to nil if ID is 0 or absent
+		if slaID.Status == pgtype.Present && slaID.Int != 0 {
+			service.Sla = &cases.Lookup{Id: slaID.Int, Name: safePgText(slaName)}
+		} else {
+			service.Sla = nil
+		}
+
+		// Set Group to nil if ID is 0 or absent
+		if groupID.Status == pgtype.Present && groupID.Int != 0 {
+			service.Group = &cases.ExtendedLookup{Id: groupID.Int, Name: safePgText(groupName), Type: safePgText(groupType)}
+		} else {
+			service.Group = nil
+		}
+
+		// Set Assignee to nil if ID is 0 or absent
+		if assigneeID.Status == pgtype.Present && assigneeID.Int != 0 {
+			service.Assignee = &cases.Lookup{Id: assigneeID.Int, Name: safePgText(assigneeName)}
+		} else {
+			service.Assignee = nil
+		}
+
+		// Set CreatedBy to nil if ID is 0 or absent
+		if createdByID.Status == pgtype.Present && createdByID.Int != 0 {
+			service.CreatedBy = &cases.Lookup{Id: createdByID.Int, Name: safePgText(createdByName)}
+		} else {
+			service.CreatedBy = nil
+		}
+
+		// Set UpdatedBy to nil if ID is 0 or absent
+		if updatedByID.Status == pgtype.Present && updatedByID.Int != 0 {
+			service.UpdatedBy = &cases.Lookup{Id: updatedByID.Int, Name: safePgText(updatedByName)}
+		} else {
+			service.UpdatedBy = nil
+		}
+	}
+
+	return scanArgs, postScanHandler
+}
+
+// Helper function to safely extract pgtype.Text values
+func safePgText(text pgtype.Text) string {
+	if text.Status == pgtype.Present {
+		return text.String
+	}
+	return ""
 }
 
 func NewServiceStore(store store.Store) (store.ServiceStore, error) {

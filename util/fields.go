@@ -76,8 +76,6 @@ func AddVersionAndIdByEtag(fields []string) {
 			fields = append(fields, "ver")
 		}
 	}
-
-	return
 }
 
 // ParseFieldsForEtag searches for id, ver fields and adds missing
@@ -88,15 +86,16 @@ func ParseFieldsForEtag(fields []string) []string {
 		hasEtag, hasId, hasVer bool
 	)
 	for _, field := range fields {
-		if field == "etag" {
+		switch field {
+		case "etag":
 			hasEtag = true
-		} else if field == "id" {
+		case "id":
 			res = append(res, field)
 			hasId = true
-		} else if field == "ver" {
+		case "ver":
 			res = append(res, field)
 			hasVer = true
-		} else {
+		default:
 			res = append(res, field)
 		}
 	}
