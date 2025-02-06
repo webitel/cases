@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"errors"
 	"fmt"
 	"time"
 )
@@ -24,12 +23,13 @@ func ScanTimestamp(ref *int64) any {
 					time.ANSIC,
 					time.UnixDate,
 					time.RubyDate,
-					"2006-01-02 15:04:05.000-07", // Custom layout matching your example
-					"2006-01-02 15:04:05",        // Without milliseconds or timezone
-					"02 Jan 2006 15:04:05 MST",   // Day-Month-Year format
+					"2006-01-02 15:04:05.000-07",
+					"2006-01-02 15:04:05",
+					"02 Jan 2006 15:04:05 MST",
 					"2006-01-02 15:04:05.999999",
 					"2006-01-02 15:04:05.000-07",
 					"2006-01-02 15:04:05.000000-07",
+					"2006-01-02 15:04:05.00-07",
 				}
 
 				// Try parsing with each layout
@@ -41,7 +41,7 @@ func ScanTimestamp(ref *int64) any {
 						return parsedTime.UnixMilli(), nil
 					}
 				}
-				return 0, errors.New(fmt.Sprintf("invalid date format, %s", in))
+				return 0, fmt.Errorf("invalid date format, %s", in)
 			}
 		)
 		switch val := src.(type) {
