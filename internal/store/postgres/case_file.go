@@ -177,7 +177,6 @@ func (c *CaseFileStore) Delete(rpc *model.DeleteOptions) error {
 	return nil
 }
 
-// Helper function to build the select columns and scan plan based on the fields requested.
 func buildFilesSelectColumnsAndPlan(
 	base sq.SelectBuilder,
 	left string,
@@ -202,7 +201,19 @@ func buildFilesSelectColumnsAndPlan(
 			authorAlias = caseFileAuthorAlias
 			base = base.LeftJoin(fmt.Sprintf("contacts.contact %s ON %[1]s.id = %s.contact_id", authorAlias, createdByAlias))
 		}
+		// Adding the join for storage.files with removed = false
+		filesAlias string
+		joinFiles  = func() {
+			if filesAlias != "" {
+				return
+			}
+			filesAlias = "files"
+			base = base.LeftJoin(fmt.Sprintf("storage.files %s ON %[1]s.id = %[2]s.id AND %[1]s.removed = false", filesAlias, left))
+		}
 	)
+
+	// Add the join for files
+	joinFiles()
 
 	for _, field := range fields {
 		switch field {
