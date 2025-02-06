@@ -843,6 +843,7 @@ func ConvertCaseToFtsModel(re *cases.Case, roles []int64) (*model.FtsCase, error
 		Subject:     re.Subject,
 		ContactInfo: re.ContactInfo,
 		RoleIds:     roles,
+		CreatedAt:   re.CreatedAt,
 	}
 	if cl := re.Close; cl != nil {
 		res.CloseResult = cl.CloseResult

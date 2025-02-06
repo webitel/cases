@@ -321,9 +321,10 @@ func ConvertCaseCommentToFtsModel(re *cases.CaseComment, role []int64) (*model.F
 		return nil, errors.New("case id required")
 	}
 	res := &model.FtsCaseComment{
-		ParentId: re.CaseId,
-		Comment:  re.Text,
-		RoleIds:  role,
+		ParentId:  re.CaseId,
+		Comment:   re.Text,
+		RoleIds:   role,
+		CreatedAt: re.CreatedAt,
 	}
 
 	return res, nil
