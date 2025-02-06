@@ -863,20 +863,14 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
 		case "group":
 			updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
-		case "close.close_reason":
+		case "close":
 			if upd.Close != nil {
 				updateBuilder = updateBuilder.Set("close_reason", upd.Close.CloseReason.GetId())
-			}
-		case "close.close_result":
-			if upd.Close != nil {
 				updateBuilder = updateBuilder.Set("close_result", upd.Close.GetCloseResult())
 			}
-		case "rate.rating":
+		case "rate":
 			if upd.Rate != nil {
 				updateBuilder = updateBuilder.Set("rating", upd.Rate.Rating)
-			}
-		case "rate.rating_comment":
-			if upd.Rate != nil {
 				updateBuilder = updateBuilder.Set("rating_comment", sq.Expr("NULLIF(?, '')", upd.Rate.RatingComment))
 			}
 		}

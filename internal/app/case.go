@@ -335,15 +335,9 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Group:            &cases.ExtendedLookup{Id: req.Input.Group.GetId()},
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
 		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
-		Close: &cases.CloseInfo{
-			CloseResult: req.Input.Close.GetCloseResult(),
-			CloseReason: req.Input.Close.GetCloseReason(),
-		},
-		Rate: &cases.RateInfo{
-			Rating:        req.Input.Rate.GetRating(),
-			RatingComment: req.Input.Rate.GetRatingComment(),
-		},
-		Service: req.Input.GetService(),
+		Close:            req.Input.Close,
+		Rate:             req.Input.Rate,
+		Service:          req.Input.GetService(),
 	}
 
 	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
