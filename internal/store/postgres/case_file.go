@@ -20,11 +20,12 @@ type CaseFileStore struct {
 
 const (
 	// Alias for the storage.files table
-	fileAlias              = "cf"
-	channel                = "case"
-	fileDefaultSort        = "uploaded_at"
-	caseFileAuthorAlias    = "au"
-	caseFileCreatedByAlias = "cb"
+	fileAlias               = "cf"
+	channel                 = "case"
+	fileDefaultSort         = "uploaded_at"
+	caseFileAuthorAlias     = "au"
+	caseFileNotRemovedAlias = "ra"
+	caseFileCreatedByAlias  = "cb"
 )
 
 // List implements store.CaseFileStore for listing case files.
@@ -204,10 +205,7 @@ func buildFilesSelectColumnsAndPlan(
 		// Adding the join for storage.files with removed = false
 		filesAlias string
 		joinFiles  = func() {
-			if filesAlias != "" {
-				return
-			}
-			filesAlias = "files"
+			filesAlias = caseFileNotRemovedAlias
 			base = base.LeftJoin(fmt.Sprintf("storage.files %s ON %[1]s.id = %[2]s.id AND %[1]s.removed = false", filesAlias, left))
 		}
 	)
