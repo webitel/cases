@@ -200,27 +200,28 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	// Parameters for the main case and nested JSON arrays
 	var (
-		reporter    *int64
-		assignee    *int64
-		closeReason *int64
-		closeResult *string
+		assignee, closeReason, reporter *int64
+		closeResult, description        *string
 	)
-	if cl := caseItem.GetClose(); cl != nil {
-		if cl.CloseReason != nil && cl.CloseReason.GetId() > 0 {
-			closeReason = &cl.CloseReason.Id
-		}
-		if cl.CloseResult != "" {
-			closeResult = &cl.CloseResult
-		}
-	}
-	if caseItem.Reporter != nil && caseItem.Reporter.GetId() > 0 {
-		reporter = &caseItem.Reporter.Id
+
+	if id := caseItem.GetClose().GetCloseReason().GetId(); id > 0 {
+		closeReason = &id
 	}
 
-	if caseItem.Assignee.GetId() == 0 {
-		assignee = nil // Set to nil if assignee is 0, so it will be inserted as NULL
-	} else {
-		assignee = &caseItem.Assignee.Id
+	if result := caseItem.GetClose().GetCloseResult(); result != "" {
+		closeResult = &result
+	}
+
+	if id := caseItem.Reporter.GetId(); id > 0 {
+		reporter = &id
+	}
+
+	if id := caseItem.Assignee.GetId(); id > 0 {
+		assignee = &id
+	}
+
+	if desc := caseItem.Description; desc != "" {
+		description = &desc
 	}
 
 	params := map[string]interface{}{
@@ -244,7 +245,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),
 		"reporter":            reporter,
 		"impacted":            caseItem.Impacted.GetId(),
-		"description":         caseItem.Description,
+		"description":         description,
 		"assignee":            assignee,
 		//-------------------------------------------------//
 		//------ CASE One-to-Many ( 1 : n ) Attributes ----//
@@ -952,7 +953,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 		case "description":
 			base = base.Column(store.Ident(caseLeft, "description"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return &caseItem.Description
+				return scanner.ScanText(&caseItem.Description)
 			})
 		case "group":
 			base = base.Column(fmt.Sprintf(
