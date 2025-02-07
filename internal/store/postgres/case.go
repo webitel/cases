@@ -121,69 +121,50 @@ func (c *CaseStore) ScanSla(
 
 	err = txManager.QueryRow(rpc.Context, `
 WITH RECURSIVE
-    service_hierarchy AS (SELECT id, root_id, sla_id, 1 AS level
-                          FROM cases.service_catalog
-                          WHERE id = $1 -- Start with the given service ID provided as $1
+    service_hierarchy AS (
+        -- Start with the service with id = 150
+        SELECT id, root_id, sla_id, 1 AS level
+        FROM cases.service_catalog
+        WHERE id = $1
 
-                          UNION ALL
+        UNION ALL
 
-                          SELECT sc.id, sc.root_id, sc.sla_id, sh.level + 1
-                          FROM cases.service_catalog sc
-                                   INNER JOIN service_hierarchy sh ON sc.root_id = sh.id
-        -- Recursively traverse downward to find all child services, incrementing the level with each step
+        SELECT sc.id, sc.root_id, COALESCE(sc.sla_id, sh.sla_id) AS sla_id, sh.level + 1
+        FROM cases.service_catalog sc
+                 INNER JOIN service_hierarchy sh ON sc.id = sh.root_id -- Join on root_id to get parents
     ),
-    valid_sla_hierarchy AS (SELECT sh.id AS service_id, -- Current service ID
-                                   sh.root_id,          -- Parent service ID
-                                   sh.sla_id,           -- SLA ID for the current service
-                                   sh.level,            -- Depth level in the hierarchy
-                                   sla.reaction_time,   -- Reaction time from the SLA
-                                   sla.resolution_time, -- Resolution time from the SLA
-                                   sla.calendar_id      -- Calendar ID associated with the SLA
-                            FROM service_hierarchy sh
-                                     LEFT JOIN cases.sla sla ON sh.sla_id = sla.id
-                            WHERE sh.sla_id IS NOT NULL -- Keep only services with non-NULL SLA
-        -- Here, we extract details of all services with SLAs, preparing them for prioritization
+    deepest_service AS (
+        SELECT sla_id, MAX(level) AS max_level
+        FROM service_hierarchy
+        WHERE sla_id IS NOT NULL
+        GROUP BY sla_id
+        ORDER BY max_level ASC
+        LIMIT 1
     ),
-    deepest_sla
-        AS (SELECT DISTINCT ON (sh.level, sh.id) sh.id AS service_id, -- Service ID for the deepest child or nearest valid SLA
-                                                 sh.root_id,          -- Parent service ID
-                                                 sh.sla_id,           -- SLA ID for the selected service
-                                                 sh.level,            -- Depth level in the hierarchy
-                                                 sla.reaction_time,   -- Reaction time from SLA
-                                                 sla.resolution_time, -- Resolution time from SLA
-                                                 sla.calendar_id      -- Calendar ID associated with the SLA
-            FROM service_hierarchy sh
-                     LEFT JOIN cases.sla sla ON sh.sla_id = sla.id
-            ORDER BY sh.level DESC, sh.id
-        -- Select the "deepest" child service by level, falling back to the next service upward if necessary
-    ),
-    priority_condition AS (SELECT sc.id AS sla_condition_id, -- Fetch the SLA condition ID
+    priority_condition AS (SELECT sc.id AS sla_condition_id,
                                   sc.reaction_time,
                                   sc.resolution_time
                            FROM cases.sla_condition sc
                                     INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
-                                    INNER JOIN deepest_sla ON sc.sla_id = deepest_sla.sla_id
-                           WHERE psc.priority_id = $2 -- Match the given priority ID provided as $2
-                           LIMIT 1
-        -- Extract reaction and resolution times from SLA conditions if a priority-specific condition exists
-    )
-SELECT deepest_sla.sla_id,                                                                           -- Final SLA ID
-       COALESCE(priority_condition.reaction_time, deepest_sla.reaction_time)     AS reaction_time,
-       -- Use priority-specific reaction time if available, otherwise fall back to SLA reaction time
-       COALESCE(priority_condition.resolution_time, deepest_sla.resolution_time) AS resolution_time,
-       -- Use priority-specific resolution time if available, otherwise fall back to SLA resolution time
-       deepest_sla.calendar_id,                                                                      -- Calendar ID associated with the final SLA
-       COALESCE(priority_condition.sla_condition_id, 0)                          AS sla_condition_id -- Return SLA condition ID if a priority match is found
-FROM deepest_sla
-         LEFT JOIN priority_condition ON true;
--- Combine the results to ensure we have reaction and resolution times even if no priority-specific condition exists
+                                    INNER JOIN cases.sla sla ON sc.sla_id = sla.id
+                                    INNER JOIN deepest_service ds ON sla.id = ds.sla_id
+                           WHERE psc.priority_id = $2
+                           LIMIT 1)
+SELECT ds.sla_id,
+       pc.reaction_time   AS reaction_time,
+       pc.resolution_time AS resolution_time,
+       sla.calendar_id,
+       pc.sla_condition_id
+FROM deepest_service ds
+         LEFT JOIN priority_condition pc ON true
+         LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
 
 	`, serviceID, priorityID).Scan(
-		&slaID,
-		&reactionTime,
-		&resolutionTime,
-		&calendarID,
-		&slaConditionID,
+		scanner.ScanInt(&slaID),
+		scanner.ScanInt(&reactionTime),
+		scanner.ScanInt(&resolutionTime),
+		scanner.ScanInt(&calendarID),
+		scanner.ScanInt(&slaConditionID),
 	)
 	if err != nil {
 		return 0, 0, 0, 0, 0, dberr.NewDBInternalError("failed to scan SLA: %w", err)

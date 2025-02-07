@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"log"
 	"log/slog"
 	"strconv"
 	"strings"
-	"time"
+
+	wlogger "github.com/webitel/logger/pkg/client/v2"
 
 	"google.golang.org/grpc/metadata"
 
@@ -195,7 +195,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	//     * During SLA resolution:
 	//         - If a condition matches the given priority, the corresponding SLA condition is selected and applied.
 	// -----------------------------------------------------------------------------
-	newCase := &cases.Case{
+	res := &cases.Case{
 		Subject:          req.Input.Subject,
 		Description:      req.Input.Description,
 		ContactInfo:      req.Input.ContactInfo,
@@ -217,80 +217,63 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if !ok {
 		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
 	}
-
 	fullMD := caseMD.SetAllFieldsToTrue(*caseMD)
+
 	createOpts, err := model.NewCreateOptions(ctx, req, fullMD)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
-	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()))
-	newCase, err = c.app.Store.Case().Create(createOpts, newCase)
+
+	logAttributes := slog.Group(
+		"context",
+		slog.Int64(
+			"user_id",
+			createOpts.GetAuthOpts().GetUserId()),
+		slog.Int64(
+			"domain_id",
+			createOpts.GetAuthOpts().GetDomainId(),
+		))
+
+	res, err = c.app.Store.Case().Create(createOpts, res)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
-	err = c.NormalizeResponseCase(newCase, req)
+
+	//* Handle dynamic group update if applicable
+	res, err = c.handleDynamicGroupUpdate(ctx, res)
+	if err != nil {
+		return nil, err
+	}
+
+	// * CREATE require all fields set to true incase we need to calculate dynamic condition
+	req.Fields = createOpts.Fields
+	err = c.NormalizeResponseCase(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
 
-	// Handle dynamic group update if applicable
-	newCase, err = c.handleDynamicGroupUpdate(ctx, newCase)
-	if err != nil {
-		return nil, err
-	}
-
-	userId := createOpts.GetAuthOpts().GetUserId()
-
-	// Publish an event to RabbitMQ
-	event := map[string]interface{}{
-		"action":    "CreateCase",
-		"user":      userId,
-		"case_id":   newCase.Id,
-		"case_etag": newCase.Etag,
-		"case_ver":  newCase.Ver,
-		"case_name": newCase.Name,
-	}
-
-	eventData, err := json.Marshal(event)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case.create_case.event_marshal.failed", err.Error())
-	}
-
-	err = c.app.rabbit.Publish(
-		model.APP_SERVICE_NAME,
-		"create_case_key",
-		eventData,
-		strconv.Itoa(int(userId)),
-		time.Now(),
+	log, err := wlogger.NewCreateMessage(
+		createOpts.GetAuthOpts().GetUserId(),
+		getClientIp(ctx),
+		res.Id, res,
 	)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case.create_case.event_publish.failed", err.Error())
-	}
-
-	if newCase.Reporter == nil && util.ContainsField(createOpts.Fields, "reporter") {
-		newCase.Reporter = &cases.Lookup{
-			Name: AnonymousName,
-		}
-	}
-
-	log, err := wlogger.NewCreateMessage(createOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), newCase.Id, newCase)
-	if err != nil {
 		return nil, err
 	}
+
 	err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), log)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 	}
 
-	err = c.NormalizeResponseCase(newCase, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-	return newCase, nil
+	return res, nil
 }
 
 func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.Case, error) {
@@ -310,15 +293,29 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if !ok {
 		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
 	}
-
 	fullMD := caseMD.SetAllFieldsToTrue(*caseMD)
+
 	updateOpts, err := model.NewUpdateOptions(ctx, req, fullMD)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
 	}
 	updateOpts.Etags = []*etag.Tid{&tag}
-	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+
+	logAttributes := slog.Group(
+		"context",
+		slog.Int64(
+			"user_id",
+			updateOpts.GetAuthOpts().GetUserId(),
+		),
+		slog.Int64(
+			"domain_id",
+			updateOpts.GetAuthOpts().GetDomainId(),
+		),
+		slog.Int64(
+			"case_id",
+			tag.GetOid(),
+		))
 
 	upd := &cases.Case{
 		Id:               tag.GetOid(),
@@ -340,7 +337,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Service:          req.Input.GetService(),
 	}
 
-	updatedCase, err := c.app.Store.Case().Update(updateOpts, upd)
+	res, err := c.app.Store.Case().Update(updateOpts, upd)
 	if err != nil {
 		switch err.(type) {
 		case *cerror.DBNoRowsError:
@@ -350,12 +347,26 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, AppDatabaseError
 	}
 
-	// Handle dynamic group update if applicable
-	updatedCase, err = c.handleDynamicGroupUpdate(ctx, updatedCase)
+	// *Handle dynamic group update if applicable
+	res, err = c.handleDynamicGroupUpdate(ctx, res)
 	if err != nil {
 		return nil, err
 	}
-	log, err := wlogger.NewCreateMessage(updateOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), updatedCase.Id, updatedCase)
+
+	// * Update  require all fields set to true incase we need to calculate dynamic condition
+	req.Fields = updateOpts.Fields
+	err = c.NormalizeResponseCase(res, req)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+		return nil, AppResponseNormalizingError
+	}
+
+	log, err := wlogger.NewCreateMessage(
+		updateOpts.GetAuthOpts().GetUserId(),
+		getClientIp(ctx),
+		res.Id,
+		res,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -363,13 +374,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 	}
-	err = c.NormalizeResponseCase(updatedCase, req)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
-	}
 
-	return updatedCase, nil
+	return res, nil
 }
 
 // handleDynamicGroupUpdate checks if a dynamic group is needed and updates the case accordingly.
