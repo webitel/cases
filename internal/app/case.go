@@ -252,7 +252,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	err = c.NormalizeResponseCase(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
+		return nil, cerror.NewInternalError("error occured while normalizing response", err.Error())
 	}
 
 	log, err := wlogger.NewCreateMessage(
