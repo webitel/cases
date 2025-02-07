@@ -255,24 +255,24 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, err
 	}
 
-	// log, err := wlogger.NewCreateMessage(
-	// 	createOpts.GetAuthOpts().GetUserId(),
-	// 	getClientIp(ctx),
-	// 	res.Id, res,
-	// )
-	// if err != nil {
-	// 	return nil, err
-	// }
+	log, err := wlogger.NewCreateMessage(
+		createOpts.GetAuthOpts().GetUserId(),
+		getClientIp(ctx),
+		res.Id, res,
+	)
+	if err != nil {
+		return nil, err
+	}
 
-	// err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), log)
-	// if err != nil {
-	// 	slog.ErrorContext(ctx, err.Error(), logAttributes)
-	// }
+	err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), log)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+	}
 
-	// if err != nil {
-	// 	slog.ErrorContext(ctx, err.Error(), logAttributes)
-	// 	return nil, AppResponseNormalizingError
-	// }
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+		return nil, AppResponseNormalizingError
+	}
 	return res, nil
 }
 
