@@ -865,7 +865,11 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
 		case "close":
 			if upd.Close != nil {
-				updateBuilder = updateBuilder.Set("close_reason", upd.Close.CloseReason.GetId())
+				if upd.Close.CloseReason.GetId() == 0 {
+					updateBuilder = updateBuilder.Set("close_reason", nil)
+				} else {
+					updateBuilder = updateBuilder.Set("close_reason", upd.Close.CloseReason.GetId())
+				}
 				updateBuilder = updateBuilder.Set("close_result", upd.Close.GetCloseResult())
 			}
 		case "rate":
