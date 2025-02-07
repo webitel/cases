@@ -122,42 +122,47 @@ func (c *CaseStore) ScanSla(
 	err = txManager.QueryRow(rpc.Context, `
 WITH RECURSIVE
     service_hierarchy AS (
-        -- Start with the service with id = 150
+        -- Start with the service with id = $1
         SELECT id, root_id, sla_id, 1 AS level
         FROM cases.service_catalog
-        WHERE id = $1
+        WHERE id = $1  -- Start from the service with id = $1
 
         UNION ALL
 
+        -- Recursively find parent services based on root_id
         SELECT sc.id, sc.root_id, COALESCE(sc.sla_id, sh.sla_id) AS sla_id, sh.level + 1
         FROM cases.service_catalog sc
-                 INNER JOIN service_hierarchy sh ON sc.id = sh.root_id -- Join on root_id to get parents
+        INNER JOIN service_hierarchy sh ON sc.id = sh.root_id  -- Join on root_id to get parents
     ),
     deepest_service AS (
+        -- Select the SLA ID and its associated details from the deepest service
         SELECT sla_id, MAX(level) AS max_level
         FROM service_hierarchy
-        WHERE sla_id IS NOT NULL
+        WHERE sla_id IS NOT NULL  -- Filter out rows where sla_id is null
         GROUP BY sla_id
         ORDER BY max_level ASC
-        LIMIT 1
+        LIMIT 1  -- Only return the SLA ID of the deepest service
     ),
-    priority_condition AS (SELECT sc.id AS sla_condition_id,
-                                  sc.reaction_time,
-                                  sc.resolution_time
-                           FROM cases.sla_condition sc
-                                    INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
-                                    INNER JOIN cases.sla sla ON sc.sla_id = sla.id
-                                    INNER JOIN deepest_service ds ON sla.id = ds.sla_id
-                           WHERE psc.priority_id = $2
-                           LIMIT 1)
+    priority_condition AS (
+        SELECT sc.id AS sla_condition_id,
+               sc.reaction_time,
+               sc.resolution_time
+        FROM cases.sla_condition sc
+        INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+        INNER JOIN cases.sla sla ON sc.sla_id = sla.id
+        INNER JOIN deepest_service ds ON sla.id = ds.sla_id
+        WHERE psc.priority_id = $2
+        LIMIT 1
+    )
+-- Final SELECT for deepest service and its priority condition details with COALESCE
 SELECT ds.sla_id,
-       pc.reaction_time   AS reaction_time,
-       pc.resolution_time AS resolution_time,
+       COALESCE(pc.reaction_time, sla.reaction_time) AS reaction_time,
+       COALESCE(pc.resolution_time, sla.resolution_time) AS resolution_time,
        sla.calendar_id,
        pc.sla_condition_id
 FROM deepest_service ds
-         LEFT JOIN priority_condition pc ON true
-         LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
+LEFT JOIN priority_condition pc ON true
+LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
 
 	`, serviceID, priorityID).Scan(
 		scanner.ScanInt(&slaID),
