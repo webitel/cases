@@ -233,13 +233,14 @@ func (p *Priority) buildListPriorityQuery(
 	// Add NOT IN SLA condition if `notInSla` is not 0
 	if inSla != 0 {
 		queryBuilder = queryBuilder.Where(sq.Expr(`
-					 EXISTS (
-						SELECT 1
-						FROM cases.sla_condition sc
-						JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
-						WHERE sc.sla_id = ? AND psc.priority_id = cp.id
-					)
-				`, notInSla))
+        EXISTS (
+            SELECT 1
+            FROM cases.sla s
+            JOIN cases.sla_condition sc ON s.id = sc.sla_id
+            JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+            WHERE s.id = ? AND psc.priority_id = cp.id
+        )
+    `, inSla))
 	}
 
 	// Filter by IDs
