@@ -52,7 +52,7 @@ func (c *CaseTimelineStore) Get(rpc *model.SearchOptions) (*cases.GetTimelineRes
 		result.Days = append(result.Days, node)
 	}
 	result.Days, result.Next = store.ResolvePaging(rpc.GetSize(), result.Days)
-	result.Page = int32(rpc.GetPage())
+	result.Page = int64(rpc.GetPage())
 
 	return result, nil
 }
@@ -88,13 +88,13 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (squirrel.Sqlizer, []fun
 		switch field {
 		case "chats":
 			cte, chatsPlan, err = buildTimelineChatsColumn(caseId)
-			eventType = cases.CaseTimelineEventType_TIMELINE_CHAT.String()
+			eventType = cases.CaseTimelineEventType_chat.String()
 		case "calls":
 			cte, callsPlan, err = buildTimelineCallsColumn(caseId)
-			eventType = cases.CaseTimelineEventType_TIMELINE_CALL.String()
+			eventType = cases.CaseTimelineEventType_call.String()
 		case "emails":
 			cte, emailsPlan, err = buildTimelineEmailsColumn(caseId)
-			eventType = cases.CaseTimelineEventType_TIMELINE_EMAIL.String()
+			eventType = cases.CaseTimelineEventType_email.String()
 		default:
 			return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.parse_fields.unknown", "unknown field "+field)
 		}
@@ -220,27 +220,27 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (squirrel.Sqlizer, []fun
 					)
 					// ALLOC
 					switch eventType = dayEvents[r]; eventType {
-					case cases.CaseTimelineEventType_TIMELINE_EMAIL.String():
+					case cases.CaseTimelineEventType_email.String():
 						actualEvent := &cases.EmailEvent{}
-						node.Type = cases.CaseTimelineEventType_TIMELINE_EMAIL
+						node.Type = cases.CaseTimelineEventType_email
 						node.Event = &cases.Event_Email{Email: actualEvent}
 						count := &rec.EmailsCount
 						*count++
 
 						// scanning functions set
 						scanPlan = emailsPlan
-					case cases.CaseTimelineEventType_TIMELINE_CHAT.String():
+					case cases.CaseTimelineEventType_chat.String():
 						actualEvent := &cases.ChatEvent{}
-						node.Type = cases.CaseTimelineEventType_TIMELINE_CHAT
+						node.Type = cases.CaseTimelineEventType_chat
 						node.Event = &cases.Event_Chat{Chat: actualEvent}
 						count := &rec.ChatsCount
 						*count++
 
 						// scanning functions set
 						scanPlan = chatsPlan
-					case cases.CaseTimelineEventType_TIMELINE_CALL.String():
+					case cases.CaseTimelineEventType_call.String():
 						actualEvent := &cases.CallEvent{}
-						node.Type = cases.CaseTimelineEventType_TIMELINE_CALL
+						node.Type = cases.CaseTimelineEventType_call
 						node.Event = &cases.Event_Call{Call: actualEvent}
 						count := &rec.CallsCount
 						*count++
@@ -425,7 +425,7 @@ func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 						return scanner.ScanText(&file.Name)
 					},
 					func(file *cases.CallFile) any {
-						return scanner.ScanInt64(&file.CreatedAt)
+						return scanner.ScanInt64(&file.StartAt)
 					},
 				}
 

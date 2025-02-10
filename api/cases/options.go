@@ -690,7 +690,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "GetTimelineResponse",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/{case_etag}/timeline",
+						Path:   "/cases/{case_id}/timeline",
 						Method: "GET",
 					},
 				},
@@ -701,7 +701,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "GetTimelineCounterResponse",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/{case_etag}/timeline/counter",
+						Path:   "/cases/{case_id}/timeline/counter",
 						Method: "GET",
 					},
 				},

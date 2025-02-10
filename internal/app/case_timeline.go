@@ -27,7 +27,7 @@ func NewCaseTimelineService(app *App) (*CaseTimelineService, errors.AppError) {
 }
 
 func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.GetTimelineRequest) (*cases.GetTimelineResponse, error) {
-	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
+	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline.check_args.invalid_etag", "Invalid case etag")
 	}
@@ -65,7 +65,7 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 }
 
 func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *cases.GetTimelineCounterRequest) (*cases.GetTimelineCounterResponse, error) {
-	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
+	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline_counter.check_args.invalid_etag", "Invalid case etag")
 	}
