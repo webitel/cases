@@ -52,7 +52,7 @@ func (c *CaseTimelineStore) Get(rpc *model.SearchOptions) (*cases.GetTimelineRes
 		result.Days = append(result.Days, node)
 	}
 	result.Days, result.Next = store.ResolvePaging(rpc.GetSize(), result.Days)
-	result.Page = int64(rpc.GetPage())
+	result.Page = int32(rpc.GetPage())
 
 	return result, nil
 }
