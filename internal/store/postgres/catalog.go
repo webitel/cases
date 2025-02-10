@@ -935,16 +935,15 @@ func applySorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.Se
 
 	sortApplied := false
 
-	for _, sortField := range rpc.Sort {
-		sortDirection := "ASC"
-		if len(sortField) > 0 {
-			switch sortField[0] {
-			case '-':
-				sortDirection = "DESC"
-				sortField = sortField[1:]
-			case '+':
-				sortField = sortField[1:]
-			}
+	sortField := rpc.Sort
+	sortDirection := "ASC"
+	if len(sortField) > 0 {
+		switch sortField[0] {
+		case '-':
+			sortDirection = "DESC"
+			sortField = sortField[1:]
+		case '+':
+			sortField = sortField[1:]
 		}
 
 		if dbField, exists := sortableFields[sortField]; exists {

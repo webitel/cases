@@ -252,7 +252,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	err = c.NormalizeResponseCase(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, err
+		return nil, AppResponseNormalizingError
 	}
 
 	log, err := wlogger.NewCreateMessage(
@@ -264,15 +264,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, err
 	}
 
-	err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), log)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
+	logErr := c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), log)
+	if logErr != nil {
+		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
 	}
 
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
-	}
 	return res, nil
 }
 
@@ -370,9 +366,9 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), log)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
+	logErr := c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), log)
+	if logErr != nil {
+		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
 	}
 
 	return res, nil
@@ -652,9 +648,9 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	if err != nil {
 		return nil, err
 	}
-	err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), log)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
+	logErr := c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), log)
+	if logErr != nil {
+		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
 	}
 	return nil, nil
 }

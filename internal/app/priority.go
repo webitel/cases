@@ -71,7 +71,6 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 	searchOptions, err := model.NewSearchOptions(ctx, req, PriorityMetadata)
 	searchOptions.IDs = req.Id
 
-	searchOptions.Sort = req.Sort
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError

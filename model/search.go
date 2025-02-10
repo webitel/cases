@@ -15,6 +15,7 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 		Context: ctx,
 		Page:    int(searcher.GetPage()),
 		Size:    int(searcher.GetSize()),
+		Sort:    searcher.GetSort(),
 		Search:  searcher.GetQ(),
 		Filter:  make(map[string]any),
 	}
@@ -56,7 +57,7 @@ type SearchOptions struct {
 	// paging
 	Page int
 	Size int
-	Sort []string
+	Sort string
 	// filtering by single id
 	ID int64
 	// Auth opts
@@ -113,7 +114,7 @@ func (s *SearchOptions) GetPage() int {
 	return 0
 }
 
-func (s *SearchOptions) GetSort() []string {
+func (s *SearchOptions) GetSort() string {
 	return s.Sort
 }
 
@@ -130,10 +131,11 @@ type Lister interface {
 	Fielder
 	Pager
 	Searcher
+	Sorter
 }
 
 type Sorter interface {
-	GetSort() []string
+	GetSort() string
 }
 
 type Pager interface {
