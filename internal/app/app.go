@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/webitel/cases/api/cases"
 	"log/slog"
 	"strings"
 
@@ -71,6 +73,26 @@ type App struct {
 	engineConn        *grpc.ClientConn
 	engineAgentClient engine.AgentServiceClient
 	wtelLogger        *wlogger.LoggerClient
+	watcher           Watcher
+}
+
+type WatcherData struct {
+	case_      *cases.Case
+	CaseString string `json:"case"`
+	DomainId   int64  `json:"domain_id"`
+}
+
+func NewWatcherData(case_ *cases.Case, domainID int64) *WatcherData {
+	return &WatcherData{case_: case_, DomainId: domainID}
+}
+
+func (wd *WatcherData) Marshal() ([]byte, error) {
+	caseBytes, err := json.Marshal(wd.case_)
+	if err != nil {
+		return nil, err
+	}
+	wd.CaseString = string(caseBytes)
+	return json.Marshal(wd)
 }
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
@@ -97,6 +119,18 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	if appErr != nil {
 		return nil, cerror.NewInternalError("internal.internal.new_app.rabbit.start.error", appErr.Error())
 	}
+
+	// register watchers
+	watcher := NewDefaultWatcher()
+	caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher)
+	if err != nil {
+		return nil, cerror.NewInternalError("internal.internal.new_app.watcher.start.error", err.Error())
+	}
+	watcher.Attach(EventTypeCreate, caseObserver)
+	watcher.Attach(EventTypeUpdate, caseObserver)
+	watcher.Attach(EventTypeDelete, caseObserver)
+	app.watcher = watcher
+	//
 
 	// --------- Webitel App gRPC Connection ---------
 	app.webitelAppConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/go.webitel.app?wait=14s", config.Consul.Address),

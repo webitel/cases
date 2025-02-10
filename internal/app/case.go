@@ -260,7 +260,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, AppResponseNormalizingError
 	}
 
-	log, err := wlogger.NewCreateMessage(
+	logMessage, err := wlogger.NewCreateMessage(
 		createOpts.GetAuthOpts().GetUserId(),
 		getClientIp(ctx),
 		res.Id, res,
@@ -269,11 +269,15 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, err
 	}
 
-	logErr := c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), log)
+	logErr := c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), logMessage)
 	if logErr != nil {
 		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
 	}
 
+	err = c.app.watcher.OnEvent(EventTypeCreate, NewWatcherData(res, createOpts.GetAuthOpts().GetDomainId()))
+	if err != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s, ", err.Error()), logAttributes)
+	}
 	return res, nil
 }
 
@@ -380,6 +384,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	logErr := c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), log)
 	if logErr != nil {
 		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
+	}
+
+	err = c.app.watcher.OnEvent(EventTypeUpdate, NewWatcherData(upd, updateOpts.GetAuthOpts().GetDomainId()))
+	if err != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case update: %s, ", err.Error()), logAttributes)
 	}
 
 	return res, nil
@@ -653,6 +662,15 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	logErr := c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), log)
 	if logErr != nil {
 		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
+	}
+	deleteCase := &cases.Case{
+		Id:   tag.GetOid(),
+		Ver:  tag.GetVer(),
+		Etag: req.Etag,
+	}
+	err = c.app.watcher.OnEvent(EventTypeDelete, NewWatcherData(deleteCase, deleteOpts.GetAuthOpts().GetDomainId()))
+	if err != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case deletion: %s, ", err.Error()), logAttributes)
 	}
 	return nil, nil
 }
