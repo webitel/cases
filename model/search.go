@@ -26,14 +26,15 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 	}
 	// set current time
 	opts.CurrentTime()
-	// normalize fields
+	// normalize fields and deduplicate fields
 	var resultingFields []string
 	if requestedFields := searcher.GetFields(); len(requestedFields) == 0 {
 		resultingFields = objMetadata.GetDefaultFields()
 	} else {
-		resultingFields = util.FieldsFunc(
+		resultingFields = util.DeduplicateFields(util.FieldsFunc(
 			requestedFields, graph.SplitFieldsQ,
-		)
+		))
+
 	}
 
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
@@ -173,9 +174,9 @@ func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMe
 		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
 		copy(resultingFields, objMetadata.GetDefaultFields())
 	} else {
-		resultingFields = util.FieldsFunc(
+		resultingFields = util.DeduplicateFields(util.FieldsFunc(
 			requestedFields, graph.SplitFieldsQ,
-		)
+		))
 	}
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
 	opts.Fields = util.ParseFieldsForEtag(resultingFields)

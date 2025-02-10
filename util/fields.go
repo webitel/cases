@@ -63,6 +63,19 @@ func FieldsFunc(src []string, fn func(string) []string) []string {
 	return dst
 }
 
+func DeduplicateFields(in []string) []string {
+	seen := make(map[string]struct{}) // Using struct{} to save memory
+	var result []string
+
+	for _, str := range in {
+		if _, exists := seen[str]; !exists {
+			seen[str] = struct{}{}
+			result = append(result, str)
+		}
+	}
+	return result
+}
+
 // AddVersionAndIdByEtag searches for etag, id, ver fields and determines what fields should be added
 // to provide full functionality of etag
 func AddVersionAndIdByEtag(fields []string) {
