@@ -372,7 +372,7 @@ func extractRelatedJSON(related *_go.RelatedCaseList) []byte {
 	if related == nil || len(related.Data) == 0 {
 		return []byte("[]")
 	}
-	var jsonArray []map[string]interface{}
+	var jsonArray []map[string]any
 	for _, item := range related.Data {
 		jsonArray = append(jsonArray, map[string]interface{}{
 			"id":   item.GetId(),
@@ -1036,7 +1036,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "created_by":
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.id, %s.name)::text AS created_by", caseLeft, tableAlias))
+				"ROW(%[1]s.id, %[1]s.name)::text AS created_by", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.CreatedBy)
 			})
@@ -1047,7 +1047,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "updated_by":
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.id, %s.name)::text AS updated_by", caseLeft, tableAlias))
+				"ROW(%[1]s.id, %[1]s.name)::text AS updated_by", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.UpdatedBy)
 			})
@@ -1089,7 +1089,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "source":
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.source, %s.name, %[2]s.type)::text AS source", caseLeft, tableAlias))
+				"ROW(%[1]s.source, %[2]s.name, %[2]s.type)::text AS source", caseLeft, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
@@ -1178,12 +1178,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "close_reason_group":
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.id, %s.name)::text  AS close_reason_group", caseLeft, tableAlias))
+				"ROW(%[1]s.id, %[1]s.name)::text  AS close_reason_group", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.CloseReasonGroup)
 			})
 		case "author":
-			base = base.Column(fmt.Sprintf(`ROW(%s.id, %s.common_name)::text AS author`, caseLeft, tableAlias))
+			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, %[1]s.common_name)::text AS author`, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Author)
 			})
@@ -1197,7 +1197,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				return scanner.ScanText(&caseItem.Close.CloseResult)
 			})
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.id, %s.name)::text AS close_reason", caseLeft, tableAlias))
+				"ROW(%[1]s.id, %[1]s.name)::text AS close_reason", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Close == nil {
 					caseItem.Close = &_go.CloseInfo{}
@@ -1249,7 +1249,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "sla":
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.id, %s.name)::text AS sla", caseLeft, tableAlias))
+				"ROW(%[1]s.id, %[1]s.name)::text AS sla", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Sla)
 			})
@@ -1339,12 +1339,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				})
 			})
 		case "status":
-			base = base.Column(fmt.Sprintf(`ROW(%s.id, %s.name)::text AS status`, caseLeft, tableAlias))
+			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, %[1]s.name)::text AS status`, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Status)
 			})
 		case "priority":
-			base = base.Column(fmt.Sprintf("ROW(%s.id, %s.name, %[2]s.color)::text AS priority", caseLeft, tableAlias))
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name, %[1]s.color)::text AS priority", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
@@ -1414,20 +1414,20 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				})
 			})
 		case "service":
-			base = base.Column(fmt.Sprintf("ROW(%s.id, %s.name)::text AS service", caseLeft, tableAlias))
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text AS service", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Service)
 			})
 		case "assignee":
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.id, %s.common_name)::text AS assignee", caseLeft, tableAlias))
+				"ROW(%[1]s.id, %[1]s.common_name)::text AS assignee", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Assignee)
 			})
 
 		case "reporter":
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.id, %s.common_name)::text AS reporter", caseLeft, tableAlias))
+				"ROW(%[1]s.id, %[1]s.common_name)::text AS reporter", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Reporter)
 			})
@@ -1438,7 +1438,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "impacted":
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.id, %s.common_name)::text AS impacted", caseLeft, tableAlias))
+				"ROW(%[1]s.id, %[1]s.common_name)::text AS impacted", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Impacted)
 			})
