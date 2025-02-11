@@ -234,40 +234,27 @@ func ParseRelationTypeWithReversion(
 	switch rawType {
 	case "RELATION_TYPE_UNSPECIFIED":
 		return cases.RelationType_RELATION_TYPE_UNSPECIFIED, nil
-	case "DUPLICATES", "IS_DUPLICATED_BY":
-		if parentID == parentCase {
-			return cases.RelationType_DUPLICATES, nil
-		}
-		if parentID == relatedCase {
-			return cases.RelationType_IS_DUPLICATED_BY, nil
-		}
-	case "BLOCKS", "IS_BLOCKED_BY":
-		if parentID == parentCase {
-			return cases.RelationType_BLOCKS, nil
-		}
-		if parentID == relatedCase {
-			return cases.RelationType_IS_BLOCKED_BY, nil
-		}
-	case "CAUSES", "IS_CAUSED_BY":
-		if parentID == parentCase {
-			return cases.RelationType_CAUSES, nil
-		}
-		if parentID == relatedCase {
-			return cases.RelationType_IS_CAUSED_BY, nil
-		}
-	case "IS_CHILD_OF", "IS_PARENT_OF":
-		if parentID == parentCase {
-			return cases.RelationType_IS_CHILD_OF, nil
-		}
-		if parentID == relatedCase {
-			return cases.RelationType_IS_PARENT_OF, nil
-		}
+	case "DUPLICATES":
+		return cases.RelationType_DUPLICATES, nil
+	case "IS_DUPLICATED_BY":
+		return cases.RelationType_IS_DUPLICATED_BY, nil
+	case "BLOCKS":
+		return cases.RelationType_BLOCKS, nil
+	case "IS_BLOCKED_BY":
+		return cases.RelationType_IS_BLOCKED_BY, nil
+	case "CAUSES":
+		return cases.RelationType_CAUSES, nil
+	case "IS_CAUSED_BY":
+		return cases.RelationType_IS_CAUSED_BY, nil
+	case "IS_CHILD_OF":
+		return cases.RelationType_IS_CHILD_OF, nil
+	case "IS_PARENT_OF":
+		return cases.RelationType_IS_PARENT_OF, nil
 	case "RELATES_TO":
 		return cases.RelationType_RELATES_TO, nil
 	default:
 		return cases.RelationType_RELATION_TYPE_UNSPECIFIED, fmt.Errorf("invalid relation type: %s", rawType)
 	}
-	return cases.RelationType_RELATION_TYPE_UNSPECIFIED, fmt.Errorf("relation type mismatch")
 }
 
 // buildListRelatedCaseSqlizer dynamically builds the SELECT query for related cases.
