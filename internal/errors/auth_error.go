@@ -131,6 +131,10 @@ func NewUnauthorizedError(id, details string) AuthError {
 	return newAuthError(id, details).SetStatusCode(http.StatusUnauthorized)
 }
 
+func NewPermissionForbiddenError(id, details string) AuthError {
+	return newAuthError(id, details).SetStatusCode(http.StatusForbidden)
+}
+
 // Example: AuthError for invalid token
 func NewInvalidTokenError(id, details string) AuthError {
 	return newAuthError(id, details).SetStatusCode(http.StatusUnauthorized)
