@@ -201,12 +201,7 @@ func (r *RelatedCaseStore) List(
 		}
 
 		// Parse and reverse relation type
-		parsedRelationType, parseErr := ParseRelationTypeWithReversion(
-			relatedCase.RelationType.String(),
-			rpc.ParentId,
-			relatedCase.PrimaryCase.GetId(),
-			relatedCase.RelatedCase.GetId(),
-		)
+		parsedRelationType, parseErr := r.ParseRelationTypeWithReversion(relatedCase.RelationType.String())
 		if parseErr != nil {
 			return nil, dberr.NewDBInternalError("store.related_case.list.relation_parse_error", parseErr)
 		}
@@ -225,11 +220,8 @@ func (r *RelatedCaseStore) List(
 }
 
 // ParseRelationTypeWithReversion determines the relation type based on parent-case matching.
-func ParseRelationTypeWithReversion(
+func (r *RelatedCaseStore) ParseRelationTypeWithReversion(
 	rawType string,
-	parentID int64,
-	parentCase int64,
-	relatedCase int64,
 ) (cases.RelationType, error) {
 	switch rawType {
 	case "RELATION_TYPE_UNSPECIFIED":

@@ -74,7 +74,7 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 
 func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
 	// Define arguments for the query
-	args := []interface{}{
+	args := []any{
 		add.Name,                        // $1: name (cannot be null)
 		add.Description,                 // $2: description (could be null)
 		add.Prefix,                      // $3: prefix (could be null)

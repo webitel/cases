@@ -240,6 +240,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
+	etag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
+	if err != nil {
+		return nil, err
+	}
+	res.Etag = etag
 
 	//* Handle dynamic group update if applicable
 	res, err = c.handleDynamicGroupUpdate(ctx, res)
@@ -342,6 +347,12 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppDatabaseError
 	}
+
+	etag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
+	if err != nil {
+		return nil, err
+	}
+	res.Etag = etag
 
 	// *Handle dynamic group update if applicable
 	res, err = c.handleDynamicGroupUpdate(ctx, res)
@@ -542,7 +553,7 @@ func addPrefixedKeys(dest map[string]interface{}, source map[string]interface{},
 }
 
 // Evaluates complex condition strings with support for AND (&&) and OR (||) operators using bitwise operations
-func evaluateComplexCondition(caseMap map[string]interface{}, condition string) bool {
+func evaluateComplexCondition(caseMap map[string]any, condition string) bool {
 	// Convert condition to lowercase to ensure case-insensitive matching
 	condition = strings.ToLower(condition)
 
