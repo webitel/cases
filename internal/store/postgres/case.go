@@ -156,7 +156,7 @@ WITH RECURSIVE
         FROM service_hierarchy
         WHERE sla_id IS NOT NULL  -- Filter out rows where sla_id is null
         GROUP BY sla_id
-        ORDER BY max_level ASC
+        ORDER BY max_level DESC
         LIMIT 1  -- Only return the SLA ID of the deepest service
     ),
     priority_condition AS (
@@ -411,6 +411,7 @@ func ConvertRelationType(relationType _go.RelationType) (int, error) {
 	}
 }
 
+// calculatePlannedReactionAndResolutionTime calculates the planned reaction and resolution times
 func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	rpc *model.CreateOptions,
 	calendarID int,
@@ -419,13 +420,69 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	txManager *transaction.TxManager,
 	caseItem *_go.Case,
 ) error {
+	// Fetch standard calendar working hours
+	calendar, err := fetchCalendarSlots(rpc, txManager, calendarID)
+	if err != nil {
+		return err
+	}
+
+	// Fetch exceptions (overrides for specific days)
+	exceptions, err := fetchExceptionSlots(rpc, txManager, calendarID)
+	if err != nil {
+		return err
+	}
+
+	// Fetch timezone offset
+	var offset time.Duration
+	err = txManager.QueryRow(rpc.Context, `
+		SELECT tz.utc_offset
+		FROM flow.calendar cl
+		    LEFT JOIN flow.calendar_timezones tz ON tz.id = cl.timezone_id
+		WHERE cl.id = $1`, calendarID).Scan(&offset)
+	if err != nil {
+		return fmt.Errorf("failed to fetch calendar offset: %w", err)
+	}
+
+	// Convert reaction and resolution times from milliseconds to minutes
+	reactionMinutes := reactionTime / 60
+	resolutionMinutes := resolutionTime / 60
+
+	// Get the current time
+	currentTime := rpc.CurrentTime()
+
+	// Calculate planned reaction and resolution timestamps
+	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, reactionMinutes, calendar, exceptions)
+	if err != nil {
+		return fmt.Errorf("failed to calculate planned reaction time: %w", err)
+	}
+
+	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, resolutionMinutes, calendar, exceptions)
+	if err != nil {
+		return fmt.Errorf("failed to calculate planned resolution time: %w", err)
+	}
+
+	caseItem.PlannedReactionAt = reactionTimestamp.UnixMilli()
+	caseItem.PlannedResolveAt = resolveTimestamp.UnixMilli()
+
+	return nil
+}
+
+// fetchCalendarSlots retrieves working hours for a calendar
+func fetchCalendarSlots(rpc *model.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]struct {
+	Day            int
+	StartTimeOfDay int
+	EndTimeOfDay   int
+	Special        bool
+	Disabled       bool
+}, error,
+) {
 	rows, err := txManager.Query(rpc.Context, `
 		SELECT day, start_time_of_day, end_time_of_day, special, disabled
-		FROM flow.calendar cl,  UNNEST(accepts::flow.calendar_accept_time[]) x
+		FROM flow.calendar cl, UNNEST(accepts::flow.calendar_accept_time[]) x
 		WHERE cl.id = $1
 		ORDER BY day, start_time_of_day`, calendarID)
 	if err != nil {
-		return fmt.Errorf("failed to fetch calendar details: %w", err)
+		return nil, fmt.Errorf("failed to fetch calendar details: %w", err)
 	}
 	defer rows.Close()
 
@@ -444,54 +501,60 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 			Special        bool
 			Disabled       bool
 		}
-		if err = rows.Scan(
-			&entry.Day,
-			&entry.StartTimeOfDay,
-			&entry.EndTimeOfDay,
-			&entry.Special,
-			&entry.Disabled,
-		); err != nil {
-			return fmt.Errorf("failed to scan calendar entry: %w", err)
+		if err := rows.Scan(&entry.Day, &entry.StartTimeOfDay, &entry.EndTimeOfDay, &entry.Special, &entry.Disabled); err != nil {
+			return nil, fmt.Errorf("failed to scan calendar entry: %w", err)
 		}
 		if !entry.Disabled {
 			calendar = append(calendar, entry)
 		}
 	}
 	if err = rows.Err(); err != nil {
-		return fmt.Errorf("error iterating over calendar rows: %w", err)
+		return nil, fmt.Errorf("error iterating over calendar rows: %w", err)
 	}
+	return calendar, nil
+}
 
-	var offset time.Duration
-	offsetRow := txManager.QueryRow(rpc.Context, `
-		SELECT tz.utc_offset
-		FROM flow.calendar cl
-		    LEFT JOIN flow.calendar_timezones tz ON tz.id = cl.timezone_id
-		WHERE cl.id = $1`, calendarID)
-	err = offsetRow.Scan(&offset)
+// fetchExceptionSlots retrieves exceptions for specific days (overrides)
+func fetchExceptionSlots(rpc *model.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]struct {
+	Day            int
+	StartTimeOfDay int
+	EndTimeOfDay   int
+	Disabled       bool
+}, error,
+) {
+	rows, err := txManager.Query(rpc.Context, `
+	SELECT
+	 EXTRACT(DOW FROM to_timestamp(x.date)) AS day,
+	 x.work_start AS start_time_of_day,
+	 x.work_stop AS end_time_of_day,
+	 x.disabled
+	FROM flow.calendar cl, UNNEST(cl.excepts::flow.calendar_except_date[]) x
+	WHERE cl.id = $1
+	ORDER BY x.date, x.work_start`, calendarID)
 	if err != nil {
-		return fmt.Errorf("failed to fetch calendar offset details: %w", err)
+		return nil, fmt.Errorf("failed to fetch calendar exceptions: %w", err)
 	}
+	defer rows.Close()
 
-	// Convert reaction and resolution times from milliseconds to minutes
-	reactionMinutes := reactionTime / 60
-	resolutionMinutes := resolutionTime / 60
-
-	currentTime := rpc.CurrentTime()
-	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, reactionMinutes, calendar)
-	if err != nil {
-		return fmt.Errorf("failed to calculate planned reaction time: %w", err)
+	var exceptions []struct {
+		Day            int
+		StartTimeOfDay int
+		EndTimeOfDay   int
+		Disabled       bool
 	}
-
-	// resolveTimestamp, err := calculateTimestampFromCalendar(reactionTimestamp, resolutionMinutes, calendar)
-	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, resolutionMinutes, calendar)
-	if err != nil {
-		return fmt.Errorf("failed to calculate planned resolution time: %w", err)
+	for rows.Next() {
+		var entry struct {
+			Day            int
+			StartTimeOfDay int
+			EndTimeOfDay   int
+			Disabled       bool
+		}
+		if err := rows.Scan(&entry.Day, &entry.StartTimeOfDay, &entry.EndTimeOfDay, &entry.Disabled); err != nil {
+			return nil, fmt.Errorf("failed to scan exception entry: %w", err)
+		}
+		exceptions = append(exceptions, entry)
 	}
-
-	caseItem.PlannedReactionAt = reactionTimestamp.UnixMilli()
-	caseItem.PlannedResolveAt = resolveTimestamp.UnixMilli()
-
-	return nil
+	return exceptions, nil
 }
 
 func calculateTimestampFromCalendar(
@@ -505,54 +568,92 @@ func calculateTimestampFromCalendar(
 		Special        bool
 		Disabled       bool
 	},
+	exceptions []struct {
+		Day            int
+		StartTimeOfDay int
+		EndTimeOfDay   int
+		Disabled       bool
+	},
 ) (time.Time, error) {
 	remainingMinutes := requiredMinutes
-	currentDay := int(startTime.Weekday())
-	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute()
-	var (
-		startingAtMinutes int
-		startDayProcessed bool
-		addDays           int
-	)
+	currentDay := int(startTime.Weekday())                           // Get the current day (0=Sunday, 1=Monday, ..., 6=Saturday)
+	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute() // Current time in minutes
+	var addDays int                                                  // To keep track of days added due to insufficient time in current day
 
-	for {
+	// Process exceptions first (adjust for any disabled times)
+	for _, exception := range exceptions {
+		if exception.Disabled && exception.Day == currentDay {
+			// If the exception disables this time range, skip this time period
+			exceptionStart := exception.StartTimeOfDay
+			exceptionEnd := exception.EndTimeOfDay
+
+			// If current time is within the exception range, skip it
+			if currentTimeInMinutes >= exceptionStart && currentTimeInMinutes < exceptionEnd {
+				remainingMinutes -= (exceptionEnd - currentTimeInMinutes) // Adjust for the skipped time
+				// Move to the next day
+				currentDay = (currentDay + 1) % 7
+				addDays++
+				continue
+			}
+		}
+	}
+
+	// Now loop through the calendar slots to find the available time
+	for remainingMinutes > 0 {
+		// Iterate through each calendar slot to find available time
 		for _, slot := range calendar {
-			slotStartOfTheDayUtc := int((time.Duration(slot.StartTimeOfDay)*time.Minute - calendarOffset).Minutes())
-			slotEndOfTheDayUtc := int((time.Duration(slot.EndTimeOfDay)*time.Minute - calendarOffset).Minutes())
-			// Match the current day and ensure the slot is in the future
-			if slot.Day == currentDay && slotEndOfTheDayUtc > currentTimeInMinutes {
-				if startDayProcessed {
-					currentTimeInMinutes = slotStartOfTheDayUtc
-				}
-				startingAtMinutes = max(currentTimeInMinutes, slotStartOfTheDayUtc)
-				availableMinutes := slotEndOfTheDayUtc - startingAtMinutes
-				if availableMinutes >= remainingMinutes {
-					// if we need to add days, then we should add minutes from the start of the working day
-					if addDays != 0 {
+			// If the slot is not disabled, calculate available minutes for that slot
+			if !slot.Disabled {
+				slotStartOfTheDayUtc := int((time.Duration(slot.StartTimeOfDay)*time.Minute - calendarOffset).Minutes())
+				slotEndOfTheDayUtc := int((time.Duration(slot.EndTimeOfDay)*time.Minute - calendarOffset).Minutes())
+
+				// If we are looking at today and current time is less than slot start, consider only remaining time after current time
+				if slot.Day == currentDay {
+					if slotEndOfTheDayUtc > currentTimeInMinutes {
+						// Add minutes from the slot's start time to the end time
+						startingAtMinutes := max(currentTimeInMinutes, slotStartOfTheDayUtc)
+						availableMinutes := slotEndOfTheDayUtc - startingAtMinutes
+
+						// If there are enough available minutes in this slot
+						if availableMinutes >= remainingMinutes {
+							// Calculate the exact timestamp
+							startDate := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, startTime.Location())
+							startDate = startDate.Add(time.Duration(24*addDays) * time.Hour)             // Add days offset
+							startDate = startDate.Add(time.Duration(slotStartOfTheDayUtc) * time.Minute) // Add minutes to the start time
+							startDate = startDate.Add(time.Duration(remainingMinutes) * time.Minute)     // Add the remaining minutes
+							return startDate, nil
+						}
+
+						// Subtract the available minutes from the remaining time and continue
+						remainingMinutes -= availableMinutes
+					}
+				} else if slot.Day > currentDay {
+					// If the slot is for a future day, take the whole slot
+					startingAtMinutes := slotStartOfTheDayUtc
+					availableMinutes := slotEndOfTheDayUtc - startingAtMinutes
+
+					if availableMinutes >= remainingMinutes {
+						// Calculate the exact timestamp
 						startDate := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, startTime.Location())
-						// Add days required
-						startDate = startDate.Add(time.Duration(24*addDays) * time.Hour)
-						// Add minutes to the start of the working day
-						startDate = startDate.Add(time.Duration(slotStartOfTheDayUtc) * time.Minute)
-						// Add remaining minutes to the start of the working day
-						startDate = startDate.Add(time.Duration(remainingMinutes) * time.Minute)
+						startDate = startDate.Add(time.Duration(24*addDays) * time.Hour)             // Add days offset
+						startDate = startDate.Add(time.Duration(slotStartOfTheDayUtc) * time.Minute) // Add minutes to the start time
+						startDate = startDate.Add(time.Duration(remainingMinutes) * time.Minute)     // Add the remaining minutes
 						return startDate, nil
 					}
-					// Calculate the exact timestamp
-					return startTime.Add(time.Duration(remainingMinutes) * time.Minute), nil
-				}
-				if slot.Day == currentDay && !startDayProcessed {
-					startDayProcessed = true
-				}
-				remainingMinutes -= availableMinutes
-			}
 
+					// Subtract the available minutes and move to the next day
+					remainingMinutes -= availableMinutes
+				}
+			}
 		}
 
-		// If no slots available, move to the next day
-		currentDay = (currentDay + 1) % len(calendar) // Wrap around to the start of the week if necessary
+		// If we haven't found enough time, move to the next day and continue
+		currentDay = (currentDay + 1) % 7
 		addDays++
 	}
+
+	// If we can't find enough time to allocate, return an error
+	return time.Time{}, fmt.Errorf("unable to allocate required minutes")
 }
 
 // Delete implements store.CaseStore.
@@ -965,7 +1066,11 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		case "impacted":
 			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
 		case "group":
-			updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
+			if upd.Group.GetId() == 0 {
+				updateBuilder = updateBuilder.Set("contact_group", nil)
+			} else {
+				updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
+			}
 		case "close":
 			if upd.Close != nil && upd.Close.CloseReason != nil {
 				var closeReason *int64

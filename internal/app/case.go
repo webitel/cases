@@ -391,7 +391,7 @@ func (c *CaseService) handleDynamicGroupUpdate(
 	input *cases.Case,
 ) (*cases.Case, error) {
 	// *Check if the group is dynamic
-	if input.Group.Type == dynamicGroup {
+	if input.Group != nil && input.Group.Type == dynamicGroup {
 
 		var info metadata.MD
 		var ok bool
