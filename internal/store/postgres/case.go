@@ -833,7 +833,7 @@ func (c *CaseStore) Update(
 	txManager := transaction.NewTxManager(tx)
 
 	// * if user change Service -- SLA ; SLA Condition ; Planned Reaction / Resolve at ; Calendar could be changed
-	if util.ContainsField(rpc.Fields, "service") {
+	if util.ContainsField(rpc.Mask, "service") {
 		slaID, slaConditionID, reaction_at, resolve_at, calendarID, err := c.ScanSla(
 			&model.CreateOptions{Context: rpc.Context},
 			txManager,
