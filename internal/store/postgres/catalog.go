@@ -212,7 +212,7 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 }
 
 // Helper method to build the delete query for Catalog
-func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string, []interface{}) {
+func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string, []any) {
 	// Build the SQL query using the provided IDs in rpc.IDs
 	query := `
 		DELETE FROM cases.service_catalog
@@ -220,7 +220,7 @@ func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string
 	`
 
 	// Use the array of IDs and domain ID (dc) for the deletion
-	args := []interface{}{
+	args := []any{
 		pq.Array(rpc.IDs),               // $1: array of catalog IDs to delete
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
