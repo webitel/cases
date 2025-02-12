@@ -31,8 +31,8 @@ var reg = regexp.MustCompile(`^(.*\.)`)
 
 // AuthUnaryServerInterceptor authenticates and authorizes unary RPCs.
 func AuthUnaryServerInterceptor(authManager user_auth.AuthManager) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// // Retrieve authorization details
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		// Retrieve authorization details
 		objClass, licenses, action := objClassWithAction(info)
 
 		// Authorize session with the token
@@ -41,14 +41,14 @@ func AuthUnaryServerInterceptor(authManager user_auth.AuthManager) grpc.UnarySer
 			return nil, cerror.NewUnauthorizedError("auth.session.invalid", fmt.Sprintf("Invalid session or expired token: %v", err))
 		}
 
-		// // License validation
+		//  License validation
 		if missingLicenses := checkLicenses(session, licenses); len(missingLicenses) > 0 {
-			return nil, cerror.NewUnauthorizedError("auth.license.missing", fmt.Sprintf("Missing required licenses: %v", missingLicenses))
+			return nil, cerror.NewPermissionForbiddenError("auth.license.missing", fmt.Sprintf("Missing required licenses: %v", missingLicenses))
 		}
 
 		// Permission validation
 		if ok := validateSessionPermission(session, objClass, action); !ok {
-			return nil, cerror.NewUnauthorizedError("auth.permission.denied", "Permission denied for the requested action")
+			return nil, cerror.NewPermissionForbiddenError("auth.permission.denied", "Permission denied for the requested action")
 		}
 
 		ctx = context.WithValue(ctx, SessionHeader, session)
