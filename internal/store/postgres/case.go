@@ -482,7 +482,6 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 		return fmt.Errorf("failed to calculate planned reaction time: %w", err)
 	}
 
-	//?? TODO
 	// resolveTimestamp, err := calculateTimestampFromCalendar(reactionTimestamp, resolutionMinutes, calendar)
 	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, resolutionMinutes, calendar)
 	if err != nil {
@@ -525,11 +524,7 @@ func calculateTimestampFromCalendar(
 				if startDayProcessed {
 					currentTimeInMinutes = slotStartOfTheDayUtc
 				}
-				if currentTimeInMinutes < slotStartOfTheDayUtc {
-					startingAtMinutes = slotStartOfTheDayUtc
-				} else {
-					startingAtMinutes = currentTimeInMinutes
-				}
+				startingAtMinutes = max(currentTimeInMinutes, slotStartOfTheDayUtc)
 				availableMinutes := slotEndOfTheDayUtc - startingAtMinutes
 				if availableMinutes >= remainingMinutes {
 					// if we need to add days, then we should add minutes from the start of the working day
@@ -829,6 +824,55 @@ func (c *CaseStore) Update(
 		return nil, dberr.NewDBInternalError("postgres.case.update.database_connection_error", err)
 	}
 
+	// Begin a transaction
+	tx, txErr := db.Begin(rpc.Context)
+	if txErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", txErr)
+	}
+	defer tx.Rollback(rpc.Context)
+	txManager := transaction.NewTxManager(tx)
+
+	// * if user change Service -- SLA ; SLA Condition ; Planned Reaction / Resolve at ; Calendar could be changed
+	if util.ContainsField(rpc.Fields, "service") {
+		slaID, slaConditionID, reaction_at, resolve_at, calendarID, err := c.ScanSla(
+			&model.CreateOptions{Context: rpc.Context},
+			txManager,
+			upd.Service.GetId(),
+			upd.Priority.GetId(),
+		)
+		if err != nil {
+			return nil, dberr.NewDBInternalError("postgres.case.update.scan_sla_error", err)
+		}
+
+		// Calculate planned times within the transaction
+		err = c.calculatePlannedReactionAndResolutionTime(
+			&model.CreateOptions{
+				Context: rpc.Context,
+				Time:    rpc.CurrentTime(),
+			},
+			calendarID,
+			reaction_at,
+			resolve_at,
+			txManager,
+			upd,
+		)
+		if err != nil {
+			return nil, dberr.NewDBInternalError("postgres.case.update.calculate_planned_times_error", err)
+		}
+
+		// * assign new values ( SLA ; SLA Condition ; Planned Reaction / Resolve at ) to update (input) object
+		if upd.Sla == nil {
+			upd.Sla = &_go.Lookup{}
+		}
+		upd.Sla.Id = int64(slaID)
+		if upd.SlaCondition == nil {
+			upd.SlaCondition = &_go.Lookup{}
+		}
+		upd.SlaCondition.Id = int64(slaConditionID)
+		upd.PlannedReactionAt = int64(reaction_at)
+		upd.PlannedResolveAt = int64(resolve_at)
+	}
+
 	// Build the SQL query and scan plan
 	queryBuilder, plan, sqErr := c.buildUpdateCaseSqlizer(rpc, upd)
 	if sqErr != nil {
@@ -846,11 +890,16 @@ func (c *CaseStore) Update(
 	// Prepare scan arguments
 	scanArgs := convertToCaseScanArgs(plan, upd)
 
-	if err := db.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, dberr.NewDBNoRowsError("postgres.case.update.update.scan_ver.not_found")
 		}
 		return nil, dberr.NewDBInternalError("postgres.case.update.update.execution_error", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(rpc.Context); err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.update.commit_error", err)
 	}
 
 	return upd, nil
@@ -899,7 +948,10 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("status_condition", upd.StatusCondition.GetId())
 		case "service":
 			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
-			updateBuilder = updateBuilder.Set("sla", sq.Expr("(SELECT sla_id FROM cases.service_catalog WHERE id = ? LIMIT 1)", upd.Service.GetId()))
+			updateBuilder = updateBuilder.Set("sla", upd.Sla.GetId())
+			updateBuilder = updateBuilder.Set("sla_condition_id", upd.SlaCondition.GetId())
+			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(upd.GetPlannedResolveAt()))
+			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.GetPlannedReactionAt()))
 		case "assignee":
 			if upd.Assignee.GetId() == 0 {
 				updateBuilder = updateBuilder.Set("assignee", nil)
