@@ -970,8 +970,6 @@ func (c *CaseStore) Update(
 			upd.SlaCondition = &_go.Lookup{}
 		}
 		upd.SlaCondition.Id = int64(slaConditionID)
-		upd.PlannedReactionAt = int64(reaction_at)
-		upd.PlannedResolveAt = int64(resolve_at)
 	}
 
 	// Build the SQL query and scan plan
