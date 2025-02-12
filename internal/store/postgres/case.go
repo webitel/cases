@@ -442,9 +442,9 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 		return fmt.Errorf("failed to fetch calendar offset: %w", err)
 	}
 
-	// Convert reaction and resolution times from milliseconds to minutes
-	reactionMinutes := reactionTime / 60000
-	resolutionMinutes := resolutionTime / 60000
+	// Convert reaction and resolution times from seconds to minutes
+	reactionMinutes := reactionTime / 60
+	resolutionMinutes := resolutionTime / 60
 
 	// Get the current time
 	currentTime := rpc.CurrentTime()
