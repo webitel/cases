@@ -1,7 +1,5 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 h1:hl0FrmGlNpQZIGvU1/jDz0lsPDd0BhCE0QDRwPfLZcA=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2/go.mod h1:ylS4c28ACSI59oJrOdW4pHS4n0Hw4TgSPHn8rpHl4Yw=
-buf.build/gen/go/webitel/engine/grpc/go v1.5.1-20250130131313-1f628ed6696e.2 h1:yAgWgZciTjCagPU2B/axVLlMG4nnMkfai2x8jioZ9LE=
-buf.build/gen/go/webitel/engine/grpc/go v1.5.1-20250130131313-1f628ed6696e.2/go.mod h1:iUqij3KMeQxYnTwtoi8LF9ktpIVLcELI727t4/7YCc0=
 buf.build/gen/go/webitel/logger/grpc/go v1.5.1-20240911114117-1d910a772b4f.1 h1:Jcykxaj+QlxIHYnqD+RctEQWsev1U5tG6CgeXrBeeZE=
 buf.build/gen/go/webitel/logger/grpc/go v1.5.1-20240911114117-1d910a772b4f.1/go.mod h1:f5W+yywJeSjcO8ervDzYp+zc3Sum0vV2jLGfJ1VkozY=
 buf.build/gen/go/webitel/logger/protocolbuffers/go v1.36.4-20250128105802-aaacc0377b27.1 h1:MecpVVYa8m8Q5AfjcTqVKBdnnT3mfvwoUq+RO9J4TaU=

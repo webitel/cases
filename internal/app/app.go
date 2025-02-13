@@ -20,6 +20,7 @@ import (
 	"github.com/webitel/cases/internal/store/postgres"
 	broker "github.com/webitel/cases/rabbit"
 
+	engine "github.com/webitel/cases/api/engine"
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -55,22 +56,21 @@ func getClientIp(ctx context.Context) string {
 }
 
 type App struct {
-	config          *conf.AppConfig
-	Store           store.Store
-	server          *server.Server
-	exitChan        chan error
-	storageConn     *grpc.ClientConn
-	sessionManager  user_auth.AuthManager
-	webitelAppConn  *grpc.ClientConn
-	shutdown        func(ctx context.Context) error
-	log             *slog.Logger
-	rabbit          *broker.RabbitBroker
-	rabbitExitChan  chan cerror.AppError
-	webitelgoClient webitelgo.GroupsClient
-	engineConn      *grpc.ClientConn
-	// engineAgentClient      engine.AgentServiceClient
-	// engineAgentSkillClient engine.AgentSkillServiceClient
-	wtelLogger *wlogger.LoggerClient
+	config            *conf.AppConfig
+	Store             store.Store
+	server            *server.Server
+	exitChan          chan error
+	storageConn       *grpc.ClientConn
+	sessionManager    user_auth.AuthManager
+	webitelAppConn    *grpc.ClientConn
+	shutdown          func(ctx context.Context) error
+	log               *slog.Logger
+	rabbit            *broker.RabbitBroker
+	rabbitExitChan    chan cerror.AppError
+	webitelgoClient   webitelgo.GroupsClient
+	engineConn        *grpc.ClientConn
+	engineAgentClient engine.AgentServiceClient
+	wtelLogger        *wlogger.LoggerClient
 }
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
@@ -109,14 +109,13 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
 	}
 
-	// // --------- Webitel Engine gRPC Connection ---------
-	// app.engineConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/engine?wait=14s", config.Consul.Address),
-	// 	grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
-	// 	grpc.WithTransportCredentials(insecure.NewCredentials()),
-	// )
+	// --------- Webitel Engine gRPC Connection ---------
+	app.engineConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/engine?wait=14s", config.Consul.Address),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 
-	// app.engineAgentClient = engine.NewAgentServiceClient(app.engineConn)
-	// app.engineAgentSkillClient = engine.NewAgentSkillServiceClient(app.engineConn)
+	app.engineAgentClient = engine.NewAgentServiceClient(app.engineConn)
 
 	if err != nil {
 		return nil, cerror.NewInternalError("internal.internal.new_engine.grpc_conn.error", err.Error())

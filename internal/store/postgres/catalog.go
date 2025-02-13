@@ -257,8 +257,6 @@ func (s *CatalogStore) List(
 	}
 	defer rows.Close()
 
-	print(query)
-
 	// 5. Prepare containers
 	var (
 		catalogs []*cases.Catalog
@@ -748,6 +746,20 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	// 7) State + ID filters
 	if state, ok := rpc.Filter["state"]; ok {
 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
+	}
+	teamFilter, teamFilterFound := rpc.Filter["team"].(int64)
+	skillsFilter, skillFilterFound := rpc.Filter["skills"].([]int64)
+	if teamFilterFound || skillFilterFound {
+		or := sq.Or{}
+		if teamFilter > 0 {
+			or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.team_catalog WHERE team_id = :team)"))
+			params["team"] = teamFilter
+		}
+		if len(skillsFilter) > 0 {
+			or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.skill_catalog WHERE skill_id = ANY(:skills))", skillsFilter))
+			params["skills"] = skillsFilter
+		}
+		queryBuilder = queryBuilder.Where(or)
 	}
 
 	// Add condition for rpc.IDs if provided
