@@ -786,6 +786,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			"reporter",         // +
 			"source",           // +
 			"priority",         // +
+			"status",           // +
 			"impacted",         // +
 			"close_reason",     // +
 			"contact_group",    // +
@@ -827,7 +828,21 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 				}
 				base = base.Where(fmt.Sprintf("%s = ANY(?::int[])", store.Ident(caseAuthorAlias, "id")), valuesInt)
 			}
-
+		// Filter for the date range (created_at)
+		case "created_at.from", "created_at.to":
+			// Check if both from and to are provided, create the range filter
+			fromValue, hasFrom := opts.Filter["created_at.from"]
+			toValue, hasTo := opts.Filter["created_at.to"]
+			if hasFrom && hasTo {
+				// Apply range filtering using both `from` and `to` values
+				base = base.Where(fmt.Sprintf("%s >= ?::timestamp AND c.created_at <= ?::timestamp", store.Ident(caseLeft, "created_at")), fromValue, toValue)
+			} else if hasFrom {
+				// Only "from" filter is provided
+				base = base.Where(fmt.Sprintf("%s >= ?::timestamp", store.Ident(caseLeft, "created_at")), fromValue)
+			} else if hasTo {
+				// Only "to" filter is provided
+				base = base.Where(fmt.Sprintf("%s <= ?::timestamp", store.Ident(caseLeft, "created_at")), toValue)
+			}
 		case "rating.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
 			base = base.Where(fmt.Sprintf("%s > ?::INT", store.Ident(caseLeft, cutted)), value)
