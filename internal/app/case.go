@@ -32,7 +32,7 @@ var (
 
 	CaseMetadata = model.NewObjectMetadata(caseObjScope, "", []*model.Field{
 		{Name: "etag", Default: true},
-		{Name: "id", Default: false},
+		{Name: "id", Default: true},
 		{Name: "ver", Default: false},
 		{Name: "created_by", Default: true},
 		{Name: "created_at", Default: true},
