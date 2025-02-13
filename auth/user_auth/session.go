@@ -155,6 +155,21 @@ func (s *UserAuthSession) IsExpired() bool {
 	return time.Now().Unix() > s.expiresAt
 }
 
+func (s *UserAuthSession) HasSuperPermission(permission auth.SuperPermission) bool {
+	switch permission {
+	case auth.SuperCreatePermission:
+		return s.superCreate
+	case auth.SuperDeletePermission:
+		return s.superDelete
+	case auth.SuperEditPermission:
+
+		return s.superEdit
+	case auth.SuperSelectPermission:
+		return s.superSelect
+	}
+	return false
+}
+
 func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo, mainObjClass string, mainAccess auth.AccessMode) *UserAuthSession {
 	session := &UserAuthSession{
 		user: &User{
@@ -175,7 +190,7 @@ func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo, mainObjClass str
 		session.license[lic.Id] = lic.ExpiresAt > time.Now().UnixMilli()
 	}
 	for _, permission := range userinfo.Permissions {
-		switch permission.GetId() {
+		switch auth.SuperPermission(permission.GetId()) {
 		case auth.SuperCreatePermission:
 			session.superCreate = true
 		case auth.SuperDeletePermission:

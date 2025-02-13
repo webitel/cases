@@ -16,11 +16,17 @@ const (
 	FULL            = Add | Read | Edit | Delete
 )
 
+type SuperPermission string
+
+func (a SuperPermission) Value() string {
+	return string(a)
+}
+
 const (
-	SuperSelectPermission = "read"
-	SuperEditPermission   = "write"
-	SuperCreatePermission = "add"
-	SuperDeletePermission = "delete"
+	SuperSelectPermission SuperPermission = "read"
+	SuperEditPermission   SuperPermission = "write"
+	SuperCreatePermission SuperPermission = "add"
+	SuperDeletePermission SuperPermission = "delete"
 )
 
 type Auther interface {
@@ -33,6 +39,7 @@ type Auther interface {
 	CheckLicenseAccess(string) bool
 	CheckObacAccess(string, AccessMode) bool
 	IsRbacCheckRequired(string, AccessMode) bool
+	HasSuperPermission(permission SuperPermission) bool
 
 	GetMainAccessMode() AccessMode
 	GetMainObjClassName() string
