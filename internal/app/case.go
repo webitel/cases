@@ -500,16 +500,6 @@ func (c *CaseService) resolveDynamicContactGroup(
 	return updCase, nil
 }
 
-// Parses a string ID into an int64
-func parseID(idStr string) int64 {
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		fmt.Printf("Error parsing ID: %v\n", err)
-		return 0
-	}
-	return id
-}
-
 // Converts a Case object to map[string]interface{} with "case." prefixed keys and lowercase values (except case.etag)
 func caseToMap(caseObj interface{}) (map[string]interface{}, error) {
 	caseJSON, err := json.Marshal(caseObj)
@@ -531,12 +521,12 @@ func caseToMap(caseObj interface{}) (map[string]interface{}, error) {
 }
 
 // Recursively adds prefixed keys for nested maps (all keys and values converted to lowercase except case.etag)
-func addPrefixedKeys(dest map[string]interface{}, source map[string]interface{}, prefix string) {
+func addPrefixedKeys(dest map[string]any, source map[string]any, prefix string) {
 	for key, value := range source {
 		fullKey := strings.ToLower(prefix + "." + key)
 
 		switch v := value.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			// Recursively process nested maps
 			addPrefixedKeys(dest, v, fullKey)
 		case string:
@@ -580,7 +570,7 @@ func evaluateComplexCondition(caseMap map[string]any, condition string) bool {
 }
 
 // Evaluates a single condition string, e.g., "case.assignee.name == 'volodia'"
-func evaluateSingleCondition(caseMap map[string]interface{}, condition string) bool {
+func evaluateSingleCondition(caseMap map[string]any, condition string) bool {
 	// Convert condition to lowercase
 	condition = strings.ToLower(condition)
 

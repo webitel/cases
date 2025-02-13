@@ -225,8 +225,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	if desc := caseItem.Description; desc != "" {
 		description = &desc
 	}
-
-	params := map[string]interface{}{
+	params := map[string]any{
 		// Case-level parameters
 		"date":                rpc.CurrentTime(),
 		"contact_info":        caseItem.GetContactInfo(),
@@ -357,9 +356,9 @@ func extractLinksJSON(links *_go.CaseLinkList) []byte {
 	if links == nil || len(links.Items) == 0 {
 		return []byte("[]")
 	}
-	var jsonArray []map[string]interface{}
+	var jsonArray []map[string]any
 	for _, link := range links.Items {
-		jsonArray = append(jsonArray, map[string]interface{}{
+		jsonArray = append(jsonArray, map[string]any{
 			"name": link.Name,
 			"url":  link.Url,
 		})
@@ -374,7 +373,7 @@ func extractRelatedJSON(related *_go.RelatedCaseList) []byte {
 	}
 	var jsonArray []map[string]any
 	for _, item := range related.Data {
-		jsonArray = append(jsonArray, map[string]interface{}{
+		jsonArray = append(jsonArray, map[string]any{
 			"id":   item.GetId(),
 			"type": item.GetRelationType(),
 		})
@@ -788,7 +787,6 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			"source",           // +
 			"priority",         // +
 			"impacted",         // +
-			"author",           // +
 			"close_reason",     // +
 			"contact_group",    // +
 			"service",          // +
@@ -810,6 +808,24 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 					valuesInt = append(valuesInt, converted)
 				}
 				base = base.Where(fmt.Sprintf("%s =  ANY(?::int[])", store.Ident(caseLeft, column)), valuesInt)
+			}
+		case "author":
+			if value == "" {
+				base = base.Where(fmt.Sprintf("%s IS NULL", store.Ident(caseAuthorAlias, "id")))
+				continue
+			}
+			switch typedValue := value.(type) {
+			case string:
+				values := strings.Split(typedValue, ",")
+				var valuesInt []int64
+				for _, s := range values {
+					converted, err := strconv.ParseInt(s, 10, 64)
+					if err != nil {
+						return base, nil, dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
+					}
+					valuesInt = append(valuesInt, converted)
+				}
+				base = base.Where(fmt.Sprintf("%s = ANY(?::int[])", store.Ident(caseAuthorAlias, "id")), valuesInt)
 			}
 
 		case "rating.from":
