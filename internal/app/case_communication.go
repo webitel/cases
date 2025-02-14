@@ -66,10 +66,7 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 }
 
 func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, request *cases.LinkCommunicationRequest) (*cases.LinkCommunicationResponse, error) {
-	if len(request.Input) == 0 {
-		return nil, errors.NewBadRequestError("app.case_communication.link_communication.check_args.payload", "no payload")
-	}
-	err := ValidateCaseCommunicationsCreate(request.Input...)
+	err := ValidateCaseCommunicationsCreate(request.Input)
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.validate_payload.error", err.Error())
 	}
@@ -101,7 +98,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 		}
 	}
 
-	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, request.Input)
+	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, []*cases.InputCaseCommunication{request.Input})
 	if dbErr != nil {
 		slog.ErrorContext(ctx, dbErr.Error(), logAttributes)
 		return nil, AppInternalError
