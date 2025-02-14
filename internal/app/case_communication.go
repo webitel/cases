@@ -171,14 +171,18 @@ func NormalizeResponseCommunications(res []*cases.CaseCommunication, requestedFi
 }
 
 func ValidateCaseCommunicationsCreate(input ...*cases.InputCaseCommunication) error {
-	errText := "validation errors: "
+
+	var errorsSlice []error
 	for i, communication := range input {
-		errText := fmt.Sprintf("([%v]: ", i)
+		if communication == nil {
+			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: empty entry", i))
+			continue
+		}
 		if communication.CommunicationId == "" {
-			errText += "communication can't be empty;"
+			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication can't be empty", i))
 		}
 		if communication.CommunicationType <= 0 {
-			errText += "communication type can't be empty;"
+			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication type can't be empty", i))
 		}
 		var typeFound bool
 		for _, i := range cases.CaseCommunicationsTypes_value {
@@ -188,9 +192,11 @@ func ValidateCaseCommunicationsCreate(input ...*cases.InputCaseCommunication) er
 			}
 		}
 		if !typeFound {
-			errText += "communication type not allowed;"
+			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication type not allowed", i))
 		}
-		errText += ") "
 	}
-	return defErr.New(errText)
+	if errorsSlice != nil {
+		return defErr.Join(errorsSlice...)
+	}
+	return nil
 }
