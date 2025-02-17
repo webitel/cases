@@ -641,29 +641,40 @@ func calculateTimestampFromCalendar(
 				continue
 			}
 
-			// Calculate the available minutes in the slot
-			availableMinutes := slotEndUtc - startingAt
+			// Subtract exception intervals from the slot
+			availableIntervals := subtractExceptionsFromSlot(
+				startingAt,
+				slotEndUtc,
+				dayExceptions,
+				calendarOffset,
+			)
 
-			// Exclude minutes that overlap with exceptions and adjust start time
-			availableMinutes, startingAt = excludeExceptionTime(availableMinutes, startingAt, dayExceptions)
+			// Iterate through available intervals
+			for _, interval := range availableIntervals {
+				intervalStart := interval.StartTimeOfDay
+				intervalEnd := interval.EndTimeOfDay
 
-			// If enough minutes are available after exclusions, finalize the time
-			if availableMinutes >= remainingMinutes {
-				finalTime := currentDayDate
-				finalTime = time.Date(
-					finalTime.Year(),
-					finalTime.Month(),
-					finalTime.Day(),
-					0, 0, 0, 0,
-					finalTime.Location(),
-				)
-				finalTime = finalTime.Add(time.Duration(startingAt+remainingMinutes) * time.Minute)
-				return finalTime, nil
+				// Calculate the available minutes in the interval
+				availableMinutes := intervalEnd - intervalStart
+
+				// If enough minutes are available, finalize the time
+				if availableMinutes >= remainingMinutes {
+					finalTime := currentDayDate
+					finalTime = time.Date(
+						finalTime.Year(),
+						finalTime.Month(),
+						finalTime.Day(),
+						0, 0, 0, 0,
+						finalTime.Location(),
+					)
+					finalTime = finalTime.Add(time.Duration(intervalStart+remainingMinutes) * time.Minute)
+					return finalTime, nil
+				}
+
+				// Deduct available minutes and move to the next interval
+				remainingMinutes -= availableMinutes
+				currentTimeInMinutes = intervalEnd
 			}
-
-			// Deduct available minutes and move to the next slot (same day)
-			remainingMinutes -= availableMinutes
-			currentTimeInMinutes = startingAt + availableMinutes
 		}
 
 		// Move to the next day if we haven't allocated all the required minutes
@@ -674,79 +685,120 @@ func calculateTimestampFromCalendar(
 	return time.Time{}, fmt.Errorf("unable to allocate required minutes")
 }
 
+// Helper function to subtract exceptions from a time slot
+func subtractExceptionsFromSlot(slotStart, slotEnd int, exceptions []struct {
+	StartTimeOfDay int
+	EndTimeOfDay   int
+}, calendarOffset time.Duration) []struct {
+	StartTimeOfDay int
+	EndTimeOfDay   int
+} {
+	// Adjust the exceptions by subtracting the calendar offset (convert to UTC)
+	adjustedExceptions := []struct {
+		StartTimeOfDay int
+		EndTimeOfDay   int
+	}{}
+
+	// Convert each exception to UTC time by adjusting with the calendar offset
+	for _, exception := range exceptions {
+		adjustedExceptions = append(adjustedExceptions, struct {
+			StartTimeOfDay int
+			EndTimeOfDay   int
+		}{
+			StartTimeOfDay: exception.StartTimeOfDay - int(calendarOffset.Minutes()),
+			EndTimeOfDay:   exception.EndTimeOfDay - int(calendarOffset.Minutes()),
+		})
+	}
+
+	// Now use the adjusted exceptions to subtract from the available time slot
+	availableIntervals := []struct {
+		StartTimeOfDay int
+		EndTimeOfDay   int
+	}{
+		{slotStart, slotEnd},
+	}
+
+	for _, exception := range adjustedExceptions {
+		newIntervals := []struct {
+			StartTimeOfDay int
+			EndTimeOfDay   int
+		}{}
+
+		for _, interval := range availableIntervals {
+			if exception.EndTimeOfDay <= interval.StartTimeOfDay || exception.StartTimeOfDay >= interval.EndTimeOfDay {
+				// No overlap, keep the interval as is
+				newIntervals = append(newIntervals, interval)
+			} else {
+				// Overlap detected, split the interval
+				if exception.StartTimeOfDay > interval.StartTimeOfDay {
+					newIntervals = append(newIntervals, struct {
+						StartTimeOfDay int
+						EndTimeOfDay   int
+					}{
+						interval.StartTimeOfDay,
+						exception.StartTimeOfDay,
+					})
+				}
+				if exception.EndTimeOfDay < interval.EndTimeOfDay {
+					newIntervals = append(newIntervals, struct {
+						StartTimeOfDay int
+						EndTimeOfDay   int
+					}{
+						exception.EndTimeOfDay,
+						interval.EndTimeOfDay,
+					})
+				}
+			}
+		}
+
+		availableIntervals = newIntervals
+	}
+
+	return availableIntervals
+}
+
 // Helper function to check if a day is disabled
 func isDisabledDay(calendar []struct {
 	Day            int
 	StartTimeOfDay int
 	EndTimeOfDay   int
 	Disabled       bool
-}, currentDay int,
+}, day int,
 ) bool {
-	for _, entry := range calendar {
-		if entry.Day == currentDay && entry.Disabled {
+	for _, cal := range calendar {
+		if cal.Day == day && cal.Disabled {
 			return true
 		}
 	}
 	return false
 }
 
-// Helper function to get available time slots for a given day
+// Helper function to get available time slots for a day
 func getAvailableTimeSlots(calendar []struct {
 	Day            int
 	StartTimeOfDay int
 	EndTimeOfDay   int
 	Disabled       bool
-}, currentDay int) []struct {
+}, day int) []struct {
 	StartTimeOfDay int
 	EndTimeOfDay   int
 } {
-	var availableSlots []struct {
+	slots := []struct {
 		StartTimeOfDay int
 		EndTimeOfDay   int
-	}
-	for _, slot := range calendar {
-		if slot.Day == currentDay && !slot.Disabled {
-			availableSlots = append(availableSlots, struct {
+	}{}
+	for _, cal := range calendar {
+		if cal.Day == day && !cal.Disabled {
+			slots = append(slots, struct {
 				StartTimeOfDay int
 				EndTimeOfDay   int
 			}{
-				StartTimeOfDay: slot.StartTimeOfDay,
-				EndTimeOfDay:   slot.EndTimeOfDay,
+				cal.StartTimeOfDay,
+				cal.EndTimeOfDay,
 			})
 		}
 	}
-	return availableSlots
-}
-
-func excludeExceptionTime(availableMinutes int, startingAt int, exceptions []struct {
-	StartTimeOfDay int
-	EndTimeOfDay   int
-},
-) (int, int) {
-	for _, exception := range exceptions {
-		// If startingAt is inside an exception, move it to the end of the exception
-		if startingAt >= exception.StartTimeOfDay && startingAt < exception.EndTimeOfDay {
-			startingAt = exception.EndTimeOfDay
-		}
-
-		// If the available time overlaps with an exception, exclude that time
-		if startingAt < exception.EndTimeOfDay && (startingAt+availableMinutes) > exception.StartTimeOfDay {
-			// Calculate overlap
-			overlapStart := max(startingAt, exception.StartTimeOfDay)
-			overlapEnd := min(startingAt+availableMinutes, exception.EndTimeOfDay)
-			overlapMinutes := overlapEnd - overlapStart
-
-			// Deduct the overlap from available minutes
-			availableMinutes -= overlapMinutes
-
-			// If the entire available period is consumed by the exception, stop further checks
-			if availableMinutes <= 0 {
-				availableMinutes = 0
-				break
-			}
-		}
-	}
-	return availableMinutes, startingAt
+	return slots
 }
 
 // Delete implements store.CaseStore.
