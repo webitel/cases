@@ -33,7 +33,7 @@ type AppError interface {
 }
 
 type ApplicationError struct {
-	params        map[string]interface{}
+	params        map[string]any
 	Id            string `json:"id"`
 	Where         string `json:"where,omitempty"`
 	Status        string `json:"status"`

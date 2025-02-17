@@ -29,12 +29,9 @@ type CaseStore struct {
 }
 
 const (
-	caseLeft               = "c"
-	caseDefaultSort        = "created_at"
-	casesObjClassScopeName = "cases"
-)
-
-const (
+	caseLeft                  = "c"
+	caseDefaultSort           = "created_at"
+	casesObjClassScopeName    = "cases"
 	caseCreatedByAlias        = "cb"
 	caseUpdatedByAlias        = "ub"
 	caseSourceAlias           = "src"
@@ -73,7 +70,7 @@ func (c *CaseStore) Create(
 	// Scan SLA details
 	// Sla_id
 	// reaction_at & resolve_at in [milli]seconds
-	slaID, slaConditionID, reaction_at, resolve_at, calendarID, err := c.ScanSla(
+	slaID, slaConditionID, reactionAt, resolveAt, calendarID, err := c.ScanSla(
 		rpc,
 		txManager,
 		add.Service.GetId(),
@@ -84,7 +81,7 @@ func (c *CaseStore) Create(
 	}
 
 	// Calculate planned times within the transaction
-	err = c.calculatePlannedReactionAndResolutionTime(rpc, calendarID, reaction_at, resolve_at, txManager, add)
+	err = c.calculatePlannedReactionAndResolutionTime(rpc, calendarID, reactionAt, resolveAt, txManager, add)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.calculate_planned_times_error", err)
 	}
@@ -339,8 +336,16 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 
 	// Construct SELECT query to return case data
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		&model.SearchOptions{Context: rpc.Context, Fields: rpc.Fields},
-		sq.Select().PrefixExpr(sq.Expr(boundQuery, args...)),
+		&model.SearchOptions{
+			Context: rpc.Context,
+			Fields:  rpc.Fields,
+		},
+		sq.Select().PrefixExpr(
+			sq.Expr(
+				boundQuery,
+				args...,
+			),
+		),
 	)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.case.create.build_select_query_error", err)
@@ -470,71 +475,21 @@ func fetchCalendarSlots(rpc *model.CreateOptions, txManager *transaction.TxManag
 	Day            int
 	StartTimeOfDay int
 	EndTimeOfDay   int
-	Special        bool
 	Disabled       bool
 }, error,
 ) {
-	rows, err := txManager.Query(rpc.Context, `
-		SELECT day, start_time_of_day, end_time_of_day, special, disabled
-		FROM flow.calendar cl, UNNEST(accepts::flow.calendar_accept_time[]) x
-		WHERE cl.id = $1
-		ORDER BY day, start_time_of_day`, calendarID)
+	rows, err := txManager.Query(rpc.Context, `SELECT day, start_time_of_day, end_time_of_day, disabled
+FROM flow.calendar cl,
+     UNNEST(accepts::flow.calendar_accept_time[]) x
+WHERE cl.id = $1
+    and (not x.special or x.special isnull )
+ORDER BY day, start_time_of_day`, calendarID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch calendar details: %w", err)
 	}
 	defer rows.Close()
 
 	var calendar []struct {
-		Day            int
-		StartTimeOfDay int
-		EndTimeOfDay   int
-		Special        bool
-		Disabled       bool
-	}
-	for rows.Next() {
-		var entry struct {
-			Day            int
-			StartTimeOfDay int
-			EndTimeOfDay   int
-			Special        bool
-			Disabled       bool
-		}
-		if err := rows.Scan(&entry.Day, &entry.StartTimeOfDay, &entry.EndTimeOfDay, &entry.Special, &entry.Disabled); err != nil {
-			return nil, fmt.Errorf("failed to scan calendar entry: %w", err)
-		}
-		if !entry.Disabled {
-			calendar = append(calendar, entry)
-		}
-	}
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over calendar rows: %w", err)
-	}
-	return calendar, nil
-}
-
-// fetchExceptionSlots retrieves exceptions for specific days (overrides)
-func fetchExceptionSlots(rpc *model.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]struct {
-	Day            int
-	StartTimeOfDay int
-	EndTimeOfDay   int
-	Disabled       bool
-}, error,
-) {
-	rows, err := txManager.Query(rpc.Context, `
-	SELECT
-	 EXTRACT(DOW FROM to_timestamp(x.date)) AS day,
-	 x.work_start AS start_time_of_day,
-	 x.work_stop AS end_time_of_day,
-	 x.disabled
-	FROM flow.calendar cl, UNNEST(cl.excepts::flow.calendar_except_date[]) x
-	WHERE cl.id = $1
-	ORDER BY x.date, x.work_start`, calendarID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch calendar exceptions: %w", err)
-	}
-	defer rows.Close()
-
-	var exceptions []struct {
 		Day            int
 		StartTimeOfDay int
 		EndTimeOfDay   int
@@ -548,96 +503,236 @@ func fetchExceptionSlots(rpc *model.CreateOptions, txManager *transaction.TxMana
 			Disabled       bool
 		}
 		if err := rows.Scan(&entry.Day, &entry.StartTimeOfDay, &entry.EndTimeOfDay, &entry.Disabled); err != nil {
+			return nil, fmt.Errorf("failed to scan calendar entry: %w", err)
+		}
+
+		// Adjust the Day value by adding 1 to shift Monday from 0 to 1
+		entry.Day = (entry.Day + 1) % 7
+		calendar = append(calendar, entry)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over calendar rows: %w", err)
+	}
+	return calendar, nil
+}
+
+// fetchExceptionSlots retrieves exceptions for specific days (overrides)
+func fetchExceptionSlots(rpc *model.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]struct {
+	Date           time.Time
+	StartTimeOfDay int
+	EndTimeOfDay   int
+}, error) {
+	// Query to fetch the exceptions with specific dates
+	rows, err := txManager.Query(rpc.Context, `
+	SELECT
+		to_timestamp(x.date / 1000) AS date,
+		x.work_start AS start_time_of_day,
+		x.work_stop AS end_time_of_day
+	FROM flow.calendar cl, UNNEST(cl.excepts::flow.calendar_except_date[]) x
+	WHERE cl.id = $1
+	ORDER BY x.date, x.work_start`, calendarID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch calendar exceptions: %w", err)
+	}
+	defer rows.Close()
+
+	var exceptions []struct {
+		Date           time.Time
+		StartTimeOfDay int
+		EndTimeOfDay   int
+	}
+
+	// Iterate over the rows and extract the required information
+	for rows.Next() {
+		var entry struct {
+			Date           time.Time
+			StartTimeOfDay int
+			EndTimeOfDay   int
+		}
+		if err := rows.Scan(&entry.Date, &entry.StartTimeOfDay, &entry.EndTimeOfDay); err != nil {
 			return nil, fmt.Errorf("failed to scan exception entry: %w", err)
 		}
 		exceptions = append(exceptions, entry)
 	}
+
+	// Return the exceptions with the specific date
 	return exceptions, nil
 }
 
 func calculateTimestampFromCalendar(
 	startTime time.Time,
 	calendarOffset time.Duration,
-	requiredMinutes int, // ✅ Fixed: Now correctly in minutes
+	requiredMinutes int,
 	calendar []struct {
-		Day            int
-		StartTimeOfDay int
-		EndTimeOfDay   int
-		Special        bool
-		Disabled       bool
-	},
+	Day            int
+	StartTimeOfDay int
+	EndTimeOfDay   int
+	Disabled       bool
+},
 	exceptions []struct {
-		Day            int
+	Date           time.Time
+	StartTimeOfDay int
+	EndTimeOfDay   int
+},
+) (time.Time, error) {
+	fmt.Printf("Starting calculation: currentDay=%d, startTime=%v, requiredMinutes=%d\n", int(startTime.Weekday()), startTime, requiredMinutes)
+
+	remainingMinutes := requiredMinutes
+	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute()
+	addDays := 0
+
+	// Map to track exceptions for each day
+	exceptionMap := make(map[string][]struct {
 		StartTimeOfDay int
 		EndTimeOfDay   int
-		Disabled       bool
-	},
-) (time.Time, error) {
-	remainingMinutes := requiredMinutes
-	currentDay := int(startTime.Weekday())                           // Current day (0=Sunday, ..., 6=Saturday)
-	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute() // Current time in minutes
-	addDays := 0                                                     // Track how many days we move forward
+	})
 
-	// Create a map of fully disabled days
-	disabledDays := make(map[int]bool)
+	// Populate the exception map
 	for _, exception := range exceptions {
-		if exception.Disabled && exception.StartTimeOfDay == 0 && exception.EndTimeOfDay == 1440 {
-			disabledDays[exception.Day] = true
-		}
+		dateStr := exception.Date.Format("2006-01-02") // Use date string as key (e.g., "2026-12-14")
+		exceptionMap[dateStr] = append(exceptionMap[dateStr], struct {
+			StartTimeOfDay int
+			EndTimeOfDay   int
+		}{
+			StartTimeOfDay: exception.StartTimeOfDay,
+			EndTimeOfDay:   exception.EndTimeOfDay,
+		})
 	}
 
-	// Iterate over calendar slots until we find enough time
+	// Process each day while there are remaining minutes
 	for remainingMinutes > 0 {
-		// Skip fully disabled days (holidays)
-		for disabledDays[currentDay] {
-			currentDay = (currentDay + 1) % 7
+		// Calculate current day date
+		currentDayDate := startTime.AddDate(0, 0, addDays)
+		currentDay := int(currentDayDate.Weekday())
+
+		// Skip disabled days (holidays)
+		if isDisabledDay(calendar, currentDay) {
+			fmt.Printf("Skipping holiday: day=%d\n", currentDay)
 			addDays++
-			currentTimeInMinutes = 0 //
+			currentTimeInMinutes = 0 // Reset to start of the day
+			continue
 		}
 
-		// Iterate through available time slots
-		for _, slot := range calendar {
-			if slot.Disabled {
+		// Get available time slots for the current day
+		daySlots := getAvailableTimeSlots(calendar, currentDay)
+		if len(daySlots) == 0 {
+			addDays++
+			currentTimeInMinutes = 0
+			continue
+		}
+
+		// Get the exceptions for the current day based on the date
+		dateStr := currentDayDate.Format("2006-01-02")
+		dayExceptions := exceptionMap[dateStr]
+
+		// Process each time slot
+		for _, slot := range daySlots {
+			if slot.StartTimeOfDay > slot.EndTimeOfDay {
+				// Invalid slot (shouldn't happen, but let's safeguard)
 				continue
 			}
 
-			// Ensure the slot matches the correct day
-			if slot.Day != currentDay {
-				continue
-			}
-
-			// Convert slot times to UTC minutes
-			slotStartUtc := slot.StartTimeOfDay - int(calendarOffset.Minutes()) // ✅ Correct offset handling
+			// Convert slot times to UTC minutes considering the calendar offset
+			slotStartUtc := slot.StartTimeOfDay - int(calendarOffset.Minutes())
 			slotEndUtc := slot.EndTimeOfDay - int(calendarOffset.Minutes())
 
-			// If today, start from the current time; otherwise, take full slot
+			// Ensure we start counting from the correct time (taking currentTimeInMinutes into account)
 			startingAt := max(currentTimeInMinutes, slotStartUtc)
 			if slotEndUtc <= startingAt {
-				continue // Skip if the slot is already past
+				continue
 			}
 
+			// Calculate the available minutes in the slot
 			availableMinutes := slotEndUtc - startingAt
+			fmt.Printf("Available minutes in slot: %d\n", availableMinutes)
 
-			// If we have enough time, return the timestamp
+			// Exclude minutes that overlap with exceptions
+			availableMinutes = excludeExceptionTime(availableMinutes, startingAt, dayExceptions)
+
+			// If enough minutes are available after exclusions, finalize the time
 			if availableMinutes >= remainingMinutes {
-				startDate := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, startTime.Location())
-				startDate = startDate.Add(time.Duration(24*addDays) * time.Hour) // Adjust for skipped days
-				startDate = startDate.Add(time.Duration(startingAt) * time.Minute)
-				startDate = startDate.Add(time.Duration(remainingMinutes) * time.Minute)
-				return startDate, nil
+				finalTime := currentDayDate
+				finalTime = time.Date(finalTime.Year(), finalTime.Month(), finalTime.Day(), 0, 0, 0, 0, finalTime.Location())
+				finalTime = finalTime.Add(time.Duration(startingAt+remainingMinutes) * time.Minute)
+				fmt.Printf("Final timestamp calculated: %v\n", finalTime)
+				return finalTime, nil
 			}
 
-			// Deduct available time and continue searching
+			// Deduct available minutes and move to the next slot (same day)
 			remainingMinutes -= availableMinutes
+			currentTimeInMinutes = slotEndUtc
 		}
 
-		// Move to the next day
-		currentDay = (currentDay + 1) % 7
+		// Move to the next day if we haven't allocated all the required minutes
 		addDays++
-		currentTimeInMinutes = 0 // ✅ Reset time when moving to a new day
+		currentTimeInMinutes = 0
+		fmt.Printf("Moving to the next day, remainingMinutes=%d\n", remainingMinutes)
 	}
 
 	return time.Time{}, fmt.Errorf("unable to allocate required minutes")
+}
+
+// Helper function to check if a day is disabled
+func isDisabledDay(calendar []struct {
+	Day            int
+	StartTimeOfDay int
+	EndTimeOfDay   int
+	Disabled       bool
+}, currentDay int) bool {
+	for _, entry := range calendar {
+		if entry.Day == currentDay && entry.Disabled {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper function to get available time slots for a given day
+func getAvailableTimeSlots(calendar []struct {
+	Day            int
+	StartTimeOfDay int
+	EndTimeOfDay   int
+	Disabled       bool
+}, currentDay int) []struct {
+	StartTimeOfDay int
+	EndTimeOfDay   int
+} {
+	var availableSlots []struct {
+		StartTimeOfDay int
+		EndTimeOfDay   int
+	}
+	for _, slot := range calendar {
+		if slot.Day == currentDay && !slot.Disabled {
+			availableSlots = append(availableSlots, struct {
+				StartTimeOfDay int
+				EndTimeOfDay   int
+			}{
+				StartTimeOfDay: slot.StartTimeOfDay,
+				EndTimeOfDay:   slot.EndTimeOfDay,
+			})
+		}
+	}
+	return availableSlots
+}
+
+// Helper function to exclude minutes during exceptions
+func excludeExceptionTime(availableMinutes int, startingAt int, exceptions []struct {
+	StartTimeOfDay int
+	EndTimeOfDay   int
+}) int {
+	for _, exception := range exceptions {
+		// If the available time overlaps with an exception, exclude that time
+		if startingAt < exception.EndTimeOfDay && startingAt+availableMinutes > exception.StartTimeOfDay {
+			// Calculate overlap
+			overlapStart := max(startingAt, exception.StartTimeOfDay)
+			overlapEnd := min(startingAt+availableMinutes, exception.EndTimeOfDay)
+			overlapMinutes := overlapEnd - overlapStart
+
+			// Deduct the overlap from the available minutes
+			availableMinutes -= overlapMinutes
+		}
+	}
+	return availableMinutes
 }
 
 // Delete implements store.CaseStore.

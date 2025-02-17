@@ -497,6 +497,7 @@ func (c *CaseService) resolveDynamicContactGroup(
 	if err != nil {
 		return nil, err
 	}
+
 	return updCase, nil
 }
 
@@ -569,7 +570,7 @@ func evaluateComplexCondition(caseMap map[string]any, condition string) bool {
 	return false
 }
 
-// Evaluates a single condition string, e.g., "case.assignee.name == 'volodia'"
+// Evaluates a single condition string, e.g., "case.assignee.name == 'John Wick'"
 func evaluateSingleCondition(caseMap map[string]any, condition string) bool {
 	// Convert condition to lowercase
 	condition = strings.ToLower(condition)
