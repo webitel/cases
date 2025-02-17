@@ -1347,7 +1347,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			base = base.Column(fmt.Sprintf(
 				`ROW(%s.id, %[1]s.name,
 							CASE
-								WHEN g.id IN (SELECT id FROM contacts.dynamic_group) THEN 'dynamic'
+								WHEN EXISTS(SELECT id FROM contacts.dynamic_group WHERE id = %[1]s.id) THEN 'dynamic'
 								ELSE 'static'
 							END
 						)::text  AS contact_group`, tableAlias))
