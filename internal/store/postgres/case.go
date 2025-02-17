@@ -577,8 +577,6 @@ func calculateTimestampFromCalendar(
 		EndTimeOfDay   int
 	},
 ) (time.Time, error) {
-	fmt.Printf("Starting calculation: currentDay=%d, startTime=%v, requiredMinutes=%d\n", int(startTime.Weekday()), startTime, requiredMinutes)
-
 	remainingMinutes := requiredMinutes
 	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute() // UTC
 	addDays := 0
@@ -609,7 +607,6 @@ func calculateTimestampFromCalendar(
 
 		// Skip disabled days (holidays)
 		if isDisabledDay(calendar, currentDay) {
-			fmt.Printf("Skipping holiday: day=%d\n", currentDay)
 			addDays++
 			currentTimeInMinutes = 0 // Reset to start of the day
 			continue
@@ -646,10 +643,9 @@ func calculateTimestampFromCalendar(
 
 			// Calculate the available minutes in the slot
 			availableMinutes := slotEndUtc - startingAt
-			fmt.Printf("Available minutes in slot: %d\n", availableMinutes)
 
-			// Exclude minutes that overlap with exceptions
-			availableMinutes = excludeExceptionTime(availableMinutes, startingAt, dayExceptions)
+			// Exclude minutes that overlap with exceptions and adjust start time
+			availableMinutes, startingAt = excludeExceptionTime(availableMinutes, startingAt, dayExceptions)
 
 			// If enough minutes are available after exclusions, finalize the time
 			if availableMinutes >= remainingMinutes {
@@ -658,26 +654,21 @@ func calculateTimestampFromCalendar(
 					finalTime.Year(),
 					finalTime.Month(),
 					finalTime.Day(),
-					0,
-					0,
-					0,
-					0,
-					time.FixedZone("Zone", -int(calendarOffset.Seconds())),
+					0, 0, 0, 0,
+					finalTime.Location(),
 				)
 				finalTime = finalTime.Add(time.Duration(startingAt+remainingMinutes) * time.Minute)
-				fmt.Printf("Final timestamp calculated: %v\n", finalTime)
 				return finalTime, nil
 			}
 
 			// Deduct available minutes and move to the next slot (same day)
 			remainingMinutes -= availableMinutes
-			currentTimeInMinutes = slotEndUtc
+			currentTimeInMinutes = startingAt + availableMinutes
 		}
 
 		// Move to the next day if we haven't allocated all the required minutes
 		addDays++
 		currentTimeInMinutes = 0
-		fmt.Printf("Moving to the next day, remainingMinutes=%d\n", remainingMinutes)
 	}
 
 	return time.Time{}, fmt.Errorf("unable to allocate required minutes")
@@ -727,25 +718,35 @@ func getAvailableTimeSlots(calendar []struct {
 	return availableSlots
 }
 
-// Helper function to exclude minutes during exceptions
 func excludeExceptionTime(availableMinutes int, startingAt int, exceptions []struct {
 	StartTimeOfDay int
 	EndTimeOfDay   int
 },
-) int {
+) (int, int) {
 	for _, exception := range exceptions {
+		// If startingAt is inside an exception, move it to the end of the exception
+		if startingAt >= exception.StartTimeOfDay && startingAt < exception.EndTimeOfDay {
+			startingAt = exception.EndTimeOfDay
+		}
+
 		// If the available time overlaps with an exception, exclude that time
-		if startingAt < exception.EndTimeOfDay && startingAt+availableMinutes > exception.StartTimeOfDay {
+		if startingAt < exception.EndTimeOfDay && (startingAt+availableMinutes) > exception.StartTimeOfDay {
 			// Calculate overlap
 			overlapStart := max(startingAt, exception.StartTimeOfDay)
 			overlapEnd := min(startingAt+availableMinutes, exception.EndTimeOfDay)
 			overlapMinutes := overlapEnd - overlapStart
 
-			// Deduct the overlap from the available minutes
+			// Deduct the overlap from available minutes
 			availableMinutes -= overlapMinutes
+
+			// If the entire available period is consumed by the exception, stop further checks
+			if availableMinutes <= 0 {
+				availableMinutes = 0
+				break
+			}
 		}
 	}
-	return availableMinutes
+	return availableMinutes, startingAt
 }
 
 // Delete implements store.CaseStore.
