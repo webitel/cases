@@ -157,11 +157,11 @@ func NewCaseCommunicationService(app *App) (*CaseCommunicationService, errors.Ap
 
 func NormalizeResponseCommunications(res []*cases.CaseCommunication, requestedFields []string) error {
 	if len(requestedFields) == 0 {
-		requestedFields = CaseCommentMetadata.GetDefaultFields()
+		requestedFields = CaseCommunicationMetadata.GetDefaultFields()
 	}
 	hasEtag, hasId, hasVer := util.FindEtagFields(requestedFields)
 	for _, re := range res {
-		err := util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &re.Etag, &re.Id, &re.Ver)
+		err := util.NormalizeEtags(etag.EtagCaseCommunication, hasEtag, hasId, hasVer, &re.Etag, &re.Id, &re.Ver)
 		if err != nil {
 			return err
 		}

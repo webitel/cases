@@ -695,11 +695,12 @@ func buildTimelineCounterSqlizer(rpc *model.SearchOptions) (query squirrel.Sqliz
 	}
 
 	query = squirrel.Select("count(*) count",
-		"max(type) event",
+		"type event",
 		"max(closed_at) date_to",
 		"min(created_at) date_from").
 		From(from).
 		Prefix(cteQuery, args...).
+		GroupBy("type").
 		PlaceholderFormat(squirrel.Dollar)
 
 	// each row represents type of event
