@@ -652,7 +652,7 @@ func calculateTimestampFromCalendar(
 			// If enough minutes are available after exclusions, finalize the time
 			if availableMinutes >= remainingMinutes {
 				finalTime := currentDayDate
-				finalTime = time.Date(finalTime.Year(), finalTime.Month(), finalTime.Day(), 0, 0, 0, 0, finalTime.Location())
+				finalTime = time.Date(finalTime.Year(), finalTime.Month(), finalTime.Day(), 0, 0, 0, 0, time.FixedZone("Zone", -int(calendarOffset.Seconds())))
 				finalTime = finalTime.Add(time.Duration(startingAt+remainingMinutes) * time.Minute)
 				fmt.Printf("Final timestamp calculated: %v\n", finalTime)
 				return finalTime, nil

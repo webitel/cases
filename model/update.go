@@ -52,6 +52,7 @@ func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetada
 		Mask:    req.GetXJsonMask(),
 		Time:    time.Now(),
 	}
+	opts.CurrentTime()
 	if sess := GetAutherOutOfContext(ctx); sess != nil {
 		opts.Auth = sess
 	} else {
