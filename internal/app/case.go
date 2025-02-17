@@ -441,7 +441,7 @@ func (c *CaseService) resolveDynamicContactGroup(
 		return nil, AppForbiddenError
 	}
 
-	// Iterate over all dynamic conditions in the group
+	// Iterate over all dynamic conditions in the group…
 	for _, condition := range inputGroup.Group.Conditions {
 		// Evaluate the condition against the case map
 		if evaluateComplexCondition(caseMap, condition.Expression) {

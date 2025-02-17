@@ -522,7 +522,8 @@ func fetchExceptionSlots(rpc *model.CreateOptions, txManager *transaction.TxMana
 	Date           time.Time
 	StartTimeOfDay int
 	EndTimeOfDay   int
-}, error) {
+}, error,
+) {
 	// Query to fetch the exceptions with specific dates
 	rows, err := txManager.Query(rpc.Context, `
 	SELECT
@@ -653,7 +654,16 @@ func calculateTimestampFromCalendar(
 			// If enough minutes are available after exclusions, finalize the time
 			if availableMinutes >= remainingMinutes {
 				finalTime := currentDayDate
-				finalTime = time.Date(finalTime.Year(), finalTime.Month(), finalTime.Day(), 0, 0, 0, 0, time.FixedZone("Zone", -int(calendarOffset.Seconds())))
+				finalTime = time.Date(
+					finalTime.Year(),
+					finalTime.Month(),
+					finalTime.Day(),
+					0,
+					0,
+					0,
+					0,
+					time.FixedZone("Zone", -int(calendarOffset.Seconds())),
+				)
 				finalTime = finalTime.Add(time.Duration(startingAt+remainingMinutes) * time.Minute)
 				fmt.Printf("Final timestamp calculated: %v\n", finalTime)
 				return finalTime, nil
@@ -679,7 +689,8 @@ func isDisabledDay(calendar []struct {
 	StartTimeOfDay int
 	EndTimeOfDay   int
 	Disabled       bool
-}, currentDay int) bool {
+}, currentDay int,
+) bool {
 	for _, entry := range calendar {
 		if entry.Day == currentDay && entry.Disabled {
 			return true
@@ -720,7 +731,8 @@ func getAvailableTimeSlots(calendar []struct {
 func excludeExceptionTime(availableMinutes int, startingAt int, exceptions []struct {
 	StartTimeOfDay int
 	EndTimeOfDay   int
-}) int {
+},
+) int {
 	for _, exception := range exceptions {
 		// If the available time overlaps with an exception, exclude that time
 		if startingAt < exception.EndTimeOfDay && startingAt+availableMinutes > exception.StartTimeOfDay {
