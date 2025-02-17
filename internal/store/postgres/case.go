@@ -45,6 +45,7 @@ const (
 	caseAssigneeAlias         = "ass" // :))
 	caseReporterAlias         = "rp"
 	caseImpactedAlias         = "im"
+	caseGroupAlias            = "grp"
 	caseRelatedAlias          = "related"
 	caseLinksAlias            = "links"
 )
@@ -564,21 +565,21 @@ func calculateTimestampFromCalendar(
 	calendarOffset time.Duration,
 	requiredMinutes int,
 	calendar []struct {
-	Day            int
-	StartTimeOfDay int
-	EndTimeOfDay   int
-	Disabled       bool
-},
+		Day            int
+		StartTimeOfDay int
+		EndTimeOfDay   int
+		Disabled       bool
+	},
 	exceptions []struct {
-	Date           time.Time
-	StartTimeOfDay int
-	EndTimeOfDay   int
-},
+		Date           time.Time
+		StartTimeOfDay int
+		EndTimeOfDay   int
+	},
 ) (time.Time, error) {
 	fmt.Printf("Starting calculation: currentDay=%d, startTime=%v, requiredMinutes=%d\n", int(startTime.Weekday()), startTime, requiredMinutes)
 
 	remainingMinutes := requiredMinutes
-	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute()
+	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute() // UTC
 	addDays := 0
 
 	// Map to track exceptions for each day
@@ -889,7 +890,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			"service",          // +
 			"status_condition", // +
 			"sla":              // +
-			if value == "" {
+			if value == "null" {
 				base = base.Where(fmt.Sprintf("%s ISNULL", store.Ident(caseLeft, column)))
 				continue
 			}
@@ -907,7 +908,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 				base = base.Where(fmt.Sprintf("%s =  ANY(?::int[])", store.Ident(caseLeft, column)), valuesInt)
 			}
 		case "author":
-			if value == "" {
+			if value == "null" {
 				base = base.Where(fmt.Sprintf("%s IS NULL", store.Ident(caseAuthorAlias, "id")))
 				continue
 			}
@@ -1268,6 +1269,9 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 	case "impacted":
 		tableAlias = caseImpactedAlias
 		joinTable(tableAlias, "contacts.contact", store.Ident(caseLeft, "impacted"))
+	case "group":
+		tableAlias = caseGroupAlias
+		joinTable(tableAlias, "contacts.group", store.Ident(caseLeft, "contact_group"))
 	}
 	return base, tableAlias, nil
 }
@@ -1341,17 +1345,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "group":
 			base = base.Column(fmt.Sprintf(
-				`(
-					SELECT
-						ROW(g.id, g.name,
+				`ROW(%s.id, %[1]s.name,
 							CASE
 								WHEN g.id IN (SELECT id FROM contacts.dynamic_group) THEN 'dynamic'
 								ELSE 'static'
 							END
-						)::text
-					FROM contacts.group g
-					WHERE g.id = %s.contact_group
-				) AS contact_group`, tableAlias))
+						)::text  AS contact_group`, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowExtendedLookup(&caseItem.Group)
 			})
@@ -1455,7 +1454,6 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Author)
 			})
-
 		case "close":
 			base = base.Column(store.Ident(caseLeft, "close_result"))
 			plan = append(plan, func(caseItem *_go.Case) any {
@@ -1692,7 +1690,6 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Assignee)
 			})
-
 		case "reporter":
 			base = base.Column(fmt.Sprintf(
 				"ROW(%s.id, %[1]s.common_name)::text AS reporter", tableAlias))
