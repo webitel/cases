@@ -279,28 +279,28 @@ func (s *CatalogService) ListCatalogs(
 			Fields: []string{"id", "team", "skills"},
 			UserId: []int64{searchOptions.GetAuthOpts().GetUserId()},
 		})
-		if err != nil {
-			slog.ErrorContext(ctx, err.Error())
-			return nil, AppInternalError
-		}
-		if len(res.Items) != 0 {
-			var (
-				agent  = res.Items[0]
-				skills []int64
-			)
-			if team := agent.Team; team != nil {
-				if team.GetId() > 0 {
-					searchOptions.Filter["team"] = agent.Team.Id
+		if err == nil { // passive filter, if we can't receive agent's skills and teams for whatever reason then skip
+			if len(res.Items) != 0 {
+				var (
+					agent  = res.Items[0]
+					skills []int64
+				)
+				if team := agent.Team; team != nil {
+					if team.GetId() > 0 {
+						searchOptions.Filter["team"] = agent.Team.Id
+					}
+				}
+				if agent.Skills != nil && len(agent.Skills) != 0 {
+					for _, skill := range agent.Skills {
+						skills = append(skills, skill.GetId())
+					}
+					searchOptions.Filter["skills"] = skills
+
 				}
 			}
-			if agent.Skills != nil && len(agent.Skills) != 0 {
-				for _, skill := range agent.Skills {
-					skills = append(skills, skill.GetId())
-				}
-				searchOptions.Filter["skills"] = skills
-
-			}
-
+		} else {
+			slog.WarnContext(ctx, err.Error()) // log and skip
+			err = nil
 		}
 	}
 
