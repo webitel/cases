@@ -46,6 +46,7 @@ const (
 	caseReporterAlias         = "rp"
 	caseImpactedAlias         = "im"
 	caseGroupAlias            = "grp"
+	caseSlaConditionAlias     = "cond"
 	caseRelatedAlias          = "related"
 	caseLinksAlias            = "links"
 )
@@ -1031,18 +1032,26 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			tableAlias = caseReporterAlias
 		case "impacted":
 			tableAlias = caseImpactedAlias
+		case "group":
+			tableAlias = caseGroupAlias
+		case "close_reason":
+			tableAlias = caseCloseReasonAlias
+		case "sla_condition":
+			tableAlias = caseSlaConditionAlias
 		}
 	}
 	if tableAlias == "" {
 		tableAlias = caseLeft
 	}
 	switch field {
-	case "id", "ver", "created_at", "updated_at", "name", "subject", "description", "planned_reaction_at", "planned_resolve_at", "contact_info":
+	case "id", "ver", "created_at", "updated_at", "name", "subject", "description", "planned_reaction_at", "planned_resolve_at", "reacted_at", "resolved_at", "contact_info", "close_result", "rating", "rating_comment":
 		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, field), direction))
-	case "created_by", "updated_by", "source", "close_reason_group", "sla", "status_condition", "status", "priority", "service":
+	case "created_by", "updated_by", "source", "close_reason_group", "close_reason", "sla", "status_condition", "status", "priority", "service", "group":
 		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, "name"), direction))
 	case "author", "assignee", "reporter", "impacted":
 		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, "common_name"), direction))
+	case "sla_condition":
+		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, "name"), direction))
 	}
 
 	return base, plan, nil
@@ -1268,6 +1277,9 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 	case "close":
 		tableAlias = caseCloseReasonAlias
 		joinTable(tableAlias, "cases.close_reason", store.Ident(caseLeft, "close_reason"))
+	case "close_reason":
+		tableAlias = "cr_sh"
+		joinTable(tableAlias, "cases.close_reason", store.Ident(caseLeft, "close_reason"))
 	case "sla":
 		tableAlias = caseSlaAlias
 		joinTable(tableAlias, "cases.sla", store.Ident(caseLeft, "sla"))
@@ -1292,6 +1304,9 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 	case "group":
 		tableAlias = caseGroupAlias
 		joinTable(tableAlias, "contacts.group", store.Ident(caseLeft, "contact_group"))
+	case "sla_condition":
+		tableAlias = caseSlaConditionAlias
+		joinTable(tableAlias, "cases.sla_condition", store.Ident(caseLeft, "sla_condition_id"))
 	}
 	return base, tableAlias, nil
 }
@@ -1728,10 +1743,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				return scanner.ScanRowLookup(&caseItem.Impacted)
 			})
 		case "sla_condition":
-			base = base.Column(`
-				(SELECT ROW(sc.id, sc.name)::text
-				FROM cases.sla_condition sc
-				WHERE sc.sla_id = c.sla AND sc.id = ANY(SELECT sla_condition_id FROM cases.priority_sla_condition WHERE priority_id = c.priority LIMIT 1)) AS sla_condition`)
+			base = base.Column(fmt.Sprintf("ROW(%s.id, %[1]s.name)::text AS sla_condition", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.SlaCondition)
 			})
