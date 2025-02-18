@@ -627,6 +627,16 @@ func calculateTimestampFromCalendar(
 		// Calculate current day date
 		currentDayDate := startTime.AddDate(0, 0, addDays)
 
+		// Skip entire day if it's an exception and is disabled
+		for _, slot := range mergedSlots {
+			if slot.Disabled && !slot.Date.IsZero() && isSameDate(slot.Date, currentDayDate) {
+				// If today is marked as disabled, skip this whole day
+				addDays++
+				currentTimeInMinutes = 0
+				continue
+			}
+		}
+
 		// Check for date-specific slots first (exceptions)
 		dateSpecificSlotFound := false
 		for _, slot := range mergedSlots {
