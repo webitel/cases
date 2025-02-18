@@ -132,13 +132,11 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 	insert := squirrel.Insert(c.mainTable).Columns("created_by", "created_at", "dc", "communication_type", "communication_id", "case_id").Suffix("ON CONFLICT DO NOTHING RETURNING *")
 
 	var (
-		caseId                = options.ParentID
-		dc                    *int64
-		userId                *int64
-		roles                 []int64
-		callsRbac, caseRbac   bool
-		superEditPermission   bool
-		superSelectPermission bool
+		caseId              = options.ParentID
+		dc                  *int64
+		userId              *int64
+		roles               []int64
+		callsRbac, caseRbac bool
 	)
 	if session := options.GetAuthOpts(); session != nil {
 		d := session.GetDomainId()
@@ -146,13 +144,11 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 		u := session.GetUserId()
 		userId = &u
 		roles = session.GetRoles()
-		callsRbac = session.GetObjectScope("calls").IsRbacUsed()
-		caseRbac = session.GetObjectScope("cases").IsRbacUsed()
-		superSelectPermission = session.HasSuperPermission(auth.SuperSelectPermission)
-		superEditPermission = session.HasSuperPermission(auth.SuperEditPermission)
+		callsRbac = session.IsRbacCheckRequired("calls", auth.Read)
+		caseRbac = session.IsRbacCheckRequired("cases", auth.Edit)
 	}
 	var caseSubquery squirrel.Sqlizer
-	if caseRbac && !superEditPermission {
+	if caseRbac {
 		caseSubquery = squirrel.Expr(`(SELECT object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = ? AND acl.subject = any(?::int[]) AND acl.access & ? = ?)`,
 			dc, caseId, roles, auth.Edit, auth.Edit)
 	} else {
@@ -163,7 +159,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 		switch communication.CommunicationType {
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CALL:
 			var callsSubquery squirrel.Sqlizer
-			if callsRbac && !superSelectPermission {
+			if callsRbac {
 				callsSubquery = squirrel.Expr(`(SELECT c.id::text
 															 FROM call_center.cc_calls_history c
 															 WHERE id = ?::uuid
