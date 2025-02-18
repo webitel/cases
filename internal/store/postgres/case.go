@@ -627,14 +627,22 @@ func calculateTimestampFromCalendar(
 		// Calculate current day date
 		currentDayDate := startTime.AddDate(0, 0, addDays)
 
-		// Skip entire day if it's an exception and is disabled
+		// Check if today is a disabled exception and skip if true
+		// This ensures that we skip the day only once if both calendar and exception are disabled
+		skipDay := false
 		for _, slot := range mergedSlots {
 			if slot.Disabled && !slot.Date.IsZero() && isSameDate(slot.Date, currentDayDate) {
-				// If today is marked as disabled, skip this whole day
-				addDays++
-				currentTimeInMinutes = 0
-				continue
+				// If today is marked as disabled in exception, skip this day
+				skipDay = true
+				break
 			}
+		}
+
+		// Skip the whole day if it's an exception or calendar day
+		if skipDay {
+			addDays++
+			currentTimeInMinutes = 0
+			continue
 		}
 
 		// Check for date-specific slots first (exceptions)
