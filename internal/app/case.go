@@ -85,7 +85,13 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, cerror.NewBadRequestError("app.case.search_cases.parse_ids.invalid", err.Error())
 	}
-	for column, value := range req.GetFilters() {
+	for _, filterString := range req.GetFilters() {
+		str := strings.Split(filterString, "=")
+		if len(str) != 2 {
+			continue
+		}
+		column := str[0]
+		value := strings.TrimSpace(str[1])
 		if column != "" {
 			searchOpts.Filter[column] = value
 		}
