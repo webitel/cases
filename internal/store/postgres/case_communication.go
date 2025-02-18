@@ -132,11 +132,13 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 	insert := squirrel.Insert(c.mainTable).Columns("created_by", "created_at", "dc", "communication_type", "communication_id", "case_id").Suffix("ON CONFLICT DO NOTHING RETURNING *")
 
 	var (
-		caseId              = options.ParentID
-		dc                  *int64
-		userId              *int64
-		roles               []int64
-		callsRbac, caseRbac bool
+		caseId                = options.ParentID
+		dc                    *int64
+		userId                *int64
+		roles                 []int64
+		callsRbac, caseRbac   bool
+		superEditPermission   bool
+		superSelectPermission bool
 	)
 	if session := options.GetAuthOpts(); session != nil {
 		d := session.GetDomainId()
@@ -146,9 +148,11 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 		roles = session.GetRoles()
 		callsRbac = session.GetObjectScope("calls").IsRbacUsed()
 		caseRbac = session.GetObjectScope("cases").IsRbacUsed()
+		superSelectPermission = session.HasSuperPermission(auth.SuperSelectPermission)
+		superEditPermission = session.HasSuperPermission(auth.SuperEditPermission)
 	}
 	var caseSubquery squirrel.Sqlizer
-	if caseRbac {
+	if caseRbac && !superEditPermission {
 		caseSubquery = squirrel.Expr(`(SELECT object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = ? AND acl.subject = any(?::int[]) AND acl.access & ? = ?)`,
 			dc, caseId, roles, auth.Edit, auth.Edit)
 	} else {
@@ -159,7 +163,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 		switch communication.CommunicationType {
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CALL:
 			var callsSubquery squirrel.Sqlizer
-			if callsRbac {
+			if callsRbac && !superSelectPermission {
 				callsSubquery = squirrel.Expr(`(SELECT c.id::text
 															 FROM call_center.cc_calls_history c
 															 WHERE id = ?::uuid
@@ -176,7 +180,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 					dc, auth.Read, roles,
 					roles)
 			} else {
-				callsSubquery = squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`)
+				callsSubquery = squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`, communication.CommunicationId)
 			}
 			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), callsSubquery, caseSubquery)
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CHAT:
