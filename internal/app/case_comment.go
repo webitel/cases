@@ -12,7 +12,7 @@ import (
 	"github.com/webitel/webitel-go-kit/etag"
 )
 
-const caseCommentsObjScope = "case_comments"
+const caseCommentsObjScope = model.ScopeCaseComments
 
 var CaseCommentMetadata = model.NewObjectMetadata(caseCommentsObjScope, caseObjScope, []*model.Field{
 	{Name: "id", Default: false},

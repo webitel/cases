@@ -144,8 +144,8 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 		u := session.GetUserId()
 		userId = &u
 		roles = session.GetRoles()
-		callsRbac = session.IsRbacCheckRequired("calls", auth.Read)
-		caseRbac = session.IsRbacCheckRequired("cases", auth.Edit)
+		callsRbac = session.IsRbacCheckRequired(model.ScopeCalls, auth.Read)
+		caseRbac = session.IsRbacCheckRequired(model.ScopeCases, auth.Edit)
 	}
 	var caseSubquery squirrel.Sqlizer
 	if caseRbac {

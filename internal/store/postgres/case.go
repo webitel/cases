@@ -31,7 +31,7 @@ type CaseStore struct {
 const (
 	caseLeft                  = "c"
 	caseDefaultSort           = "created_at"
-	casesObjClassScopeName    = "cases"
+	casesObjClassScopeName    = model.ScopeCases
 	caseCreatedByAlias        = "cb"
 	caseUpdatedByAlias        = "ub"
 	caseSourceAlias           = "src"

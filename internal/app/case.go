@@ -23,7 +23,7 @@ import (
 
 const (
 	dynamicGroup = "dynamic"
-	caseObjScope = "cases"
+	caseObjScope = model.ScopeCases
 )
 
 var (

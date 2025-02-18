@@ -29,7 +29,7 @@ const (
 	caseCommentAuthorAlias       = "au"
 	caseCommentCreatedByAlias    = "cb"
 	caseCommentUpdatedByAlias    = "cb"
-	caseCommentObjClassScopeName = "case_comments"
+	caseCommentObjClassScopeName = model.ScopeCaseComments
 )
 
 // Publish implements store.CommentCaseStore for publishing a single comment.
