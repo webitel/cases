@@ -1190,10 +1190,20 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("status_condition", upd.StatusCondition.GetId())
 		case "service":
 			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
+
+			// Update SLA, SLA condition, and planned times
 			updateBuilder = updateBuilder.Set("sla", upd.Sla.GetId())
 			updateBuilder = updateBuilder.Set("sla_condition_id", upd.SlaCondition.GetId())
 			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(upd.GetPlannedResolveAt()))
 			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.GetPlannedReactionAt()))
+
+			caseIDString := strconv.FormatInt(rpc.Etags[0].GetOid(), 10)
+
+			// Update case name dynamically with new prefix
+			updateBuilder = updateBuilder.Set("name",
+				sq.Expr("CONCAT((SELECT prefix FROM cases.service_catalog WHERE id = ? LIMIT 1), '_', CAST(? AS TEXT))",
+					upd.Service.GetId(), caseIDString))
+
 		case "assignee":
 			if upd.Assignee.GetId() == 0 {
 				updateBuilder = updateBuilder.Set("assignee", nil)
@@ -1999,11 +2009,11 @@ func addCaseRbacConditionForInsert(auth auth.Auther, access auth.AccessMode, que
 	return query.Prefix(sql, args...), nil
 }
 
-func (l *CaseStore) scanCases(rows pgx.Rows, plan []func(link *_go.Case) any) ([]*_go.Case, error) {
+func (c *CaseStore) scanCases(rows pgx.Rows, plan []func(link *_go.Case) any) ([]*_go.Case, error) {
 	var res []*_go.Case
 
 	for rows.Next() {
-		link, err := l.scanCase(pgx.Row(rows), plan)
+		link, err := c.scanCase(pgx.Row(rows), plan)
 		if err != nil {
 			return nil, err
 		}
@@ -2012,7 +2022,7 @@ func (l *CaseStore) scanCases(rows pgx.Rows, plan []func(link *_go.Case) any) ([
 	return res, nil
 }
 
-func (l *CaseStore) scanCase(row pgx.Row, plan []func(link *_go.Case) any) (*_go.Case, error) {
+func (c *CaseStore) scanCase(row pgx.Row, plan []func(link *_go.Case) any) (*_go.Case, error) {
 	var link _go.Case
 	var scanPlan []any
 	for _, scan := range plan {
