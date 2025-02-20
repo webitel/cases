@@ -94,7 +94,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"CaseComments": WebitelServices{
-		ObjClass:           "cases",
+		ObjClass:           "case_comments",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"LocateComment": WebitelMethod{
