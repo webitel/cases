@@ -242,7 +242,7 @@ func buildFilesSelectColumnsAndPlan(
 				return &file.Mime
 			})
 		case "name":
-			base = base.Column(store.Ident(left, "name"))
+			base = base.Column(store.Ident(left, "view_name"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Name
 			})
