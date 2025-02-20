@@ -490,9 +490,9 @@ SELECT service.id,
        service.assignee_id,
        COALESCE(assignee.given_name, '') AS assignee_name, -- Handle NULL assignee as empty string
        service.created_by,
-       COALESCE(created_by_user.name, '') AS created_by_name,  -- Handle NULL created_by as empty string
+       COALESCE(created_by_user.name, created_by_user.username) AS created_by_name,  -- Handle NULL created_by as empty string
        service.updated_by,
-       updated_by_user.name              AS updated_by_name,
+       COALESCE(updated_by_user.name, updated_by_user.username) AS updated_by_name,
        service.created_at,
        service.updated_at,
        service.root_id
