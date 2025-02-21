@@ -581,13 +581,8 @@ func applyCaseCommentFilters(
 
 func addCaseCommentRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
 	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
-		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_comment_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
@@ -595,13 +590,8 @@ func addCaseCommentRbacCondition(auth auth.Auther, access auth.AccessMode, query
 
 func addCaseCommentRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
 	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
-		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_comment_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
@@ -609,13 +599,8 @@ func addCaseCommentRbacConditionForDelete(auth auth.Auther, access auth.AccessMo
 
 func addCaseCommentRbacConditionForUpdate(auth auth.Auther, access auth.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
 	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
-		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_comment_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
