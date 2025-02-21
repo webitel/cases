@@ -908,7 +908,9 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			"close_reason",     // +
 			"service",          // +
 			"status_condition", // +
-			"sla":              // +
+			"sla_condition",
+			"group",
+			"sla": // +
 			dbColumn := column
 			switch column {
 			case "group":
@@ -972,10 +974,10 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		case "rating.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
 			base = base.Where(fmt.Sprintf("%s < ?::INT", store.Ident(caseLeft, cutted)), value)
-		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolved_at.from":
+		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolve_at.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
 			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT > ?::BIGINT", store.Ident(caseLeft, cutted)), value)
-		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolved_at.to":
+		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolve_at.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
 			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT < ?::BIGINT", store.Ident(caseLeft, cutted)), value)
 		case "attachments":
