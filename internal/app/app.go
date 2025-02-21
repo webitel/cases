@@ -122,13 +122,16 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 
 	// register watchers
 	watcher := NewDefaultWatcher()
-	caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher)
-	if err != nil {
-		return nil, cerror.NewInternalError("internal.internal.new_app.watcher.start.error", err.Error())
+	if app.config.Watcher.Enabled {
+		caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher)
+		if err != nil {
+			return nil, cerror.NewInternalError("internal.internal.new_app.watcher.start.error", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, caseObserver)
+		watcher.Attach(EventTypeUpdate, caseObserver)
+		watcher.Attach(EventTypeDelete, caseObserver)
 	}
-	watcher.Attach(EventTypeCreate, caseObserver)
-	watcher.Attach(EventTypeUpdate, caseObserver)
-	watcher.Attach(EventTypeDelete, caseObserver)
+
 	app.watcher = watcher
 	//
 

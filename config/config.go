@@ -26,12 +26,13 @@ type DatabaseConfig struct {
 }
 
 type WatcherConfig struct {
-	ExchangeName    string `json:"exchange" flag:"watcher_exchange || trigger_exchange"`
-	CreateQueueName string `json:"create_queue" flag:"create_queue || create_queue"`
-	UpdateQueueName string `json:"update_queue" flag:"update_queue || update_queue"`
-	DeleteQueueName string `json:"delete_queue" flag:"delete_queue || delete_queue"`
-	AMQPUser        string `json:"amqp_user" flag:"amqp_user || AMQP user"`
-	Enabled         bool   `json:"watch_enabled" flag:"watch_enabled || watch_enabled"`
+	ExchangeName      string `json:"exchange" flag:"watcher_exchange || trigger_exchange"`
+	CreateQueueName   string `json:"create_queue" flag:"create_queue || create_queue"`
+	UpdateQueueName   string `json:"update_queue" flag:"update_queue || update_queue"`
+	DeleteQueueName   string `json:"delete_queue" flag:"delete_queue || delete_queue"`
+	AMQPUser          string `json:"amqp_user" flag:"amqp_user || AMQP user"`
+	QueuesMessagesTTL string `json:"queues_messages_ttl" flag:"watcher_messages_ttl || Watcher queues messages TTL in milliseconds"`
+	Enabled           bool   `json:"watch_enabled" flag:"watch_enabled || watch_enabled"`
 }
 
 type ConsulConfig struct {
@@ -43,6 +44,7 @@ type ConsulConfig struct {
 func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	var appConfig AppConfig
 
+	// TODO :: refactor processing default values
 	// Load from command-line flags
 	dataSource := flag.String("data_source", "", "Data source")
 	consul := flag.String("consul", "", "Host to consul")
@@ -55,6 +57,7 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	flag.StringVar(&watcher.UpdateQueueName, "update_queue", "", "Update queue name")
 	flag.StringVar(&watcher.DeleteQueueName, "delete_queue", "", "Delete queue name")
 	flag.StringVar(&watcher.AMQPUser, "amqp_user", "", "AMQP user for publishing messages")
+	flag.StringVar(&watcher.QueuesMessagesTTL, "watcher_messages_ttl", "", "Watcher queues messages TTL in milliseconds")
 	flag.BoolVar(&watcher.Enabled, "watch_enabled", true, "Watcher enabled")
 
 	// add possibility to load config from file
@@ -121,6 +124,14 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 			value = env
 		}
 		watcher.AMQPUser = value
+	}
+
+	if watcher.QueuesMessagesTTL == "" {
+		value := "10000"
+		if env := os.Getenv("WATCHER_MESSAGES_TTL"); env != "" {
+			value = env
+		}
+		watcher.QueuesMessagesTTL = value
 	}
 
 	// Set the configuration struct fields
