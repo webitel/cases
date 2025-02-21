@@ -103,7 +103,7 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 				sq.Eq{"cf.domain_id": rpc.GetAuthOpts().GetDomainId()},
 				sq.Eq{"cf.uuid": strconv.Itoa(int(rpc.ParentId))},
 				sq.Eq{"cf.channel": channel},
-				sq.Eq{"cf.removed": false},
+				sq.Eq{"cf.removed": nil},
 			},
 		).
 		PlaceholderFormat(sq.Dollar)
