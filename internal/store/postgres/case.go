@@ -178,7 +178,6 @@ SELECT ds.sla_id,
 FROM deepest_service ds
 LEFT JOIN priority_condition pc ON true
 LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
-
 	`, serviceID, priorityID).Scan(
 		scanner.ScanInt(&slaID),
 		scanner.ScanInt(&reactionTime),
@@ -1189,6 +1188,21 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		case "status_condition":
 			updateBuilder = updateBuilder.Set("status_condition", upd.StatusCondition.GetId())
 		case "service":
+			prefixCTE := `
+			WITH service_cte AS (
+				SELECT catalog_id
+				FROM cases.service_catalog
+				WHERE id = ?
+				LIMIT 1
+			),
+			prefix_cte AS (
+				SELECT prefix
+				FROM cases.service_catalog
+				WHERE id = ANY(SELECT catalog_id FROM service_cte)
+				LIMIT 1
+			)
+			SELECT prefix FROM prefix_cte`
+
 			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
 
 			// Update SLA, SLA condition, and planned times
@@ -1199,9 +1213,8 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 
 			caseIDString := strconv.FormatInt(rpc.Etags[0].GetOid(), 10)
 
-			// Update case name dynamically with new prefix
 			updateBuilder = updateBuilder.Set("name",
-				sq.Expr("CONCAT((SELECT prefix FROM cases.service_catalog WHERE id = ? LIMIT 1), '_', CAST(? AS TEXT))",
+				sq.Expr("CONCAT(("+prefixCTE+"), '_', CAST(? AS TEXT))",
 					upd.Service.GetId(), caseIDString))
 
 		case "assignee":
@@ -1542,7 +1555,6 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.resolved_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_resolve",
 					caseLeft,
 				))
-
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Timing == nil {
 					caseItem.Timing = &_go.TimingInfo{}
