@@ -918,40 +918,58 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			case "sla_condition":
 				dbColumn = "sla_condition_id"
 			}
-			if value == "null" {
-				base = base.Where(fmt.Sprintf("%s ISNULL", store.Ident(caseLeft, dbColumn)))
-				continue
-			}
 			switch typedValue := value.(type) {
 			case string:
 				values := strings.Split(typedValue, ",")
-				var valuesInt []int64
+				var (
+					valuesInt []int64
+					isNull    bool
+					expr      sq.Or
+				)
 				for _, s := range values {
+					if s == "null" {
+						isNull = true
+						continue
+					}
 					converted, err := strconv.ParseInt(s, 10, 64)
 					if err != nil {
 						return base, nil, dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
 					}
 					valuesInt = append(valuesInt, converted)
 				}
-				base = base.Where(fmt.Sprintf("%s =  ANY(?::int[])", store.Ident(caseLeft, dbColumn)), valuesInt)
+				col := store.Ident(caseLeft, dbColumn)
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
+				if isNull {
+					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
+				}
+				base = base.Where(expr)
 			}
 		case "author":
-			if value == "null" {
-				base = base.Where(fmt.Sprintf("%s ISNULL", store.Ident(caseAuthorAlias, "id")))
-				continue
-			}
 			switch typedValue := value.(type) {
 			case string:
 				values := strings.Split(typedValue, ",")
-				var valuesInt []int64
+				var (
+					valuesInt []int64
+					isNull    bool
+					expr      sq.Or
+				)
 				for _, s := range values {
+					if s == "null" {
+						isNull = true
+						continue
+					}
 					converted, err := strconv.ParseInt(s, 10, 64)
 					if err != nil {
 						return base, nil, dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
 					}
 					valuesInt = append(valuesInt, converted)
 				}
-				base = base.Where(fmt.Sprintf("%s = ANY(?::int[])", store.Ident(caseAuthorAlias, "id")), valuesInt)
+				col := store.Ident(caseAuthorAlias, "id")
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
+				if isNull {
+					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
+				}
+				base = base.Where(expr)
 			}
 		// Filter for the date range (created_at)
 		case "created_at.from", "created_at.to":
