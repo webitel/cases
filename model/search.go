@@ -3,8 +3,9 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/webitel/cases/auth"
 	"time"
+
+	"github.com/webitel/cases/auth"
 
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
@@ -47,10 +48,11 @@ type SearchOptions struct {
 	context.Context
 	//Session *session.Session
 	// filters
-	Filter   map[string]any
-	Search   string
-	IDs      []int64
-	ParentId int64
+	Filter    map[string]any
+	Search    string
+	IDs       []int64
+	ParentId  int64
+	ContactId int64
 	// output
 	Fields            []string
 	UnknownFields     []string

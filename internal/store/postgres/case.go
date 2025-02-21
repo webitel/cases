@@ -984,6 +984,12 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 
 		}
 	}
+	if opts.ContactId != 0 {
+		base = base.Where(sq.Or{
+			sq.Expr(fmt.Sprintf("%s.reporter = ?", caseLeft), opts.ContactId),
+			sq.Expr(fmt.Sprintf("%s.assignee = ?", caseLeft), opts.ContactId),
+		})
+	}
 	if err != nil {
 		return base, nil, err
 	}

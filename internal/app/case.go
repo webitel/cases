@@ -96,6 +96,14 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 			searchOpts.Filter[column] = value
 		}
 	}
+	if req.GetContactId() != "" {
+		contactId, err := strconv.ParseInt(req.GetContactId(), 10, 64)
+		if err != nil {
+			slog.ErrorContext(ctx, err.Error(), logAttributes)
+			contactId = 0
+		}
+		searchOpts.ContactId = contactId
+	}
 	searchOpts.IDs = ids
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
