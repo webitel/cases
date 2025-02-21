@@ -952,13 +952,13 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			toValue, hasTo := opts.Filter["created_at.to"]
 			if hasFrom && hasTo {
 				// Apply range filtering using both `from` and `to` values
-				base = base.Where(fmt.Sprintf("%s >= ?::timestamp AND c.created_at <= ?::timestamp", store.Ident(caseLeft, "created_at")), fromValue, toValue)
+				base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT >= ?::BIGINT AND extract(epoch from %[1]s)::INT <= ?::INT", store.Ident(caseLeft, "created_at")), fromValue, toValue)
 			} else if hasFrom {
 				// Only "from" filter is provided
-				base = base.Where(fmt.Sprintf("%s >= ?::timestamp", store.Ident(caseLeft, "created_at")), fromValue)
+				base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT >= ?::BIGINT", store.Ident(caseLeft, "created_at")), fromValue)
 			} else if hasTo {
 				// Only "to" filter is provided
-				base = base.Where(fmt.Sprintf("%s <= ?::timestamp", store.Ident(caseLeft, "created_at")), toValue)
+				base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT <= ?::BIGINT", store.Ident(caseLeft, "created_at")), toValue)
 			}
 		case "rating.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
@@ -967,13 +967,13 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			cutted, _ := strings.CutSuffix(column, ".to")
 			base = base.Where(fmt.Sprintf("%s < ?::INT", store.Ident(caseLeft, cutted)), value)
 		case "sla_condition":
-			base = base.Where(fmt.Sprintf("? = ANY(%s)", store.Ident(caseLeft, column)), value)
+			base = base.Where(fmt.Sprintf("? = ANY(%s)", store.Ident(caseLeft, "sla_condition_id")), value)
 		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolved_at.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
-			base = base.Where(fmt.Sprintf("extract(epoch from %s)::INT > ?::INT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT > ?::BIGINT", store.Ident(caseLeft, cutted)), value)
 		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolved_at.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
-			base = base.Where(fmt.Sprintf("extract(epoch from %s)::INT < ?::INT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT < ?::BIGINT", store.Ident(caseLeft, cutted)), value)
 		case "attachments":
 			var operator string
 			if value != "true" {
