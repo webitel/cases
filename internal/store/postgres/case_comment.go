@@ -580,7 +580,7 @@ func applyCaseCommentFilters(
 }
 
 func addCaseCommentRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
-	if auth != nil && auth.GetObjectScope(caseCommentObjClassScopeName).IsRbacUsed() {
+	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
 		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
 			Where("acl.dc = ?", auth.GetDomainId()).
 			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
@@ -594,7 +594,7 @@ func addCaseCommentRbacCondition(auth auth.Auther, access auth.AccessMode, query
 }
 
 func addCaseCommentRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
-	if auth != nil && auth.GetObjectScope(caseCommentObjClassScopeName).IsRbacUsed() {
+	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
 		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
 			Where("acl.dc = ?", auth.GetDomainId()).
 			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
@@ -608,7 +608,7 @@ func addCaseCommentRbacConditionForDelete(auth auth.Auther, access auth.AccessMo
 }
 
 func addCaseCommentRbacConditionForUpdate(auth auth.Auther, access auth.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
-	if auth != nil && auth.GetObjectScope(caseCommentObjClassScopeName).IsRbacUsed() {
+	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
 		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
 			Where("acl.dc = ?", auth.GetDomainId()).
 			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).

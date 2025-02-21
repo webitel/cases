@@ -49,7 +49,14 @@ func (s *UserAuthSession) GetRoles() []int64 {
 }
 
 func (s *UserAuthSession) GetObjectScope(sc string) auth.ObjectScoper {
-	return s.scopes[sc]
+	if sc == "" {
+		return nil
+	}
+	scope, found := s.scopes[sc]
+	if !found {
+		return nil
+	}
+	return scope
 }
 
 func (s *UserAuthSession) GetAllObjectScopes() []auth.ObjectScoper {

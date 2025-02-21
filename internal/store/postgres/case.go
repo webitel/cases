@@ -906,12 +906,18 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			"status",           // +
 			"impacted",         // +
 			"close_reason",     // +
-			"contact_group",    // +
 			"service",          // +
 			"status_condition", // +
 			"sla":              // +
+			dbColumn := column
+			switch column {
+			case "group":
+				dbColumn = "contact_group"
+			case "sla_condition":
+				dbColumn = "sla_condition_id"
+			}
 			if value == "null" {
-				base = base.Where(fmt.Sprintf("%s ISNULL", store.Ident(caseLeft, column)))
+				base = base.Where(fmt.Sprintf("%s ISNULL", store.Ident(caseLeft, dbColumn)))
 				continue
 			}
 			switch typedValue := value.(type) {
@@ -925,11 +931,11 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 					}
 					valuesInt = append(valuesInt, converted)
 				}
-				base = base.Where(fmt.Sprintf("%s =  ANY(?::int[])", store.Ident(caseLeft, column)), valuesInt)
+				base = base.Where(fmt.Sprintf("%s =  ANY(?::int[])", store.Ident(caseLeft, dbColumn)), valuesInt)
 			}
 		case "author":
 			if value == "null" {
-				base = base.Where(fmt.Sprintf("%s IS NULL", store.Ident(caseAuthorAlias, "id")))
+				base = base.Where(fmt.Sprintf("%s ISNULL", store.Ident(caseAuthorAlias, "id")))
 				continue
 			}
 			switch typedValue := value.(type) {
@@ -966,8 +972,6 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		case "rating.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
 			base = base.Where(fmt.Sprintf("%s < ?::INT", store.Ident(caseLeft, cutted)), value)
-		case "sla_condition":
-			base = base.Where(fmt.Sprintf("? = ANY(%s)", store.Ident(caseLeft, "sla_condition_id")), value)
 		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolved_at.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
 			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT > ?::BIGINT", store.Ident(caseLeft, cutted)), value)
@@ -980,7 +984,6 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 				operator = "NOT "
 			}
 			base = base.Where(sq.Expr(fmt.Sprintf(operator+"EXISTS (SELECT id FROM storage.files WHERE uuid = %s::varchar UNION SELECT id FROM cases.case_link WHERE case_link.case_id = %[1]s)", store.Ident(caseLeft, "id"))))
-
 		}
 	}
 	if err != nil {
