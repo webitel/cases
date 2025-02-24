@@ -891,7 +891,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 				searchTerm),
 			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "subject"), operator), searchTerm),
 			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "name"), operator), searchTerm),
-			// sq.Expr(fmt.Sprintf("%s = ?", store.Ident(caseLeft, "contact_info")), search),
+			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "contact_info"), operator), searchTerm),
 		}
 		base = base.Where(where)
 
