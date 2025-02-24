@@ -178,7 +178,6 @@ SELECT ds.sla_id,
 FROM deepest_service ds
 LEFT JOIN priority_condition pc ON true
 LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
-
 	`, serviceID, priorityID).Scan(
 		scanner.ScanInt(&slaID),
 		scanner.ScanInt(&reactionTime),
@@ -907,44 +906,70 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			"status",           // +
 			"impacted",         // +
 			"close_reason",     // +
-			"contact_group",    // +
 			"service",          // +
 			"status_condition", // +
-			"sla":              // +
-			if value == "null" {
-				base = base.Where(fmt.Sprintf("%s ISNULL", store.Ident(caseLeft, column)))
-				continue
+			"sla_condition",
+			"group",
+			"sla": // +
+			dbColumn := column
+			switch column {
+			case "group":
+				dbColumn = "contact_group"
+			case "sla_condition":
+				dbColumn = "sla_condition_id"
 			}
 			switch typedValue := value.(type) {
 			case string:
 				values := strings.Split(typedValue, ",")
-				var valuesInt []int64
+				var (
+					valuesInt []int64
+					isNull    bool
+					expr      sq.Or
+				)
 				for _, s := range values {
+					if s == "null" {
+						isNull = true
+						continue
+					}
 					converted, err := strconv.ParseInt(s, 10, 64)
 					if err != nil {
 						return base, nil, dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
 					}
 					valuesInt = append(valuesInt, converted)
 				}
-				base = base.Where(fmt.Sprintf("%s =  ANY(?::int[])", store.Ident(caseLeft, column)), valuesInt)
+				col := store.Ident(caseLeft, dbColumn)
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
+				if isNull {
+					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
+				}
+				base = base.Where(expr)
 			}
 		case "author":
-			if value == "null" {
-				base = base.Where(fmt.Sprintf("%s IS NULL", store.Ident(caseAuthorAlias, "id")))
-				continue
-			}
 			switch typedValue := value.(type) {
 			case string:
 				values := strings.Split(typedValue, ",")
-				var valuesInt []int64
+				var (
+					valuesInt []int64
+					isNull    bool
+					expr      sq.Or
+				)
 				for _, s := range values {
+					if s == "null" {
+						isNull = true
+						continue
+					}
 					converted, err := strconv.ParseInt(s, 10, 64)
 					if err != nil {
 						return base, nil, dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
 					}
 					valuesInt = append(valuesInt, converted)
 				}
-				base = base.Where(fmt.Sprintf("%s = ANY(?::int[])", store.Ident(caseAuthorAlias, "id")), valuesInt)
+				col := store.Ident(caseAuthorAlias, "id")
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
+				if isNull {
+					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
+				}
+				base = base.Where(expr)
 			}
 		// Filter for the date range (created_at)
 		case "created_at.from", "created_at.to":
@@ -953,13 +978,13 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			toValue, hasTo := opts.Filter["created_at.to"]
 			if hasFrom && hasTo {
 				// Apply range filtering using both `from` and `to` values
-				base = base.Where(fmt.Sprintf("%s >= ?::timestamp AND c.created_at <= ?::timestamp", store.Ident(caseLeft, "created_at")), fromValue, toValue)
+				base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT >= ?::BIGINT AND extract(epoch from %[1]s)::INT <= ?::INT", store.Ident(caseLeft, "created_at")), fromValue, toValue)
 			} else if hasFrom {
 				// Only "from" filter is provided
-				base = base.Where(fmt.Sprintf("%s >= ?::timestamp", store.Ident(caseLeft, "created_at")), fromValue)
+				base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT >= ?::BIGINT", store.Ident(caseLeft, "created_at")), fromValue)
 			} else if hasTo {
 				// Only "to" filter is provided
-				base = base.Where(fmt.Sprintf("%s <= ?::timestamp", store.Ident(caseLeft, "created_at")), toValue)
+				base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT <= ?::BIGINT", store.Ident(caseLeft, "created_at")), toValue)
 			}
 		case "rating.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
@@ -967,14 +992,12 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		case "rating.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
 			base = base.Where(fmt.Sprintf("%s < ?::INT", store.Ident(caseLeft, cutted)), value)
-		case "sla_condition":
-			base = base.Where(fmt.Sprintf("? = ANY(%s)", store.Ident(caseLeft, column)), value)
-		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolved_at.from":
+		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolve_at.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
-			base = base.Where(fmt.Sprintf("extract(epoch from %s)::INT > ?::INT", store.Ident(caseLeft, cutted)), value)
-		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolved_at.to":
+			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT > ?::BIGINT", store.Ident(caseLeft, cutted)), value)
+		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolve_at.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
-			base = base.Where(fmt.Sprintf("extract(epoch from %s)::INT < ?::INT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT < ?::BIGINT", store.Ident(caseLeft, cutted)), value)
 		case "attachments":
 			var operator string
 			if value != "true" {
@@ -1193,6 +1216,21 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		case "status_condition":
 			updateBuilder = updateBuilder.Set("status_condition", upd.StatusCondition.GetId())
 		case "service":
+			prefixCTE := `
+			WITH service_cte AS (
+				SELECT catalog_id
+				FROM cases.service_catalog
+				WHERE id = ?
+				LIMIT 1
+			),
+			prefix_cte AS (
+				SELECT prefix
+				FROM cases.service_catalog
+				WHERE id = ANY(SELECT catalog_id FROM service_cte)
+				LIMIT 1
+			)
+			SELECT prefix FROM prefix_cte`
+
 			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
 
 			// Update SLA, SLA condition, and planned times
@@ -1203,9 +1241,8 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 
 			caseIDString := strconv.FormatInt(rpc.Etags[0].GetOid(), 10)
 
-			// Update case name dynamically with new prefix
 			updateBuilder = updateBuilder.Set("name",
-				sq.Expr("CONCAT((SELECT prefix FROM cases.service_catalog WHERE id = ? LIMIT 1), '_', CAST(? AS TEXT))",
+				sq.Expr("CONCAT(("+prefixCTE+"), '_', CAST(? AS TEXT))",
 					upd.Service.GetId(), caseIDString))
 
 		case "assignee":
@@ -1546,7 +1583,6 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.resolved_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_resolve",
 					caseLeft,
 				))
-
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Timing == nil {
 					caseItem.Timing = &_go.TimingInfo{}
@@ -1954,13 +1990,8 @@ func NewCaseStore(store store.Store) (store.CaseStore, error) {
 
 func addCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
 	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
-		subquery := sq.Select("acl.object").From("cases.case_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
@@ -1968,13 +1999,8 @@ func addCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.Sel
 
 func addCaseRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
 	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
-		subquery := sq.Select("acl.object").From("cases.case_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
@@ -1982,13 +2008,8 @@ func addCaseRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, que
 
 func addCaseRbacConditionForUpdate(auth auth.Auther, access auth.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
 	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
-		subquery := sq.Select("acl.object").From("cases.case_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil

@@ -12,9 +12,9 @@ import (
 )
 
 var CaseTimelineMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
-	{"calls", true},
-	{"chats", true},
-	{"emails", true},
+	{cases.CaseTimelineEventType_call.String(), true},
+	{cases.CaseTimelineEventType_chat.String(), true},
+	{cases.CaseTimelineEventType_email.String(), true},
 })
 
 type CaseTimelineService struct {
@@ -35,6 +35,13 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
+	}
+	var requestedType []string
+	for _, eventType := range request.Type {
+		requestedType = append(requestedType, eventType.String())
+	}
+	if len(requestedType) != 0 {
+		searchOpts.Fields = requestedType
 	}
 	searchOpts.ParentId = tid.GetOid()
 	logAttributes := slog.Group(

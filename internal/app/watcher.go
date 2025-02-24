@@ -103,16 +103,27 @@ type CaseAMQPObserver struct {
 }
 
 func NewCaseAMQPObserver(amqpBroker AMQPBroker, config *model.WatcherConfig) (*CaseAMQPObserver, error) {
+
+	// TODO :: refactor: use package constant
+	queueMessagesTTL := func(o *rabbit.QueueDeclareOptions) {
+		if o == nil {
+			return
+		}
+		o.Args = map[string]any{
+			"x-message-ttl": config.QueuesMessagesTTL,
+		}
+	}
+
 	// declare create queue
-	if _, err := amqpBroker.QueueDeclare(config.CreateQueueName, rabbit.QueueEnableDurable); err != nil {
+	if _, err := amqpBroker.QueueDeclare(config.CreateQueueName, rabbit.QueueEnableDurable, queueMessagesTTL); err != nil {
 		return nil, fmt.Errorf("could not create create queue %s: %w", config.CreateQueueName, err)
 	}
 	// declare update queue
-	if _, err := amqpBroker.QueueDeclare(config.UpdateQueueName, rabbit.QueueEnableDurable); err != nil {
+	if _, err := amqpBroker.QueueDeclare(config.UpdateQueueName, rabbit.QueueEnableDurable, queueMessagesTTL); err != nil {
 		return nil, fmt.Errorf("could not create update queue %s: %w", config.UpdateQueueName, err)
 	}
 	// declare delete queue
-	if _, err := amqpBroker.QueueDeclare(config.DeleteQueueName, rabbit.QueueEnableDurable); err != nil {
+	if _, err := amqpBroker.QueueDeclare(config.DeleteQueueName, rabbit.QueueEnableDurable, queueMessagesTTL); err != nil {
 		return nil, fmt.Errorf("could not create delete queue %s: %w", config.DeleteQueueName, err)
 	}
 

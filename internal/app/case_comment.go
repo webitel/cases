@@ -215,7 +215,7 @@ func (c *CaseCommentService) PublishComment(
 		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
 		return nil, AppForbiddenError
 	}
-	if createOpts.GetAuthOpts().GetObjectScope(CaseCommentMetadata.GetParentScopeName()).IsRbacUsed() {
+	if createOpts.GetAuthOpts().IsRbacCheckRequired(CaseCommentMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), auth.Edit, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)

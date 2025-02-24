@@ -86,13 +86,13 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (squirrel.Sqlizer, []fun
 			eventType string
 		)
 		switch field {
-		case "chats":
+		case "chat":
 			cte, chatsPlan, err = buildTimelineChatsColumn(caseId)
 			eventType = cases.CaseTimelineEventType_chat.String()
-		case "calls":
+		case "call":
 			cte, callsPlan, err = buildTimelineCallsColumn(caseId)
 			eventType = cases.CaseTimelineEventType_call.String()
-		case "emails":
+		case "email":
 			cte, emailsPlan, err = buildTimelineEmailsColumn(caseId)
 			eventType = cases.CaseTimelineEventType_email.String()
 		default:
@@ -354,6 +354,11 @@ func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 			buf := *node
 			call := buf.GetCall()
 			return scanner.ScanTimestamp(&call.ClosedAt)
+		},
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
+			return &call.Duration
 		},
 		func(node **cases.Event) any {
 			buf := *node
@@ -671,13 +676,13 @@ func buildTimelineCounterSqlizer(rpc *model.SearchOptions) (query squirrel.Sqliz
 	)
 	for i, field := range fields {
 		switch field {
-		case "calls":
+		case cases.CaseTimelineEventType_call.String():
 			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_CALL)
 			ctes[field] = squirrel.Expr(CallsCounterCTE, communicationType, caseId, communicationType)
-		case "emails":
+		case cases.CaseTimelineEventType_email.String():
 			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL)
 			ctes[field] = squirrel.Expr(EmailsCounterCTE, communicationType, caseId, communicationType)
-		case "chats":
+		case cases.CaseTimelineEventType_chat.String():
 			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_CHAT)
 			ctes[field] = squirrel.Expr(ChatsCounterCTE, communicationType, caseId, communicationType)
 		default:
@@ -725,6 +730,7 @@ const (
 	CallsCTE = `select c.id::text,
        c.created_at,
        c.hangup_at                  AS                                        closed_at,
+       round(case when c.user_id notnull then date_part('epoch'::text, c.hangup_at - c.created_at)::bigint else (select date_part('epoch'::text, hangup_at - created_at)::bigint from call_center.cc_calls_history where parent_id = c.id limit 1) end)::bigint as      duration,
        root.duration                                        total_duration,
        (with recursive a as (select *
                              from call_center.cc_calls_history
