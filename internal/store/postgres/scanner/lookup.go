@@ -367,29 +367,35 @@ func ScanLookupList(value *[]*_go.Lookup) any {
 // Helper function to split composite fields, considering possible commas inside quoted strings.
 func splitCompositeFields(composite string) []string {
 	var parts []string
-	var currentField string
+	var currentField strings.Builder
 	inQuotes := false
 
 	for i := 0; i < len(composite); i++ {
 		c := composite[i]
+
 		switch c {
 		case ',':
 			if inQuotes {
-				currentField += string(c)
+				currentField.WriteByte(c)
 			} else {
-				parts = append(parts, currentField)
-				currentField = ""
+				parts = append(parts, currentField.String())
+				currentField.Reset()
 			}
 		case '"':
-			inQuotes = !inQuotes
+			// Check for escaped quotes (e.g., `""` inside a quoted field)
+			if inQuotes && i+1 < len(composite) && composite[i+1] == '"' {
+				currentField.WriteByte('"')
+				i++ // Skip the next quote
+			} else {
+				inQuotes = !inQuotes
+			}
 		default:
-			currentField += string(c)
+			currentField.WriteByte(c)
 		}
 	}
-	// Add the last field
-	if currentField != "" {
-		parts = append(parts, currentField)
-	}
+
+	// Add the last field (even if empty)
+	parts = append(parts, currentField.String())
 
 	return parts
 }
