@@ -931,6 +931,9 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 					expr      sq.Or
 				)
 				for _, s := range values {
+					if s == "" {
+						continue
+					}
 					if s == "null" {
 						isNull = true
 						continue
@@ -958,6 +961,9 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 					expr      sq.Or
 				)
 				for _, s := range values {
+					if s == "" {
+						continue
+					}
 					if s == "null" {
 						isNull = true
 						continue
