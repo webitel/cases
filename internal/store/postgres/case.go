@@ -200,8 +200,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	// Parameters for the main case and nested JSON arrays
 	var (
-		assignee, closeReason, reporter *int64
-		closeResult, description        *string
+		assignee, closeReason, reporter, group *int64
+		closeResult, description               *string
 	)
 
 	if id := caseItem.GetClose().GetCloseReason().GetId(); id > 0 {
@@ -220,6 +220,10 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		assignee = &id
 	}
 
+	if id := caseItem.Group.GetId(); id > 0 {
+		group = &id
+	}
+
 	if desc := caseItem.Description; desc != "" {
 		description = &desc
 	}
@@ -235,7 +239,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"service":             caseItem.Service.GetId(),
 		"priority":            caseItem.Priority.GetId(),
 		"source":              caseItem.Source.GetId(),
-		"contact_group":       caseItem.Group.GetId(),
+		"contact_group":       group,
 		"close_reason_group":  caseItem.CloseReasonGroup.GetId(),
 		"close_result":        closeResult,
 		"close_reason":        closeReason,
