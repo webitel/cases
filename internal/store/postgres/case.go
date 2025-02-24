@@ -975,31 +975,16 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 				}
 				base = base.Where(expr)
 			}
-		// Filter for the date range (created_at)
-		case "created_at.from", "created_at.to":
-			// Check if both from and to are provided, create the range filter
-			fromValue, hasFrom := opts.Filter["created_at.from"]
-			toValue, hasTo := opts.Filter["created_at.to"]
-			if hasFrom && hasTo {
-				// Apply range filtering using both `from` and `to` values
-				base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT >= ?::BIGINT AND extract(epoch from %[1]s)::INT <= ?::INT", store.Ident(caseLeft, "created_at")), fromValue, toValue)
-			} else if hasFrom {
-				// Only "from" filter is provided
-				base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT >= ?::BIGINT", store.Ident(caseLeft, "created_at")), fromValue)
-			} else if hasTo {
-				// Only "to" filter is provided
-				base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT <= ?::BIGINT", store.Ident(caseLeft, "created_at")), toValue)
-			}
 		case "rating.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
 			base = base.Where(fmt.Sprintf("%s > ?::INT", store.Ident(caseLeft, cutted)), value)
 		case "rating.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
 			base = base.Where(fmt.Sprintf("%s < ?::INT", store.Ident(caseLeft, cutted)), value)
-		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolve_at.from":
+		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolve_at.from", "created_at.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
 			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT > ?::BIGINT", store.Ident(caseLeft, cutted)), value)
-		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolve_at.to":
+		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolve_at.to", "created_at.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
 			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT < ?::BIGINT", store.Ident(caseLeft, cutted)), value)
 		case "attachments":
