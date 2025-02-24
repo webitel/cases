@@ -254,11 +254,6 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
-	etag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
-	if err != nil {
-		return nil, err
-	}
-	res.Etag = etag
 
 	//* Handle dynamic group update if applicable
 	res, err = c.handleDynamicGroupUpdate(ctx, res)
