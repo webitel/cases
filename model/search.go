@@ -48,11 +48,10 @@ type SearchOptions struct {
 	context.Context
 	//Session *session.Session
 	// filters
-	Filter    map[string]any
-	Search    string
-	IDs       []int64
-	ParentId  int64
-	ContactId int64
+	Filter   map[string]any
+	Search   string
+	IDs      []int64
+	ParentId int64
 	// output
 	Fields            []string
 	UnknownFields     []string

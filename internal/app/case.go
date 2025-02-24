@@ -102,7 +102,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			contactId = 0
 		}
-		searchOpts.ContactId = contactId
+		searchOpts.Filter["contact"] = contactId
 	}
 	searchOpts.IDs = ids
 	list, err := c.app.Store.Case().List(searchOpts)
