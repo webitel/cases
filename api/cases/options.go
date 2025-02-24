@@ -589,6 +589,10 @@ var WebitelAPI = WebitelServicesInfo{
 						Path:   "/cases",
 						Method: "GET",
 					},
+					{
+						Path:   "/contacts/{contact_id}/cases",
+						Method: "GET",
+					},
 				},
 			},
 			"LocateCase": WebitelMethod{

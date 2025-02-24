@@ -3,8 +3,9 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/webitel/cases/auth"
 	"time"
+
+	"github.com/webitel/cases/auth"
 
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"

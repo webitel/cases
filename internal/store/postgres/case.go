@@ -1004,6 +1004,11 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 				operator = "NOT "
 			}
 			base = base.Where(sq.Expr(fmt.Sprintf(operator+"EXISTS (SELECT id FROM storage.files WHERE uuid = %s::varchar UNION SELECT id FROM cases.case_link WHERE case_link.case_id = %[1]s)", store.Ident(caseLeft, "id"))))
+		case "contact":
+			base = base.Where(sq.Or{
+				sq.Expr(fmt.Sprintf("%s.reporter = ?", caseLeft), value),
+				sq.Expr(fmt.Sprintf("%s.assignee = ?", caseLeft), value),
+			})
 		}
 	}
 	if err != nil {
