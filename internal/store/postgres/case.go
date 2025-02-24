@@ -977,10 +977,10 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			}
 		case "rating.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
-			base = base.Where(fmt.Sprintf("%s > ?::INT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("%s >= ?::INT", store.Ident(caseLeft, cutted)), value)
 		case "rating.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
-			base = base.Where(fmt.Sprintf("%s < ?::INT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("%s <= ?::INT", store.Ident(caseLeft, cutted)), value)
 		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolve_at.from", "created_at.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
 			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT > ?::BIGINT", store.Ident(caseLeft, cutted)), value)
