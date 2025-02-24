@@ -451,7 +451,7 @@ func buildCommentSelectColumnsAndPlan(
 			})
 		case "created_by":
 			joinCreatedBy()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text created_by", caseCommentCreatedByAlias))
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, coalesce(%[1]s.name, %[1]s.username))::text created_by", caseCommentCreatedByAlias))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanRowLookup(&comment.CreatedBy)
 			})
@@ -462,7 +462,7 @@ func buildCommentSelectColumnsAndPlan(
 			})
 		case "updated_by":
 			joinUpdatedBy()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text updated_by", caseCommentUpdatedByAlias))
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, coalesce(%[1]s.name, %[1]s.username))::text updated_by", caseCommentUpdatedByAlias))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanRowLookup(&comment.UpdatedBy)
 			})
@@ -478,7 +478,7 @@ func buildCommentSelectColumnsAndPlan(
 			})
 		case "author":
 			joinAuthor()
-			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, %[1]s.common_name)::text author`, caseCommentAuthorAlias))
+			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, coalesce(%[1]s.common_name, %[1]s.given_name))::text author`, caseCommentAuthorAlias))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanRowLookup(&comment.Author)
 			})
