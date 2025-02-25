@@ -837,7 +837,7 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	if auth == nil {
 		return false, nil
 	}
-	if !auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
+	if !auth.IsRbacCheckRequired(model.ScopeCases, access) {
 		return true, nil
 	}
 	q := sq.Select("1").From("cases.case_acl acl").
@@ -845,7 +845,7 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 		Where("acl.object = ?", caseId).
 		Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
 		Where("acl.access & ? = ?", int64(access), int64(access)).
-		Limit(1)
+		Limit(1).PlaceholderFormat(sq.Dollar)
 	db, err := c.storage.Database()
 	if err != nil {
 		return false, err
