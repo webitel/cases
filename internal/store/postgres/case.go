@@ -1984,7 +1984,7 @@ func NewCaseStore(store store.Store) (store.CaseStore, error) {
 }
 
 func addCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
-	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
+	if auth != nil && auth.IsRbacCheckRequired(model.ScopeCases, access) {
 		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
 			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
@@ -1993,7 +1993,7 @@ func addCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.Sel
 }
 
 func addCaseRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
-	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
+	if auth != nil && auth.IsRbacCheckRequired(model.ScopeCases, access) {
 		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
 			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
@@ -2002,33 +2002,13 @@ func addCaseRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, que
 }
 
 func addCaseRbacConditionForUpdate(auth auth.Auther, access auth.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
-	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
+	if auth != nil && auth.IsRbacCheckRequired(model.ScopeCases, access) {
 		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
 			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
 }
-
-func addCaseRbacConditionForInsert(auth auth.Auther, access auth.AccessMode, query sq.InsertBuilder, caseId int64, alias string) (sq.InsertBuilder, error) {
-	var subquery sq.SelectBuilder
-	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
-		subquery = sq.Select("acl.object").From("cases.case_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where("acl.object = ?", caseId).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-	} else {
-		subquery = sq.Select("id").From("cases.case").Where("id = ?")
-	}
-	sql, args, err := store.FormAsCTE(subquery, alias)
-	if err != nil {
-		return query, err
-	}
-	return query.Prefix(sql, args...), nil
-}
-
 func (c *CaseStore) scanCases(rows pgx.Rows, plan []func(link *_go.Case) any) ([]*_go.Case, error) {
 	var res []*_go.Case
 
