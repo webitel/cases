@@ -1188,7 +1188,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			"dc":  rpc.GetAuthOpts().GetDomainId(),
 		})
 
-	updateBuilder, err = addCaseRbacConditionForUpdate(rpc.GetAuthOpts(), auth.Edit, updateBuilder, "case.id")
+	updateBuilder, err = addCaseRbacConditionForUpdate(rpc.GetAuthOpts(), auth.Edit, updateBuilder, "id")
 	if err != nil {
 		return nil, nil, err
 	}
