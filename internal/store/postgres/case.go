@@ -29,11 +29,26 @@ type CaseStore struct {
 }
 
 const (
-	caseLeft               = "c"
-	relatedAlias           = "related"
-	linksAlias             = "links"
-	caseDefaultSort        = "created_at"
-	casesObjClassScopeName = "cases"
+	caseLeft                  = "c"
+	caseDefaultSort           = "created_at"
+	casesObjClassScopeName    = model.ScopeCases
+	caseCreatedByAlias        = "cb"
+	caseUpdatedByAlias        = "ub"
+	caseSourceAlias           = "src"
+	caseCloseReasonGroupAlias = "crg"
+	caseAuthorAlias           = "auth"
+	caseCloseReasonAlias      = "cr"
+	caseSlaAlias              = "sl"
+	caseStatusAlias           = "st"
+	casePriorityAlias         = "pr"
+	caseServiceAlias          = "svc"
+	caseAssigneeAlias         = "ass" // :))
+	caseReporterAlias         = "rp"
+	caseImpactedAlias         = "im"
+	caseGroupAlias            = "grp"
+	caseSlaConditionAlias     = "cond"
+	caseRelatedAlias          = "related"
+	caseLinksAlias            = "links"
 )
 
 func (c *CaseStore) Create(
@@ -57,7 +72,7 @@ func (c *CaseStore) Create(
 	// Scan SLA details
 	// Sla_id
 	// reaction_at & resolve_at in [milli]seconds
-	slaID, slaConditionID, reaction_at, resolve_at, calendarID, err := c.ScanSla(
+	slaID, slaConditionID, reactionAt, resolveAt, calendarID, err := c.ScanSla(
 		rpc,
 		txManager,
 		add.Service.GetId(),
@@ -68,7 +83,7 @@ func (c *CaseStore) Create(
 	}
 
 	// Calculate planned times within the transaction
-	err = c.calculatePlannedReactionAndResolutionTime(rpc, calendarID, reaction_at, resolve_at, txManager, add)
+	err = c.calculatePlannedReactionAndResolutionTime(rpc, calendarID, reactionAt, resolveAt, txManager, add)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.calculate_planned_times_error", err)
 	}
@@ -121,69 +136,54 @@ func (c *CaseStore) ScanSla(
 
 	err = txManager.QueryRow(rpc.Context, `
 WITH RECURSIVE
-    service_hierarchy AS (SELECT id, root_id, sla_id, 1 AS level
-                          FROM cases.service_catalog
-                          WHERE id = $1 -- Start with the given service ID provided as $1
+    service_hierarchy AS (
+        -- Start with the service with id = $1
+        SELECT id, root_id, sla_id, 1 AS level
+        FROM cases.service_catalog
+        WHERE id = $1  -- Start from the service with id = $1
 
-                          UNION ALL
+        UNION ALL
 
-                          SELECT sc.id, sc.root_id, sc.sla_id, sh.level + 1
-                          FROM cases.service_catalog sc
-                                   INNER JOIN service_hierarchy sh ON sc.root_id = sh.id
-        -- Recursively traverse downward to find all child services, incrementing the level with each step
+        -- Recursively find parent services based on root_id
+        SELECT sc.id, sc.root_id, COALESCE(sc.sla_id, sh.sla_id) AS sla_id, sh.level + 1
+        FROM cases.service_catalog sc
+        INNER JOIN service_hierarchy sh ON sc.id = sh.root_id  -- Join on root_id to get parents
     ),
-    valid_sla_hierarchy AS (SELECT sh.id AS service_id, -- Current service ID
-                                   sh.root_id,          -- Parent service ID
-                                   sh.sla_id,           -- SLA ID for the current service
-                                   sh.level,            -- Depth level in the hierarchy
-                                   sla.reaction_time,   -- Reaction time from the SLA
-                                   sla.resolution_time, -- Resolution time from the SLA
-                                   sla.calendar_id      -- Calendar ID associated with the SLA
-                            FROM service_hierarchy sh
-                                     LEFT JOIN cases.sla sla ON sh.sla_id = sla.id
-                            WHERE sh.sla_id IS NOT NULL -- Keep only services with non-NULL SLA
-        -- Here, we extract details of all services with SLAs, preparing them for prioritization
+    deepest_service AS (
+        -- Select the SLA ID and its associated details from the deepest service
+        SELECT sla_id, MAX(level) AS max_level
+        FROM service_hierarchy
+        WHERE sla_id IS NOT NULL  -- Filter out rows where sla_id is null
+        GROUP BY sla_id
+        ORDER BY max_level ASC
+        LIMIT 1  -- Only return the SLA ID of the deepest service
     ),
-    deepest_sla
-        AS (SELECT DISTINCT ON (sh.level, sh.id) sh.id AS service_id, -- Service ID for the deepest child or nearest valid SLA
-                                                 sh.root_id,          -- Parent service ID
-                                                 sh.sla_id,           -- SLA ID for the selected service
-                                                 sh.level,            -- Depth level in the hierarchy
-                                                 sla.reaction_time,   -- Reaction time from SLA
-                                                 sla.resolution_time, -- Resolution time from SLA
-                                                 sla.calendar_id      -- Calendar ID associated with the SLA
-            FROM service_hierarchy sh
-                     LEFT JOIN cases.sla sla ON sh.sla_id = sla.id
-            ORDER BY sh.level DESC, sh.id
-        -- Select the "deepest" child service by level, falling back to the next service upward if necessary
-    ),
-    priority_condition AS (SELECT sc.id AS sla_condition_id, -- Fetch the SLA condition ID
-                                  sc.reaction_time,
-                                  sc.resolution_time
-                           FROM cases.sla_condition sc
-                                    INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
-                                    INNER JOIN deepest_sla ON sc.sla_id = deepest_sla.sla_id
-                           WHERE psc.priority_id = $2 -- Match the given priority ID provided as $2
-                           LIMIT 1
-        -- Extract reaction and resolution times from SLA conditions if a priority-specific condition exists
+    priority_condition AS (
+        SELECT sc.id AS sla_condition_id,
+               sc.reaction_time,
+               sc.resolution_time
+        FROM cases.sla_condition sc
+        INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+        INNER JOIN cases.sla sla ON sc.sla_id = sla.id
+        INNER JOIN deepest_service ds ON sla.id = ds.sla_id
+        WHERE psc.priority_id = $2
+        LIMIT 1
     )
-SELECT deepest_sla.sla_id,                                                                           -- Final SLA ID
-       COALESCE(priority_condition.reaction_time, deepest_sla.reaction_time)     AS reaction_time,
-       -- Use priority-specific reaction time if available, otherwise fall back to SLA reaction time
-       COALESCE(priority_condition.resolution_time, deepest_sla.resolution_time) AS resolution_time,
-       -- Use priority-specific resolution time if available, otherwise fall back to SLA resolution time
-       deepest_sla.calendar_id,                                                                      -- Calendar ID associated with the final SLA
-       COALESCE(priority_condition.sla_condition_id, 0)                          AS sla_condition_id -- Return SLA condition ID if a priority match is found
-FROM deepest_sla
-         LEFT JOIN priority_condition ON true;
--- Combine the results to ensure we have reaction and resolution times even if no priority-specific condition exists
-
+-- Final SELECT for deepest service and its priority condition details with COALESCE
+SELECT ds.sla_id,
+       COALESCE(pc.reaction_time, sla.reaction_time) AS reaction_time,
+       COALESCE(pc.resolution_time, sla.resolution_time) AS resolution_time,
+       sla.calendar_id,
+       pc.sla_condition_id
+FROM deepest_service ds
+LEFT JOIN priority_condition pc ON true
+LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
 	`, serviceID, priorityID).Scan(
-		&slaID,
-		&reactionTime,
-		&resolutionTime,
-		&calendarID,
-		&slaConditionID,
+		scanner.ScanInt(&slaID),
+		scanner.ScanInt(&reactionTime),
+		scanner.ScanInt(&resolutionTime),
+		scanner.ScanInt(&calendarID),
+		scanner.ScanInt(&slaConditionID),
 	)
 	if err != nil {
 		return 0, 0, 0, 0, 0, dberr.NewDBInternalError("failed to scan SLA: %w", err)
@@ -200,30 +200,34 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	// Parameters for the main case and nested JSON arrays
 	var (
-		reporter    *int64
-		assignee    *int64
-		closeReason *int64
-		closeResult *string
+		assignee, closeReason, reporter, group *int64
+		closeResult, description               *string
 	)
-	if cl := caseItem.GetClose(); cl != nil {
-		if cl.CloseReason != nil && cl.CloseReason.GetId() > 0 {
-			closeReason = &cl.CloseReason.Id
-		}
-		if cl.CloseResult != "" {
-			closeResult = &cl.CloseResult
-		}
-	}
-	if caseItem.Reporter != nil && caseItem.Reporter.GetId() > 0 {
-		reporter = &caseItem.Reporter.Id
+
+	if id := caseItem.GetClose().GetCloseReason().GetId(); id > 0 {
+		closeReason = &id
 	}
 
-	if caseItem.Assignee.GetId() == 0 {
-		assignee = nil // Set to nil if assignee is 0, so it will be inserted as NULL
-	} else {
-		assignee = &caseItem.Assignee.Id
+	if result := caseItem.GetClose().GetCloseResult(); result != "" {
+		closeResult = &result
 	}
 
-	params := map[string]interface{}{
+	if id := caseItem.Reporter.GetId(); id > 0 {
+		reporter = &id
+	}
+
+	if id := caseItem.Assignee.GetId(); id > 0 {
+		assignee = &id
+	}
+
+	if id := caseItem.Group.GetId(); id > 0 {
+		group = &id
+	}
+
+	if desc := caseItem.Description; desc != "" {
+		description = &desc
+	}
+	params := map[string]any{
 		// Case-level parameters
 		"date":                rpc.CurrentTime(),
 		"contact_info":        caseItem.GetContactInfo(),
@@ -235,7 +239,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"service":             caseItem.Service.GetId(),
 		"priority":            caseItem.Priority.GetId(),
 		"source":              caseItem.Source.GetId(),
-		"contact_group":       caseItem.Group.GetId(),
+		"contact_group":       group,
 		"close_reason_group":  caseItem.CloseReasonGroup.GetId(),
 		"close_result":        closeResult,
 		"close_reason":        closeReason,
@@ -244,7 +248,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),
 		"reporter":            reporter,
 		"impacted":            caseItem.Impacted.GetId(),
-		"description":         caseItem.Description,
+		"description":         description,
 		"assignee":            assignee,
 		//-------------------------------------------------//
 		//------ CASE One-to-Many ( 1 : n ) Attributes ----//
@@ -301,7 +305,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			)
 			RETURNING *
 		),
-		` + linksAlias + ` AS (
+		` + caseLinksAlias + ` AS (
 			INSERT INTO cases.case_link (
 				name, url, dc, created_by, created_at, updated_by, updated_at, case_id
 			)
@@ -311,7 +315,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:dc, :user, :date, :user, :date, (SELECT id FROM ` + caseLeft + `)
 			FROM jsonb_array_elements(:links) AS item
 		),
-		` + relatedAlias + ` AS (
+		` + caseRelatedAlias + ` AS (
 			INSERT INTO cases.related_case (
 				primary_case_id, related_case_id, relation_type, dc, created_by, created_at, updated_by, updated_at
 			)
@@ -337,8 +341,16 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 
 	// Construct SELECT query to return case data
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		&model.SearchOptions{Context: rpc.Context, Fields: rpc.Fields},
-		sq.Select().PrefixExpr(sq.Expr(boundQuery, args...)),
+		&model.SearchOptions{
+			Context: rpc.Context,
+			Fields:  rpc.Fields,
+		},
+		sq.Select().PrefixExpr(
+			sq.Expr(
+				boundQuery,
+				args...,
+			),
+		),
 	)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.case.create.build_select_query_error", err)
@@ -354,9 +366,9 @@ func extractLinksJSON(links *_go.CaseLinkList) []byte {
 	if links == nil || len(links.Items) == 0 {
 		return []byte("[]")
 	}
-	var jsonArray []map[string]interface{}
+	var jsonArray []map[string]any
 	for _, link := range links.Items {
-		jsonArray = append(jsonArray, map[string]interface{}{
+		jsonArray = append(jsonArray, map[string]any{
 			"name": link.Name,
 			"url":  link.Url,
 		})
@@ -369,9 +381,9 @@ func extractRelatedJSON(related *_go.RelatedCaseList) []byte {
 	if related == nil || len(related.Data) == 0 {
 		return []byte("[]")
 	}
-	var jsonArray []map[string]interface{}
+	var jsonArray []map[string]any
 	for _, item := range related.Data {
-		jsonArray = append(jsonArray, map[string]interface{}{
+		jsonArray = append(jsonArray, map[string]any{
 			"id":   item.GetId(),
 			"type": item.GetRelationType(),
 		})
@@ -408,6 +420,30 @@ func ConvertRelationType(relationType _go.RelationType) (int, error) {
 	}
 }
 
+type CalendarSlot struct {
+	Day            int
+	StartTimeOfDay int
+	EndTimeOfDay   int
+	Disabled       bool
+}
+
+type ExceptionSlot struct {
+	Date           time.Time
+	StartTimeOfDay int
+	EndTimeOfDay   int
+	Disabled       bool
+	Repeat         bool
+	Working        bool
+}
+
+type MergedSlot struct {
+	Day            int       // Weekday (0-6, Sunday-Saturday)
+	Date           time.Time // Specific date (can be empty if not an exception)
+	StartTimeOfDay int       // Start time of the slot (in minutes from midnight)
+	EndTimeOfDay   int       // End time of the slot (in minutes from midnight)
+	Disabled       bool      // Is the slot disabled
+}
+
 func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	rpc *model.CreateOptions,
 	calendarID int,
@@ -416,72 +452,46 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	txManager *transaction.TxManager,
 	caseItem *_go.Case,
 ) error {
-	rows, err := txManager.Query(rpc.Context, `
-		SELECT day, start_time_of_day, end_time_of_day, special, disabled
-		FROM flow.calendar cl,  UNNEST(accepts::flow.calendar_accept_time[]) x
-		WHERE cl.id = $1
-		ORDER BY day, start_time_of_day`, calendarID)
+	// Fetch standard calendar working hours
+	calendar, err := fetchCalendarSlots(rpc, txManager, calendarID)
 	if err != nil {
-		return fmt.Errorf("failed to fetch calendar details: %w", err)
-	}
-	defer rows.Close()
-
-	var calendar []struct {
-		Day            int
-		StartTimeOfDay int
-		EndTimeOfDay   int
-		Special        bool
-		Disabled       bool
-	}
-	for rows.Next() {
-		var entry struct {
-			Day            int
-			StartTimeOfDay int
-			EndTimeOfDay   int
-			Special        bool
-			Disabled       bool
-		}
-		if err = rows.Scan(
-			&entry.Day,
-			&entry.StartTimeOfDay,
-			&entry.EndTimeOfDay,
-			&entry.Special,
-			&entry.Disabled,
-		); err != nil {
-			return fmt.Errorf("failed to scan calendar entry: %w", err)
-		}
-		if !entry.Disabled {
-			calendar = append(calendar, entry)
-		}
-	}
-	if err = rows.Err(); err != nil {
-		return fmt.Errorf("error iterating over calendar rows: %w", err)
+		return err
 	}
 
+	// Fetch exceptions (overrides for specific days)
+	exceptions, err := fetchExceptionSlots(rpc, txManager, calendarID)
+	if err != nil {
+		return err
+	}
+
+	// Merge calendar and exceptions into a single slice
+	mergedSlots := mergeCalendarAndExceptions(calendar, exceptions)
+
+	// Fetch timezone offset
 	var offset time.Duration
-	offsetRow := txManager.QueryRow(rpc.Context, `
+	err = txManager.QueryRow(rpc.Context, `
 		SELECT tz.utc_offset
 		FROM flow.calendar cl
 		    LEFT JOIN flow.calendar_timezones tz ON tz.id = cl.timezone_id
-		WHERE cl.id = $1`, calendarID)
-	err = offsetRow.Scan(&offset)
+		WHERE cl.id = $1`, calendarID).Scan(&offset)
 	if err != nil {
-		return fmt.Errorf("failed to fetch calendar offset details: %w", err)
+		return fmt.Errorf("failed to fetch calendar offset: %w", err)
 	}
 
-	// Convert reaction and resolution times from milliseconds to minutes
+	// Convert reaction and resolution times from seconds to minutes
 	reactionMinutes := reactionTime / 60
 	resolutionMinutes := resolutionTime / 60
 
+	// Get the current time
 	currentTime := rpc.CurrentTime()
-	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, reactionMinutes, calendar)
+
+	// Calculate planned reaction and resolution timestamps
+	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, reactionMinutes, mergedSlots)
 	if err != nil {
 		return fmt.Errorf("failed to calculate planned reaction time: %w", err)
 	}
 
-	//?? TODO
-	// resolveTimestamp, err := calculateTimestampFromCalendar(reactionTimestamp, resolutionMinutes, calendar)
-	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, resolutionMinutes, calendar)
+	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, resolutionMinutes, mergedSlots)
 	if err != nil {
 		return fmt.Errorf("failed to calculate planned resolution time: %w", err)
 	}
@@ -492,69 +502,262 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	return nil
 }
 
+// fetchCalendarSlots retrieves working hours for a calendar
+func fetchCalendarSlots(rpc *model.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]CalendarSlot, error) {
+	rows, err := txManager.Query(rpc.Context, `
+		SELECT day, start_time_of_day, end_time_of_day, disabled
+		FROM flow.calendar cl,
+		     UNNEST(accepts::flow.calendar_accept_time[]) x
+		WHERE cl.id = $1
+		    AND (NOT x.special OR x.special IS NULL)
+		ORDER BY day, start_time_of_day`, calendarID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch calendar details: %w", err)
+	}
+	defer rows.Close()
+
+	var calendar []CalendarSlot
+	for rows.Next() {
+		var entry CalendarSlot
+		if err := rows.Scan(&entry.Day, &entry.StartTimeOfDay, &entry.EndTimeOfDay, &entry.Disabled); err != nil {
+			return nil, fmt.Errorf("failed to scan calendar entry: %w", err)
+		}
+
+		// Adjust day value to make Sunday 0, Monday 1, Tuesday 2, ..., Saturday 6
+		// If the DB starts with Monday as 0, we need to adjust it by adding 1
+		// Example: Monday (0) becomes 1, Tuesday (1) becomes 2, ..., Sunday (6) becomes 0
+		entry.Day = (entry.Day + 1) % 7 // This ensures Sunday is 0, Monday is 1, ..., Saturday is 6
+
+		// Add adjusted entry to the calendar slice
+		calendar = append(calendar, entry)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over calendar rows: %w", err)
+	}
+	return calendar, nil
+}
+
+// fetchExceptionSlots retrieves exceptions for specific days (overrides)
+func fetchExceptionSlots(rpc *model.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]ExceptionSlot, error) {
+	rows, err := txManager.Query(rpc.Context, `
+		SELECT
+			to_timestamp(x.date / 1000) AS date,
+			x.work_start AS start_time_of_day,
+			x.work_stop AS end_time_of_day,
+			x.disabled,
+			x.repeat,
+			x.working
+		FROM flow.calendar cl, UNNEST(cl.excepts::flow.calendar_except_date[]) x
+		WHERE cl.id = $1
+		ORDER BY x.date, x.work_start`, calendarID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch calendar exceptions: %w", err)
+	}
+	defer rows.Close()
+
+	var exceptions []ExceptionSlot
+	for rows.Next() {
+		var entry ExceptionSlot
+		if err := rows.Scan(&entry.Date, &entry.StartTimeOfDay, &entry.EndTimeOfDay, &entry.Disabled, &entry.Repeat, &entry.Working); err != nil {
+			return nil, fmt.Errorf("failed to scan exception entry: %w", err)
+		}
+		exceptions = append(exceptions, entry)
+	}
+	return exceptions, nil
+}
+
+// mergeCalendarAndExceptions merges calendar and exceptions into a single slice
+func mergeCalendarAndExceptions(calendar []CalendarSlot, exceptions []ExceptionSlot) []MergedSlot {
+	mergedSlots := make([]MergedSlot, 0)
+
+	// Convert calendar slots to merged slots
+	for _, cal := range calendar {
+		// Adjust weekday to start from Sunday as 0, Monday as 1, etc.
+		adjustedDay := (cal.Day % 7) // Adjust to make sure it's in [0, 6] range
+		mergedSlots = append(mergedSlots, MergedSlot{
+			Day:            adjustedDay,
+			Date:           time.Time{}, // Calendar slots don't have a specific date
+			StartTimeOfDay: cal.StartTimeOfDay,
+			EndTimeOfDay:   cal.EndTimeOfDay,
+			Disabled:       cal.Disabled,
+		})
+	}
+
+	// Override with exceptions
+	for _, exception := range exceptions {
+		// If working is false, set disabled to true
+		if !exception.Working {
+			exception.Disabled = true
+		}
+
+		// If the exception is set to repeat annually (not weekly)
+		if exception.Repeat {
+			// Set the exception to repeat every year on the same date
+			mergedSlots = append(mergedSlots, MergedSlot{
+				Day:            -1,             // Special indicator for a specific date
+				Date:           exception.Date, // Use the specific exception date
+				StartTimeOfDay: exception.StartTimeOfDay,
+				EndTimeOfDay:   exception.EndTimeOfDay,
+				Disabled:       exception.Disabled,
+			})
+		} else {
+			// Specific date exception (non-repeating)
+			mergedSlots = append(mergedSlots, MergedSlot{
+				Day:            -1, // Special indicator for a specific date
+				Date:           exception.Date,
+				StartTimeOfDay: exception.StartTimeOfDay,
+				EndTimeOfDay:   exception.EndTimeOfDay,
+				Disabled:       exception.Disabled,
+			})
+		}
+	}
+
+	return mergedSlots
+}
+
 func calculateTimestampFromCalendar(
 	startTime time.Time,
 	calendarOffset time.Duration,
 	requiredMinutes int,
-	calendar []struct {
-		Day            int
-		StartTimeOfDay int
-		EndTimeOfDay   int
-		Special        bool
-		Disabled       bool
-	},
+	mergedSlots []MergedSlot,
 ) (time.Time, error) {
 	remainingMinutes := requiredMinutes
-	currentDay := int(startTime.Weekday())
-	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute()
-	var (
-		startingAtMinutes int
-		startDayProcessed bool
-		addDays           int
-	)
+	currentTimeInMinutes := startTime.Hour()*60 + startTime.Minute() // UTC
+	addDays := 0
 
-	for {
-		for _, slot := range calendar {
-			slotStartOfTheDayUtc := int((time.Duration(slot.StartTimeOfDay)*time.Minute - calendarOffset).Minutes())
-			slotEndOfTheDayUtc := int((time.Duration(slot.EndTimeOfDay)*time.Minute - calendarOffset).Minutes())
-			// Match the current day and ensure the slot is in the future
-			if slot.Day == currentDay && slotEndOfTheDayUtc > currentTimeInMinutes {
-				if startDayProcessed {
-					currentTimeInMinutes = slotStartOfTheDayUtc
-				}
-				if currentTimeInMinutes < slotStartOfTheDayUtc {
-					startingAtMinutes = slotStartOfTheDayUtc
-				} else {
-					startingAtMinutes = currentTimeInMinutes
-				}
-				availableMinutes := slotEndOfTheDayUtc - startingAtMinutes
-				if availableMinutes >= remainingMinutes {
-					// if we need to add days, then we should add minutes from the start of the working day
-					if addDays != 0 {
-						startDate := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, startTime.Location())
-						// Add days required
-						startDate = startDate.Add(time.Duration(24*addDays) * time.Hour)
-						// Add minutes to the start of the working day
-						startDate = startDate.Add(time.Duration(slotStartOfTheDayUtc) * time.Minute)
-						// Add remaining minutes to the start of the working day
-						startDate = startDate.Add(time.Duration(remainingMinutes) * time.Minute)
-						return startDate, nil
-					}
-					// Calculate the exact timestamp
-					return startTime.Add(time.Duration(remainingMinutes) * time.Minute), nil
-				}
-				if slot.Day == currentDay && !startDayProcessed {
-					startDayProcessed = true
-				}
-				remainingMinutes -= availableMinutes
+	// Process each day while there are remaining minutes
+	for remainingMinutes > 0 {
+		// Calculate current day date
+		currentDayDate := startTime.AddDate(0, 0, addDays)
+
+		// Check if today is a disabled exception and skip if true
+		// This ensures that we skip the day only once if both calendar and exception are disabled
+		skipDay := false
+		for _, slot := range mergedSlots {
+			if slot.Disabled && !slot.Date.IsZero() && isSameDate(slot.Date, currentDayDate) {
+				// If today is marked as disabled in exception, skip this day
+				skipDay = true
+				break
 			}
-
 		}
 
-		// If no slots available, move to the next day
-		currentDay = (currentDay + 1) % len(calendar) // Wrap around to the start of the week if necessary
+		// Skip the whole day if it's an exception or calendar day
+		if skipDay {
+			addDays++
+			currentTimeInMinutes = 0
+			continue
+		}
+
+		// Check for date-specific slots first (exceptions)
+		dateSpecificSlotFound := false
+		for _, slot := range mergedSlots {
+			if slot.Disabled {
+				continue
+			}
+
+			// If this is a date-specific slot, check if it matches the current date
+			if !slot.Date.IsZero() && isSameDate(slot.Date, currentDayDate) {
+				dateSpecificSlotFound = true
+
+				// Convert slot times to UTC minutes considering the calendar offset
+				slotStartUtc := slot.StartTimeOfDay - int(calendarOffset.Minutes())
+				slotEndUtc := slot.EndTimeOfDay - int(calendarOffset.Minutes())
+
+				// Ensure we start counting from the correct time (taking currentTimeInMinutes into account)
+				startingAt := max(currentTimeInMinutes, slotStartUtc)
+				if slotEndUtc <= startingAt {
+					continue
+				}
+
+				// Calculate the available minutes in the interval
+				availableMinutes := slotEndUtc - startingAt
+
+				// If enough minutes are available, finalize the time
+				if availableMinutes >= remainingMinutes {
+					finalTime := currentDayDate
+					finalTime = time.Date(
+						finalTime.Year(),
+						finalTime.Month(),
+						finalTime.Day(),
+						0, 0, 0, 0,
+						finalTime.Location(),
+					)
+					finalTime = finalTime.Add(time.Duration(startingAt+remainingMinutes) * time.Minute)
+					return finalTime, nil
+				}
+
+				// Deduct available minutes and move to the next interval
+				remainingMinutes -= availableMinutes
+				currentTimeInMinutes = slotEndUtc
+			}
+		}
+
+		// If no date-specific slot was found, fall back to regular day-of-week slots
+		if !dateSpecificSlotFound {
+			for _, slot := range mergedSlots {
+				if slot.Disabled {
+					continue
+				}
+
+				// Skip date-specific slots (already processed above)
+				if !slot.Date.IsZero() {
+					continue
+				}
+
+				// For calendar slots, ensure we match the correct weekday
+				if int(currentDayDate.Weekday()) != slot.Day {
+					continue
+				}
+
+				// Convert slot times to UTC minutes considering the calendar offset
+				slotStartUtc := slot.StartTimeOfDay - int(calendarOffset.Minutes())
+				slotEndUtc := slot.EndTimeOfDay - int(calendarOffset.Minutes())
+
+				// Ensure we start counting from the correct time (taking currentTimeInMinutes into account)
+				startingAt := max(currentTimeInMinutes, slotStartUtc)
+				if slotEndUtc <= startingAt {
+					continue
+				}
+
+				// Calculate the available minutes in the interval
+				availableMinutes := slotEndUtc - startingAt
+
+				// If enough minutes are available, finalize the time
+				if availableMinutes >= remainingMinutes {
+					finalTime := currentDayDate
+					finalTime = time.Date(
+						finalTime.Year(),
+						finalTime.Month(),
+						finalTime.Day(),
+						0, 0, 0, 0,
+						finalTime.Location(),
+					)
+					finalTime = finalTime.Add(time.Duration(startingAt+remainingMinutes) * time.Minute)
+					return finalTime, nil
+				}
+
+				// Deduct available minutes and move to the next interval
+				remainingMinutes -= availableMinutes
+				currentTimeInMinutes = slotEndUtc
+			}
+		}
+
+		// Move to the next day if we haven't allocated all the required minutes
 		addDays++
+
+		// Reset the start time for the next day to 00:00
+		currentTimeInMinutes = 0
 	}
+
+	return time.Time{}, errors.New("unable to allocate required minutes")
+}
+
+// Helper function to check if two dates are the same (ignoring time)
+func isSameDate(date1, date2 time.Time) bool {
+	return date1.Year() == date2.Year() &&
+		date1.Month() == date2.Month() &&
+		date1.Day() == date2.Day()
 }
 
 // Delete implements store.CaseStore.
@@ -612,7 +815,6 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 		return nil, dberr.NewDBError("postgres.case.list.to_sql.error", err.Error())
 	}
 	slct = store.CompactSQL(slct)
-
 	db, dbErr := c.storage.Database()
 	if dbErr != nil {
 		return nil, dbErr
@@ -663,6 +865,7 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 }
 
 func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
+	opts.Fields = util.EnsureFields(opts.Fields, "id")
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
 	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
 	if search := opts.Search; search != "" {
@@ -688,7 +891,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 				searchTerm),
 			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "subject"), operator), searchTerm),
 			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "name"), operator), searchTerm),
-			// sq.Expr(fmt.Sprintf("%s = ?", store.Ident(caseLeft, "contact_info")), search),
+			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "contact_info"), operator), searchTerm),
 		}
 		base = base.Where(where)
 
@@ -704,52 +907,103 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 			"reporter",         // +
 			"source",           // +
 			"priority",         // +
+			"status",           // +
 			"impacted",         // +
-			"author",           // +
 			"close_reason",     // +
-			"contact_group",    // +
 			"service",          // +
 			"status_condition", // +
-			"sla":              // +
-			if value == "" {
-				base = base.Where(fmt.Sprintf("%s ISNULL", store.Ident(caseLeft, column)))
-				continue
+			"sla_condition",
+			"group",
+			"sla": // +
+			dbColumn := column
+			switch column {
+			case "group":
+				dbColumn = "contact_group"
+			case "sla_condition":
+				dbColumn = "sla_condition_id"
 			}
 			switch typedValue := value.(type) {
 			case string:
 				values := strings.Split(typedValue, ",")
-				var valuesInt []int64
+				var (
+					valuesInt []int64
+					isNull    bool
+					expr      sq.Or
+				)
 				for _, s := range values {
+					if s == "" {
+						continue
+					}
+					if s == "null" {
+						isNull = true
+						continue
+					}
 					converted, err := strconv.ParseInt(s, 10, 64)
 					if err != nil {
 						return base, nil, dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
 					}
 					valuesInt = append(valuesInt, converted)
 				}
-				base = base.Where(fmt.Sprintf("%s =  ANY(?::int[])", store.Ident(caseLeft, column)), valuesInt)
+				col := store.Ident(caseLeft, dbColumn)
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
+				if isNull {
+					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
+				}
+				base = base.Where(expr)
 			}
-
+		case "author":
+			switch typedValue := value.(type) {
+			case string:
+				values := strings.Split(typedValue, ",")
+				var (
+					valuesInt []int64
+					isNull    bool
+					expr      sq.Or
+				)
+				for _, s := range values {
+					if s == "" {
+						continue
+					}
+					if s == "null" {
+						isNull = true
+						continue
+					}
+					converted, err := strconv.ParseInt(s, 10, 64)
+					if err != nil {
+						return base, nil, dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
+					}
+					valuesInt = append(valuesInt, converted)
+				}
+				col := store.Ident(caseAuthorAlias, "id")
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
+				if isNull {
+					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
+				}
+				base = base.Where(expr)
+			}
 		case "rating.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
-			base = base.Where(fmt.Sprintf("%s > ?::INT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("%s >= ?::INT", store.Ident(caseLeft, cutted)), value)
 		case "rating.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
-			base = base.Where(fmt.Sprintf("%s < ?::INT", store.Ident(caseLeft, cutted)), value)
-		case "sla_condition":
-			base = base.Where(fmt.Sprintf("? = ANY(%s)", store.Ident(caseLeft, column)), value)
-		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolved_at.from":
+			base = base.Where(fmt.Sprintf("%s <= ?::INT", store.Ident(caseLeft, cutted)), value)
+		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolve_at.from", "created_at.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
-			base = base.Where(fmt.Sprintf("extract(epoch from %s)::INT > ?::INT", store.Ident(caseLeft, cutted)), value)
-		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolved_at.to":
+			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT > ?::BIGINT", store.Ident(caseLeft, cutted)), value)
+		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolve_at.to", "created_at.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
-			base = base.Where(fmt.Sprintf("extract(epoch from %s)::INT < ?::INT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT < ?::BIGINT", store.Ident(caseLeft, cutted)), value)
 		case "attachments":
 			var operator string
 			if value != "true" {
 				operator = "NOT "
 			}
 			base = base.Where(sq.Expr(fmt.Sprintf(operator+"EXISTS (SELECT id FROM storage.files WHERE uuid = %s::varchar UNION SELECT id FROM cases.case_link WHERE case_link.case_id = %[1]s)", store.Ident(caseLeft, "id"))))
-
+		case "contact":
+			base = base.Where(sq.Or{
+				sq.Expr(fmt.Sprintf("%s.reporter = ?", caseLeft), value),
+				sq.Expr(fmt.Sprintf("%s.assignee = ?", caseLeft), value),
+			})
 		}
 	}
 	if err != nil {
@@ -763,11 +1017,69 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 	// pagination
 	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	// sort
-	base = store.ApplyDefaultSorting(opts, base, caseDefaultSort)
+	field, direction := store.GetSortingOperator(opts)
+	if field == "" {
+		field = caseDefaultSort
+		direction = "DESC"
+	}
+	var tableAlias string
+	if !util.ContainsStringIgnoreCase(opts.Fields, field) { // not joined yet
+		base, tableAlias, err = c.joinRequiredTable(base, field)
+		if err != nil {
+			return base, nil, err
+		}
+	} else { // get alias
+		switch field {
+		case "created_by":
+			tableAlias = caseCreatedByAlias
+		case "updated_by":
+			tableAlias = caseUpdatedByAlias
+		case "source":
+			tableAlias = caseSourceAlias
+		case "close_reason_group":
+			tableAlias = caseCloseReasonGroupAlias
+		case "sla":
+			tableAlias = caseSlaAlias
+		case "status":
+			tableAlias = caseStatusAlias
+		case "priority":
+			tableAlias = casePriorityAlias
+		case "service":
+			tableAlias = caseServiceAlias
+		case "author":
+			tableAlias = caseAuthorAlias
+		case "assignee":
+			tableAlias = caseAssigneeAlias
+		case "reporter":
+			tableAlias = caseReporterAlias
+		case "impacted":
+			tableAlias = caseImpactedAlias
+		case "group":
+			tableAlias = caseGroupAlias
+		case "close_reason":
+			tableAlias = caseCloseReasonAlias
+		case "sla_condition":
+			tableAlias = caseSlaConditionAlias
+		}
+	}
+	if tableAlias == "" {
+		tableAlias = caseLeft
+	}
+	switch field {
+	case "id", "ver", "created_at", "updated_at", "name", "subject", "description", "planned_reaction_at", "planned_resolve_at", "reacted_at", "resolved_at", "contact_info", "close_result", "rating", "rating_comment":
+		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, field), direction))
+	case "created_by", "updated_by", "source", "close_reason_group", "close_reason", "sla", "status_condition", "status", "priority", "service", "group":
+		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, "name"), direction))
+	case "author", "assignee", "reporter", "impacted":
+		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, "common_name"), direction))
+	case "sla_condition":
+		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, "name"), direction))
+	}
 
 	return base, plan, nil
 }
 
+// region UPDATE
 func (c *CaseStore) Update(
 	rpc *model.UpdateOptions,
 	upd *_go.Case,
@@ -776,6 +1088,53 @@ func (c *CaseStore) Update(
 	db, err := c.storage.Database()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.update.database_connection_error", err)
+	}
+
+	// Begin a transaction
+	tx, txErr := db.Begin(rpc.Context)
+	if txErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", txErr)
+	}
+	defer tx.Rollback(rpc.Context)
+	txManager := transaction.NewTxManager(tx)
+
+	// * if user change Service -- SLA ; SLA Condition ; Planned Reaction / Resolve at ; Calendar could be changed
+	if util.ContainsField(rpc.Mask, "service") {
+		slaID, slaConditionID, reaction_at, resolve_at, calendarID, err := c.ScanSla(
+			&model.CreateOptions{Context: rpc.Context},
+			txManager,
+			upd.Service.GetId(),
+			upd.Priority.GetId(),
+		)
+		if err != nil {
+			return nil, dberr.NewDBInternalError("postgres.case.update.scan_sla_error", err)
+		}
+
+		// Calculate planned times within the transaction
+		err = c.calculatePlannedReactionAndResolutionTime(
+			&model.CreateOptions{
+				Context: rpc.Context,
+				Time:    rpc.CurrentTime(),
+			},
+			calendarID,
+			reaction_at,
+			resolve_at,
+			txManager,
+			upd,
+		)
+		if err != nil {
+			return nil, dberr.NewDBInternalError("postgres.case.update.calculate_planned_times_error", err)
+		}
+
+		// * assign new values ( SLA ; SLA Condition ; Planned Reaction / Resolve at ) to update (input) object
+		if upd.Sla == nil {
+			upd.Sla = &_go.Lookup{}
+		}
+		upd.Sla.Id = int64(slaID)
+		if upd.SlaCondition == nil {
+			upd.SlaCondition = &_go.Lookup{}
+		}
+		upd.SlaCondition.Id = int64(slaConditionID)
 	}
 
 	// Build the SQL query and scan plan
@@ -795,11 +1154,16 @@ func (c *CaseStore) Update(
 	// Prepare scan arguments
 	scanArgs := convertToCaseScanArgs(plan, upd)
 
-	if err := db.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, dberr.NewDBNoRowsError("postgres.case.update.update.scan_ver.not_found")
 		}
 		return nil, dberr.NewDBInternalError("postgres.case.update.update.execution_error", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(rpc.Context); err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case.update.commit_error", err)
 	}
 
 	return upd, nil
@@ -847,8 +1211,35 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		case "status_condition":
 			updateBuilder = updateBuilder.Set("status_condition", upd.StatusCondition.GetId())
 		case "service":
+			prefixCTE := `
+			WITH service_cte AS (
+				SELECT catalog_id
+				FROM cases.service_catalog
+				WHERE id = ?
+				LIMIT 1
+			),
+			prefix_cte AS (
+				SELECT prefix
+				FROM cases.service_catalog
+				WHERE id = ANY(SELECT catalog_id FROM service_cte)
+				LIMIT 1
+			)
+			SELECT prefix FROM prefix_cte`
+
 			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
-			updateBuilder = updateBuilder.Set("sla", sq.Expr("(SELECT sla_id FROM cases.service_catalog WHERE id = ? LIMIT 1)", upd.Service.GetId()))
+
+			// Update SLA, SLA condition, and planned times
+			updateBuilder = updateBuilder.Set("sla", upd.Sla.GetId())
+			updateBuilder = updateBuilder.Set("sla_condition_id", upd.SlaCondition.GetId())
+			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(upd.GetPlannedResolveAt()))
+			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.GetPlannedReactionAt()))
+
+			caseIDString := strconv.FormatInt(rpc.Etags[0].GetOid(), 10)
+
+			updateBuilder = updateBuilder.Set("name",
+				sq.Expr("CONCAT(("+prefixCTE+"), '_', CAST(? AS TEXT))",
+					upd.Service.GetId(), caseIDString))
+
 		case "assignee":
 			if upd.Assignee.GetId() == 0 {
 				updateBuilder = updateBuilder.Set("assignee", nil)
@@ -862,21 +1253,23 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		case "impacted":
 			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
 		case "group":
-			updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
-		case "close.close_reason":
-			if upd.Close != nil {
-				updateBuilder = updateBuilder.Set("close_reason", upd.Close.CloseReason.GetId())
+			if upd.Group.GetId() == 0 {
+				updateBuilder = updateBuilder.Set("contact_group", nil)
+			} else {
+				updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
 			}
-		case "close.close_result":
-			if upd.Close != nil {
+		case "close":
+			if upd.Close != nil && upd.Close.CloseReason != nil {
+				var closeReason *int64
+				if reas := upd.Close.CloseReason.GetId(); reas > 0 {
+					closeReason = &reas
+				}
+				updateBuilder = updateBuilder.Set("close_reason", closeReason)
 				updateBuilder = updateBuilder.Set("close_result", upd.Close.GetCloseResult())
 			}
-		case "rate.rating":
+		case "rate":
 			if upd.Rate != nil {
 				updateBuilder = updateBuilder.Set("rating", upd.Rate.Rating)
-			}
-		case "rate.rating_comment":
-			if upd.Rate != nil {
 				updateBuilder = updateBuilder.Set("rating_comment", sq.Expr("NULLIF(?, '')", upd.Rate.RatingComment))
 			}
 		}
@@ -901,80 +1294,150 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	return selectBuilder, plan, nil
 }
 
+func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq.SelectBuilder, joinedTableAlias string, err error) {
+	var (
+		tableAlias string
+		joinTable  = func(neededAlias string, table string, connection string) {
+			base = base.LeftJoin(fmt.Sprintf("%s %s ON %[2]s.id = %s", table, neededAlias, connection))
+		}
+	)
+
+	switch field {
+	case "created_by":
+		tableAlias = caseCreatedByAlias
+		joinTable(tableAlias, "directory.wbt_user", store.Ident(caseLeft, "created_by"))
+	case "updated_by":
+		tableAlias = caseUpdatedByAlias
+		joinTable(tableAlias, "directory.wbt_user", store.Ident(caseLeft, "updated_by"))
+	case "source":
+		tableAlias = caseSourceAlias
+		joinTable(tableAlias, "cases.source", store.Ident(caseLeft, "source"))
+	case "close_reason_group":
+		tableAlias = caseCloseReasonGroupAlias
+		joinTable(tableAlias, "cases.close_reason_group", store.Ident(caseLeft, "close_reason_group"))
+	case "author":
+		createdByAlias := "cb_au"
+		tableAlias = caseAuthorAlias
+		joinTable(createdByAlias, "directory.wbt_user", store.Ident(caseLeft, "created_by"))
+		joinTable(tableAlias, "contacts.contact", store.Ident(createdByAlias, "contact_id"))
+	case "close":
+		tableAlias = caseCloseReasonAlias
+		joinTable(tableAlias, "cases.close_reason", store.Ident(caseLeft, "close_reason"))
+	case "close_reason":
+		tableAlias = "cr_sh"
+		joinTable(tableAlias, "cases.close_reason", store.Ident(caseLeft, "close_reason"))
+	case "sla":
+		tableAlias = caseSlaAlias
+		joinTable(tableAlias, "cases.sla", store.Ident(caseLeft, "sla"))
+	case "status":
+		tableAlias = caseStatusAlias
+		joinTable(tableAlias, "cases.status", store.Ident(caseLeft, "status"))
+	case "priority":
+		tableAlias = casePriorityAlias
+		joinTable(tableAlias, "cases.priority", store.Ident(caseLeft, "priority"))
+	case "service":
+		tableAlias = caseServiceAlias
+		joinTable(tableAlias, "cases.service_catalog", store.Ident(caseLeft, "service"))
+	case "assignee":
+		tableAlias = caseAssigneeAlias
+		joinTable(tableAlias, "contacts.contact", store.Ident(caseLeft, "assignee"))
+	case "reporter":
+		tableAlias = caseReporterAlias
+		joinTable(tableAlias, "contacts.contact", store.Ident(caseLeft, "reporter"))
+	case "impacted":
+		tableAlias = caseImpactedAlias
+		joinTable(tableAlias, "contacts.contact", store.Ident(caseLeft, "impacted"))
+	case "group":
+		tableAlias = caseGroupAlias
+		joinTable(tableAlias, "contacts.group", store.Ident(caseLeft, "contact_group"))
+	case "sla_condition":
+		tableAlias = caseSlaConditionAlias
+		joinTable(tableAlias, "cases.sla_condition", store.Ident(caseLeft, "sla_condition_id"))
+	}
+	return base, tableAlias, nil
+}
+
 // session required to get some columns
 func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 	base sq.SelectBuilder,
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
-	var plan []func(caseItem *_go.Case) any
+	var (
+		plan       []func(caseItem *_go.Case) any
+		tableAlias string
+		err        error
+	)
 
 	for _, field := range opts.Fields {
+		base, tableAlias, err = c.joinRequiredTable(base, field)
+		if err != nil {
+			return base, nil, err
+		}
+		// no table was joined
+		if tableAlias == "" {
+			tableAlias = caseLeft
+		}
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(caseLeft, "id AS case_id"))
+			base = base.Column(store.Ident(tableAlias, "id AS case_id"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Id
 			})
 		case "ver":
-			base = base.Column(store.Ident(caseLeft, "ver"))
+			base = base.Column(store.Ident(tableAlias, "ver"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Ver
 			})
 		case "created_by":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(wu.id, wu.name)::text FROM directory.wbt_user wu WHERE wu.id = %s.created_by) AS created_by", caseLeft))
+				"ROW(%s.id, %[1]s.name)::text AS created_by", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(caseLeft, "created_at"))
+			base = base.Column(store.Ident(tableAlias, "created_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.CreatedAt)
 			})
 		case "updated_by":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(wu.id, wu.name)::text FROM directory.wbt_user wu WHERE wu.id = %s.updated_by) AS updated_by", caseLeft))
+				"ROW(%s.id, %[1]s.name)::text AS updated_by", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(store.Ident(caseLeft, "updated_at"))
+			base = base.Column(store.Ident(tableAlias, "updated_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.UpdatedAt)
 			})
 		case "name":
-			base = base.Column(store.Ident(caseLeft, "name"))
+			base = base.Column(store.Ident(tableAlias, "name"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Name
 			})
 		case "subject":
-			base = base.Column(store.Ident(caseLeft, "subject"))
+			base = base.Column(store.Ident(tableAlias, "subject"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Subject
 			})
 		case "description":
-			base = base.Column(store.Ident(caseLeft, "description"))
+			base = base.Column(store.Ident(tableAlias, "description"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return &caseItem.Description
+				return scanner.ScanText(&caseItem.Description)
 			})
 		case "group":
 			base = base.Column(fmt.Sprintf(
-				`(
-					SELECT
-						ROW(g.id, g.name,
+				`ROW(%s.id, %[1]s.name,
 							CASE
-								WHEN g.id IN (SELECT id FROM contacts.dynamic_group) THEN 'dynamic'
+								WHEN EXISTS(SELECT id FROM contacts.dynamic_group WHERE id = %[1]s.id) THEN 'dynamic'
 								ELSE 'static'
 							END
-						)::text
-					FROM contacts.group g
-					WHERE g.id = %s.contact_group
-				) AS contact_group`, caseLeft))
+						)::text  AS contact_group`, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowExtendedLookup(&caseItem.Group)
 			})
 		case "source":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(src.id, src.name, src.type)::text FROM cases.source src WHERE src.id = %s.source) AS source", caseLeft))
+				"ROW(%s.source, %[2]s.name, %[2]s.type)::text AS source", caseLeft, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
@@ -1063,21 +1526,15 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "close_reason_group":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(crg.id, crg.name)::text FROM cases.close_reason_group crg WHERE crg.id = %s.close_reason_group) AS close_reason_group", caseLeft))
+				"ROW(%s.id, %[1]s.name)::text  AS close_reason_group", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.CloseReasonGroup)
 			})
 		case "author":
-			base = base.Column(fmt.Sprintf(`
-				(SELECT
-					ROW(ca.id, ca.common_name)::text
-				FROM directory.wbt_user wu
-				LEFT JOIN contacts.contact ca ON wu.contact_id = ca.id
-				WHERE wu.id = %s.created_by AND ca.id IS NOT NULL) AS author`, caseLeft))
+			base = base.Column(fmt.Sprintf(`ROW(%s.id, %[1]s.common_name)::text AS author`, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Author)
 			})
-
 		case "close":
 			base = base.Column(store.Ident(caseLeft, "close_result"))
 			plan = append(plan, func(caseItem *_go.Case) any {
@@ -1087,7 +1544,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				return scanner.ScanText(&caseItem.Close.CloseResult)
 			})
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(cr.id, cr.name)::text FROM cases.close_reason cr WHERE cr.id = %s.close_reason) AS close_reason", caseLeft))
+				"ROW(%s.id, %[1]s.name)::text AS close_reason", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Close == nil {
 					caseItem.Close = &_go.CloseInfo{}
@@ -1114,14 +1571,13 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				Column(fmt.Sprintf("COALESCE(%s.resolved_at, '1970-01-01 00:00:00') AS resolved_at", caseLeft)).
 				Column(fmt.Sprintf("COALESCE(%s.reacted_at, '1970-01-01 00:00:00') AS reacted_at", caseLeft)).
 				Column(fmt.Sprintf(
-					"COALESCE(CAST(EXTRACT(EPOCH FROM %[1]s.reacted_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_reaction",
+					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.reacted_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_reaction",
 					caseLeft,
 				)).
 				Column(fmt.Sprintf(
-					"COALESCE(CAST(EXTRACT(EPOCH FROM %[1]s.resolved_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_resolve",
+					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.resolved_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_resolve",
 					caseLeft,
 				))
-
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Timing == nil {
 					caseItem.Timing = &_go.TimingInfo{}
@@ -1139,7 +1595,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "sla":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(sla.id, sla.name)::text FROM cases.sla sla WHERE sla.id = %s.sla) AS sla", caseLeft))
+				"ROW(%s.id, %[1]s.name)::text AS sla", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Sla)
 			})
@@ -1229,17 +1685,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				})
 			})
 		case "status":
-			base = base.Column(fmt.Sprintf(`
-				(SELECT
-					ROW(st.id, st.name)::text
-				FROM cases.status st
-				WHERE st.id = %s.status) AS status`, caseLeft))
+			base = base.Column(fmt.Sprintf(`ROW(%s.id, %[1]s.name)::text AS status`, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Status)
 			})
 		case "priority":
-			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(p.id, p.name, p.color)::text FROM cases.priority p WHERE p.id = %s.priority) AS priority", caseLeft))
+			base = base.Column(fmt.Sprintf("ROW(%s.id, %[1]s.name, %[1]s.color)::text AS priority", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
@@ -1309,14 +1760,13 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				})
 			})
 		case "service":
-			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(s.id, s.name)::text FROM cases.service_catalog s WHERE s.id = %s.service) AS service", caseLeft))
+			base = base.Column(fmt.Sprintf("ROW(%s.id, %[1]s.name)::text AS service", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Service)
 			})
 		case "assignee":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(a.id, a.common_name)::text FROM contacts.contact a WHERE a.id = %s.assignee) AS assignee", caseLeft))
+				"ROW(%s.id, %[1]s.common_name)::text AS assignee", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Assignee)
 			})
@@ -1329,7 +1779,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 
 		case "reporter":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(r.id, r.common_name)::text FROM contacts.contact r WHERE r.id = %s.reporter) AS reporter", caseLeft))
+				"ROW(%s.id, %[1]s.common_name)::text AS reporter", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Reporter)
 			})
@@ -1340,15 +1790,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			})
 		case "impacted":
 			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(i.id, i.common_name)::text FROM contacts.contact i WHERE i.id = %s.impacted) AS impacted", caseLeft))
+				"ROW(%s.id, %[1]s.common_name)::text AS impacted", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Impacted)
 			})
 		case "sla_condition":
-			base = base.Column(`
-				(SELECT ROW(sc.id, sc.name)::text
-				FROM cases.sla_condition sc
-				WHERE sc.sla_id = c.sla AND sc.id = ANY(SELECT sla_condition_id FROM cases.priority_sla_condition WHERE priority_id = c.priority LIMIT 1)) AS sla_condition`)
+			base = base.Column(fmt.Sprintf("ROW(%s.id, %[1]s.name)::text AS sla_condition", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.SlaCondition)
 			})
@@ -1361,7 +1808,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 					Fields:  []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"},
 					Size:    10,
 					Page:    1,
-					Sort:    []string{"-created_at"},
+					Sort:    "-created_at",
 					Auth:    opts.Auth,
 				}
 			}
@@ -1394,7 +1841,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 					Fields:  []string{"id", "ver", "name", "url", "created_by", "author", "created_at"},
 					Size:    10,
 					Page:    1,
-					Sort:    []string{"-created_at"},
+					Sort:    "-created_at",
 				}
 			}
 			subquery, scanPlan, filtersApplied, dbErr := buildLinkSelectAsSubquery(derivedOpts, caseLeft)
@@ -1422,7 +1869,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				derivedOpts = &model.SearchOptions{
 					Page: 1,
 					Size: 10,
-					Sort: []string{"-created_at"},
+					Sort: "-created_at",
 					Fields: []string{
 						"id",
 						"size",
@@ -1477,6 +1924,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 		default:
 			return sq.SelectBuilder{}, nil, fmt.Errorf("unknown field: %s", field)
 		}
+
 	}
 
 	if len(plan) == 0 {
@@ -1512,11 +1960,11 @@ func buildRelatedCasesSubquery(caseAlias string) (sq.SelectBuilder, error) {
 
 func AddSubqueryAsColumn(mainQuery sq.SelectBuilder, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) sq.SelectBuilder {
 	if filtersApplied {
-		subquery = subquery.Prefix("LATERAL (SELECT ARRAY(SELECT (sub) FROM (").Suffix(fmt.Sprintf(") sub) %s) %[1]s ON array_length(%[1]s.%[1]s, 1) > 0", subAlias))
+		subquery = subquery.Prefix("LATERAL (SELECT ARRAY(SELECT (subq) FROM (").Suffix(fmt.Sprintf(") subq) %s) %[1]s ON array_length(%[1]s.%[1]s, 1) > 0", subAlias))
 		query, args, _ := subquery.ToSql()
 		mainQuery = mainQuery.Join(query, args...)
 	} else {
-		subquery = subquery.Prefix("LATERAL (SELECT ARRAY(SELECT (sub) FROM (").Suffix(fmt.Sprintf(") sub) %s) %[1]s ON true", subAlias))
+		subquery = subquery.Prefix("LATERAL (SELECT ARRAY(SELECT (subq) FROM (").Suffix(fmt.Sprintf(") subq) %s) %[1]s ON true", subAlias))
 		query, args, _ := subquery.ToSql()
 		mainQuery = mainQuery.LeftJoin(query, args...)
 	}
@@ -1544,13 +1992,8 @@ func NewCaseStore(store store.Store) (store.CaseStore, error) {
 
 func addCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
 	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
-		subquery := sq.Select("acl.object").From("cases.case_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
@@ -1558,13 +2001,8 @@ func addCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.Sel
 
 func addCaseRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
 	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
-		subquery := sq.Select("acl.object").From("cases.case_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
@@ -1572,13 +2010,8 @@ func addCaseRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, que
 
 func addCaseRbacConditionForUpdate(auth auth.Auther, access auth.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
 	if auth != nil && auth.GetObjectScope(casesObjClassScopeName).IsRbacUsed() {
-		subquery := sq.Select("acl.object").From("cases.case_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
@@ -1603,11 +2036,11 @@ func addCaseRbacConditionForInsert(auth auth.Auther, access auth.AccessMode, que
 	return query.Prefix(sql, args...), nil
 }
 
-func (l *CaseStore) scanCases(rows pgx.Rows, plan []func(link *_go.Case) any) ([]*_go.Case, error) {
+func (c *CaseStore) scanCases(rows pgx.Rows, plan []func(link *_go.Case) any) ([]*_go.Case, error) {
 	var res []*_go.Case
 
 	for rows.Next() {
-		link, err := l.scanCase(pgx.Row(rows), plan)
+		link, err := c.scanCase(pgx.Row(rows), plan)
 		if err != nil {
 			return nil, err
 		}
@@ -1616,7 +2049,7 @@ func (l *CaseStore) scanCases(rows pgx.Rows, plan []func(link *_go.Case) any) ([
 	return res, nil
 }
 
-func (l *CaseStore) scanCase(row pgx.Row, plan []func(link *_go.Case) any) (*_go.Case, error) {
+func (c *CaseStore) scanCase(row pgx.Row, plan []func(link *_go.Case) any) (*_go.Case, error) {
 	var link _go.Case
 	var scanPlan []any
 	for _, scan := range plan {

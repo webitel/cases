@@ -427,18 +427,17 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 	}
 
 	// Adjust sort if calendar is present
-	for i, sortField := range rpc.Sort {
-		// Remove any leading "+" or "-" for comparison
-		field := strings.TrimPrefix(strings.TrimPrefix(sortField, "-"), "+")
+	sortField := rpc.Sort
+	// Remove any leading "+" or "-" for comparison
+	field := strings.TrimPrefix(strings.TrimPrefix(sortField, "-"), "+")
 
-		if field == "priorities" {
-			// Replace "calendar" with "cal.name" for sorting
-			if strings.HasPrefix(sortField, "-") {
-				rpc.Sort[i] = "-p.name"
-			} else {
-				// Covers both no prefix and "+" prefix
-				rpc.Sort[i] = "p.name"
-			}
+	if field == "priorities" {
+		// Replace "calendar" with "cal.name" for sorting
+		if strings.HasPrefix(sortField, "-") {
+			rpc.Sort = "-p.name"
+		} else {
+			// Covers both no prefix and "+" prefix
+			rpc.Sort = "p.name"
 		}
 	}
 

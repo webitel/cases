@@ -19,7 +19,7 @@ type CaseLinkService struct {
 	cases.UnimplementedCaseLinksServer
 }
 
-var CaseLinkMetadata = model.NewObjectMetadata("", model.ScopeCase, []*model.Field{
+var CaseLinkMetadata = model.NewObjectMetadata("", model.ScopeCases, []*model.Field{
 	{"etag", true},
 	{"id", false},
 	{"ver", false},

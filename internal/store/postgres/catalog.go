@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -75,7 +74,7 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 
 func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
 	// Define arguments for the query
-	args := []interface{}{
+	args := []any{
 		add.Name,                        // $1: name (cannot be null)
 		add.Description,                 // $2: description (could be null)
 		add.Prefix,                      // $3: prefix (could be null)
@@ -213,7 +212,7 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 }
 
 // Helper method to build the delete query for Catalog
-func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string, []interface{}) {
+func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string, []any) {
 	// Build the SQL query using the provided IDs in rpc.IDs
 	query := `
 		DELETE FROM cases.service_catalog
@@ -221,7 +220,7 @@ func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string
 	`
 
 	// Use the array of IDs and domain ID (dc) for the deletion
-	args := []interface{}{
+	args := []any{
 		pq.Array(rpc.IDs),               // $1: array of catalog IDs to delete
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
@@ -257,8 +256,6 @@ func (s *CatalogStore) List(
 		return nil, dberr.NewDBInternalError("postgres.catalog.list.query_execution_error", err)
 	}
 	defer rows.Close()
-
-	print(query)
 
 	// 5. Prepare containers
 	var (
@@ -415,9 +412,16 @@ func (s *CatalogStore) List(
 				// Map Group to Lookup
 				if groupID, ok := raw["group_id"].(float64); ok {
 					if groupName, ok := raw["group_name"].(string); ok {
-						service.Group = &cases.ExtendedLookup{
-							Id:   int64(groupID),
-							Name: groupName,
+						if groupType, ok := raw["group_type"].(string); ok {
+							if groupID == 0 {
+								service.Group = nil
+							} else {
+								service.Group = &cases.ExtendedLookup{
+									Id:   int64(groupID),
+									Name: groupName,
+									Type: strings.ToUpper(groupType),
+								}
+							}
 						}
 					}
 				}
@@ -589,183 +593,6 @@ func (s *CatalogStore) buildCatalogScanArgs(
 	return scanArgs, nil
 }
 
-func (s *CatalogStore) parsePartialService(
-	serviceFields []string,
-	placeholders []interface{},
-) *cases.Service {
-	svc := &cases.Service{}
-
-	// Use an index to walk through placeholders;
-	// some fields (two-column lookups) consume two placeholders.
-	var idx int
-
-	for _, field := range serviceFields {
-		// Prevent out-of-bounds
-		if idx >= len(placeholders) {
-			break
-		}
-
-		switch field {
-
-		//----------------------------------------------------------------------
-		// Single-placeholder fields (one sql.Null* per field)
-		//----------------------------------------------------------------------
-		case "id":
-			if ph, ok := placeholders[idx].(*sql.NullInt64); ok && ph != nil && ph.Valid {
-				svc.Id = ph.Int64
-			}
-			idx++
-
-		case "name":
-			if ph, ok := placeholders[idx].(*sql.NullString); ok && ph != nil && ph.Valid {
-				svc.Name = ph.String
-			}
-			idx++
-
-		case "description":
-			if ph, ok := placeholders[idx].(*sql.NullString); ok && ph != nil && ph.Valid {
-				svc.Description = ph.String
-			}
-			idx++
-
-		case "code":
-			if ph, ok := placeholders[idx].(*sql.NullString); ok && ph != nil && ph.Valid {
-				svc.Code = ph.String
-			}
-			idx++
-
-		case "state":
-			if ph, ok := placeholders[idx].(*sql.NullBool); ok && ph != nil && ph.Valid {
-				svc.State = ph.Bool
-			}
-			idx++
-
-		case "root_id":
-			if ph, ok := placeholders[idx].(*sql.NullInt64); ok && ph != nil && ph.Valid {
-				svc.RootId = ph.Int64
-			}
-			idx++
-
-		case "created_at":
-			if ph, ok := placeholders[idx].(*sql.NullTime); ok && ph != nil && ph.Valid {
-				svc.CreatedAt = util.Timestamp(ph.Time)
-			}
-			idx++
-
-		case "updated_at":
-			if ph, ok := placeholders[idx].(*sql.NullTime); ok && ph != nil && ph.Valid {
-				svc.UpdatedAt = util.Timestamp(ph.Time)
-			}
-			idx++
-
-		//----------------------------------------------------------------------
-		// Two-placeholder lookups: each consumes two sql.Null* placeholders
-		//----------------------------------------------------------------------
-		case "sla":
-			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
-			if idx+1 < len(placeholders) {
-				idPh, _ := placeholders[idx].(*sql.NullInt64)
-				namePh, _ := placeholders[idx+1].(*sql.NullString)
-
-				if idPh != nil && idPh.Valid {
-					svc.Sla = &cases.Lookup{Id: idPh.Int64}
-				}
-				if namePh != nil && namePh.Valid {
-					if svc.Sla == nil {
-						svc.Sla = &cases.Lookup{}
-					}
-					svc.Sla.Name = namePh.String
-				}
-				idx += 2
-			} else {
-				idx++
-			}
-
-		case "group":
-			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
-			if idx+1 < len(placeholders) {
-				idPh, _ := placeholders[idx].(*sql.NullInt64)
-				namePh, _ := placeholders[idx+1].(*sql.NullString)
-
-				if idPh != nil && idPh.Valid {
-					svc.Group = &cases.ExtendedLookup{Id: idPh.Int64}
-				}
-				if namePh != nil && namePh.Valid {
-					if svc.Group == nil {
-						svc.Group = &cases.ExtendedLookup{}
-					}
-					svc.Group.Name = namePh.String
-				}
-				idx += 2
-			} else {
-				idx++
-			}
-
-		case "assignee":
-			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
-			if idx+1 < len(placeholders) {
-				idPh, _ := placeholders[idx].(*sql.NullInt64)
-				namePh, _ := placeholders[idx+1].(*sql.NullString)
-
-				if idPh != nil && idPh.Valid {
-					svc.Assignee = &cases.Lookup{Id: idPh.Int64}
-				}
-				if namePh != nil && namePh.Valid {
-					if svc.Assignee == nil {
-						svc.Assignee = &cases.Lookup{}
-					}
-					svc.Assignee.Name = namePh.String
-				}
-				idx += 2
-			} else {
-				idx++
-			}
-
-		case "created_by":
-			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
-			if idx+1 < len(placeholders) {
-				idPh, _ := placeholders[idx].(*sql.NullInt64)
-				namePh, _ := placeholders[idx+1].(*sql.NullString)
-
-				if idPh != nil && idPh.Valid {
-					svc.CreatedBy = &cases.Lookup{Id: idPh.Int64}
-				}
-				if namePh != nil && namePh.Valid {
-					if svc.CreatedBy == nil {
-						svc.CreatedBy = &cases.Lookup{}
-					}
-					svc.CreatedBy.Name = namePh.String
-				}
-				idx += 2
-			} else {
-				idx++
-			}
-
-		case "updated_by":
-			// expects: *sql.NullInt64 (ID), *sql.NullString (Name)
-			if idx+1 < len(placeholders) {
-				idPh, _ := placeholders[idx].(*sql.NullInt64)
-				namePh, _ := placeholders[idx+1].(*sql.NullString)
-
-				if idPh != nil && idPh.Valid {
-					svc.UpdatedBy = &cases.Lookup{Id: idPh.Int64}
-				}
-				if namePh != nil && namePh.Valid {
-					if svc.UpdatedBy == nil {
-						svc.UpdatedBy = &cases.Lookup{}
-					}
-					svc.UpdatedBy.Name = namePh.String
-				}
-				idx += 2
-			} else {
-				idx++
-			}
-		}
-	}
-
-	return svc
-}
-
 func (s *CatalogStore) nestServicesByRootID(
 	rootCatalogID int64,
 	services []*cases.Service,
@@ -920,6 +747,20 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	if state, ok := rpc.Filter["state"]; ok {
 		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
 	}
+	teamFilter, teamFilterFound := rpc.Filter["team"].(int64)
+	skillsFilter, skillFilterFound := rpc.Filter["skills"].([]int64)
+	if teamFilterFound || skillFilterFound {
+		or := sq.Or{}
+		if teamFilter > 0 {
+			or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.team_catalog WHERE team_id = :team)"))
+			params["team"] = teamFilter
+		}
+		if len(skillsFilter) > 0 {
+			or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.skill_catalog WHERE skill_id = ANY(:skills))", skillsFilter))
+			params["skills"] = skillsFilter
+		}
+		queryBuilder = queryBuilder.Where(or)
+	}
 
 	// Add condition for rpc.IDs if provided
 	if len(rpc.IDs) > 0 {
@@ -1046,6 +887,7 @@ COALESCE(
 	if util.ContainsField(subfields, "group") {
 		jsonFields.WriteString("'group_id', COALESCE(service_hierarchy.group_id, 0),\n")
 		jsonFields.WriteString("'group_name', COALESCE(service_hierarchy.group_name, ''),\n")
+		jsonFields.WriteString("'group_type', COALESCE(service_hierarchy.group_type, ''),\n")
 	}
 	if util.ContainsField(subfields, "assignee") {
 		jsonFields.WriteString("'assignee_id', COALESCE(service_hierarchy.assignee_id, 0),\n")
@@ -1105,16 +947,15 @@ func applySorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.Se
 
 	sortApplied := false
 
-	for _, sortField := range rpc.Sort {
-		sortDirection := "ASC"
-		if len(sortField) > 0 {
-			switch sortField[0] {
-			case '-':
-				sortDirection = "DESC"
-				sortField = sortField[1:]
-			case '+':
-				sortField = sortField[1:]
-			}
+	sortField := rpc.Sort
+	sortDirection := "ASC"
+	if len(sortField) > 0 {
+		switch sortField[0] {
+		case '-':
+			sortDirection = "DESC"
+			sortField = sortField[1:]
+		case '+':
+			sortField = sortField[1:]
 		}
 
 		if dbField, exists := sortableFields[sortField]; exists {
@@ -1345,7 +1186,11 @@ SELECT catalog.id,
 	if util.ContainsField(serviceFields, "group") {
 		sb.WriteString(`,
        COALESCE(catalog.group_id, 0) AS group_id,
-       COALESCE(service_group.name, '') AS group_name
+       COALESCE(service_group.name, '') AS group_name,
+       CASE
+           WHEN catalog.group_id IN (SELECT id FROM contacts.dynamic_group) THEN 'dynamic'
+           ELSE 'static'
+       END AS group_type
 `)
 	}
 
@@ -1468,12 +1313,18 @@ SELECT subservice.id,
        COALESCE(service_sla2.name, '') AS sla_name
 `)
 	}
+	// If user wants "group"
 	if util.ContainsField(serviceFields, "group") {
 		sb.WriteString(`,
        COALESCE(subservice.group_id, 0) AS group_id,
-       COALESCE(service_group2.name, '') AS group_name
+       COALESCE(service_group2.name, '') AS group_name,
+       CASE
+           WHEN subservice.group_id IN (SELECT id FROM contacts.dynamic_group) THEN 'dynamic'
+           ELSE 'static'
+       END AS group_type
 `)
 	}
+
 	if util.ContainsField(serviceFields, "assignee") {
 		sb.WriteString(`,
        COALESCE(subservice.assignee_id, 0) AS assignee_id,
@@ -1547,9 +1398,9 @@ LEFT JOIN directory.wbt_user AS service_updated_by_user2
 
 	// Ensure depth is valid and set defaults
 	if depth == 0 {
-		depth = 3 // Default depth
+		depth = 100
 	} else if depth > 100 {
-		depth = 100 // Maximum depth
+		depth = 100
 	}
 
 	sb.WriteString(`

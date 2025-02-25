@@ -11,10 +11,10 @@ import (
 	"time"
 )
 
-var CaseTimelineMetadata = model.NewObjectMetadata("", model.ScopeCase, []*model.Field{
-	{"calls", true},
-	{"chats", true},
-	{"emails", true},
+var CaseTimelineMetadata = model.NewObjectMetadata("", model.ScopeCases, []*model.Field{
+	{cases.CaseTimelineEventType_call.String(), true},
+	{cases.CaseTimelineEventType_chat.String(), true},
+	{cases.CaseTimelineEventType_email.String(), true},
 })
 
 type CaseTimelineService struct {
@@ -27,7 +27,7 @@ func NewCaseTimelineService(app *App) (*CaseTimelineService, errors.AppError) {
 }
 
 func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.GetTimelineRequest) (*cases.GetTimelineResponse, error) {
-	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
+	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline.check_args.invalid_etag", "Invalid case etag")
 	}
@@ -35,6 +35,13 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
+	}
+	var requestedType []string
+	for _, eventType := range request.Type {
+		requestedType = append(requestedType, eventType.String())
+	}
+	if len(requestedType) != 0 {
+		searchOpts.Fields = requestedType
 	}
 	searchOpts.ParentId = tid.GetOid()
 	logAttributes := slog.Group(
@@ -65,7 +72,7 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 }
 
 func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *cases.GetTimelineCounterRequest) (*cases.GetTimelineCounterResponse, error) {
-	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
+	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline_counter.check_args.invalid_etag", "Invalid case etag")
 	}

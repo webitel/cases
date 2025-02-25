@@ -3,9 +3,10 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/webitel/cases/auth"
 	"strings"
 	"time"
+
+	"github.com/webitel/cases/auth"
 
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
@@ -16,7 +17,7 @@ import (
 type UpdateOptions struct {
 	Time time.Time
 	context.Context
-	//Session *session.Session
+	// Session *session.Session
 	// output
 	Fields            []string
 	UnknownFields     []string
@@ -50,8 +51,8 @@ func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetada
 	opts := &UpdateOptions{
 		Context: ctx,
 		Mask:    req.GetXJsonMask(),
-		Time:    time.Now(),
 	}
+	opts.CurrentTime()
 	if sess := GetAutherOutOfContext(ctx); sess != nil {
 		opts.Auth = sess
 	} else {

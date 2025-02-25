@@ -101,30 +101,55 @@ func ResolvePaging[T any](size int, items []*T) (updatedItems []*T, next bool) {
 }
 
 func ApplyDefaultSorting(opts model.Sorter, base squirrel.SelectBuilder, defaultSort string) squirrel.SelectBuilder {
-	if len(opts.GetSort()) != 0 {
-		for _, s := range opts.GetSort() {
-			// Check for + or - prefix
-			desc := strings.HasPrefix(s, "-")
-			asc := strings.HasPrefix(s, "+")
+	if s := opts.GetSort(); len(s) != 0 {
 
-			// Trim prefix if it exists
-			if desc || asc {
-				s = strings.TrimPrefix(s, string(s[0]))
-			}
+		// Check for + or - prefix
+		desc := strings.HasPrefix(s, "-")
+		asc := strings.HasPrefix(s, "+")
 
-			// Determine sort direction
-			if desc {
-				s += " DESC"
-			} else {
-				s += " ASC"
-			}
-			base = base.OrderBy(s)
+		// Trim prefix if it exists
+		if desc || asc {
+			s = strings.TrimPrefix(s, string(s[0]))
 		}
+
+		// Determine sort direction
+		if desc {
+			s += " DESC"
+		} else {
+			s += " ASC"
+		}
+		base = base.OrderBy(s)
+
 	} else {
 		base = base.OrderBy(fmt.Sprintf(`%s ASC`, defaultSort))
 	}
 
 	return base
+}
+
+func GetSortingOperator(opts model.Sorter) (field, direction string) {
+	if s := opts.GetSort(); len(s) != 0 {
+
+		// Check for + or - prefix
+		desc := strings.HasPrefix(s, "-")
+		asc := strings.HasPrefix(s, "+")
+
+		// Trim prefix if it exists
+		if desc || asc {
+			s = strings.TrimPrefix(s, string(s[0]))
+		}
+		var dir string
+		// Determine sort direction
+		if desc {
+			dir += " DESC"
+		} else {
+			dir += " ASC"
+		}
+		return s, dir
+
+	}
+
+	return "", ""
 }
 
 // PrepareSearchNumber reverses the first string

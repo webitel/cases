@@ -3,8 +3,9 @@ package model
 import (
 	"context"
 	"errors"
-	"github.com/webitel/cases/auth"
 	"time"
+
+	"github.com/webitel/cases/auth"
 
 	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
@@ -15,6 +16,7 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 		Context: ctx,
 		Page:    int(searcher.GetPage()),
 		Size:    int(searcher.GetSize()),
+		Sort:    searcher.GetSort(),
 		Search:  searcher.GetQ(),
 		Filter:  make(map[string]any),
 	}
@@ -25,14 +27,15 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 	}
 	// set current time
 	opts.CurrentTime()
-	// normalize fields
+	// normalize fields and deduplicate fields
 	var resultingFields []string
 	if requestedFields := searcher.GetFields(); len(requestedFields) == 0 {
 		resultingFields = objMetadata.GetDefaultFields()
 	} else {
-		resultingFields = util.FieldsFunc(
+		resultingFields = util.DeduplicateFields(util.FieldsFunc(
 			requestedFields, graph.SplitFieldsQ,
-		)
+		))
+
 	}
 
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
@@ -56,7 +59,7 @@ type SearchOptions struct {
 	// paging
 	Page int
 	Size int
-	Sort []string
+	Sort string
 	// filtering by single id
 	ID int64
 	// Auth opts
@@ -113,7 +116,7 @@ func (s *SearchOptions) GetPage() int {
 	return 0
 }
 
-func (s *SearchOptions) GetSort() []string {
+func (s *SearchOptions) GetSort() string {
 	return s.Sort
 }
 
@@ -130,10 +133,11 @@ type Lister interface {
 	Fielder
 	Pager
 	Searcher
+	Sorter
 }
 
 type Sorter interface {
-	GetSort() []string
+	GetSort() string
 }
 
 type Pager interface {
@@ -171,9 +175,9 @@ func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMe
 		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
 		copy(resultingFields, objMetadata.GetDefaultFields())
 	} else {
-		resultingFields = util.FieldsFunc(
+		resultingFields = util.DeduplicateFields(util.FieldsFunc(
 			requestedFields, graph.SplitFieldsQ,
-		)
+		))
 	}
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
 	opts.Fields = util.ParseFieldsForEtag(resultingFields)

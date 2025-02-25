@@ -1,7 +1,8 @@
 package model
 
 const (
-	ScopeDictionary  = "dictionaries"
-	ScopeCase        = "cases"
-	ScopeCaseComment = "case_comments"
+	ScopeDictionary   = "dictionaries"
+	ScopeCases        = "cases"
+	ScopeCalls        = "calls"
+	ScopeCaseComments = "case_comments"
 )

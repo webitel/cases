@@ -86,15 +86,15 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (squirrel.Sqlizer, []fun
 			eventType string
 		)
 		switch field {
-		case "chats":
+		case "chat":
 			cte, chatsPlan, err = buildTimelineChatsColumn(caseId)
-			eventType = cases.CaseTimelineEventType_TIMELINE_CHAT.String()
-		case "calls":
+			eventType = cases.CaseTimelineEventType_chat.String()
+		case "call":
 			cte, callsPlan, err = buildTimelineCallsColumn(caseId)
-			eventType = cases.CaseTimelineEventType_TIMELINE_CALL.String()
-		case "emails":
+			eventType = cases.CaseTimelineEventType_call.String()
+		case "email":
 			cte, emailsPlan, err = buildTimelineEmailsColumn(caseId)
-			eventType = cases.CaseTimelineEventType_TIMELINE_EMAIL.String()
+			eventType = cases.CaseTimelineEventType_email.String()
 		default:
 			return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.parse_fields.unknown", "unknown field "+field)
 		}
@@ -220,27 +220,27 @@ func buildCaseTimelineSqlizer(rpc *model.SearchOptions) (squirrel.Sqlizer, []fun
 					)
 					// ALLOC
 					switch eventType = dayEvents[r]; eventType {
-					case cases.CaseTimelineEventType_TIMELINE_EMAIL.String():
+					case cases.CaseTimelineEventType_email.String():
 						actualEvent := &cases.EmailEvent{}
-						node.Type = cases.CaseTimelineEventType_TIMELINE_EMAIL
+						node.Type = cases.CaseTimelineEventType_email
 						node.Event = &cases.Event_Email{Email: actualEvent}
 						count := &rec.EmailsCount
 						*count++
 
 						// scanning functions set
 						scanPlan = emailsPlan
-					case cases.CaseTimelineEventType_TIMELINE_CHAT.String():
+					case cases.CaseTimelineEventType_chat.String():
 						actualEvent := &cases.ChatEvent{}
-						node.Type = cases.CaseTimelineEventType_TIMELINE_CHAT
+						node.Type = cases.CaseTimelineEventType_chat
 						node.Event = &cases.Event_Chat{Chat: actualEvent}
 						count := &rec.ChatsCount
 						*count++
 
 						// scanning functions set
 						scanPlan = chatsPlan
-					case cases.CaseTimelineEventType_TIMELINE_CALL.String():
+					case cases.CaseTimelineEventType_call.String():
 						actualEvent := &cases.CallEvent{}
-						node.Type = cases.CaseTimelineEventType_TIMELINE_CALL
+						node.Type = cases.CaseTimelineEventType_call
 						node.Event = &cases.Event_Call{Call: actualEvent}
 						count := &rec.CallsCount
 						*count++
@@ -358,6 +358,11 @@ func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 		func(node **cases.Event) any {
 			buf := *node
 			call := buf.GetCall()
+			return &call.Duration
+		},
+		func(node **cases.Event) any {
+			buf := *node
+			call := buf.GetCall()
 			return &call.TotalDuration
 		},
 		func(node **cases.Event) any {
@@ -425,7 +430,7 @@ func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 						return scanner.ScanText(&file.Name)
 					},
 					func(file *cases.CallFile) any {
-						return scanner.ScanInt64(&file.CreatedAt)
+						return scanner.ScanInt64(&file.StartAt)
 					},
 				}
 
@@ -671,13 +676,13 @@ func buildTimelineCounterSqlizer(rpc *model.SearchOptions) (query squirrel.Sqliz
 	)
 	for i, field := range fields {
 		switch field {
-		case "calls":
+		case cases.CaseTimelineEventType_call.String():
 			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_CALL)
 			ctes[field] = squirrel.Expr(CallsCounterCTE, communicationType, caseId, communicationType)
-		case "emails":
+		case cases.CaseTimelineEventType_email.String():
 			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL)
 			ctes[field] = squirrel.Expr(EmailsCounterCTE, communicationType, caseId, communicationType)
-		case "chats":
+		case cases.CaseTimelineEventType_chat.String():
 			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_CHAT)
 			ctes[field] = squirrel.Expr(ChatsCounterCTE, communicationType, caseId, communicationType)
 		default:
@@ -695,11 +700,12 @@ func buildTimelineCounterSqlizer(rpc *model.SearchOptions) (query squirrel.Sqliz
 	}
 
 	query = squirrel.Select("count(*) count",
-		"max(type) event",
+		"type event",
 		"max(closed_at) date_to",
 		"min(created_at) date_from").
 		From(from).
 		Prefix(cteQuery, args...).
+		GroupBy("type").
 		PlaceholderFormat(squirrel.Dollar)
 
 	// each row represents type of event
@@ -724,6 +730,7 @@ const (
 	CallsCTE = `select c.id::text,
        c.created_at,
        c.hangup_at                  AS                                        closed_at,
+       round(case when c.user_id notnull then date_part('epoch'::text, c.hangup_at - c.created_at)::bigint else (select date_part('epoch'::text, hangup_at - created_at)::bigint from call_center.cc_calls_history where parent_id = c.id limit 1) end)::bigint as      duration,
        root.duration                                        total_duration,
        (with recursive a as (select *
                              from call_center.cc_calls_history

@@ -14,16 +14,18 @@ import (
 )
 
 type CaseFileStore struct {
-	storage store.Store
+	storage   store.Store
+	mainTable string
 }
 
 const (
 	// Alias for the storage.files table
-	fileAlias              = "cf"
-	channel                = "case"
-	fileDefaultSort        = "uploaded_at"
-	caseFileAuthorAlias    = "au"
-	caseFileCreatedByAlias = "cb"
+	fileAlias               = "cf"
+	channel                 = "case"
+	fileDefaultSort         = "uploaded_at"
+	caseFileAuthorAlias     = "au"
+	caseFileNotRemovedAlias = "ra"
+	caseFileCreatedByAlias  = "cb"
 )
 
 // List implements store.CaseFileStore for listing case files.
@@ -101,6 +103,7 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 				sq.Eq{"cf.domain_id": rpc.GetAuthOpts().GetDomainId()},
 				sq.Eq{"cf.uuid": strconv.Itoa(int(rpc.ParentId))},
 				sq.Eq{"cf.channel": channel},
+				sq.Eq{"cf.removed": nil},
 			},
 		).
 		PlaceholderFormat(sq.Dollar)
@@ -133,7 +136,49 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 	return queryBuilder, plan, nil
 }
 
-// Helper function to build the select columns and scan plan based on the fields requested.
+// Delete implements store.CaseFileStore.
+func (c *CaseFileStore) Delete(rpc *model.DeleteOptions) error {
+	if rpc == nil {
+		return dberr.NewDBError("postgres.case_file.delete.check_args.opts", "delete options required")
+	}
+	if rpc.ID == 0 {
+		return dberr.NewDBError("postgres.case_file.delete.check_args.id", "id required")
+	}
+	if rpc.ParentID == 0 {
+		return dberr.NewDBError("postgres.case_file.delete.check_args.id", "case id required")
+	}
+
+	// convert int64 to varchar (datatype in DB)
+	uuid := strconv.Itoa(int(rpc.ParentID))
+	base := sq.
+		Update(c.mainTable).
+		Set("removed", true).
+		Where(sq.Eq{"id": rpc.ID}).
+		Where(sq.Eq{"domain_id": rpc.GetAuthOpts().GetDomainId()}).
+		Where(sq.Eq{"uuid": uuid}).
+		PlaceholderFormat(sq.Dollar)
+
+	query, args, err := base.ToSql()
+	query = store.CompactSQL(query)
+
+	if err != nil {
+		return dberr.NewDBError("postgres.case_file.delete.parse_query.error", err.Error())
+	}
+	db, dbErr := c.storage.Database()
+	if dbErr != nil {
+		return dbErr
+	}
+
+	res, err := db.Exec(rpc.Context, query, args...)
+	if err != nil {
+		return dberr.NewDBError("postgres.case_file.delete.execute.error", err.Error())
+	}
+	if affected := res.RowsAffected(); affected == 0 || affected > 1 {
+		return dberr.NewDBNoRowsError("postgres.case_file.delete.final_check.rows")
+	}
+	return nil
+}
+
 func buildFilesSelectColumnsAndPlan(
 	base sq.SelectBuilder,
 	left string,
@@ -189,7 +234,7 @@ func buildFilesSelectColumnsAndPlan(
 				return &file.Mime
 			})
 		case "name":
-			base = base.Column(store.Ident(left, "name"))
+			base = base.Column(store.Ident(left, "view_name"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Name
 			})
@@ -223,9 +268,9 @@ func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq
 	}
 	base := sq.
 		Select().
-		From("storage.files "+alias).
+		From("storage.files " + alias).
 		Where(fmt.Sprintf("%s = %s::text", store.Ident(alias, "uuid"), store.Ident(caseAlias, "id"))).
-		Where(fmt.Sprintf("%s = ?", store.Ident(alias, "channel")), channel)
+		Where(fmt.Sprintf("%s = '%s'", store.Ident(alias, "channel"), channel))
 	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 
 	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, opts.Fields)
@@ -241,5 +286,5 @@ func NewCaseFileStore(store store.Store) (store.CaseFileStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_case_file.check.bad_arguments", "error creating case file interface, main store is nil")
 	}
-	return &CaseFileStore{storage: store}, nil
+	return &CaseFileStore{storage: store, mainTable: "storage.files"}, nil
 }

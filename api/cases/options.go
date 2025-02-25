@@ -44,7 +44,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"CreateService": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "CreateServiceRequest",
 				Output: "Service",
 				HttpBindings: []*HttpBinding{
@@ -70,7 +70,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteService": WebitelMethod{
-				Access: 3,
+				Access: 2,
 				Input:  "DeleteServiceRequest",
 				Output: "ServiceList",
 				HttpBindings: []*HttpBinding{
@@ -94,7 +94,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"CaseComments": WebitelServices{
-		ObjClass:           "cases",
+		ObjClass:           "case_comments",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"LocateComment": WebitelMethod{
@@ -235,6 +235,17 @@ var WebitelAPI = WebitelServicesInfo{
 					{
 						Path:   "/cases/{case_etag}/files",
 						Method: "GET",
+					},
+				},
+			},
+			"DeleteFile": WebitelMethod{
+				Access: 3,
+				Input:  "DeleteFileRequest",
+				Output: "File",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_etag}/files/{id}",
+						Method: "DELETE",
 					},
 				},
 			},
@@ -386,7 +397,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"CreateStatusCondition": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "CreateStatusConditionRequest",
 				Output: "StatusCondition",
 				HttpBindings: []*HttpBinding{
@@ -412,7 +423,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteStatusCondition": WebitelMethod{
-				Access: 3,
+				Access: 2,
 				Input:  "DeleteStatusConditionRequest",
 				Output: "StatusCondition",
 				HttpBindings: []*HttpBinding{
@@ -516,7 +527,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"CreateSLACondition": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "CreateSLAConditionRequest",
 				Output: "SLACondition",
 				HttpBindings: []*HttpBinding{
@@ -542,7 +553,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteSLACondition": WebitelMethod{
-				Access: 3,
+				Access: 2,
 				Input:  "DeleteSLAConditionRequest",
 				Output: "SLACondition",
 				HttpBindings: []*HttpBinding{
@@ -576,6 +587,10 @@ var WebitelAPI = WebitelServicesInfo{
 				HttpBindings: []*HttpBinding{
 					{
 						Path:   "/cases",
+						Method: "GET",
+					},
+					{
+						Path:   "/contacts/{contact_id}/cases",
 						Method: "GET",
 					},
 				},
@@ -679,7 +694,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "GetTimelineResponse",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/{case_etag}/timeline",
+						Path:   "/cases/{case_id}/timeline",
 						Method: "GET",
 					},
 				},
@@ -690,7 +705,7 @@ var WebitelAPI = WebitelServicesInfo{
 				Output: "GetTimelineCounterResponse",
 				HttpBindings: []*HttpBinding{
 					{
-						Path:   "/cases/{case_etag}/timeline/counter",
+						Path:   "/cases/{case_id}/timeline/counter",
 						Method: "GET",
 					},
 				},
@@ -778,7 +793,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"CreateCloseReason": WebitelMethod{
-				Access: 0,
+				Access: 2,
 				Input:  "CreateCloseReasonRequest",
 				Output: "CloseReason",
 				HttpBindings: []*HttpBinding{
@@ -804,7 +819,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteCloseReason": WebitelMethod{
-				Access: 3,
+				Access: 2,
 				Input:  "DeleteCloseReasonRequest",
 				Output: "CloseReason",
 				HttpBindings: []*HttpBinding{

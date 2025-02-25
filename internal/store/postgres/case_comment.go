@@ -29,7 +29,7 @@ const (
 	caseCommentAuthorAlias       = "au"
 	caseCommentCreatedByAlias    = "cb"
 	caseCommentUpdatedByAlias    = "ub"
-	caseCommentObjClassScopeName = "case_comments"
+	caseCommentObjClassScopeName = model.ScopeCaseComments
 )
 
 // Publish implements store.CommentCaseStore for publishing a single comment.
@@ -451,7 +451,7 @@ func buildCommentSelectColumnsAndPlan(
 			})
 		case "created_by":
 			joinCreatedBy()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text created_by", caseCommentCreatedByAlias))
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, coalesce(%[1]s.name, %[1]s.username))::text created_by", caseCommentCreatedByAlias))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanRowLookup(&comment.CreatedBy)
 			})
@@ -462,7 +462,7 @@ func buildCommentSelectColumnsAndPlan(
 			})
 		case "updated_by":
 			joinUpdatedBy()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text updated_by", caseCommentUpdatedByAlias))
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, coalesce(%[1]s.name, %[1]s.username))::text updated_by", caseCommentUpdatedByAlias))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanRowLookup(&comment.UpdatedBy)
 			})
@@ -478,7 +478,7 @@ func buildCommentSelectColumnsAndPlan(
 			})
 		case "author":
 			joinAuthor()
-			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, %[1]s.common_name)::text author`, caseCommentAuthorAlias))
+			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, coalesce(%[1]s.common_name, %[1]s.given_name))::text author`, caseCommentAuthorAlias))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanRowLookup(&comment.Author)
 			})
@@ -590,42 +590,27 @@ func applyCaseCommentFilters(
 }
 
 func addCaseCommentRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
-	if auth != nil && auth.GetObjectScope(caseCommentObjClassScopeName).IsRbacUsed() {
-		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_comment_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
 }
 
 func addCaseCommentRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
-	if auth != nil && auth.GetObjectScope(caseCommentObjClassScopeName).IsRbacUsed() {
-		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_comment_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil
 }
 
 func addCaseCommentRbacConditionForUpdate(auth auth.Auther, access auth.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
-	if auth != nil && auth.GetObjectScope(caseCommentObjClassScopeName).IsRbacUsed() {
-		subquery := sq.Select("acl.object").From("cases.case_comment_acl acl").
-			Where("acl.dc = ?", auth.GetDomainId()).
-			Where(fmt.Sprintf("acl.object = %s", dependencyColumn)).
-			Where("acl.subject = any( ?::int[])", pq.Array(auth.GetRoles())).
-			Where("acl.access & ? = ?", int64(access), int64(access)).
-			Limit(1)
-		return query.Where("exists(?)", subquery), nil
+	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
+		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_comment_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
 
 	}
 	return query, nil

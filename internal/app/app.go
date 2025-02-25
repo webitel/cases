@@ -2,16 +2,18 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/webitel-go-kit/errors"
 	"log/slog"
+	"strings"
 
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/auth/user_auth/webitel_manager"
 	"google.golang.org/grpc/metadata"
-	"strings"
 
 	conf "github.com/webitel/cases/config"
 	ftspublisher "github.com/webitel/cases/fts_client"
@@ -20,6 +22,8 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
 	broker "github.com/webitel/cases/rabbit"
+
+	engine "github.com/webitel/cases/api/engine"
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 	ftsclient "github.com/webitel/webitel-fts/pkg/client"
 	"google.golang.org/grpc"
@@ -56,20 +60,42 @@ func getClientIp(ctx context.Context) string {
 }
 
 type App struct {
-	config          *conf.AppConfig
-	Store           store.Store
-	server          *server.Server
-	exitChan        chan error
-	storageConn     *grpc.ClientConn
-	sessionManager  user_auth.AuthManager
-	webitelAppConn  *grpc.ClientConn
-	shutdown        func(ctx context.Context) error
-	log             *slog.Logger
-	rabbit          *broker.RabbitBroker
-	rabbitExitChan  chan cerror.AppError
-	webitelgoClient webitelgo.GroupsClient
-	ftsClient       *ftsclient.Client
-	wtelLogger      *wlogger.LoggerClient
+	config            *conf.AppConfig
+	Store             store.Store
+	server            *server.Server
+	exitChan          chan error
+	storageConn       *grpc.ClientConn
+	sessionManager    user_auth.AuthManager
+	webitelAppConn    *grpc.ClientConn
+	shutdown          func(ctx context.Context) error
+	log               *slog.Logger
+	rabbit            *broker.RabbitBroker
+	rabbitExitChan    chan cerror.AppError
+	webitelgoClient   webitelgo.GroupsClient
+	ftsClient         *ftsclient.Client
+	engineConn        *grpc.ClientConn
+	engineAgentClient engine.AgentServiceClient
+	wtelLogger        *wlogger.LoggerClient
+	watcher           Watcher
+}
+
+type WatcherData struct {
+	case_      *cases.Case
+	CaseString string `json:"case"`
+	DomainId   int64  `json:"domain_id"`
+}
+
+func NewWatcherData(case_ *cases.Case, domainID int64) *WatcherData {
+	return &WatcherData{case_: case_, DomainId: domainID}
+}
+
+func (wd *WatcherData) Marshal() ([]byte, error) {
+	caseBytes, err := json.Marshal(wd.case_)
+	if err != nil {
+		return nil, err
+	}
+	wd.CaseString = string(caseBytes)
+	return json.Marshal(wd)
 }
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
@@ -97,6 +123,21 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 		return nil, cerror.NewInternalError("internal.internal.new_app.rabbit.start.error", appErr.Error())
 	}
 
+	// register watchers
+	watcher := NewDefaultWatcher()
+	if app.config.Watcher.Enabled {
+		caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher)
+		if err != nil {
+			return nil, cerror.NewInternalError("internal.internal.new_app.watcher.start.error", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, caseObserver)
+		watcher.Attach(EventTypeUpdate, caseObserver)
+		watcher.Attach(EventTypeDelete, caseObserver)
+	}
+
+	app.watcher = watcher
+	//
+
 	// --------- Webitel App gRPC Connection ---------
 	app.webitelAppConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/go.webitel.app?wait=14s", config.Consul.Address),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
@@ -106,6 +147,18 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 
 	if err != nil {
 		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
+	}
+
+	// --------- Webitel Engine gRPC Connection ---------
+	app.engineConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/engine?wait=14s", config.Consul.Address),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+
+	app.engineAgentClient = engine.NewAgentServiceClient(app.engineConn)
+
+	if err != nil {
+		return nil, cerror.NewInternalError("internal.internal.new_engine.grpc_conn.error", err.Error())
 	}
 
 	// --------- Webitel Logger gRPC Connection ---------

@@ -2,6 +2,10 @@ package app
 
 import (
 	"context"
+	"github.com/webitel/cases/api/engine"
+	"github.com/webitel/cases/auth"
+	"google.golang.org/grpc/metadata"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -115,8 +119,115 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 	}, nil
 }
 
+// // ListCatalogs implements cases.CatalogsServer.
+// func (s *CatalogService) ListCatalogs(
+// 	ctx context.Context,
+// 	req *cases.ListCatalogRequest,
+// ) (*cases.CatalogList, error) {
+// 	page := req.Page
+// 	if page == 0 {
+// 		page = 1
+// 	}
+
+// 	if len(req.Fields) == 0 {
+// 		req.Fields = strings.Split(defaultCatalogFields, ", ")
+// 	} else {
+// 		req.Fields = util.FieldsFunc(req.Fields, util.InlineFields)
+// 	}
+
+// 	if !util.ContainsField(req.Fields, "services") {
+// 		req.Fields = append(req.Fields, "services")
+// 	}
+
+// 	if req.Query != "" {
+// 		req.Fields = append(req.Fields, "searched")
+// 	}
+
+// 	if len(req.SubFields) > 0 {
+// 		req.SubFields = util.FieldsFunc(req.SubFields, util.InlineFields)
+// 	} else if len(req.SubFields) == 0 {
+// 		req.SubFields = strings.Split(defaultSubfields, ", ")
+// 	}
+
+// 	t := time.Now()
+// 	searchOptions := &model.SearchOptions{
+// 		IDs:     req.Id,
+// 		Context: ctx,
+// 		Sort:    req.Sort,
+// 		Fields:  req.Fields,
+// 		Page:    int(page),
+// 		Size:    int(req.Size),
+// 		Time:    t,
+// 		Filter:  make(map[string]any),
+// 		Auth:    model.GetAutherOutOfContext(ctx),
+// 	}
+
+// 	if req.Query != "" {
+// 		searchOptions.Filter["name"] = req.Query
+// 		req.Fields = append(req.Fields, "searched")
+// 	}
+
+// 	var (
+// 		teamID   *int64
+// 		skillIDs []*int64
+// 	)
+// 	if req.AgentID != 0 {
+
+// 		var info metadata.MD
+// 		var ok bool
+
+// 		info, ok = metadata.FromIncomingContext(ctx)
+// 		if !ok {
+// 			return nil, cerror.NewForbiddenError("internal.grpc.get_context", "Not found")
+// 		}
+// 		newCtx := metadata.NewOutgoingContext(ctx, info)
+// 		agent, err := engine.AgentServiceClient.SearchAgent(
+// 			s.app.engineAgentClient,
+// 			newCtx,
+// 			&engine.SearchAgentRequest{
+// 				Id:     []string{strconv.Itoa(int(req.AgentID))},
+// 				Fields: []string{"id", "team"},
+// 				Size:   -1,
+// 			})
+// 		print(agent)
+// 		if err != nil {
+// 			return nil, cerror.NewInternalError("catalog.list_catalogs.search.agent", err.Error())
+// 		}
+// 		skills, err := engine.AgentSkillServiceClient.SearchAgentSkill(
+// 			s.app.engineAgentSkillClient,
+// 			newCtx,
+// 			&engine.SearchAgentSkillRequest{
+// 				AgentId: req.AgentID,
+// 				Fields:  []string{"id"},
+// 				Size:    -1,
+// 			},
+// 		)
+// 		print(skills)
+// 		if err != nil {
+// 			return nil, cerror.NewInternalError("catalog.list_catalogs.search.agent_skills", err.Error())
+// 		}
+// 	}
+
+// 	catalogs, e := s.app.Store.Catalog().List(
+// 		searchOptions,
+// 		req.Depth,
+// 		req.SubFields,
+// 		req.HasSubservices,
+// 		teamID,
+// 		skillIDs,
+// 	)
+// 	if e != nil {
+// 		return nil, cerror.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
+// 	}
+
+// 	return catalogs, nil
+// }
+
 // ListCatalogs implements cases.CatalogsServer.
-func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalogRequest) (*cases.CatalogList, error) {
+func (s *CatalogService) ListCatalogs(
+	ctx context.Context,
+	req *cases.ListCatalogRequest,
+) (*cases.CatalogList, error) {
 	page := req.Page
 	if page == 0 {
 		page = 1
@@ -144,16 +255,53 @@ func (s *CatalogService) ListCatalogs(ctx context.Context, req *cases.ListCatalo
 
 	t := time.Now()
 	searchOptions := &model.SearchOptions{
-		IDs: req.Id, // TODO check placholders in DB layer
-		// UserAuthSession: session,
+		IDs:     req.Id,
 		Context: ctx,
 		Sort:    req.Sort,
 		Fields:  req.Fields,
 		Page:    int(page),
 		Size:    int(req.Size),
 		Time:    t,
-		Filter:  make(map[string]interface{}),
+		Filter:  make(map[string]any),
 		Auth:    model.GetAutherOutOfContext(ctx),
+	}
+	if !searchOptions.GetAuthOpts().HasSuperPermission(auth.SuperSelectPermission) { // if user doesn't have super select permission, then apply filters
+		var info metadata.MD
+		var ok bool
+
+		info, ok = metadata.FromIncomingContext(ctx)
+		if !ok {
+			return nil, cerror.NewForbiddenError("internal.grpc.get_context", "Not found")
+		}
+		newCtx := metadata.NewOutgoingContext(ctx, info)
+		res, err := s.app.engineAgentClient.SearchAgent(newCtx, &engine.SearchAgentRequest{
+			Size:   -1,
+			Fields: []string{"id", "team", "skills"},
+			UserId: []int64{searchOptions.GetAuthOpts().GetUserId()},
+		})
+		if err == nil { // passive filter, if we can't receive agent's skills and teams for whatever reason then skip
+			if len(res.Items) != 0 {
+				var (
+					agent  = res.Items[0]
+					skills []int64
+				)
+				if team := agent.Team; team != nil {
+					if team.GetId() > 0 {
+						searchOptions.Filter["team"] = agent.Team.Id
+					}
+				}
+				if agent.Skills != nil && len(agent.Skills) != 0 {
+					for _, skill := range agent.Skills {
+						skills = append(skills, skill.GetId())
+					}
+					searchOptions.Filter["skills"] = skills
+
+				}
+			}
+		} else {
+			slog.WarnContext(ctx, err.Error()) // log and skip
+			err = nil
+		}
 	}
 
 	if req.Query != "" {

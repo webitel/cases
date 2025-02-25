@@ -144,8 +144,8 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 		u := session.GetUserId()
 		userId = &u
 		roles = session.GetRoles()
-		callsRbac = session.GetObjectScope("calls").IsRbacUsed()
-		caseRbac = session.GetObjectScope("cases").IsRbacUsed()
+		callsRbac = session.IsRbacCheckRequired(model.ScopeCalls, auth.Read)
+		caseRbac = session.IsRbacCheckRequired(model.ScopeCases, auth.Edit)
 	}
 	var caseSubquery squirrel.Sqlizer
 	if caseRbac {
@@ -176,7 +176,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 					dc, auth.Read, roles,
 					roles)
 			} else {
-				callsSubquery = squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`)
+				callsSubquery = squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`, communication.CommunicationId)
 			}
 			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), callsSubquery, caseSubquery)
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CHAT:

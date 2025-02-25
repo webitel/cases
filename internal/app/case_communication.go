@@ -14,7 +14,7 @@ import (
 	"github.com/webitel/webitel-go-kit/etag"
 )
 
-var CaseCommunicationMetadata = model.NewObjectMetadata("", model.ScopeCase, []*model.Field{
+var CaseCommunicationMetadata = model.NewObjectMetadata("", model.ScopeCases, []*model.Field{
 	{Name: "etag", Default: true},
 	{Name: "ver", Default: false},
 	{"id", true},
@@ -66,10 +66,7 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 }
 
 func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, request *cases.LinkCommunicationRequest) (*cases.LinkCommunicationResponse, error) {
-	if len(request.Input) == 0 {
-		return nil, errors.NewBadRequestError("app.case_communication.link_communication.check_args.payload", "no payload")
-	}
-	err := ValidateCaseCommunicationsCreate(request.Input...)
+	err := ValidateCaseCommunicationsCreate(request.Input)
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.validate_payload.error", err.Error())
 	}
@@ -101,7 +98,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 		}
 	}
 
-	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, request.Input)
+	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, []*cases.InputCaseCommunication{request.Input})
 	if dbErr != nil {
 		slog.ErrorContext(ctx, dbErr.Error(), logAttributes)
 		return nil, AppInternalError
@@ -160,11 +157,11 @@ func NewCaseCommunicationService(app *App) (*CaseCommunicationService, errors.Ap
 
 func NormalizeResponseCommunications(res []*cases.CaseCommunication, requestedFields []string) error {
 	if len(requestedFields) == 0 {
-		requestedFields = CaseCommentMetadata.GetDefaultFields()
+		requestedFields = CaseCommunicationMetadata.GetDefaultFields()
 	}
 	hasEtag, hasId, hasVer := util.FindEtagFields(requestedFields)
 	for _, re := range res {
-		err := util.NormalizeEtags(etag.EtagCase, hasEtag, hasId, hasVer, &re.Etag, &re.Id, &re.Ver)
+		err := util.NormalizeEtags(etag.EtagCaseCommunication, hasEtag, hasId, hasVer, &re.Etag, &re.Id, &re.Ver)
 		if err != nil {
 			return err
 		}
@@ -174,14 +171,18 @@ func NormalizeResponseCommunications(res []*cases.CaseCommunication, requestedFi
 }
 
 func ValidateCaseCommunicationsCreate(input ...*cases.InputCaseCommunication) error {
-	errText := "validation errors: "
+
+	var errorsSlice []error
 	for i, communication := range input {
-		errText := fmt.Sprintf("([%v]: ", i)
+		if communication == nil {
+			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: empty entry", i))
+			continue
+		}
 		if communication.CommunicationId == "" {
-			errText += "communication can't be empty;"
+			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication can't be empty", i))
 		}
 		if communication.CommunicationType <= 0 {
-			errText += "communication type can't be empty;"
+			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication type can't be empty", i))
 		}
 		var typeFound bool
 		for _, i := range cases.CaseCommunicationsTypes_value {
@@ -191,9 +192,11 @@ func ValidateCaseCommunicationsCreate(input ...*cases.InputCaseCommunication) er
 			}
 		}
 		if !typeFound {
-			errText += "communication type not allowed;"
+			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication type not allowed", i))
 		}
-		errText += ") "
 	}
-	return defErr.New(errText)
+	if errorsSlice != nil {
+		return defErr.Join(errorsSlice...)
+	}
+	return nil
 }

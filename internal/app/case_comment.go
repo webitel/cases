@@ -12,7 +12,9 @@ import (
 	"log/slog"
 )
 
-var CaseCommentMetadata = model.NewObjectMetadata(model.ScopeCaseComment, model.ScopeCase, []*model.Field{
+const caseCommentsObjScope = model.ScopeCaseComments
+
+var CaseCommentMetadata = model.NewObjectMetadata(model.ScopeCaseComments, model.ScopeCases, []*model.Field{
 	{Name: "id", Default: false},
 	{Name: "etag", Default: true},
 	{Name: "ver", Default: false},
@@ -229,13 +231,13 @@ func (c *CaseCommentService) PublishComment(
 	createOpts.ParentID = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
-	accessMode := auth.Edit
+	accessMode := auth.Read
 	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommentMetadata.GetParentScopeName(), accessMode) {
 		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
 		return nil, AppForbiddenError
 	}
-	if createOpts.GetAuthOpts().GetObjectScope(CaseCommentMetadata.GetParentScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), auth.Edit, createOpts.ParentID)
+	if createOpts.GetAuthOpts().IsRbacCheckRequired(CaseCommentMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, AppForbiddenError
