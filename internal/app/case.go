@@ -664,7 +664,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	if err != nil {
 		switch err.(type) {
 		case *cerror.DBNoRowsError:
-			return nil, cerror.NewBadRequestError("app.case.delete.invalid_etag", "Invalid etag")
+			return nil, cerror.NewBadRequestError("app.case.delete.invalid_etag", "Invalid etag or insufficient rights")
 		}
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError

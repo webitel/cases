@@ -793,7 +793,7 @@ func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []int
 	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 	query := sq.Delete("cases.case").Where("id = ANY(?)", ids).Where("dc = ?", rpc.GetAuthOpts().GetDomainId()).PlaceholderFormat(sq.Dollar)
-	query, err = addCaseRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, query, "case.id")
+	query, err = addCaseRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, query, "id")
 	if err != nil {
 		return "", nil, err
 	}
