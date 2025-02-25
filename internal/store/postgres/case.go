@@ -200,28 +200,34 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	// Parameters for the main case and nested JSON arrays
 	var (
-		assignee, closeReason, reporter, group *int64
-		closeResult, description               *string
+		assignee, closeReason, reporter, group, impacted *int64
+		closeResult, description                         *string
 	)
 
-	if id := caseItem.GetClose().GetCloseReason().GetId(); id > 0 {
-		closeReason = &id
+	if cl := caseItem.GetClose(); cl != nil && cl.GetCloseReason() != nil && cl.GetCloseReason().GetId() > 0 {
+		if reason := cl.GetCloseReason(); reason != nil && reason.GetId() > 0 {
+			closeReason = &reason.Id
+		}
+
+		if result := cl.GetCloseResult(); result != "" {
+			closeResult = &result
+		}
+
+	}
+	if rep := caseItem.GetReporter(); rep != nil && rep.GetId() > 0 {
+		reporter = &rep.Id
 	}
 
-	if result := caseItem.GetClose().GetCloseResult(); result != "" {
-		closeResult = &result
+	if ass := caseItem.GetAssignee(); ass != nil && ass.GetId() > 0 {
+		assignee = &ass.Id
 	}
 
-	if id := caseItem.Reporter.GetId(); id > 0 {
-		reporter = &id
+	if imp := caseItem.GetImpacted(); imp != nil && imp.GetId() > 0 {
+		impacted = &imp.Id
 	}
 
-	if id := caseItem.Assignee.GetId(); id > 0 {
-		assignee = &id
-	}
-
-	if id := caseItem.Group.GetId(); id > 0 {
-		group = &id
+	if grp := caseItem.Group; grp != nil && grp.GetId() > 0 {
+		group = &grp.Id
 	}
 
 	if desc := caseItem.Description; desc != "" {
@@ -247,7 +253,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"planned_reaction_at": util.LocalTime(caseItem.PlannedReactionAt),
 		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),
 		"reporter":            reporter,
-		"impacted":            caseItem.Impacted.GetId(),
+		"impacted":            impacted,
 		"description":         description,
 		"assignee":            assignee,
 		//-------------------------------------------------//
