@@ -1435,6 +1435,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowExtendedLookup(&caseItem.Group)
 			})
+		case "role_ids":
+			base = base.Column(fmt.Sprintf(
+				"(SELECT ARRAY_AGG(DISTINCT subject) rbac_r FROM cases.case_comment_acl WHERE object = %s.id AND access & 4 = 4) role_ids", caseLeft))
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return &caseItem.RoleIds
+			})
 		case "source":
 			base = base.Column(fmt.Sprintf(
 				"ROW(%s.source, %[2]s.name, %[2]s.type)::text AS source", caseLeft, tableAlias))
@@ -1928,7 +1934,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 }
 
 func buildRelatedCasesSubquery(caseAlias string) (sq.SelectBuilder, error) {
-	return sq.Select(`
+	return sq.Select(` 
         JSON_AGG(JSON_BUILD_OBJECT(
             'id', rc.id,
             'related_case', JSON_BUILD_OBJECT(

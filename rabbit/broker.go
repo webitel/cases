@@ -280,3 +280,7 @@ func (l *RabbitBroker) Publish(
 	slog.Info(fmtBrokerLog("cases message published"), slog.String("exchange", exchange), slog.String("routingKey", routingKey))
 	return nil
 }
+
+func (l *RabbitBroker) GetChannel() *amqp.Channel {
+	return l.channel
+}

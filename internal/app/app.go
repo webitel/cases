@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/webitel/cases/api/cases"
+	ftspublisher "github.com/webitel/cases/fts_client"
+	ftsclient "github.com/webitel/webitel-fts/pkg/client"
 	"log/slog"
 	"strings"
 
@@ -73,6 +75,7 @@ type App struct {
 	engineConn        *grpc.ClientConn
 	engineAgentClient engine.AgentServiceClient
 	wtelLogger        *wlogger.LoggerClient
+	ftsClient         *ftsclient.Client
 	watcher           Watcher
 }
 
@@ -166,6 +169,12 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 
 	// --------- UserAuthSession Manager Initialization ---------
 	app.sessionManager, err = webitel_manager.NewWebitelAppAuthManager(app.webitelAppConn)
+	if err != nil {
+		return nil, err
+	}
+
+	// --------- Full Text Search Client ---------
+	app.ftsClient, err = ftspublisher.NewFtsClient(app.rabbit.GetChannel())
 	if err != nil {
 		return nil, err
 	}

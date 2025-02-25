@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	cases "github.com/webitel/cases/api/cases"
@@ -26,6 +27,8 @@ var CaseCommentMetadata = model.NewObjectMetadata(caseCommentsObjScope, caseObjS
 	{Name: "edited", Default: true},
 	{Name: "can_edit", Default: true},
 	{Name: "author", Default: true},
+	{Name: "role_ids", Default: false},
+	{Name: "case_id", Default: false},
 })
 
 type CaseCommentService struct {
@@ -110,11 +113,19 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewInternalError("app.case_comment.update_comment.store_update_failed", "database error")
 	}
 
+	id := updatedComment.GetId()
+	roleIds := updatedComment.GetRoleIds()
+
 	err = NormalizeCommentsResponse(updatedComment, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
+	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, updatedComment)
+	if ftsErr != nil {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	}
+
 	return updatedComment, nil
 }
 
@@ -142,6 +153,11 @@ func (c *CaseCommentService) DeleteComment(
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
+	}
+
+	ftsErr := c.SendFtsDeleteEvent(tag.GetOid(), deleteOpts.GetAuthOpts().GetDomainId())
+	if ftsErr != nil {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 	return nil, nil
 }
@@ -232,10 +248,17 @@ func (c *CaseCommentService) PublishComment(
 		return nil, AppDatabaseError
 	}
 
+	id := comment.GetId()
+	roleId := comment.GetRoleIds()
+
 	err = NormalizeCommentsResponse(comment, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
+	}
+	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleId, comment)
+	if ftsErr != nil {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 	return comment, nil
 }
@@ -248,6 +271,8 @@ func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 	hasEtag, hasId, hasVer := util.FindEtagFields(requestedFields)
 	var err error
 	processComment := func(comment *cases.CaseComment) error {
+		comment.RoleIds = nil
+		comment.CaseId = 0
 		if hasEtag {
 			comment.Etag, err = etag.EncodeEtag(etag.EtagCaseComment, comment.Id, comment.Ver)
 			if err != nil {
@@ -278,6 +303,56 @@ func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 		}
 	}
 	return nil
+}
+
+func (c *CaseCommentService) SendFtsCreateEvent(id int64, domainId int64, roleIds []int64, comment *cases.CaseComment) error {
+	if domainId == 0 {
+		return errors.New("domain id required")
+	}
+	if id == 0 {
+		return errors.New("id required")
+	}
+	m, err := c.formFtsModel(roleIds, comment)
+	if err != nil {
+		return err
+	}
+	return c.app.ftsClient.Create(domainId, model.ScopeCaseComments, id, m)
+}
+
+func (c *CaseCommentService) SendFtsUpdateEvent(id int64, domainId int64, roleIds []int64, comment *cases.CaseComment) error {
+	if domainId == 0 {
+		return errors.New("domain id required")
+	}
+	if id == 0 {
+		return errors.New("id required")
+	}
+	m, err := c.formFtsModel(roleIds, comment)
+	if err != nil {
+		return err
+	}
+	return c.app.ftsClient.Update(domainId, model.ScopeCaseComments, id, m)
+}
+
+func (c *CaseCommentService) SendFtsDeleteEvent(id int64, domainId int64) error {
+	if domainId == 0 {
+		return errors.New("domain id required")
+	}
+	if id == 0 {
+		return errors.New("id required")
+	}
+	return c.app.ftsClient.Delete(domainId, model.ScopeCaseComments, id)
+}
+
+func (c *CaseCommentService) formFtsModel(roleIds []int64, comment *cases.CaseComment) (*model.FtsCaseComment, error) {
+	if comment.GetCaseId() == 0 {
+		return nil, errors.New("case id required")
+	}
+	return &model.FtsCaseComment{
+		ParentId:  comment.GetCaseId(),
+		Comment:   comment.GetText(),
+		RoleIds:   roleIds,
+		CreatedAt: comment.GetCreatedAt(),
+	}, nil
 }
 
 func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {

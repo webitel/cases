@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -64,6 +65,7 @@ var (
 		{Name: "related", Default: false},
 		{Name: "timing", Default: true},
 		{Name: "contact_info", Default: true},
+		{Name: "role_ids", Default: false},
 	}, CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata)
 )
 
@@ -239,6 +241,12 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, AppInternalError
 	}
 
+	for i, v := range createOpts.Fields {
+		if v == "related" {
+			createOpts.Fields = append(createOpts.Fields[:i], createOpts.Fields[i+1:]...)
+		}
+	}
+
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64(
@@ -260,6 +268,10 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	}
 	res.Etag = etag
 
+	// save before normalize
+	roleIds := res.GetRoleIds()
+	id := res.GetId()
+
 	//* Handle dynamic group update if applicable
 	res, err = c.handleDynamicGroupUpdate(ctx, res)
 	if err != nil {
@@ -272,6 +284,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
+	}
+
+	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleIds, res)
+	if ftsErr != nil {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
 	logMessage, err := wlogger.NewCreateMessage(
@@ -320,6 +337,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, AppInternalError
 	}
 	updateOpts.Etags = []*etag.Tid{&tag}
+	for i, v := range updateOpts.Fields {
+		if v == "related" {
+			updateOpts.Fields = append(updateOpts.Fields[:i], updateOpts.Fields[i+1:]...)
+		}
+	}
 
 	logAttributes := slog.Group(
 		"context",
@@ -378,12 +400,20 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, err
 	}
 
+	roleIds := res.GetRoleIds()
+	id := res.GetId()
+
 	// * Update  require all fields set to true incase we need to calculate dynamic condition
 	req.Fields = updateOpts.Fields
 	err = c.NormalizeResponseCase(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
+	}
+
+	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, res)
+	if ftsErr != nil {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
 	log, err := wlogger.NewCreateMessage(
@@ -682,6 +712,10 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		Ver:  tag.GetVer(),
 		Etag: req.Etag,
 	}
+	ftsErr := c.SendFtsDeleteEvent(tag.GetOid(), deleteOpts.GetAuthOpts().GetDomainId())
+	if ftsErr != nil {
+		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	}
 	err = c.app.watcher.OnEvent(EventTypeDelete, NewWatcherData(deleteCase, deleteOpts.GetAuthOpts().GetDomainId()))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case deletion: %s, ", err.Error()), logAttributes)
@@ -801,10 +835,8 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 				Name: AnonymousName,
 			}
 		}
-
-	}
-
-	for _, item := range res.Items {
+		// always hide
+		item.RoleIds = nil
 		if item.Comments != nil {
 			for _, com := range item.Comments.Items {
 				err = util.NormalizeEtags(etag.EtagCaseComment, true, false, false, &com.Etag, &com.Id, &com.Ver)
@@ -876,4 +908,62 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 	}
 
 	return nil
+}
+
+func (c *CaseService) formFtsModel(roleIds []int64, item *cases.Case) (*model.FtsCase, error) {
+	m := &model.FtsCase{
+		Description: item.GetDescription(),
+		RoleIds:     roleIds,
+		Subject:     item.GetSubject(),
+		ContactInfo: item.GetContactInfo(),
+		CreatedAt:   item.GetCreatedAt(),
+	}
+
+	if rate := item.GetRate(); rate != nil {
+		m.RatingComment = rate.GetRatingComment()
+	}
+
+	if cl := item.GetClose(); cl != nil {
+		m.CloseResult = cl.GetCloseResult()
+	}
+	return m, nil
+}
+
+func (c *CaseService) SendFtsCreateEvent(id int64, domainId int64, roleIds []int64, item *cases.Case) error {
+	if domainId == 0 {
+		return errors.New("domain id required")
+	}
+	if id == 0 {
+		return errors.New("id required")
+	}
+	m, err := c.formFtsModel(roleIds, item)
+	if err != nil {
+		return err
+	}
+	m.RoleIds = roleIds
+	return c.app.ftsClient.Create(domainId, model.ScopeCases, id, m)
+}
+
+func (c *CaseService) SendFtsUpdateEvent(id int64, domainId int64, roleIds []int64, item *cases.Case) error {
+	if domainId == 0 {
+		return errors.New("domain id required")
+	}
+	if id == 0 {
+		return errors.New("id required")
+	}
+	m, err := c.formFtsModel(roleIds, item)
+	if err != nil {
+		return err
+	}
+	return c.app.ftsClient.Update(domainId, model.ScopeCases, id, m)
+}
+
+func (c *CaseService) SendFtsDeleteEvent(id int64, domainId int64) error {
+	if domainId == 0 {
+		return errors.New("domain id required")
+	}
+	if id == 0 {
+		return errors.New("id required")
+	}
+	return c.app.ftsClient.Delete(domainId, model.ScopeCases, id)
 }

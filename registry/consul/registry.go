@@ -50,8 +50,8 @@ func NewConsulRegistry(config *conf.ConsulConfig) (*ConsulRegistry, error) {
 		Address: ip,
 		Check: &consulapi.AgentServiceCheck{
 			DeregisterCriticalServiceAfter: registry.DeregisterCriticalServiceAfter.String(),
-			CheckID:                        config.Id,
-			TTL:                            registry.CheckInterval.String(),
+			//CheckID:                        config.Id,
+			TTL: registry.CheckInterval.String(),
 		},
 	}
 	entity.stop = make(chan any)
