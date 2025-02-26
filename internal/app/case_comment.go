@@ -346,7 +346,7 @@ func (c *CaseCommentService) SendFtsDeleteEvent(id int64, domainId int64) error 
 }
 
 func (c *CaseCommentService) formFtsModel(roleIds []int64, caseId int64, comment *cases.CaseComment) (*model.FtsCaseComment, error) {
-	if comment.GetCaseId() == 0 {
+	if caseId == 0 {
 		return nil, errors.New("case id required")
 	}
 	return &model.FtsCaseComment{
