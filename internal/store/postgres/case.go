@@ -913,8 +913,8 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		base = base.Where(where)
 
 	}
-	for _, d := range opts.IDs {
-		base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLeft, "id")), d)
+	if len(opts.IDs) != 0 {
+		base = base.Where(fmt.Sprintf("%s = ANY(?)", store.Ident(caseLeft, "id")), opts.IDs)
 	}
 	for column, value := range opts.Filter {
 		switch column {
