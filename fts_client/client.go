@@ -3,7 +3,7 @@ package ftsclient
 import (
 	"github.com/gammazero/deque"
 	amqp "github.com/rabbitmq/amqp091-go"
-	client "github.com/webitel/webitel-fts/pkg/client"
+	client "github.com/webitel/webitel-go-kit/fts_client"
 )
 
 const DefaultQueueSize = 500

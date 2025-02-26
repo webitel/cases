@@ -228,12 +228,12 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Links:            links,
 		Related:          related,
 	}
-	// Type assert CaseMetadata to *ObjectMetadata before passing to SetAllFieldsToTrue
+	// Type assert CaseMetadata to *ObjectMetadata before passing to CopyWithAllFieldsSetToDefault
 	caseMD, ok := CaseMetadata.(*model.ObjectMetadata)
 	if !ok {
 		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
 	}
-	fullMD := caseMD.SetAllFieldsToTrue(*caseMD)
+	fullMD := caseMD.CopyWithAllFieldsSetToDefault()
 
 	createOpts, err := model.NewCreateOptions(ctx, req, fullMD)
 	if err != nil {
@@ -324,12 +324,12 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		slog.ErrorContext(ctx, err.Error())
 		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
 	}
-	// Type assert CaseMetadata to *ObjectMetadata before passing to SetAllFieldsToTrue
+	// Type assert CaseMetadata to *ObjectMetadata before passing to CopyWithAllFieldsSetToDefault
 	caseMD, ok := CaseMetadata.(*model.ObjectMetadata)
 	if !ok {
 		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
 	}
-	fullMD := caseMD.SetAllFieldsToTrue(*caseMD)
+	fullMD := caseMD.CopyWithAllFieldsSetToDefault()
 
 	updateOpts, err := model.NewUpdateOptions(ctx, req, fullMD)
 	if err != nil {
@@ -876,6 +876,7 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 	if err != nil {
 		return err
 	}
+	re.RoleIds = nil
 
 	if re.Reporter == nil && util.ContainsField(fields, "reporter") {
 		re.Reporter = &cases.Lookup{

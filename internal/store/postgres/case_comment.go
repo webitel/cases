@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -28,7 +29,7 @@ const (
 	caseCommentLeft              = "cc"
 	caseCommentAuthorAlias       = "au"
 	caseCommentCreatedByAlias    = "cb"
-	caseCommentUpdatedByAlias    = "cb"
+	caseCommentUpdatedByAlias    = "ub"
 	caseCommentObjClassScopeName = model.ScopeCaseComments
 )
 
@@ -60,6 +61,17 @@ func (c *CaseCommentStore) Publish(
 	// Execute the query and scan the result directly into `add`
 	if err = d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("store.case_comment.publish.scan_error", err)
+	}
+
+	for _, field := range rpc.Fields {
+		if field == "role_ids" {
+			roles, defErr := c.GetRolesById(rpc, add.GetId(), auth.Read)
+			if defErr != nil {
+				return nil, defErr
+			}
+			add.RoleIds = roles
+			break
+		}
 	}
 
 	return add, nil
@@ -335,8 +347,43 @@ func (c *CaseCommentStore) Update(
 		}
 		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.execution_error", err)
 	}
+	for _, field := range rpc.Fields {
+		if field == "role_ids" {
+			roles, defErr := c.GetRolesById(rpc, upd.GetId(), auth.Read)
+			if defErr != nil {
+				return nil, defErr
+			}
+			upd.RoleIds = roles
+			break
+		}
+	}
 
 	return upd, nil
+}
+
+func (c *CaseCommentStore) GetRolesById(
+	ctx context.Context,
+	commentId int64,
+	access auth.AccessMode,
+) ([]int64, error) {
+
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, err
+	}
+	//// Establish database connection
+	//query := "(SELECT ARRAY_AGG(DISTINCT subject) rbac_r FROM cases.case_acl WHERE object = ? AND access & ? = ?)"
+	query := sq.Select("ARRAY_AGG(DISTINCT subject)").From("cases.case_comment_acl").Where("object = ?", commentId).Where("access & ? = ?", uint8(access), uint8(access)).PlaceholderFormat(sq.Dollar)
+	sql, args, _ := query.ToSql()
+	row := db.QueryRow(ctx, sql, args...)
+
+	var res []int64
+	defErr := row.Scan(&res)
+	if defErr != nil {
+		return nil, defErr
+	}
+
+	return res, nil
 }
 
 func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
@@ -495,11 +542,7 @@ func buildCommentSelectColumnsAndPlan(
 				})
 			}
 		case "role_ids":
-			base = base.Column(fmt.Sprintf(
-				"(SELECT ARRAY_AGG(DISTINCT subject) rbac_r FROM cases.case_comment_acl WHERE object = %s.id AND access & 4 = 4) role_ids", left))
-			plan = append(plan, func(comment *_go.CaseComment) any {
-				return &comment.RoleIds
-			})
+			// skip
 		case "case_id":
 			base = base.Column(store.Ident(left, "case_id"))
 			plan = append(plan, func(comment *_go.CaseComment) any {

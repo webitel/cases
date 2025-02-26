@@ -1,7 +1,7 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 h1:hl0FrmGlNpQZIGvU1/jDz0lsPDd0BhCE0QDRwPfLZcA=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2/go.mod h1:ylS4c28ACSI59oJrOdW4pHS4n0Hw4TgSPHn8rpHl4Yw=
-buf.build/gen/go/webitel/logger/grpc/go v1.5.1-20240911114117-1d910a772b4f.1 h1:Jcykxaj+QlxIHYnqD+RctEQWsev1U5tG6CgeXrBeeZE=
-buf.build/gen/go/webitel/logger/grpc/go v1.5.1-20240911114117-1d910a772b4f.1/go.mod h1:f5W+yywJeSjcO8ervDzYp+zc3Sum0vV2jLGfJ1VkozY=
+buf.build/gen/go/webitel/logger/grpc/go v1.5.1-20250128105802-aaacc0377b27.2 h1:q5Uo4XtbTKJiJnS1p85OyuyEDz8xV2EUx6FduttBp7s=
+buf.build/gen/go/webitel/logger/grpc/go v1.5.1-20250128105802-aaacc0377b27.2/go.mod h1:rKkdsIkJnFkMiDKryV/MUhKCPCN4SyUUGwgiTsUGalc=
 buf.build/gen/go/webitel/logger/protocolbuffers/go v1.36.4-20250128105802-aaacc0377b27.1 h1:MecpVVYa8m8Q5AfjcTqVKBdnnT3mfvwoUq+RO9J4TaU=
 buf.build/gen/go/webitel/logger/protocolbuffers/go v1.36.4-20250128105802-aaacc0377b27.1/go.mod h1:sIqtudRiH9K2ks4loN2AW2gAuIMil2dvID+GRHHFBDM=
 buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2 h1:5r8oFldYy3AbufyZxRCIfdUXb6RMkkXoHUUxgpsGQTY=
@@ -348,10 +348,8 @@ github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
 github.com/webitel/logger v0.0.0-20250131144320-fa79d885252a h1:gZ+MbaoQ8Wb3eSWr9BYJXqtc9ZSEfskv1yMxr4YfrGg=
 github.com/webitel/logger v0.0.0-20250131144320-fa79d885252a/go.mod h1:YoEwlpSUESlyW7h5SqYsoyN96eyHFdOQdWp2/We4sB8=
-github.com/webitel/webitel-fts v0.0.0-20250225114438-e7822b2468fa h1:KQf74vwiMkljcdZvZyvTXRNkNVkAkRIZ1DQO6vPcRW4=
-github.com/webitel/webitel-fts v0.0.0-20250225114438-e7822b2468fa/go.mod h1:eJfjWeO33TT7HRDM9GJBuUj+eJaxqFjB16EFHvOhxXM=
-github.com/webitel/webitel-go-kit v0.0.21-0.20250109110208-ce50be3e96ea h1:2p3u5SX4djPdHrgiArc7QpbYIhbTKIwC24ec1jwh0Mw=
-github.com/webitel/webitel-go-kit v0.0.21-0.20250109110208-ce50be3e96ea/go.mod h1:CMnTRWZ9NoMAPdDyj9d19O3tC/kYJmub6qEDVPV59FM=
+github.com/webitel/webitel-go-kit v0.0.21-0.20250226104147-74e3a9f53286 h1:TMw2KaVLrmbe2WcYkwzCROuh2aSYGXt5dDj4JvV8nYI=
+github.com/webitel/webitel-go-kit v0.0.21-0.20250226104147-74e3a9f53286/go.mod h1:1/vqZ2F19K8NANJs5wcCjfCKmZZ+QjIqb3h9U4MyMqA=
 github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218 h1:5Jn9KhUMjqAUdVMi7EvFJrJlJGrwndhKFbz7FZ7woL0=
 github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218/go.mod h1:mdwPNCv2dd7RIJ8euwVJGYf8AaVH2H7CVh8D/zyCTqA=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

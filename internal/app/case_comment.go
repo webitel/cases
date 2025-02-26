@@ -93,7 +93,7 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseCommentMetadata)
+	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
@@ -115,13 +115,14 @@ func (c *CaseCommentService) UpdateComment(
 
 	id := updatedComment.GetId()
 	roleIds := updatedComment.GetRoleIds()
+	parentId := comment.GetCaseId()
 
 	err = NormalizeCommentsResponse(updatedComment, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, updatedComment)
+	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, parentId, updatedComment)
 	if ftsErr != nil {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
@@ -137,7 +138,7 @@ func (c *CaseCommentService) DeleteComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.etag_required", "Etag is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommentMetadata)
+	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
@@ -213,7 +214,7 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CaseCommentMetadata)
+	createOpts, err := model.NewCreateOptions(ctx, req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, AppInternalError
@@ -250,13 +251,14 @@ func (c *CaseCommentService) PublishComment(
 
 	id := comment.GetId()
 	roleId := comment.GetRoleIds()
+	parentId := comment.GetCaseId()
 
 	err = NormalizeCommentsResponse(comment, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleId, comment)
+	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleId, parentId, comment)
 	if ftsErr != nil {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
@@ -305,28 +307,28 @@ func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 	return nil
 }
 
-func (c *CaseCommentService) SendFtsCreateEvent(id int64, domainId int64, roleIds []int64, comment *cases.CaseComment) error {
+func (c *CaseCommentService) SendFtsCreateEvent(id int64, domainId int64, roleIds []int64, caseId int64, comment *cases.CaseComment) error {
 	if domainId == 0 {
 		return errors.New("domain id required")
 	}
 	if id == 0 {
 		return errors.New("id required")
 	}
-	m, err := c.formFtsModel(roleIds, comment)
+	m, err := c.formFtsModel(roleIds, caseId, comment)
 	if err != nil {
 		return err
 	}
 	return c.app.ftsClient.Create(domainId, model.ScopeCaseComments, id, m)
 }
 
-func (c *CaseCommentService) SendFtsUpdateEvent(id int64, domainId int64, roleIds []int64, comment *cases.CaseComment) error {
+func (c *CaseCommentService) SendFtsUpdateEvent(id int64, domainId int64, roleIds []int64, caseId int64, comment *cases.CaseComment) error {
 	if domainId == 0 {
 		return errors.New("domain id required")
 	}
 	if id == 0 {
 		return errors.New("id required")
 	}
-	m, err := c.formFtsModel(roleIds, comment)
+	m, err := c.formFtsModel(roleIds, caseId, comment)
 	if err != nil {
 		return err
 	}
@@ -343,12 +345,12 @@ func (c *CaseCommentService) SendFtsDeleteEvent(id int64, domainId int64) error 
 	return c.app.ftsClient.Delete(domainId, model.ScopeCaseComments, id)
 }
 
-func (c *CaseCommentService) formFtsModel(roleIds []int64, comment *cases.CaseComment) (*model.FtsCaseComment, error) {
+func (c *CaseCommentService) formFtsModel(roleIds []int64, caseId int64, comment *cases.CaseComment) (*model.FtsCaseComment, error) {
 	if comment.GetCaseId() == 0 {
 		return nil, errors.New("case id required")
 	}
 	return &model.FtsCaseComment{
-		ParentId:  comment.GetCaseId(),
+		ParentId:  caseId,
 		Comment:   comment.GetText(),
 		RoleIds:   roleIds,
 		CreatedAt: comment.GetCreatedAt(),

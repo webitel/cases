@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/webitel/cases/api/cases"
 	ftspublisher "github.com/webitel/cases/fts_client"
-	ftsclient "github.com/webitel/webitel-fts/pkg/client"
+	ftsclient "github.com/webitel/webitel-go-kit/fts_client"
 	"log/slog"
 	"strings"
 
