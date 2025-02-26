@@ -287,23 +287,26 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("parent_id", deleteOpts.ParentID),
 	)
-	accessMode := auth.Edit
-	if deleteOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
-		access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), accessMode, deleteOpts.ParentID)
-		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, AppForbiddenError
-		}
-		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, AppForbiddenError
-		}
 
-	}
+	// TODO: rbac check on main case
+	//accessMode := auth.Edit
+	//if deleteOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
+	//	access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), accessMode, deleteOpts.ParentID)
+	//	if err != nil {
+	//		slog.ErrorContext(ctx, err.Error(), logAttributes)
+	//		return nil, AppForbiddenError
+	//	}
+	//	if !access {
+	//		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
+	//		return nil, AppForbiddenError
+	//	}
+	//
+	//}
 
 	err = r.app.Store.RelatedCase().Delete(deleteOpts)
 	if err != nil {
-		return nil, err
+		slog.ErrorContext(ctx, err.Error(), logAttributes)
+		return nil, AppDatabaseError
 	}
 
 	return nil, nil
