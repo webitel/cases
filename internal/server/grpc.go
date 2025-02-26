@@ -42,7 +42,6 @@ func BuildServer(config *conf.ConsulConfig, authManager user_auth.AuthManager, e
 			interceptor.OuterInterceptor(),
 			interceptor.AuthUnaryServerInterceptor(authManager),
 			interceptor.ValidateUnaryServerInterceptor(val),
-			interceptor.LoggingUnaryServerInterceptor(),
 		),
 	)
 
