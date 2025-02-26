@@ -304,7 +304,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"ListLinks": WebitelMethod{
-				Access: 0,
+				Access: 1,
 				Input:  "ListLinksRequest",
 				Output: "CaseLinkList",
 				HttpBindings: []*HttpBinding{
