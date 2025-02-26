@@ -14,7 +14,7 @@ import (
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/user_auth"
 	"github.com/webitel/cases/auth/user_auth/webitel_manager"
-	"github.com/webitel/webitel-go-kit/errors"
+	"github.com/webitel/cases/internal/errors"
 	"google.golang.org/grpc/metadata"
 
 	conf "github.com/webitel/cases/config"
