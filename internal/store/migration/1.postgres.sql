@@ -6,6 +6,9 @@
 
 -- DROP FUNCTION cases.update_case_timings();
 
+
+CREATE SCHEMA cases;
+
 CREATE OR REPLACE FUNCTION cases.update_case_timings()
  RETURNS trigger
  LANGUAGE plpgsql
