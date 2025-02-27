@@ -242,7 +242,7 @@ func (s *CatalogStore) List(
 	}
 
 	// 2. Remove duplicates from Fields
-	rpc.Fields = DeduplicateFields(rpc.Fields)
+	rpc.Fields = util.DeduplicateFields(rpc.Fields)
 
 	// 3. Build SQL query
 	query, args, err := s.buildSearchCatalogQuery(rpc, depth, subfields, hasSubservices)
@@ -502,20 +502,6 @@ func (s *CatalogStore) List(
 		Next:  next,
 		Items: catalogs,
 	}, nil
-}
-
-// DeduplicateFields removes duplicate fields from rpc.Fields while preserving order.
-func DeduplicateFields(fields []string) []string {
-	seen := make(map[string]struct{})
-	var result []string
-
-	for _, field := range fields {
-		if _, exists := seen[field]; !exists {
-			seen[field] = struct{}{}
-			result = append(result, field)
-		}
-	}
-	return result
 }
 
 func (s *CatalogStore) buildCatalogScanArgs(

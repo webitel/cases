@@ -43,9 +43,6 @@ type Store interface {
 	Catalog() CatalogStore
 	Service() ServiceStore
 
-	// ------------ Access Control ------------ //
-	AccessControl() AccessControlStore
-
 	// ------------ Database Management ------------ //
 	Database() (*pgxpool.Pool, *dberr.DBError) // Return custom DB error
 	Open() *dberr.DBError                      // Return custom DB error

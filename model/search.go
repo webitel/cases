@@ -7,7 +7,6 @@ import (
 
 	"github.com/webitel/cases/auth"
 
-	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
 )
 
@@ -33,9 +32,8 @@ func NewSearchOptions(ctx context.Context, searcher Lister, objMetadata ObjectMe
 		resultingFields = objMetadata.GetDefaultFields()
 	} else {
 		resultingFields = util.DeduplicateFields(util.FieldsFunc(
-			requestedFields, graph.SplitFieldsQ,
+			requestedFields, util.InlineFields,
 		))
-
 	}
 
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
@@ -172,11 +170,10 @@ func NewLocateOptions(ctx context.Context, locator Fielder, objMetadata ObjectMe
 	// normalize fields
 	var resultingFields []string
 	if requestedFields := locator.GetFields(); len(requestedFields) == 0 {
-		resultingFields = make([]string, len(objMetadata.GetDefaultFields()))
-		copy(resultingFields, objMetadata.GetDefaultFields())
+		resultingFields = objMetadata.GetDefaultFields()
 	} else {
 		resultingFields = util.DeduplicateFields(util.FieldsFunc(
-			requestedFields, graph.SplitFieldsQ,
+			requestedFields, util.InlineFields,
 		))
 	}
 	resultingFields, opts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())

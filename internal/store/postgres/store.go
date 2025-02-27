@@ -32,10 +32,8 @@ type Store struct {
 	slaConditionStore     store.SLAConditionStore
 	catalogStore          store.CatalogStore
 	serviceStore          store.ServiceStore
-	//----------access control ------------ //
-	accessControllStore store.AccessControlStore
-	config              *conf.DatabaseConfig
-	conn                *pgxpool.Pool
+	config                *conf.DatabaseConfig
+	conn                  *pgxpool.Pool
 }
 
 // New creates a new Store instance.
@@ -231,17 +229,6 @@ func (s *Store) Service() store.ServiceStore {
 		s.serviceStore = service
 	}
 	return s.serviceStore
-}
-
-func (s *Store) AccessControl() store.AccessControlStore {
-	if s.accessControllStore == nil {
-		st, err := NewAccessControlStore(s)
-		if err != nil {
-			return nil
-		}
-		s.accessControllStore = st
-	}
-	return s.accessControllStore
 }
 
 // Database returns the database connection or a custom error if it is not opened.

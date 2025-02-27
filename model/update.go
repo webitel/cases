@@ -8,7 +8,6 @@ import (
 
 	"github.com/webitel/cases/auth"
 
-	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 )
@@ -65,7 +64,7 @@ func NewUpdateOptions(ctx context.Context, req Updator, objMetadata ObjectMetada
 		copy(resultingFields, objMetadata.GetDefaultFields())
 	} else {
 		resultingFields = util.FieldsFunc(
-			requestedFields, graph.SplitFieldsQ,
+			requestedFields, util.InlineFields,
 		)
 	}
 

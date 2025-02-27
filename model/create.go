@@ -6,7 +6,6 @@ import (
 	"github.com/webitel/cases/auth"
 	"time"
 
-	"github.com/webitel/cases/model/graph"
 	"github.com/webitel/cases/util"
 )
 
@@ -69,7 +68,7 @@ func NewCreateOptions(ctx context.Context, creator Creator, objMetadata ObjectMe
 		copy(resultingFields, objMetadata.GetDefaultFields())
 	} else {
 		resultingFields = util.FieldsFunc(
-			requestedFields, graph.SplitFieldsQ,
+			requestedFields, util.InlineFields,
 		)
 	}
 	resultingFields, createOpts.UnknownFields = util.SplitKnownAndUnknownFields(resultingFields, objMetadata.GetAllFields())
