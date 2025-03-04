@@ -819,7 +819,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 
 	// 10) If we need CTE(s)
 	if selectFlags["teams"] || selectFlags["skills"] || selectFlags["services"] || selectFlags["search"] {
-		prefixQuery := buildCTEs(selectFlags, depth, rpc.Filter, subfields)
+		prefixQuery := buildCTEs(selectFlags, depth, subfields, rpc.Filter)
 		queryBuilder = queryBuilder.Prefix(prefixQuery)
 	}
 	// Add GROUP BY for catalog fields
@@ -981,7 +981,7 @@ func buildCatalogGroupByFields(requestedFields []string) []string {
 		"root_id":            "catalog.root_id",
 	}
 
-	groupByFields := []string{}
+	var groupByFields []string
 
 	for _, field := range requestedFields {
 		if groupField, ok := fieldMap[field]; ok {
@@ -993,59 +993,11 @@ func buildCatalogGroupByFields(requestedFields []string) []string {
 	return groupByFields
 }
 
-// buildServiceSelectCols dynamically constructs columns for 'services_hierarchy',
-// including lookups for sla, group, assignee, etc.
-// Only used if user actually requests "services".
-func buildServiceSelectCols(serviceFields []string) []string {
-	var cols []string
-	for _, sf := range serviceFields {
-		switch sf {
-		case "id":
-			cols = append(cols, "services_hierarchy.id AS service_id")
-		case "name":
-			cols = append(cols, "services_hierarchy.name AS service_name")
-		case "description":
-			cols = append(cols, "services_hierarchy.description AS service_description")
-		case "root_id":
-			cols = append(cols, "services_hierarchy.root_id AS service_root_id")
-		case "sla":
-			cols = append(cols,
-				"COALESCE(services_hierarchy.sla_id,0) AS service_sla_id",
-				"COALESCE(services_hierarchy.sla_name,'') AS service_sla_name")
-		case "group":
-			cols = append(cols,
-				"COALESCE(services_hierarchy.group_id,0) AS service_group_id",
-				"COALESCE(services_hierarchy.group_name,'') AS service_group_name")
-		case "assignee":
-			cols = append(cols,
-				"COALESCE(services_hierarchy.assignee_id,0) AS service_assignee_id",
-				"COALESCE(services_hierarchy.assignee_name,'') AS service_assignee_name")
-		case "created_by":
-			cols = append(cols,
-				"COALESCE(services_hierarchy.created_by,0) AS service_created_by_id",
-				"COALESCE(services_hierarchy.created_by_name,'') AS service_created_by_name")
-		case "updated_by":
-			cols = append(cols,
-				"COALESCE(services_hierarchy.updated_by,0) AS service_updated_by_id",
-				"COALESCE(services_hierarchy.updated_by_name,'') AS service_updated_by_name")
-		case "code":
-			cols = append(cols, "COALESCE(services_hierarchy.code,'') AS service_code")
-		case "state":
-			cols = append(cols, "services_hierarchy.state AS service_state")
-		case "created_at":
-			cols = append(cols, "services_hierarchy.created_at AS service_created_at")
-		case "updated_at":
-			cols = append(cols, "services_hierarchy.updated_at AS service_updated_at")
-		}
-	}
-	return cols
-}
-
 func buildCTEs(
 	selectFlags map[string]bool,
 	depth int64,
-	filter map[string]interface{},
 	subfields []string,
+	filter map[string]any,
 ) string {
 	var prefixQuery strings.Builder
 	// prefixQuery.WriteString("WITH ")
@@ -1105,7 +1057,7 @@ func buildCTEs(
 	// Services Hierarchy CTE
 	if selectFlags["services"] {
 		anchorSQL := buildAnchorServiceSelect(subfields, selectFlags)
-		subserviceSQL := buildSubserviceSelect(subfields, depth, selectFlags)
+		subserviceSQL := buildSubserviceSelect(subfields, depth, selectFlags, filter)
 
 		prefixQuery.WriteString(fmt.Sprintf(`service_hierarchy AS (
 			WITH RECURSIVE recursive_hierarchy AS (
@@ -1259,6 +1211,7 @@ func buildSubserviceSelect(
 	serviceFields []string,
 	depth int64,
 	selectFlags map[string]bool,
+	filter map[string]any,
 ) string {
 	var sb strings.Builder
 
@@ -1398,58 +1351,16 @@ WHERE parent.level < CASE WHEN `)
 
 	// Automatically increase by +1 to include the requested level
 	sb.WriteString(fmt.Sprintf(`%[1]d > 0 THEN %[1]d ELSE 3 END`, depth+1))
+
+	// Add state filter for subservices
+	if _, ok := filter["state"].(bool); ok {
+		sb.WriteString(` AND subservice.state = :state`)
+	}
+
 	sb.WriteString(`
 `)
 
 	return sb.String()
-}
-
-func buildSearchCondition(searchEnabled bool) string {
-	if searchEnabled {
-		// Reference the correct alias for the anchor query
-		return "WHERE service.id IN (SELECT target_catalog_id FROM search_catalog)"
-	}
-	// Use the correct alias for top-level services
-	return "WHERE service.root_id IS NULL"
-}
-
-func buildServiceFieldSelection(alias string, serviceFields []string) string {
-	if len(serviceFields) == 0 {
-		// Default fields if none are specified
-		return fmt.Sprintf("%[1]s.id, %[1]s.name, %[1]s.description, %[1]s.root_id", alias)
-	}
-
-	var selectedFields []string
-	for _, field := range serviceFields {
-		switch field {
-		case "id":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.id", alias))
-		case "name":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.name", alias))
-		case "description":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.description", alias))
-		case "created_at":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.created_at", alias))
-		case "updated_at":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.updated_at", alias))
-		case "code":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.code", alias))
-		case "state":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.state", alias))
-		case "sla_id":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.sla_id", alias))
-		case "group_id":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.group_id", alias))
-		case "assignee_id":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.assignee_id", alias))
-		case "created_by":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.created_by", alias), "service_created_by_user.name AS created_by_name")
-		case "updated_by":
-			selectedFields = append(selectedFields, fmt.Sprintf("%s.updated_by", alias), "service_updated_by_user.name AS updated_by_name")
-		}
-	}
-
-	return strings.Join(selectedFields, ", ")
 }
 
 // Update implements store.CatalogStore.
