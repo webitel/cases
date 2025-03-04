@@ -463,13 +463,11 @@ func (s *CatalogStore) List(
 			catalog.Service = parsedServices
 		}
 
-		// Only add to the top-level list if rootID == 0 and servicesData is not empty
 		if rootID == 0 {
-			if !util.ContainsField(rpc.Fields, "services") || servicesData != "" {
-				catalogs = append(catalogs, catalog)
-				lCount++
-			}
+			catalogs = append(catalogs, catalog)
+			lCount++
 		}
+
 	}
 
 	// 12. Check for row errors
