@@ -720,6 +720,16 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	if state, ok := rpc.Filter["state"].(bool); ok {
 		params["state"] = state
 		queryBuilder = queryBuilder.Where("catalog.state = :state")
+
+		// Add EXISTS condition if hasSubservices is true
+		if hasSubservices && state {
+			queryBuilder = queryBuilder.Where(`EXISTS (
+            SELECT 1
+            FROM cases.service_catalog sc
+            WHERE sc.root_id = catalog.id
+              AND sc.state = :state
+        )`)
+		}
 	}
 
 	teamFilter, teamFilterFound := rpc.Filter["team"].(int64)
