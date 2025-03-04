@@ -8,7 +8,7 @@ import (
 
 const DefaultQueueSize = 500
 
-var cl client.Publisher = &FtsClient{}
+var cl client.Publisher = &DefaultClient{}
 
 type message struct {
 	exchange string
@@ -16,12 +16,12 @@ type message struct {
 	body     []byte
 }
 
-type FtsClient struct {
+type DefaultClient struct {
 	channel *amqp.Channel
 	queue   *deque.Deque[*message]
 }
 
-func (f *FtsClient) Send(exchange string, rk string, body []byte) error {
+func (f *DefaultClient) Send(exchange string, rk string, body []byte) error {
 	if f.channel.IsClosed() {
 		// noop
 		return amqp.ErrClosed
@@ -56,9 +56,9 @@ func (f *FtsClient) Send(exchange string, rk string, body []byte) error {
 	return nil
 }
 
-func NewFtsClient(rabbit *amqp.Channel) (*client.Client, error) {
+func NewDefaultClient(rabbit *amqp.Channel) (*client.Client, error) {
 	q := &deque.Deque[*message]{}
 	q.SetBaseCap(DefaultQueueSize)
-	c := &FtsClient{channel: rabbit, queue: q}
+	c := &DefaultClient{channel: rabbit, queue: q}
 	return client.New(c), nil
 }

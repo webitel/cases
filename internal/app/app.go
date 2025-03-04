@@ -2,9 +2,7 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"github.com/webitel/cases/api/cases"
 	ftspublisher "github.com/webitel/cases/fts_client"
 	ftsclient "github.com/webitel/webitel-go-kit/fts_client"
 	"log/slog"
@@ -76,27 +74,25 @@ type App struct {
 	engineAgentClient engine.AgentServiceClient
 	wtelLogger        *wlogger.LoggerClient
 	ftsClient         *ftsclient.Client
-	watcher           Watcher
+	watcherManager    WatcherManager
 }
 
-type WatcherData struct {
-	case_      *cases.Case
-	CaseString string `json:"case"`
-	DomainId   int64  `json:"domain_id"`
-}
-
-func NewWatcherData(case_ *cases.Case, domainID int64) *WatcherData {
-	return &WatcherData{case_: case_, DomainId: domainID}
-}
-
-func (wd *WatcherData) Marshal() ([]byte, error) {
-	caseBytes, err := json.Marshal(wd.case_)
-	if err != nil {
-		return nil, err
-	}
-	wd.CaseString = string(caseBytes)
-	return json.Marshal(wd)
-}
+//type WatcherLoggerData struct {
+//	Message  *wlogger.Message `json:"message,omitempty"`
+//	DomainId int64            `json:"domain_id"`
+//}
+//
+//func NewWatcherLoggerData(case_ *cases.Case, caseId int64, action wlogger.Action, userId int64, userIp string, domainID int64) *WatcherLoggerData {
+//	message, err := wlogger.NewMessage(userId, userIp, action, caseId, case_)
+//	if err != nil {
+//		return nil
+//	}
+//	return &WatcherLoggerData{Message: message, DomainId: domainID}
+//}
+//
+//func (wd *WatcherLoggerData) Marshal() ([]byte, error) {
+//	return json.Marshal(wd)
+//}
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
 	// --------- App Initialization ---------
@@ -124,18 +120,8 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	}
 
 	// register watchers
-	watcher := NewDefaultWatcher()
-	if app.config.Watcher.Enabled {
-		caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher)
-		if err != nil {
-			return nil, cerror.NewInternalError("internal.internal.new_app.watcher.start.error", err.Error())
-		}
-		watcher.Attach(EventTypeCreate, caseObserver)
-		watcher.Attach(EventTypeUpdate, caseObserver)
-		watcher.Attach(EventTypeDelete, caseObserver)
-	}
-
-	app.watcher = watcher
+	watcherManager := NewDefaultWatcherManager(app.config.Watcher.Enabled)
+	app.watcherManager = watcherManager
 	//
 
 	// --------- Webitel App gRPC Connection ---------
@@ -174,7 +160,7 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	}
 
 	// --------- Full Text Search Client ---------
-	app.ftsClient, err = ftspublisher.NewFtsClient(app.rabbit.GetChannel())
+	app.ftsClient, err = ftspublisher.NewDefaultClient(app.rabbit.GetChannel())
 	if err != nil {
 		return nil, err
 	}
