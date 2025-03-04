@@ -2,7 +2,8 @@ package app
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	cases "github.com/webitel/cases/api/cases"
@@ -122,9 +123,9 @@ func (c *CaseCommentService) UpdateComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, parentId, updatedComment)
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeUpdate, NewCaseCommentWatcherData(updateOpts.GetAuthOpts(), updatedComment, id, parentId, roleIds))
+	if err != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment update: %s, ", err.Error()), logAttributes)
 	}
 
 	return updatedComment, nil
@@ -156,9 +157,9 @@ func (c *CaseCommentService) DeleteComment(
 		return nil, AppDatabaseError
 	}
 
-	ftsErr := c.SendFtsDeleteEvent(tag.GetOid(), deleteOpts.GetAuthOpts().GetDomainId())
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeDelete, NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, 0, tag.GetOid(), nil))
+	if err != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment delete: %s, ", err.Error()), logAttributes)
 	}
 	return nil, nil
 }
@@ -258,9 +259,9 @@ func (c *CaseCommentService) PublishComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleId, parentId, comment)
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeCreate, NewCaseCommentWatcherData(createOpts.GetAuthOpts(), comment, parentId, id, roleId))
+	if err != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment create: %s, ", err.Error()), logAttributes)
 	}
 	return comment, nil
 }
@@ -307,52 +308,16 @@ func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 	return nil
 }
 
-func (c *CaseCommentService) SendFtsCreateEvent(id int64, domainId int64, roleIds []int64, caseId int64, comment *cases.CaseComment) error {
-	if domainId == 0 {
-		return errors.New("domain id required")
-	}
-	if id == 0 {
-		return errors.New("id required")
-	}
-	m, err := c.formFtsModel(roleIds, caseId, comment)
-	if err != nil {
-		return err
-	}
-	return c.app.ftsClient.Create(domainId, model.ScopeCaseComments, id, m)
-}
+func formCommentsFtsModel(comment *cases.CaseComment, params map[string]any) (*model.FtsCaseComment, error) {
 
-func (c *CaseCommentService) SendFtsUpdateEvent(id int64, domainId int64, roleIds []int64, caseId int64, comment *cases.CaseComment) error {
-	if domainId == 0 {
-		return errors.New("domain id required")
-	}
-	if id == 0 {
-		return errors.New("id required")
-	}
-	m, err := c.formFtsModel(roleIds, caseId, comment)
-	if err != nil {
-		return err
-	}
-	return c.app.ftsClient.Update(domainId, model.ScopeCaseComments, id, m)
-}
+	// TODO right conversion
+	roles := params["role_ids"].([]int64)
+	caseId, _ := params["case_id"].(int64)
 
-func (c *CaseCommentService) SendFtsDeleteEvent(id int64, domainId int64) error {
-	if domainId == 0 {
-		return errors.New("domain id required")
-	}
-	if id == 0 {
-		return errors.New("id required")
-	}
-	return c.app.ftsClient.Delete(domainId, model.ScopeCaseComments, id)
-}
-
-func (c *CaseCommentService) formFtsModel(roleIds []int64, caseId int64, comment *cases.CaseComment) (*model.FtsCaseComment, error) {
-	if caseId == 0 {
-		return nil, errors.New("case id required")
-	}
 	return &model.FtsCaseComment{
 		ParentId:  caseId,
 		Comment:   comment.GetText(),
-		RoleIds:   roleIds,
+		RoleIds:   roles,
 		CreatedAt: comment.GetCreatedAt(),
 	}, nil
 }
@@ -361,5 +326,32 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewInternalError("app.case_comment.new_case_comment_service.app_required", "Unable to initialize service, app is nil")
 	}
+	watcher := NewDefaultWatcher()
+	ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseCommentsObjScope, formCommentsFtsModel)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_observer.app", err.Error())
+	}
+	watcher.Attach(EventTypeCreate, ftsObserver)
+	watcher.Attach(EventTypeUpdate, ftsObserver)
+	watcher.Attach(EventTypeDelete, ftsObserver)
+
+	app.watcherManager.AddWatcher(caseObjScope, watcher)
 	return &CaseCommentService{app: app}, nil
+}
+
+type CaseCommentWatcherData struct {
+	comment *cases.CaseComment
+	Args    map[string]any
+}
+
+func NewCaseCommentWatcherData(session auth.Auther, comment *cases.CaseComment, id, caseId int64, roleIds []int64) *CaseCommentWatcherData {
+	return &CaseCommentWatcherData{comment: comment, Args: map[string]any{"session": session, "obj": comment, "case_id": caseId, "role_ids": roleIds, "id": id}}
+}
+
+func (wd *CaseCommentWatcherData) Marshal() ([]byte, error) {
+	return json.Marshal(wd.comment)
+}
+
+func (wd *CaseCommentWatcherData) GetArgs() map[string]any {
+	return wd.Args
 }
