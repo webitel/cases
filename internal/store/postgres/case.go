@@ -83,7 +83,7 @@ func (c *CaseStore) Create(
 	}
 
 	// Calculate planned times within the transaction
-	err = c.calculatePlannedReactionAndResolutionTime(rpc, calendarID, reactionAt, resolveAt, txManager, add)
+	err = c.calculatePlannedReactionAndResolutionTime(nil, rpc, calendarID, reactionAt, resolveAt, txManager, add)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.calculate_planned_times_error", err)
 	}
@@ -459,6 +459,7 @@ type MergedSlot struct {
 }
 
 func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
+	caseID *int64,
 	rpc *model.CreateOptions,
 	calendarID int,
 	reactionTime int,
@@ -466,6 +467,18 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	txManager *transaction.TxManager,
 	caseItem *_go.Case,
 ) error {
+	// Determine the pivot time
+	var pivotTime time.Time
+	if caseID == nil {
+		pivotTime = rpc.CurrentTime()
+	} else {
+		err := txManager.QueryRow(rpc.Context, `
+			SELECT created_at FROM cases.case WHERE id = $1`, *caseID).Scan(&pivotTime)
+		if err != nil {
+			return fmt.Errorf("failed to fetch created_at for caseID %d: %w", *caseID, err)
+		}
+	}
+
 	// Fetch standard calendar working hours
 	calendar, err := fetchCalendarSlots(rpc, txManager, calendarID)
 	if err != nil {
@@ -496,16 +509,13 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	reactionMinutes := reactionTime / 60
 	resolutionMinutes := resolutionTime / 60
 
-	// Get the current time
-	currentTime := rpc.CurrentTime()
-
 	// Calculate planned reaction and resolution timestamps
-	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, reactionMinutes, mergedSlots)
+	reactionTimestamp, err := calculateTimestampFromCalendar(pivotTime, offset, reactionMinutes, mergedSlots)
 	if err != nil {
 		return fmt.Errorf("failed to calculate planned reaction time: %w", err)
 	}
 
-	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, resolutionMinutes, mergedSlots)
+	resolveTimestamp, err := calculateTimestampFromCalendar(pivotTime, offset, resolutionMinutes, mergedSlots)
 	if err != nil {
 		return fmt.Errorf("failed to calculate planned resolution time: %w", err)
 	}
@@ -1124,12 +1134,12 @@ func (c *CaseStore) Update(
 			return nil, dberr.NewDBInternalError("postgres.case.update.scan_sla_error", err)
 		}
 
+		oid := rpc.Etags[0].GetOid()
+
 		// Calculate planned times within the transaction
 		err = c.calculatePlannedReactionAndResolutionTime(
-			&model.CreateOptions{
-				Context: rpc.Context,
-				Time:    rpc.CurrentTime(),
-			},
+			&oid,
+			&model.CreateOptions{Context: rpc.Context, Time: rpc.CurrentTime()},
 			calendarID,
 			reaction_at,
 			resolve_at,
