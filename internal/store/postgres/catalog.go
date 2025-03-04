@@ -8,13 +8,13 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	cases "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 
 	"github.com/webitel/cases/model"
-	util "github.com/webitel/cases/util"
+	"github.com/webitel/cases/util"
 )
 
 type CatalogStore struct {
@@ -262,13 +262,13 @@ func (s *CatalogStore) List(
 		catalogs []*cases.Catalog
 		lCount   int
 		next     bool
-		fetchAll = (rpc.GetSize() == -1)
+		fetchAll = rpc.GetSize() == -1
 	)
 
 	// 6. Single-pass read
 	for rows.Next() {
 		// If not fetching all, check the size limit
-		if !fetchAll && lCount >= int(rpc.GetSize()) {
+		if !fetchAll && lCount >= rpc.GetSize() {
 			next = true
 			break
 		}
@@ -309,16 +309,7 @@ func (s *CatalogStore) List(
 		)
 
 		// Build placeholders
-		scanArgs, err := s.buildCatalogScanArgs(
-			catalog,
-			&createdAt, &updatedAt,
-			&rootID,
-			rpc.Fields,
-			subfields,
-			&teamData,
-			&skillData,
-			&servicesData,
-		)
+		scanArgs, err := s.buildCatalogScanArgs(catalog, &createdAt, &updatedAt, &rootID, rpc.Fields, &teamData, &skillData, &servicesData)
 		if err != nil {
 			return nil, dberr.NewDBInternalError("postgres.catalog.list.scan_args_error", err)
 		}
@@ -472,10 +463,12 @@ func (s *CatalogStore) List(
 			catalog.Service = parsedServices
 		}
 
-		// Only add to the top-level list if rootID == 0
+		// Only add to the top-level list if rootID == 0 and servicesData is not empty
 		if rootID == 0 {
-			catalogs = append(catalogs, catalog)
-			lCount++
+			if !util.ContainsField(rpc.Fields, "services") || servicesData != "" {
+				catalogs = append(catalogs, catalog)
+				lCount++
+			}
 		}
 	}
 
@@ -508,12 +501,8 @@ func (s *CatalogStore) buildCatalogScanArgs(
 	catalog *cases.Catalog,
 	createdAt, updatedAt *time.Time,
 	rootId *int64,
-	rpcFields, serviceFields []string,
-	teamData, skillData, serviceData *string,
-) (
-	scanArgs []interface{},
-	err error,
-) {
+	rpcFields []string,
+	teamData, skillData, serviceData *string) (scanArgs []interface{}, err error) {
 	for _, field := range rpcFields {
 		switch field {
 
@@ -1396,8 +1385,8 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 	// Handle teams and skills updates if rpc.Fields contain team_ids or skill_ids
 	if updateTeams || updateSkills {
 		// Initialize empty slices for teamIDs and skillIDs
-		teamIDs := []int64{}
-		skillIDs := []int64{}
+		var teamIDs []int64
+		var skillIDs []int64
 
 		// If the user has provided team updates, extract team IDs
 		if updateTeams {
