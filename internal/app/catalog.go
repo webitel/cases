@@ -265,6 +265,11 @@ func (s *CatalogService) ListCatalogs(
 		Filter:  make(map[string]any),
 		Auth:    model.GetAutherOutOfContext(ctx),
 	}
+
+	if req.State {
+		searchOptions.Filter["state"] = req.State
+	}
+
 	if !searchOptions.GetAuthOpts().HasSuperPermission(auth.SuperSelectPermission) { // if user doesn't have super select permission, then apply filters
 		var info metadata.MD
 		var ok bool

@@ -730,9 +730,11 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	}
 
 	// 7) State + ID filters
-	if state, ok := rpc.Filter["state"]; ok {
-		queryBuilder = queryBuilder.Where(sq.Eq{"catalog.state": state})
+	if state, ok := rpc.Filter["state"].(bool); ok {
+		params["state"] = state
+		queryBuilder = queryBuilder.Where("catalog.state = :state")
 	}
+
 	teamFilter, teamFilterFound := rpc.Filter["team"].(int64)
 	skillsFilter, skillFilterFound := rpc.Filter["skills"].([]int64)
 	if teamFilterFound || skillFilterFound {
