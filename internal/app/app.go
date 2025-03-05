@@ -77,23 +77,6 @@ type App struct {
 	watcherManager    WatcherManager
 }
 
-//type WatcherLoggerData struct {
-//	Message  *wlogger.Message `json:"message,omitempty"`
-//	DomainId int64            `json:"domain_id"`
-//}
-//
-//func NewWatcherLoggerData(case_ *cases.Case, caseId int64, action wlogger.Action, userId int64, userIp string, domainID int64) *WatcherLoggerData {
-//	message, err := wlogger.NewMessage(userId, userIp, action, caseId, case_)
-//	if err != nil {
-//		return nil
-//	}
-//	return &WatcherLoggerData{Message: message, DomainId: domainID}
-//}
-//
-//func (wd *WatcherLoggerData) Marshal() ([]byte, error) {
-//	return json.Marshal(wd)
-//}
-
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
 	// --------- App Initialization ---------
 	app := &App{config: config, shutdown: shutdown}
