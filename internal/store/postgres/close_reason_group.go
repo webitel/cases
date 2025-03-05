@@ -14,7 +14,7 @@ import (
 )
 
 type CloseReasonGroup struct {
-	storage store.Store
+	storage *Store
 }
 
 type CloseReasonGroupScan func(group *_go.CloseReasonGroup) any
@@ -382,7 +382,7 @@ func (s CloseReasonGroup) Delete(rpc *model.DeleteOptions) error {
 	return nil
 }
 
-func NewCloseReasonGroupStore(store store.Store) (store.CloseReasonGroupStore, error) {
+func NewCloseReasonGroupStore(store *Store) (store.CloseReasonGroupStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_close_reason_group.check.bad_arguments",
 			"error creating close_reason_group interface to the close_reason_group table, main store is nil")

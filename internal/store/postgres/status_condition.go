@@ -23,7 +23,7 @@ const (
 )
 
 type StatusConditionStore struct {
-	storage store.Store
+	storage *Store
 }
 
 func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
@@ -524,7 +524,7 @@ FROM ins
 		 `)
 )
 
-func NewStatusConditionStore(store store.Store) (store.StatusConditionStore, error) {
+func NewStatusConditionStore(store *Store) (store.StatusConditionStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_status_condition.check.bad_arguments",
 			"error creating status condition interface to the status_condition table, main store is nil")

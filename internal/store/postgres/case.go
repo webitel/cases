@@ -24,7 +24,7 @@ import (
 )
 
 type CaseStore struct {
-	storage   store.Store
+	storage   *Store
 	mainTable string
 }
 
@@ -2036,7 +2036,7 @@ func convertToCaseScanArgs(plan []func(caseItem *_go.Case) any, caseItem *_go.Ca
 	return scanArgs
 }
 
-func NewCaseStore(store store.Store) (store.CaseStore, error) {
+func NewCaseStore(store *Store) (store.CaseStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_case.check.bad_arguments",
 			"error creating case interface to the case table, main store is nil")

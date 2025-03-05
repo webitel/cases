@@ -18,7 +18,7 @@ import (
 )
 
 type CatalogStore struct {
-	storage store.Store
+	storage *Store
 }
 
 // Create implements store.CatalogStore.
@@ -1698,7 +1698,7 @@ GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name,
 	return store.CompactSQL(query), args, nil
 }
 
-func NewCatalogStore(store store.Store) (store.CatalogStore, error) {
+func NewCatalogStore(store *Store) (store.CatalogStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_catalog.check.bad_arguments",
 			"error creating Catalog interface to the service table, main store is nil")

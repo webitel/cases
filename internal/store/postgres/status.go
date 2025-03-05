@@ -21,7 +21,7 @@ const (
 )
 
 type Status struct {
-	storage store.Store
+	storage *Store
 }
 
 // Helper function to convert plan to scan arguments.
@@ -354,7 +354,7 @@ func (s *Status) Delete(rpc *model.DeleteOptions) error {
 	return nil
 }
 
-func NewStatusStore(store store.Store) (store.StatusStore, error) {
+func NewStatusStore(store *Store) (store.StatusStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_status.check.bad_arguments",
 			"error creating status interface, main store is nil")
