@@ -900,7 +900,10 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) 
 }
 
 func formCaseFtsModel(item *cases.Case, params map[string]any) (*model.FtsCase, error) {
-	roles := params["role_ids"].([]int64)
+	roles, ok := params["role_ids"].([]int64)
+	if !ok {
+		return nil, fmt.Errorf("role ids required for FTS model")
+	}
 	m := &model.FtsCase{
 		Description: item.GetDescription(),
 		RoleIds:     roles,

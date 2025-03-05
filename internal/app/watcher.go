@@ -331,18 +331,10 @@ func (l *FullTextSearchObserver[T, V]) Update(et EventType, data []byte, args ma
 	switch et {
 
 	case EventTypeCreate:
-		//obj, ok := args["role_ids"].(T)
-		//if !ok {
-		//	return fmt.Errorf("roles required for create event", obj)
-		//}
 		err = l.client.Create(auth.GetDomainId(), l.objclass, id, neededType)
 	case EventTypeDelete:
 		err = l.client.Delete(auth.GetDomainId(), l.objclass, id)
 	case EventTypeUpdate:
-		//obj, ok := args["role_ids"].(T)
-		//if !ok {
-		//	return fmt.Errorf("roles required for update event", obj)
-		//}
 		err = l.client.Update(auth.GetDomainId(), l.objclass, id, neededType)
 	default:
 		return ErrUnknownType

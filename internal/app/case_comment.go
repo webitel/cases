@@ -157,7 +157,7 @@ func (c *CaseCommentService) DeleteComment(
 		return nil, AppDatabaseError
 	}
 
-	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeDelete, NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, 0, tag.GetOid(), nil))
+	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeDelete, NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, tag.GetOid(), 0, nil))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment delete: %s, ", err.Error()), logAttributes)
 	}
@@ -259,7 +259,7 @@ func (c *CaseCommentService) PublishComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeCreate, NewCaseCommentWatcherData(createOpts.GetAuthOpts(), comment, parentId, id, roleId))
+	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeCreate, NewCaseCommentWatcherData(createOpts.GetAuthOpts(), comment, id, parentId, roleId))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment create: %s, ", err.Error()), logAttributes)
 	}
@@ -309,10 +309,14 @@ func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
 }
 
 func formCommentsFtsModel(comment *cases.CaseComment, params map[string]any) (*model.FtsCaseComment, error) {
-
-	// TODO right conversion
-	roles := params["role_ids"].([]int64)
-	caseId, _ := params["case_id"].(int64)
+	roles, ok := params["role_ids"].([]int64)
+	if !ok {
+		return nil, fmt.Errorf("role ids required for FTS model")
+	}
+	caseId, ok := params["case_id"].(int64)
+	if !ok {
+		return nil, fmt.Errorf("case id required for FTS model")
+	}
 
 	return &model.FtsCaseComment{
 		ParentId:  caseId,
@@ -335,7 +339,7 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 	watcher.Attach(EventTypeUpdate, ftsObserver)
 	watcher.Attach(EventTypeDelete, ftsObserver)
 
-	app.watcherManager.AddWatcher(caseObjScope, watcher)
+	app.watcherManager.AddWatcher(caseCommentsObjScope, watcher)
 	return &CaseCommentService{app: app}, nil
 }
 
