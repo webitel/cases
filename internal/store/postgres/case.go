@@ -83,7 +83,7 @@ func (c *CaseStore) Create(
 	}
 
 	// Calculate planned times within the transaction
-	err = c.calculatePlannedReactionAndResolutionTime(rpc, calendarID, reactionAt, resolveAt, txManager, add)
+	err = c.calculatePlannedReactionAndResolutionTime(nil, rpc, calendarID, reactionAt, resolveAt, txManager, add)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.calculate_planned_times_error", err)
 	}
@@ -147,48 +147,45 @@ func (c *CaseStore) ScanSla(
 
 	err = txManager.QueryRow(rpc.Context, `
 WITH RECURSIVE
-    service_hierarchy AS (
-        -- Start with the service with id = $1
-        SELECT id, root_id, sla_id, 1 AS level
-        FROM cases.service_catalog
-        WHERE id = $1  -- Start from the service with id = $1
+    service_hierarchy AS (SELECT id,
+                                 root_id,
+                                 sla_id,
+                                 ARRAY [id] AS path -- Track the path to determine specificity
+                          FROM cases.service_catalog
+                          WHERE id = $1
 
-        UNION ALL
+                          UNION ALL
 
-        -- Recursively find parent services based on root_id
-        SELECT sc.id, sc.root_id, COALESCE(sc.sla_id, sh.sla_id) AS sla_id, sh.level + 1
-        FROM cases.service_catalog sc
-        INNER JOIN service_hierarchy sh ON sc.id = sh.root_id  -- Join on root_id to get parents
-    ),
-    deepest_service AS (
-        -- Select the SLA ID and its associated details from the deepest service
-        SELECT sla_id, MAX(level) AS max_level
-        FROM service_hierarchy
-        WHERE sla_id IS NOT NULL  -- Filter out rows where sla_id is null
-        GROUP BY sla_id
-        ORDER BY max_level ASC
-        LIMIT 1  -- Only return the SLA ID of the deepest service
-    ),
-    priority_condition AS (
-        SELECT sc.id AS sla_condition_id,
-               sc.reaction_time,
-               sc.resolution_time
-        FROM cases.sla_condition sc
-        INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
-        INNER JOIN cases.sla sla ON sc.sla_id = sla.id
-        INNER JOIN deepest_service ds ON sla.id = ds.sla_id
-        WHERE psc.priority_id = $2
-        LIMIT 1
-    )
--- Final SELECT for deepest service and its priority condition details with COALESCE
+                          SELECT sc.id,
+                                 sc.root_id,
+                                 COALESCE(sc.sla_id, sh.sla_id) AS sla_id,
+                                 sh.path || sc.id -- Append the current service ID to the path
+                          FROM cases.service_catalog sc
+                                   INNER JOIN service_hierarchy sh ON sc.id = sh.root_id),
+    deepest_service AS (SELECT id,
+                               sla_id,
+                               path
+                        FROM service_hierarchy
+                        WHERE sla_id IS NOT NULL
+                        ORDER BY array_length(path, 1) ASC -- Prefer the shortest path (most specific service)
+                        LIMIT 1),
+    priority_condition AS (SELECT sc.id AS sla_condition_id,
+                                  sc.reaction_time,
+                                  sc.resolution_time
+                           FROM cases.sla_condition sc
+                                    INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+                                    INNER JOIN cases.sla sla ON sc.sla_id = sla.id
+                                    INNER JOIN deepest_service ds ON sla.id = ds.sla_id
+                           WHERE psc.priority_id = $2
+                           LIMIT 1)
 SELECT ds.sla_id,
-       COALESCE(pc.reaction_time, sla.reaction_time) AS reaction_time,
+       COALESCE(pc.reaction_time, sla.reaction_time)     AS reaction_time,
        COALESCE(pc.resolution_time, sla.resolution_time) AS resolution_time,
        sla.calendar_id,
        pc.sla_condition_id
 FROM deepest_service ds
-LEFT JOIN priority_condition pc ON true
-LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
+         LEFT JOIN priority_condition pc ON true
+         LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
 	`, serviceID, priorityID).Scan(
 		scanner.ScanInt(&slaID),
 		scanner.ScanInt(&reactionTime),
@@ -462,6 +459,7 @@ type MergedSlot struct {
 }
 
 func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
+	caseID *int64,
 	rpc *model.CreateOptions,
 	calendarID int,
 	reactionTime int,
@@ -469,6 +467,18 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	txManager *transaction.TxManager,
 	caseItem *_go.Case,
 ) error {
+	// Determine the pivot time
+	var pivotTime time.Time
+	if caseID == nil {
+		pivotTime = rpc.CurrentTime()
+	} else {
+		err := txManager.QueryRow(rpc.Context, `
+			SELECT created_at FROM cases.case WHERE id = $1`, *caseID).Scan(&pivotTime)
+		if err != nil {
+			return fmt.Errorf("failed to fetch created_at for caseID %d: %w", *caseID, err)
+		}
+	}
+
 	// Fetch standard calendar working hours
 	calendar, err := fetchCalendarSlots(rpc, txManager, calendarID)
 	if err != nil {
@@ -499,16 +509,13 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	reactionMinutes := reactionTime / 60
 	resolutionMinutes := resolutionTime / 60
 
-	// Get the current time
-	currentTime := rpc.CurrentTime()
-
 	// Calculate planned reaction and resolution timestamps
-	reactionTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, reactionMinutes, mergedSlots)
+	reactionTimestamp, err := calculateTimestampFromCalendar(pivotTime, offset, reactionMinutes, mergedSlots)
 	if err != nil {
 		return fmt.Errorf("failed to calculate planned reaction time: %w", err)
 	}
 
-	resolveTimestamp, err := calculateTimestampFromCalendar(currentTime, offset, resolutionMinutes, mergedSlots)
+	resolveTimestamp, err := calculateTimestampFromCalendar(pivotTime, offset, resolutionMinutes, mergedSlots)
 	if err != nil {
 		return fmt.Errorf("failed to calculate planned resolution time: %w", err)
 	}
@@ -1127,12 +1134,12 @@ func (c *CaseStore) Update(
 			return nil, dberr.NewDBInternalError("postgres.case.update.scan_sla_error", err)
 		}
 
+		oid := rpc.Etags[0].GetOid()
+
 		// Calculate planned times within the transaction
 		err = c.calculatePlannedReactionAndResolutionTime(
-			&model.CreateOptions{
-				Context: rpc.Context,
-				Time:    rpc.CurrentTime(),
-			},
+			&oid,
+			&model.CreateOptions{Context: rpc.Context, Time: rpc.CurrentTime()},
 			calendarID,
 			reaction_at,
 			resolve_at,
