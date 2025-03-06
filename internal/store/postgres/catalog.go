@@ -716,6 +716,10 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		queryBuilder = queryBuilder.LeftJoin("service_hierarchy ON service_hierarchy.catalog_id = catalog.id")
 	}
 
+	//FIXME make services json building in separate cte -> then make
+	// SELECT ... services_cte.services
+	// AND JSONB_ARRAY_LENGTH(services_cte.services) > 0
+
 	// 7) State + ID filters
 	if state, ok := rpc.Filter["state"].(bool); ok {
 		params["state"] = state
@@ -914,7 +918,6 @@ COALESCE(
     '{}'::jsonb
 ) AS services
 `
-
 	return jsonAgg
 }
 

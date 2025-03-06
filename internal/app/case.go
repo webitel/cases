@@ -79,7 +79,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	searchOpts, err := model.NewSearchOptions(ctx, req, CaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
@@ -110,12 +110,12 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 	err = c.NormalizeResponseCases(list, req, nil)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
+		return nil, ResponseNormalizingError
 	}
 
 	return list, nil
@@ -125,7 +125,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	searchOpts, err := model.NewLocateOptions(ctx, req, CaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	id, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
@@ -144,7 +144,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	err = c.NormalizeResponseCases(list, req, nil)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
+		return nil, ResponseNormalizingError
 	}
 	return list.Items[0], nil
 }
@@ -238,7 +238,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	createOpts, err := model.NewCreateOptions(ctx, req, fullMD)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 
 	for i, v := range createOpts.Fields {
@@ -260,7 +260,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	res, err = c.app.Store.Case().Create(createOpts, res)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 	etag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
 	if err != nil {
@@ -283,7 +283,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	err = c.NormalizeResponseCase(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
+		return nil, ResponseNormalizingError
 	}
 
 	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleIds, res)
@@ -334,7 +334,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	updateOpts, err := model.NewUpdateOptions(ctx, req, fullMD)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	updateOpts.Etags = []*etag.Tid{&tag}
 	for i, v := range updateOpts.Fields {
@@ -385,7 +385,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 			return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
 		}
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 
 	etag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
@@ -408,7 +408,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	err = c.NormalizeResponseCase(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
+		return nil, ResponseNormalizingError
 	}
 
 	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, res)
@@ -491,7 +491,7 @@ func (c *CaseService) resolveDynamicContactGroup(
 
 	etag, ok := caseMap["case.etag"].(string)
 	if !ok {
-		return nil, AppForbiddenError
+		return nil, ForbiddenError
 	}
 
 	// Iterate over all dynamic conditions in the group…
@@ -501,14 +501,14 @@ func (c *CaseService) resolveDynamicContactGroup(
 
 			groupID, err := strconv.Atoi(condition.Group.GetId())
 			if err != nil {
-				return nil, AppResponseNormalizingError
+				return nil, ResponseNormalizingError
 			}
 
 			var assigneeID int
 			if condition.Assignee != nil {
 				assigneeID, err = strconv.Atoi(condition.Assignee.GetId())
 				if err != nil {
-					return nil, AppResponseNormalizingError
+					return nil, ResponseNormalizingError
 				}
 			} else {
 				assigneeID = 0
@@ -680,7 +680,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	deleteOpts, err := model.NewDeleteOptions(ctx, CaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.Etag)
@@ -697,7 +697,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 			return nil, cerror.NewBadRequestError("app.case.delete.invalid_etag", "Invalid etag or insufficient rights")
 		}
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 	log, err := wlogger.NewDeleteMessage(deleteOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), tag.GetOid())
 	if err != nil {

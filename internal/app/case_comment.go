@@ -52,7 +52,7 @@ func (c *CaseCommentService) LocateComment(
 	searchOpts, err := model.NewLocateOptions(ctx, req, CaseCommentMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	searchOpts.IDs = []int64{tag.GetOid()}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
@@ -71,7 +71,7 @@ func (c *CaseCommentService) LocateComment(
 	err = NormalizeCommentsResponse(commentList.Items[0], req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
+		return nil, ResponseNormalizingError
 	}
 
 	return commentList.Items[0], nil
@@ -96,7 +96,7 @@ func (c *CaseCommentService) UpdateComment(
 	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	updateOpts.Etags = []*etag.Tid{&tag}
 	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("id", tag.GetOid()))
@@ -120,7 +120,7 @@ func (c *CaseCommentService) UpdateComment(
 	err = NormalizeCommentsResponse(updatedComment, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
+		return nil, ResponseNormalizingError
 	}
 	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, parentId, updatedComment)
 	if ftsErr != nil {
@@ -141,7 +141,7 @@ func (c *CaseCommentService) DeleteComment(
 	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.GetEtag())
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *CaseCommentService) DeleteComment(
 	err = c.app.Store.CaseComment().Delete(deleteOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 
 	ftsErr := c.SendFtsDeleteEvent(tag.GetOid(), deleteOpts.GetAuthOpts().GetDomainId())
@@ -183,7 +183,7 @@ func (c *CaseCommentService) ListComments(
 	searchOpts, err := model.NewSearchOptions(ctx, req, CaseCommentMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	searchOpts.ParentId = tag.GetOid()
 	searchOpts.IDs = ids
@@ -192,13 +192,13 @@ func (c *CaseCommentService) ListComments(
 	comments, err := c.app.Store.CaseComment().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 
 	err = NormalizeCommentsResponse(comments, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
+		return nil, ResponseNormalizingError
 	}
 
 	return comments, nil
@@ -217,7 +217,7 @@ func (c *CaseCommentService) PublishComment(
 	createOpts, err := model.NewCreateOptions(ctx, req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
@@ -230,23 +230,23 @@ func (c *CaseCommentService) PublishComment(
 	accessMode := auth.Read
 	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommentMetadata.GetParentScopeName(), accessMode) {
 		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-		return nil, AppForbiddenError
+		return nil, ForbiddenError
 	}
 	if createOpts.GetAuthOpts().IsRbacCheckRequired(CaseCommentMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 	}
 	comment, err := c.app.Store.CaseComment().Publish(createOpts, &cases.CaseComment{Text: req.Input.Text})
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 
 	id := comment.GetId()
@@ -256,7 +256,7 @@ func (c *CaseCommentService) PublishComment(
 	err = NormalizeCommentsResponse(comment, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppResponseNormalizingError
+		return nil, ResponseNormalizingError
 	}
 	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleId, parentId, comment)
 	if ftsErr != nil {
