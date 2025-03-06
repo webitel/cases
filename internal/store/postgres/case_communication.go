@@ -14,7 +14,7 @@ import (
 )
 
 type CaseCommunicationStore struct {
-	storage   store.Store
+	storage   *Store
 	mainTable string
 }
 
@@ -244,7 +244,7 @@ var s store.CaseCommunicationStore = &CaseCommunicationStore{}
 
 var CaseCommunicationFields = []string{"id", "ver", "communication_type", "communication_id"}
 
-func NewCaseCommunicationStore(store store.Store) (store.CaseCommunicationStore, error) {
+func NewCaseCommunicationStore(store *Store) (store.CaseCommunicationStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_case_communication.check.bad_arguments",
 			"error creating case communication store, main store is nil")

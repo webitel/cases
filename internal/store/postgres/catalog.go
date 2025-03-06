@@ -18,7 +18,7 @@ import (
 )
 
 type CatalogStore struct {
-	storage store.Store
+	storage *Store
 }
 
 // Create implements store.CatalogStore.
@@ -716,6 +716,10 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		queryBuilder = queryBuilder.LeftJoin("service_hierarchy ON service_hierarchy.catalog_id = catalog.id")
 	}
 
+	//FIXME make services json building in separate cte -> then make
+	// SELECT ... services_cte.services
+	// AND JSONB_ARRAY_LENGTH(services_cte.services) > 0
+
 	// 7) State + ID filters
 	if state, ok := rpc.Filter["state"].(bool); ok {
 		params["state"] = state
@@ -914,7 +918,6 @@ COALESCE(
     '{}'::jsonb
 ) AS services
 `
-
 	return jsonAgg
 }
 
@@ -1695,7 +1698,7 @@ GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name,
 	return store.CompactSQL(query), args, nil
 }
 
-func NewCatalogStore(store store.Store) (store.CatalogStore, error) {
+func NewCatalogStore(store *Store) (store.CatalogStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_catalog.check.bad_arguments",
 			"error creating Catalog interface to the service table, main store is nil")

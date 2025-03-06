@@ -23,7 +23,7 @@ const (
 )
 
 type SLAConditionStore struct {
-	storage store.Store
+	storage *Store
 }
 
 func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondition, priorities []int64) (*cases.SLACondition, error) {
@@ -626,7 +626,7 @@ var deleteSLAConditionQuery = store.CompactSQL(
 	 WHERE id = $1 AND dc = $2
 	`)
 
-func NewSLAConditionStore(store store.Store) (store.SLAConditionStore, error) {
+func NewSLAConditionStore(store *Store) (store.SLAConditionStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_sla_condition.check.bad_arguments",
 			"error creating SLACondition interface to the status_condition table, main store is nil")

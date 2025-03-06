@@ -14,7 +14,7 @@ import (
 )
 
 type CaseFileStore struct {
-	storage   store.Store
+	storage   *Store
 	mainTable string
 }
 
@@ -282,7 +282,7 @@ func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq
 }
 
 // NewCaseFileStore initializes a new CaseFileStore.
-func NewCaseFileStore(store store.Store) (store.CaseFileStore, error) {
+func NewCaseFileStore(store *Store) (store.CaseFileStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_case_file.check.bad_arguments", "error creating case file interface, main store is nil")
 	}

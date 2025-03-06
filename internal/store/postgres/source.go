@@ -21,7 +21,7 @@ const (
 )
 
 type Source struct {
-	storage db.Store
+	storage *Store
 }
 
 func (s Source) Create(rpc *model.CreateOptions, add *_go.Source) (*_go.Source, error) {
@@ -411,7 +411,7 @@ FROM ins
 	)
 )
 
-func NewSourceStore(store db.Store) (db.SourceStore, error) {
+func NewSourceStore(store *Store) (db.SourceStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_source.check.bad_arguments",
 			"error creating source interface to the source table, main store is nil")

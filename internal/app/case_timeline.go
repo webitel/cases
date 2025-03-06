@@ -34,7 +34,7 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 	searchOpts, err := model.NewSearchOptions(ctx, request, CaseTimelineMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	var requestedType []string
 	for _, eventType := range request.Type {
@@ -55,17 +55,17 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 	}
 	res, err := c.app.Store.CaseTimeline().Get(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 	return res, nil
 
@@ -88,17 +88,17 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 	}
 	eventTypeCounters, err := c.app.Store.CaseTimeline().GetCounter(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 	if len(eventTypeCounters) == 0 {
 		return nil, nil

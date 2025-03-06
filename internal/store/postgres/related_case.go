@@ -15,7 +15,7 @@ import (
 )
 
 type RelatedCaseStore struct {
-	storage store.Store
+	storage *Store
 }
 
 const (
@@ -479,7 +479,7 @@ func convertToRelatedCaseScanArgs(plan []func(*cases.RelatedCase) any, rc *cases
 	return scanArgs
 }
 
-func NewRelatedCaseStore(store store.Store) (store.RelatedCaseStore, error) {
+func NewRelatedCaseStore(store *Store) (store.RelatedCaseStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_related_case.check.bad_arguments",
 			"error creating related case interface, main store is nil")
