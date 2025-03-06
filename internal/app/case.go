@@ -430,7 +430,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
 	}
 
-	err = c.app.watcher.OnEvent(EventTypeUpdate, NewWatcherData(upd, updateOpts.GetAuthOpts().GetDomainId()))
+	err = c.app.watcher.OnEvent(EventTypeUpdate, NewWatcherData(res, updateOpts.GetAuthOpts().GetDomainId()))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case update: %s, ", err.Error()), logAttributes)
 	}

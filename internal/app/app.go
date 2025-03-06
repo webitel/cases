@@ -126,7 +126,11 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	// register watchers
 	watcher := NewDefaultWatcher()
 	if app.config.Watcher.Enabled {
-		caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher)
+		logger := app.log
+		if logger == nil {
+			logger = slog.Default()
+		}
+		caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher, logger)
 		if err != nil {
 			return nil, cerror.NewInternalError("internal.internal.new_app.watcher.start.error", err.Error())
 		}
