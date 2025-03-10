@@ -607,7 +607,7 @@ type Operation struct {
 	// Unique string used to identify the operation. The id MUST be unique among
 	// all operations described in the API. Tools and libraries MAY use the
 	// operationId to uniquely identify an operation, therefore, it is recommended
-	// to follow common programming naming conventions.
+	// to follow shared programming naming conventions.
 	OperationId string `protobuf:"bytes,5,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	// A list of MIME types the operation can consume. This overrides the consumes
 	// definition at the OpenAPI Object. An empty value MAY be used to clear the
@@ -1956,7 +1956,7 @@ func (x *SecurityDefinitions) GetSecurity() map[string]*SecurityScheme {
 //
 // Allows the definition of a security scheme that can be used by the
 // operations. Supported schemes are basic authentication, an API key (either as
-// a header or as a query parameter) and OAuth2's common flows (implicit,
+// a header or as a query parameter) and OAuth2's shared flows (implicit,
 // password, application and access code).
 type SecurityScheme struct {
 	state protoimpl.MessageState `protogen:"open.v1"`

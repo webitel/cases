@@ -1,9 +1,10 @@
-package model
+package opts
 
 import (
 	"context"
 	"errors"
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/model"
 	"time"
 )
 
@@ -37,14 +38,14 @@ func (rpc *DeleteOptions) CurrentTime() time.Time {
 }
 
 // NewDeleteOptions initializes a DeleteOptions instance with the current session, context, and current time.
-func NewDeleteOptions(ctx context.Context, metadatter ObjectMetadatter) (*DeleteOptions, error) {
+func NewDeleteOptions(ctx context.Context, metadatter model.ObjectMetadatter) (*DeleteOptions, error) {
 
 	deleteOpts := &DeleteOptions{
 		Context: ctx,
 	}
 	deleteOpts.CurrentTime() // Set Time using CurrentTime
 
-	if sess := GetAutherOutOfContext(ctx); sess != nil {
+	if sess := model.GetAutherOutOfContext(ctx); sess != nil {
 		deleteOpts.Auth = sess
 	} else {
 		return nil, errors.New("can't authorize user")

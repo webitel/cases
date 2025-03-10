@@ -171,7 +171,7 @@ func (x *RoleId) GetUser() bool {
 type Role struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Id          int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                  // oid
-	Name        string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`               // display common name
+	Name        string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`               // display shared name
 	User        bool                   `protobuf:"varint,3,opt,name=user,proto3" json:"user,omitempty"`              // READONLY. Report whether this Role refers to the internal User(=true) or Group(=false)
 	Description string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"` // short description
 	Permissions []*Permission          `protobuf:"bytes,5,rep,name=permissions,proto3" json:"permissions,omitempty"`

@@ -3,6 +3,8 @@ package postgres
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 	"strings"
 	"time"
 
@@ -13,7 +15,6 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -22,7 +23,7 @@ type CatalogStore struct {
 }
 
 // Create implements store.CatalogStore.
-func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*cases.Catalog, error) {
+func (s *CatalogStore) Create(rpc *options.CreateOptions, add *cases.Catalog) (*cases.Catalog, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -72,7 +73,7 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 	return add, nil
 }
 
-func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
+func (s *CatalogStore) buildCreateCatalogQuery(rpc *options.CreateOptions, add *cases.Catalog) (string, []interface{}) {
 	// Define arguments for the query
 	args := []any{
 		add.Name,                        // $1: name (cannot be null)
@@ -182,7 +183,7 @@ FROM inserted_catalog
 }
 
 // Delete implements store.CatalogStore.
-func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
+func (s *CatalogStore) Delete(rpc *opts.DeleteOptions) error {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -212,7 +213,7 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 }
 
 // Helper method to build the delete query for Catalog
-func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string, []any) {
+func (s *CatalogStore) buildDeleteCatalogQuery(rpc *opts.DeleteOptions) (string, []any) {
 	// Build the SQL query using the provided IDs in rpc.IDs
 	query := `
 		DELETE FROM cases.service_catalog
@@ -230,7 +231,7 @@ func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string
 
 // List implements store.CatalogStore.
 func (s *CatalogStore) List(
-	rpc *model.SearchOptions,
+	rpc *opts.SearchOptions,
 	depth int64,
 	subfields []string,
 	hasSubservices bool,
@@ -596,7 +597,7 @@ func (s *CatalogStore) buildServiceHierarchy(
 }
 
 func (s *CatalogStore) buildSearchCatalogQuery(
-	rpc *model.SearchOptions,
+	rpc *opts.SearchOptions,
 	depth int64,
 	subfields []string,
 	hasSubservices bool,
@@ -922,7 +923,7 @@ COALESCE(
 }
 
 // applySorting applies dynamic sorting based on rpc.Sort and defaults to sorting by name in ascending order.
-func applySorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.SelectBuilder {
+func applySorting(queryBuilder sq.SelectBuilder, rpc *opts.SearchOptions) sq.SelectBuilder {
 	sortableFields := map[string]string{
 		"name":               "catalog.name",
 		"prefix":             "catalog.prefix",
@@ -1364,7 +1365,7 @@ WHERE parent.level < CASE WHEN `)
 }
 
 // Update implements store.CatalogStore.
-func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (*cases.Catalog, error) {
+func (s *CatalogStore) Update(rpc *options.GRPCUpdateOptions, lookup *cases.Catalog) (*cases.Catalog, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -1493,7 +1494,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 }
 
 func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
-	rpc *model.UpdateOptions,
+	rpc *options.GRPCUpdateOptions,
 	catalogID int64,
 	teamIDs,
 	skillIDs []int64,
@@ -1590,7 +1591,7 @@ FROM (
 }
 
 func (s *CatalogStore) buildUpdateCatalogQuery(
-	rpc *model.UpdateOptions,
+	rpc *options.GRPCUpdateOptions,
 	lookup *cases.Catalog,
 ) (string, []interface{}, error) {
 	// Start the WITH clause to check if root_id is NULL

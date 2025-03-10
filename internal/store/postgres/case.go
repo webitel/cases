@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 	"strconv"
 	"strings"
 	"time"
@@ -20,7 +22,7 @@ import (
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	"github.com/webitel/cases/model"
-	util "github.com/webitel/cases/util"
+	"github.com/webitel/cases/util"
 )
 
 type CaseStore struct {
@@ -52,7 +54,7 @@ const (
 )
 
 func (c *CaseStore) Create(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	add *_go.Case,
 ) (*_go.Case, error) {
 	// Get the database connection
@@ -62,11 +64,11 @@ func (c *CaseStore) Create(
 	}
 
 	// Begin a transaction
-	tx, err := d.Begin(rpc.Context)
+	tx, err := d.Begin(rpc)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", err)
 	}
-	defer tx.Rollback(rpc.Context)
+	defer tx.Rollback(rpc)
 	txManager := transaction.NewTxManager(tx)
 
 	// Scan SLA details
@@ -131,7 +133,7 @@ func (c *CaseStore) Create(
 
 // ScanSla fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
 func (c *CaseStore) ScanSla(
-	rpc *model.CreateOptions,
+	rpc *options.CreateOptions,
 	txManager *transaction.TxManager,
 	serviceID int64,
 	priorityID int64,
@@ -201,7 +203,7 @@ FROM deepest_service ds
 }
 
 func (c *CaseStore) buildCreateCaseSqlizer(
-	rpc *model.CreateOptions,
+	rpc *options.CreateOptions,
 	caseItem *_go.Case,
 	sla int,
 	slaCondition int,
@@ -355,7 +357,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 
 	// Construct SELECT query to return case data
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		&model.SearchOptions{
+		&opts.SearchOptions{
 			Context: rpc.Context,
 			Fields:  rpc.Fields,
 		},
@@ -460,7 +462,7 @@ type MergedSlot struct {
 
 func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	caseID *int64,
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	calendarID int,
 	reactionTime int,
 	resolutionTime int,
@@ -527,7 +529,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 }
 
 // fetchCalendarSlots retrieves working hours for a calendar
-func fetchCalendarSlots(rpc *model.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]CalendarSlot, error) {
+func fetchCalendarSlots(rpc *options.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]CalendarSlot, error) {
 	rows, err := txManager.Query(rpc.Context, `
 		SELECT day, start_time_of_day, end_time_of_day, disabled
 		FROM flow.calendar cl,
@@ -563,7 +565,7 @@ func fetchCalendarSlots(rpc *model.CreateOptions, txManager *transaction.TxManag
 }
 
 // fetchExceptionSlots retrieves exceptions for specific days (overrides)
-func fetchExceptionSlots(rpc *model.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]ExceptionSlot, error) {
+func fetchExceptionSlots(rpc *options.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]ExceptionSlot, error) {
 	rows, err := txManager.Query(rpc.Context, `
 		SELECT
 			to_timestamp(x.date / 1000) AS date,
@@ -785,7 +787,7 @@ func isSameDate(date1, date2 time.Time) bool {
 }
 
 // Delete implements store.CaseStore.
-func (c *CaseStore) Delete(rpc *model.DeleteOptions) error {
+func (c *CaseStore) Delete(rpc *opts.DeleteOptions) error {
 	// Establish database connection
 	d, err := c.storage.Database()
 	if err != nil {
@@ -812,7 +814,7 @@ func (c *CaseStore) Delete(rpc *model.DeleteOptions) error {
 	return nil
 }
 
-func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+func (c CaseStore) buildDeleteCaseQuery(rpc *opts.DeleteOptions) (string, []interface{}, error) {
 	var err error
 	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
@@ -826,7 +828,7 @@ func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []int
 }
 
 // List implements store.CaseStore.
-func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
+func (c *CaseStore) List(opts *opts.SearchOptions) (*_go.CaseList, error) {
 	if opts == nil {
 		return nil, dberr.NewDBError("postgres.case.list.check_args.opts", "search options required")
 	}
@@ -888,7 +890,7 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	return false, nil
 }
 
-func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
+func (c *CaseStore) buildListCaseSqlizer(opts *opts.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	opts.Fields = util.EnsureFields(opts.Fields, "id")
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
 	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
@@ -1105,7 +1107,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 
 // region UPDATE
 func (c *CaseStore) Update(
-	rpc *model.UpdateOptions,
+	rpc *options.GRPCUpdateOptions,
 	upd *_go.Case,
 ) (*_go.Case, error) {
 	// Establish database connection
@@ -1125,7 +1127,7 @@ func (c *CaseStore) Update(
 	// * if user change Service -- SLA ; SLA Condition ; Planned Reaction / Resolve at ; Calendar could be changed
 	if util.ContainsField(rpc.Mask, "service") {
 		slaID, slaConditionID, reaction_at, resolve_at, calendarID, err := c.ScanSla(
-			&model.CreateOptions{Context: rpc.Context},
+			&options.CreateOptions{Context: rpc.Context},
 			txManager,
 			upd.Service.GetId(),
 			upd.Priority.GetId(),
@@ -1139,7 +1141,7 @@ func (c *CaseStore) Update(
 		// Calculate planned times within the transaction
 		err = c.calculatePlannedReactionAndResolutionTime(
 			&oid,
-			&model.CreateOptions{Context: rpc.Context, Time: rpc.CurrentTime()},
+			&options.CreateOptions{Context: rpc.Context, Time: rpc.CurrentTime()},
 			calendarID,
 			reaction_at,
 			resolve_at,
@@ -1204,7 +1206,7 @@ func (c *CaseStore) Update(
 }
 
 func (c *CaseStore) buildUpdateCaseSqlizer(
-	rpc *model.UpdateOptions,
+	rpc *options.GRPCUpdateOptions,
 	upd *_go.Case,
 ) (sq.Sqlizer, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included
@@ -1311,7 +1313,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 
 	// Define SELECT query for returning updated fields
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		&model.SearchOptions{
+		&opts.SearchOptions{
 			Size:   -1,
 			Fields: rpc.Fields,
 			Auth:   rpc.GetAuthOpts(),
@@ -1392,7 +1394,7 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 }
 
 // session required to get some columns
-func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
+func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *opts.SearchOptions,
 	base sq.SelectBuilder,
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	var (
@@ -1832,7 +1834,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			derivedOpts := opts.SearchDerivedOptionByField(field)
 			if derivedOpts == nil {
 				// default
-				derivedOpts = &model.SearchOptions{
+				derivedOpts = &opts.SearchOptions{
 					Context: opts.Context,
 					Fields:  []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"},
 					Size:    10,
@@ -1865,7 +1867,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 			derivedOpts := opts.SearchDerivedOptionByField(field)
 			if derivedOpts == nil {
 				// default
-				derivedOpts = &model.SearchOptions{
+				derivedOpts = &opts.SearchOptions{
 					Context: opts.Context,
 					Fields:  []string{"id", "ver", "name", "url", "created_by", "author", "created_at"},
 					Size:    10,
@@ -1895,7 +1897,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 		case "files":
 			derivedOpts := opts.SearchDerivedOptionByField(field)
 			if derivedOpts == nil {
-				derivedOpts = &model.SearchOptions{
+				derivedOpts = &opts.SearchOptions{
 					Page: 1,
 					Size: 10,
 					Sort: "-created_at",

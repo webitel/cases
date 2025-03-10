@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 	"strings"
 	"time"
 
@@ -33,7 +35,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 	t := time.Now()
 
 	// Define create options
-	createOpts := model.CreateOptions{
+	createOpts := options.CreateOptions{
 		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Fields:  fields,
@@ -70,7 +72,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 	}
 
 	t := time.Now()
-	searchOptions := model.SearchOptions{
+	searchOptions := opts.SearchOptions{
 		IDs: req.Id,
 		// UserAuthSession: session,
 		Fields:  fields,
@@ -135,7 +137,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	t := time.Now()
 
 	// Define update options
-	updateOpts := model.UpdateOptions{
+	updateOpts := options.GRPCUpdateOptions{
 		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Fields:  fields,
@@ -181,7 +183,7 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 
 	t := time.Now()
 	// Define delete options
-	deleteOpts := model.DeleteOptions{
+	deleteOpts := opts.DeleteOptions{
 		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		ID:      req.Id,

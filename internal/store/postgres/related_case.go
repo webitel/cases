@@ -3,6 +3,8 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -10,7 +12,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
 
@@ -30,7 +31,7 @@ const (
 
 // Create implements store.RelatedCaseStore for creating a new related case.
 func (r *RelatedCaseStore) Create(
-	rpc *model.CreateOptions,
+	rpc *options.CreateOptions,
 	relation *cases.RelationType,
 ) (*cases.RelatedCase, error) {
 	// Establish database connection
@@ -66,7 +67,7 @@ func (r *RelatedCaseStore) Create(
 
 // buildCreateRelatedCaseSqlizer builds the insert and select SQLizer for creating related cases.
 func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
-	rpc *model.CreateOptions,
+	rpc *options.CreateOptions,
 	relation *cases.RelationType,
 ) (sq.Sqlizer, []func(*cases.RelatedCase) any, *dberr.DBError) {
 	// Insert query
@@ -112,7 +113,7 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 
 // Delete implements store.RelatedCaseStore for deleting a related case.
 func (r *RelatedCaseStore) Delete(
-	rpc *model.DeleteOptions,
+	rpc *opts.DeleteOptions,
 ) error {
 	// Get database connection
 	d, err := r.storage.Database()
@@ -140,7 +141,7 @@ func (r *RelatedCaseStore) Delete(
 	return nil
 }
 
-func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc *model.DeleteOptions) (string, []interface{}, *dberr.DBError) {
+func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc *opts.DeleteOptions) (string, []interface{}, *dberr.DBError) {
 	query := deleteRelatedCaseQuery
 	args := []interface{}{rpc.ID, rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
@@ -153,7 +154,7 @@ var deleteRelatedCaseQuery = store.CompactSQL(`
 
 // List implements store.RelatedCaseStore for fetching related cases.
 func (r *RelatedCaseStore) List(
-	rpc *model.SearchOptions,
+	rpc *opts.SearchOptions,
 ) (*cases.RelatedCaseList, error) {
 	// Get database connection
 	d, err := r.storage.Database()
@@ -251,7 +252,7 @@ func (r *RelatedCaseStore) ParseRelationTypeWithReversion(
 
 // buildListRelatedCaseSqlizer dynamically builds the SELECT query for related cases.
 func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
-	rpc *model.SearchOptions,
+	rpc *opts.SearchOptions,
 ) (sq.SelectBuilder, func(*cases.RelatedCase) []any, *dberr.DBError) {
 	rpc.Fields = util.EnsureFields(rpc.Fields, "created_at")
 
@@ -297,7 +298,7 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 }
 
 func (r *RelatedCaseStore) Update(
-	rpc *model.UpdateOptions,
+	rpc *options.GRPCUpdateOptions,
 	input *cases.InputRelatedCase,
 ) (*cases.RelatedCase, error) {
 	// Get database connection
@@ -335,7 +336,7 @@ func (r *RelatedCaseStore) Update(
 
 // buildUpdateRelatedCaseSqlizer dynamically builds the update query for related cases.
 func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
-	rpc *model.UpdateOptions,
+	rpc *options.GRPCUpdateOptions,
 	input *cases.InputRelatedCase,
 ) (sq.Sqlizer, []func(*cases.RelatedCase) any, *dberr.DBError) {
 	// Ensure "id" and "ver" are included

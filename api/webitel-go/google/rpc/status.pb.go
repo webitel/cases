@@ -53,7 +53,7 @@ type Status struct {
 	// [google.rpc.Status.details][google.rpc.Status.details] field, or localized
 	// by the client.
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	// A list of messages that carry the error details.  There is a common set of
+	// A list of messages that carry the error details.  There is a shared set of
 	// message types for APIs to use.
 	Details       []*anypb.Any `protobuf:"bytes,3,rep,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields

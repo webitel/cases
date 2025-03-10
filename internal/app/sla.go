@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
-	"log/slog"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 	"strings"
+	"time"
 
-	"github.com/webitel/cases/api/cases"
+	cases "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/util"
 
 	cerror "github.com/webitel/cases/internal/errors"
@@ -18,69 +20,67 @@ type SLAService struct {
 	objClassName string
 }
 
-var SLAMetadata = model.NewObjectMetadata(
-	model.ScopeDictionary,
-	"",
-	[]*model.Field{
-		{"id", true},
-		{"created_by", true},
-		{"created_at", true},
-		{"updated_by", false},
-		{"updated_at", false},
-		{"name", true},
-		{"description", true},
-		{"valid_from", true},
-		{"valid_to", true},
-		{"calendar", true},
-		{"reaction_time", true},
-		{"resolution_time", true},
-	})
-
 const (
-	slaDefaultFields = "id, name, description, calendar, created_by, created_at, reaction_time, resolution_time"
+	defaultFieldsSLA = "id, name, description, calendar"
 )
 
 // CreateSLA implements cases.SLAsServer.
 func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest) (*cases.SLA, error) {
 	// Validate required fields
-	if req.Input.Name == "" {
+	if req.Name == "" {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.name.required", "SLA name is required")
 	}
-	if req.Input.Calendar.GetId() == 0 {
+	if req.Calendar.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.calendar_id.required", "Calendar ID is required")
 	}
-	if req.Input.ReactionTime == 0 {
+	if req.ReactionTime == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.reaction_time.required", "Reaction time is required")
 	}
-	if req.Input.ResolutionTime == 0 {
+	if req.ResolutionTime == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.resolution_time.required", "Resolution time is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, SLAMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+	fields := []string{
+		"id", "lookup_id", "name", "description", "valid_from",
+		"valid_to", "calendar_id", "reaction_time", "resolution_time", "created_at", "updated_at",
+		"created_by", "updated_by",
+	}
 
+	t := time.Now()
+
+	// Define create options
+	createOpts := options.CreateOptions{
+		Context: ctx,
+		Fields:  fields,
+		Time:    t,
+		Auth:    model.GetAutherOutOfContext(ctx),
+	}
+
+	// Define the current user as the creator and updater
+	currentU := &cases.Lookup{
+		Id: createOpts.GetAuthOpts().GetUserId(),
 	}
 
 	// Create a new SLA user_auth
-	input := &cases.SLA{
-		Name:           req.Input.Name,
-		Description:    req.Input.Description,
-		ValidFrom:      req.Input.ValidFrom,
-		ValidTo:        req.Input.ValidTo,
-		Calendar:       req.Input.Calendar,
-		ReactionTime:   req.Input.ReactionTime,
-		ResolutionTime: req.Input.ResolutionTime,
+	sla := &cases.SLA{
+		Name:           req.Name,
+		Description:    req.Description,
+		ValidFrom:      req.ValidFrom,
+		ValidTo:        req.ValidTo,
+		Calendar:       req.Calendar,
+		ReactionTime:   req.ReactionTime,
+		ResolutionTime: req.ResolutionTime,
+		CreatedBy:      currentU,
+		UpdatedBy:      currentU,
 	}
 
 	// Create the SLA in the store
-	res, err := s.app.Store.SLA().Create(createOpts, input)
-	if err != nil {
-		return nil, cerror.NewInternalError("sla_service.create_sla.store.create.failed", err.Error())
+	r, e := s.app.Store.SLA().Create(&createOpts, sla)
+	if e != nil {
+		return nil, cerror.NewInternalError("sla_service.create_sla.store.create.failed", e.Error())
 	}
 
-	return res, nil
+	return r, nil
 }
 
 // DeleteSLA implements cases.SLAsServer.
@@ -90,17 +90,19 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.delete_sla.id.required", "SLA ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, SLAMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+	t := time.Now()
+	// Define delete options
+	deleteOpts := opts.DeleteOptions{
+		Auth:    model.GetAutherOutOfContext(ctx),
+		Context: ctx,
+		IDs:     []int64{req.Id},
+		Time:    t,
 	}
-	deleteOpts.IDs = []int64{req.Id}
 
 	// Delete the SLA in the store
-	err = s.app.Store.SLA().Delete(deleteOpts)
-	if err != nil {
-		return nil, cerror.NewInternalError("sla_service.delete_sla.store.delete.failed", err.Error())
+	e := s.app.Store.SLA().Delete(&deleteOpts)
+	if e != nil {
+		return nil, cerror.NewInternalError("sla_service.delete_sla.store.delete.failed", e.Error())
 	}
 
 	return &cases.SLA{Id: req.Id}, nil
@@ -109,24 +111,41 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 // ListSLAs implements cases.SLAsServer.
 func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*cases.SLAList, error) {
 
-	searchOpts, err := model.NewSearchOptions(ctx, req, SLAMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+	fields := req.Fields
+	if len(fields) == 0 {
+		fields = strings.Split(defaultFieldsSLA, ", ")
 	}
-	searchOpts.Filter = make(map[string]any)
-	searchOpts.IDs = req.Id
+
+	// Use default page size and page number if not provided
+	page := req.Page
+	if page == 0 {
+		page = 1
+	}
+
+	t := time.Now()
+	searchOptions := opts.SearchOptions{
+		IDs: req.Id,
+		//UserAuthSession: session,
+		Fields:  fields,
+		Context: ctx,
+		Sort:    req.Sort,
+		Page:    int(page),
+		Size:    int(req.Size),
+		Time:    t,
+		Filter:  make(map[string]interface{}),
+		Auth:    model.GetAutherOutOfContext(ctx),
+	}
 
 	if req.Q != "" {
-		searchOpts.Filter["name"] = req.Q
+		searchOptions.Filter["name"] = req.Q
 	}
 
-	res, err := s.app.Store.SLA().List(searchOpts)
-	if err != nil {
-		return nil, cerror.NewInternalError("sla_service.list_slas.store.list.failed", err.Error())
+	slas, e := s.app.Store.SLA().List(&searchOptions)
+	if e != nil {
+		return nil, cerror.NewInternalError("sla_service.list_slas.store.list.failed", e.Error())
 	}
 
-	return res, nil
+	return slas, nil
 }
 
 // LocateSLA implements cases.SLAsServer.
@@ -136,32 +155,27 @@ func (s *SLAService) LocateSLA(ctx context.Context, req *cases.LocateSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.locate_sla.id.required", "SLA ID is required")
 	}
 
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = strings.Split(slaDefaultFields, ", ")
-	}
-
 	// Prepare a list request with necessary parameters
 	listReq := &cases.ListSLARequest{
 		Id:     []int64{req.Id},
-		Fields: fields,
+		Fields: req.Fields,
 		Page:   1,
-		Size:   1,
+		Size:   1, // We only need one item
 	}
 
 	// Call the ListSLAs method
-	res, err := s.ListSLAs(ctx, listReq)
+	listResp, err := s.ListSLAs(ctx, listReq)
 	if err != nil {
 		return nil, cerror.NewInternalError("sla_service.locate_sla.list_slas.error", err.Error())
 	}
 
 	// Check if the SLA was found
-	if len(res.Items) == 0 {
+	if len(listResp.Items) == 0 {
 		return nil, cerror.NewNotFoundError("sla_service.locate_sla.not_found", "SLA not found")
 	}
 
 	// Return the found SLA
-	return &cases.LocateSLAResponse{Sla: res.Items[0]}, nil
+	return &cases.LocateSLAResponse{Sla: listResp.Items[0]}, nil
 }
 
 // UpdateSLA implements cases.SLAsServer.
@@ -171,14 +185,56 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.update_sla.id.required", "SLA ID is required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, SLAMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+	fields := []string{"id"}
+
+	// Map XJsonMask fields to the corresponding SLA fields
+	for _, f := range req.XJsonMask {
+		if strings.HasPrefix(f, "calendar") {
+			// Handle fields with "calendar." prefix
+			if !util.ContainsField(fields, "calendar_id") {
+				fields = append(fields, "calendar_id")
+			}
+			if req.Input.Calendar.GetId() == 0 {
+				return nil, cerror.NewBadRequestError("sla_service.update_sla.calendar_id.required", "Calendar ID is required")
+			}
+			continue
+		}
+		switch f {
+		case "name":
+			fields = append(fields, "name")
+			if req.Input.Name == "" {
+				return nil, cerror.NewBadRequestError("sla_service.update_sla.name.required", "SLA name is required and cannot be empty")
+			}
+		case "description":
+			fields = append(fields, "description")
+		case "valid_from":
+			fields = append(fields, "valid_from")
+		case "valid_to":
+			fields = append(fields, "valid_to")
+		case "reaction_time":
+			fields = append(fields, "reaction_time")
+		case "resolution_time":
+			fields = append(fields, "resolution_time")
+		}
+	}
+
+	t := time.Now()
+
+	// Define update options
+	updateOpts := options.GRPCUpdateOptions{
+		Auth:    model.GetAutherOutOfContext(ctx),
+		Context: ctx,
+		Fields:  fields,
+		Time:    t,
+	}
+
+	// Define the current user as the updater
+	u := &cases.Lookup{
+		Id: updateOpts.GetAuthOpts().GetUserId(),
 	}
 
 	// Update SLA user_auth
-	input := &cases.SLA{
+	sla := &cases.SLA{
 		Id:             req.Id,
 		Name:           req.Input.Name,
 		Description:    req.Input.Description,
@@ -187,15 +243,16 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		Calendar:       req.Input.Calendar,
 		ReactionTime:   req.Input.ReactionTime,
 		ResolutionTime: req.Input.ResolutionTime,
+		UpdatedBy:      u,
 	}
 
 	// Update the SLA in the store
-	res, err := s.app.Store.SLA().Update(updateOpts, input)
-	if err != nil {
-		return nil, cerror.NewInternalError("sla_service.update_sla.store.update.failed", err.Error())
+	r, e := s.app.Store.SLA().Update(&updateOpts, sla)
+	if e != nil {
+		return nil, cerror.NewInternalError("sla_service.update_sla.store.update.failed", e.Error())
 	}
 
-	return res, nil
+	return r, nil
 }
 
 func NewSLAService(app *App) (*SLAService, cerror.AppError) {

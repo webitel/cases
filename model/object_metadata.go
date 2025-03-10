@@ -52,7 +52,12 @@ type Field struct {
 	Default bool
 }
 
-func NewObjectMetadata(mainScope string, parentScope string, fields []*Field, childMetadata ...ObjectMetadatter) ObjectMetadatter {
+func NewObjectMetadata(
+	mainScope string,
+	parentScope string,
+	fields []*Field,
+	childMetadata ...ObjectMetadatter,
+) ObjectMetadatter {
 	res := &ObjectMetadata{mainObjClassName: mainScope, parentObjClassName: parentScope, childMetadata: childMetadata}
 	for _, field := range fields {
 		res.fields = append(res.fields, field.Name)

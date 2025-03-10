@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/opts"
 	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
@@ -9,7 +10,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
 
@@ -29,7 +29,7 @@ const (
 )
 
 // List implements store.CaseFileStore for listing case files.
-func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, error) {
+func (c *CaseFileStore) List(rpc *opts.SearchOptions) (*cases.CaseFileList, error) {
 	// Connect to the database
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -93,7 +93,7 @@ func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, err
 }
 
 func (c *CaseFileStore) BuildListCaseFilesSqlizer(
-	rpc *model.SearchOptions,
+	rpc *opts.SearchOptions,
 ) (sq.Sqlizer, []func(file *cases.File) any, error) {
 	// Begin building the base query with alias `cf`
 	queryBuilder := sq.Select().
@@ -137,7 +137,7 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 }
 
 // Delete implements store.CaseFileStore.
-func (c *CaseFileStore) Delete(rpc *model.DeleteOptions) error {
+func (c *CaseFileStore) Delete(rpc *opts.DeleteOptions) error {
 	if rpc == nil {
 		return dberr.NewDBError("postgres.case_file.delete.check_args.opts", "delete options required")
 	}
@@ -261,7 +261,7 @@ func buildFilesSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(file *cases.File) any, int, *dberr.DBError) {
+func buildFilesSelectAsSubquery(opts *opts.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(file *cases.File) any, int, *dberr.DBError) {
 	alias := "files"
 	if caseAlias == alias {
 		alias = "sub_" + alias

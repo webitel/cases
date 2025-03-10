@@ -3,12 +3,14 @@ package app
 import (
 	"context"
 	"errors"
+	"github.com/webitel/cases/model/opts"
 	"log/slog"
 
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 )
@@ -41,7 +43,7 @@ func (c *CaseCommentService) LocateComment(
 	req *cases.LocateCommentRequest,
 ) (*cases.CaseComment, error) {
 	if req.Etag == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.etag_required", "Etag is required")
+		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.etag_required", "Etags is required")
 	}
 
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Etag)
@@ -82,7 +84,7 @@ func (c *CaseCommentService) UpdateComment(
 	req *cases.UpdateCommentRequest,
 ) (*cases.CaseComment, error) {
 	if req.Input.Etag == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.etag_required", "Etag is required")
+		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.etag_required", "Etags is required")
 	}
 	if req.Input.Text == "" {
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.text_required", "Text is required")
@@ -93,12 +95,15 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFielder(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault()),
+		grpcopts.WithUpdateEtag(&tag),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	updateOpts.Etags = []*etag.Tid{&tag}
 	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("id", tag.GetOid()))
 
 	comment := &cases.CaseComment{
@@ -135,10 +140,10 @@ func (c *CaseCommentService) DeleteComment(
 	req *cases.DeleteCommentRequest,
 ) (*cases.CaseComment, error) {
 	if req.Etag == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.etag_required", "Etag is required")
+		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.etag_required", "Etags is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
+	deleteOpts, err := opts.NewDeleteOptions(ctx, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -214,7 +219,10 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -225,15 +233,28 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.invalid_etag", "Invalid etag")
 	}
 	createOpts.ParentID = tag.GetOid()
-	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
-
+	logAttributes := slog.Group(
+		"context",
+		slog.Int64(
+			"user_id",
+			createOpts.GetAuth().GetUserId(),
+		),
+		slog.Int64(
+			"domain_id",
+			createOpts.GetAuth().GetDomainId(),
+		),
+		slog.Int64(
+			"case_id",
+			tag.GetOid(),
+		),
+	)
 	accessMode := auth.Read
-	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommentMetadata.GetParentScopeName(), accessMode) {
+	if !createOpts.GetAuth().CheckObacAccess(CaseCommentMetadata.GetParentScopeName(), accessMode) {
 		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
 		return nil, ForbiddenError
 	}
-	if createOpts.GetAuthOpts().IsRbacCheckRequired(CaseCommentMetadata.GetParentScopeName(), accessMode) {
-		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
+	if createOpts.GetAuth().IsRbacCheckRequired(CaseCommentMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuth(), accessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -258,14 +279,14 @@ func (c *CaseCommentService) PublishComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, ResponseNormalizingError
 	}
-	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleId, parentId, comment)
+	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuth().GetDomainId(), roleId, parentId, comment)
 	if ftsErr != nil {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 	return comment, nil
 }
 
-func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
+func NormalizeCommentsResponse(res interface{}, opts grpcopts.Fielder) error {
 	requestedFields := opts.GetFields()
 	if len(requestedFields) == 0 {
 		requestedFields = CaseCommentMetadata.GetDefaultFields()

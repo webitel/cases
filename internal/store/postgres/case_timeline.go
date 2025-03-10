@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/opts"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
@@ -623,7 +624,7 @@ func buildTimelineEmailsColumn(caseId int64) (base squirrel.Sqlizer, plan []func
 
 // endregion
 
-func (c *CaseTimelineStore) GetCounter(rpc *model.SearchOptions) ([]*model.TimelineCounter, error) {
+func (c *CaseTimelineStore) GetCounter(rpc *opts.SearchOptions) ([]*model.TimelineCounter, error) {
 	query, plan, dbErr := buildTimelineCounterSqlizer(rpc)
 	if dbErr != nil {
 		return nil, dbErr
@@ -658,7 +659,7 @@ func (c *CaseTimelineStore) GetCounter(rpc *model.SearchOptions) ([]*model.Timel
 
 // region Timeline Counter Build Functions
 
-func buildTimelineCounterSqlizer(rpc *model.SearchOptions) (query squirrel.Sqlizer, scanPlan []func(response *model.TimelineCounter) any, dbError *dberr.DBError) {
+func buildTimelineCounterSqlizer(rpc *opts.SearchOptions) (query squirrel.Sqlizer, scanPlan []func(response *model.TimelineCounter) any, dbError *dberr.DBError) {
 	if rpc == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.rpc", "search options required")
 	}

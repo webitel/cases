@@ -2,11 +2,11 @@ package app
 
 import (
 	"context"
+	"github.com/webitel/cases/model/opts"
 	"log/slog"
 
-	"github.com/webitel/cases/auth"
-
 	"github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/webitel-go-kit/etag"
@@ -30,17 +30,17 @@ var CaseFileMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
 
 func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesRequest) (*cases.CaseFileList, error) {
 	if req.CaseEtag == "" {
-		return nil, cerror.NewBadRequestError("app.case_file.list_files.case_etag_required", "Case Etag is required")
+		return nil, cerror.NewBadRequestError("app.case_file.list_files.case_etag_required", "Case Etags is required")
 	}
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
+		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etags")
 	}
 	// Build search options
 	searchOpts, err := model.NewSearchOptions(ctx, req, CaseFileMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, AppInternalError
 	}
 	searchOpts.ParentId = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
@@ -49,17 +49,17 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, AppForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, AppForbiddenError
 		}
 	}
 	files, err := c.app.Store.CaseFile().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, AppDatabaseError
 	}
 	return files, nil
 }
@@ -69,10 +69,10 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 		return nil, cerror.NewBadRequestError("app.case_file.delete_file.file_id_required", "File ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseFileMetadata)
+	deleteOpts, err := opts.NewDeleteOptions(ctx, CaseFileMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, AppInternalError
 	}
 
 	caseTID, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
@@ -104,11 +104,11 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 		)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, AppForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (DELETE) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, AppForbiddenError
 		}
 	}
 
@@ -123,7 +123,7 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 			)
 		default:
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, DatabaseError
+			return nil, AppDatabaseError
 		}
 	}
 

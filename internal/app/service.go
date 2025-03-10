@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 	"strings"
 	"time"
 
@@ -31,7 +33,7 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 	t := time.Now()
 
 	// Define create options
-	createOpts := model.CreateOptions{
+	createOpts := options.CreateOptions{
 		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Time:    t,
@@ -66,7 +68,7 @@ func (s *ServiceService) DeleteService(ctx context.Context, req *api.DeleteServi
 	}
 
 	t := time.Now()
-	deleteOpts := model.DeleteOptions{
+	deleteOpts := opts.DeleteOptions{
 		Context: ctx,
 		IDs:     req.Id,
 		Time:    t,
@@ -106,7 +108,7 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 	}
 
 	t := time.Now()
-	searchOptions := &model.SearchOptions{
+	searchOptions := &opts.SearchOptions{
 		Fields: req.Fields,
 		IDs:    req.Id,
 		// UserAuthSession: session,
@@ -225,7 +227,7 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 
 	t := time.Now()
 
-	updateOpts := model.UpdateOptions{
+	updateOpts := options.GRPCUpdateOptions{
 		Context: ctx,
 		Fields:  fields,
 		Time:    t,

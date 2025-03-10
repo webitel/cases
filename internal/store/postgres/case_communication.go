@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -18,7 +20,7 @@ type CaseCommunicationStore struct {
 	mainTable string
 }
 
-func (c *CaseCommunicationStore) Link(options *model.CreateOptions, communications []*cases.InputCaseCommunication) ([]*cases.CaseCommunication, error) {
+func (c *CaseCommunicationStore) Link(options *options.CreateOptions, communications []*cases.InputCaseCommunication) ([]*cases.CaseCommunication, error) {
 	if len(communications) == 0 {
 		return nil, dberr.NewDBError("postgres.case_communication.link.check_args.communications", "empty communications")
 	}
@@ -45,7 +47,7 @@ func (c *CaseCommunicationStore) Link(options *model.CreateOptions, communicatio
 	return res, nil
 }
 
-func (c *CaseCommunicationStore) Unlink(options *model.DeleteOptions) (int64, error) {
+func (c *CaseCommunicationStore) Unlink(options *opts.DeleteOptions) (int64, error) {
 	base, dbErr := c.buildDeleteCaseCommunicationSqlizer(options)
 	if dbErr != nil {
 		return 0, dbErr
@@ -65,7 +67,7 @@ func (c *CaseCommunicationStore) Unlink(options *model.DeleteOptions) (int64, er
 	return res.RowsAffected(), nil
 }
 
-func (c *CaseCommunicationStore) List(opts *model.SearchOptions) (*cases.ListCommunicationsResponse, error) {
+func (c *CaseCommunicationStore) List(opts *opts.SearchOptions) (*cases.ListCommunicationsResponse, error) {
 	base, plan, dbErr := c.buildListCaseCommunicationSqlizer(opts)
 	if dbErr != nil {
 		return nil, dbErr
@@ -92,7 +94,7 @@ func (c *CaseCommunicationStore) List(opts *model.SearchOptions) (*cases.ListCom
 	return &res, nil
 }
 
-func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(options *model.SearchOptions) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
+func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(options *opts.SearchOptions) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
 	if options == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_list_case_communication_sqlizer.check_args.options", "search options required")
 	}
@@ -122,7 +124,7 @@ func (c *CaseCommunicationStore) scanCommunications(rows pgx.Rows, plan []func(*
 	return res, nil
 }
 
-func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *model.CreateOptions, communications []*cases.InputCaseCommunication) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
+func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *options.CreateOptions, communications []*cases.InputCaseCommunication) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
 	if options == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_create_case_communication_sqlizer.check_args.options", "create options required")
 	}
@@ -229,7 +231,7 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(base squirrel.SelectB
 	return base, plan, nil
 }
 
-func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(options *model.DeleteOptions) (query squirrel.Sqlizer, dbError *dberr.DBError) {
+func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(options *opts.DeleteOptions) (query squirrel.Sqlizer, dbError *dberr.DBError) {
 	if options == nil {
 		return nil, dberr.NewDBError("postgres.case_communication.build_delete_case_communication_sqlizer.check_args.options", "delete options required")
 	}

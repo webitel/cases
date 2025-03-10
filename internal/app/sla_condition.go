@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 	"strings"
 	"time"
 
@@ -57,7 +59,7 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 	}
 
 	// Define create options
-	createOpts := model.CreateOptions{
+	createOpts := options.CreateOptions{
 		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Fields:  fields,
@@ -91,7 +93,7 @@ func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases
 
 	t := time.Now()
 	// Define delete options
-	deleteOpts := model.DeleteOptions{
+	deleteOpts := opts.DeleteOptions{
 		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		IDs:     []int64{req.Id},
@@ -122,7 +124,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 	}
 
 	t := time.Now()
-	searchOptions := model.SearchOptions{
+	searchOptions := opts.SearchOptions{
 		ParentId: req.SlaId,
 		IDs:      req.Id,
 		// UserAuthSession:  session,
@@ -220,7 +222,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 	}
 
 	// Define update options
-	updateOpts := model.UpdateOptions{
+	updateOpts := options.GRPCUpdateOptions{
 		Auth:    model.GetAutherOutOfContext(ctx),
 		Context: ctx,
 		Fields:  fields,

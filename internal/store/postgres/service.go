@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 	"strings"
 	"time"
 
@@ -13,7 +15,6 @@ import (
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -21,7 +22,7 @@ type ServiceStore struct {
 	storage *Store
 }
 
-func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*cases.Service, error) {
+func (s *ServiceStore) Create(rpc *options.CreateOptions, add *cases.Service) (*cases.Service, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -66,7 +67,7 @@ func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*ca
 }
 
 // Delete implements store.ServiceStore.
-func (s *ServiceStore) Delete(rpc *model.DeleteOptions) error {
+func (s *ServiceStore) Delete(rpc *opts.DeleteOptions) error {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -96,7 +97,7 @@ func (s *ServiceStore) Delete(rpc *model.DeleteOptions) error {
 }
 
 // List implements store.ServiceStore.
-func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error) {
+func (s *ServiceStore) List(rpc *opts.SearchOptions) (*cases.ServiceList, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -164,7 +165,7 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 }
 
 // Update implements store.ServiceStore.
-func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (*cases.Service, error) {
+func (s *ServiceStore) Update(rpc *options.GRPCUpdateOptions, lookup *cases.Service) (*cases.Service, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -211,7 +212,7 @@ func (s *ServiceStore) Update(rpc *model.UpdateOptions, lookup *cases.Service) (
 	return lookup, nil
 }
 
-func (s *ServiceStore) buildCreateServiceQuery(rpc *model.CreateOptions, add *cases.Service) (string, []interface{}) {
+func (s *ServiceStore) buildCreateServiceQuery(rpc *options.CreateOptions, add *cases.Service) (string, []interface{}) {
 	var assignee, group, sla *int64
 	if add.Assignee != nil && add.Assignee.GetId() != 0 {
 		assignee = &add.Assignee.Id
@@ -287,7 +288,7 @@ FROM inserted_service
 }
 
 // Helper method to build the delete query for Service
-func (s *ServiceStore) buildDeleteServiceQuery(rpc *model.DeleteOptions) (string, []interface{}) {
+func (s *ServiceStore) buildDeleteServiceQuery(rpc *opts.DeleteOptions) (string, []interface{}) {
 	query := `
 		DELETE FROM cases.service_catalog
 		WHERE id = ANY($1) AND dc = $2
@@ -300,7 +301,7 @@ func (s *ServiceStore) buildDeleteServiceQuery(rpc *model.DeleteOptions) (string
 	return store.CompactSQL(query), args
 }
 
-func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
+func (s *ServiceStore) buildSearchServiceQuery(rpc *opts.SearchOptions) (string, []interface{}, error) {
 	// Map of fields to their corresponding SQL expressions
 	fieldMap := map[string]string{
 		"id":          "service.id",
@@ -379,7 +380,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 	return store.CompactSQL(query), args, nil
 }
 
-func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.SelectBuilder {
+func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc *opts.SearchOptions) sq.SelectBuilder {
 	sortableFields := map[string]string{
 		"name":        "service.name",
 		"code":        "service.code",
@@ -419,7 +420,7 @@ func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions
 }
 
 // Helper method to build the combined update and select query for Service using Squirrel
-func (s *ServiceStore) buildUpdateServiceQuery(rpc *model.UpdateOptions, lookup *cases.Service) (string, []interface{}, error) {
+func (s *ServiceStore) buildUpdateServiceQuery(rpc *options.GRPCUpdateOptions, lookup *cases.Service) (string, []interface{}, error) {
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).

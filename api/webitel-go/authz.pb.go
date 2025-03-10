@@ -72,7 +72,7 @@ type Objclass struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Inherit::ObjectClass
 	Id    int64  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`      // class: object id
-	Name  string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`   // class: display common name
+	Name  string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`   // class: display shared name
 	Class string `protobuf:"bytes,3,opt,name=class,proto3" json:"class,omitempty"` // class: alphanumeric code name
 	// Is [?]-[b]ased [A]ccess [C]ontrol *model enabled ?
 	Abac bool `protobuf:"varint,4,opt,name=abac,proto3" json:"abac,omitempty"` // [A]ttribute-[b]ased;  not implemented; next releases ...

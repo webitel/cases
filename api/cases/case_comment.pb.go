@@ -487,7 +487,7 @@ type ListCommentsRequest struct {
 	Sort string `protobuf:"bytes,5,opt,name=sort,proto3" json:"sort,omitempty"`
 	// Fields to return for each comment.
 	Fields []string `protobuf:"bytes,6,rep,name=fields,proto3" json:"fields,omitempty"`
-	// Etag or ID of the case for which comments are requested.
+	// Etags or ID of the case for which comments are requested.
 	CaseEtag      string `protobuf:"bytes,9,opt,name=case_etag,json=caseEtag,proto3" json:"case_etag,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -579,7 +579,7 @@ type PublishCommentRequest struct {
 	XJsonMask []string `protobuf:"bytes,1,rep,name=x_json_mask,json=xJsonMask,proto3" json:"x_json_mask,omitempty"`
 	// Result fields to include in the response.
 	Fields []string `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty"`
-	// Etag or ID of the case to which comments belong.
+	// Etags or ID of the case to which comments belong.
 	CaseEtag string `protobuf:"bytes,3,opt,name=case_etag,json=caseEtag,proto3" json:"case_etag,omitempty"`
 	// Comment to publish.
 	Input         *InputCaseComment `protobuf:"bytes,4,opt,name=input,proto3" json:"input,omitempty"`

@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/model/opts"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -79,7 +80,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	searchOpts, err := model.NewSearchOptions(ctx, req, CaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, AppInternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
@@ -110,12 +111,12 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, AppDatabaseError
 	}
-	err = c.NormalizeResponseCases(list, req, nil)
+	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, AppResponseNormalizingError
 	}
 
 	return list, nil
@@ -125,7 +126,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	searchOpts, err := model.NewLocateOptions(ctx, req, CaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, AppInternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	id, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
@@ -141,10 +142,10 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if len(list.Items) == 0 {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.not_found", "entity not found")
 	}
-	err = c.NormalizeResponseCases(list, req, nil)
+	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, AppResponseNormalizingError
 	}
 	return list.Items[0], nil
 }
@@ -228,45 +229,49 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Links:            links,
 		Related:          related,
 	}
-	// Type assert CaseMetadata to *ObjectMetadata before passing to CopyWithAllFieldsSetToDefault
-	caseMD, ok := CaseMetadata.(*model.ObjectMetadata)
-	if !ok {
-		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
-	}
-	fullMD := caseMD.CopyWithAllFieldsSetToDefault()
 
-	createOpts, err := model.NewCreateOptions(ctx, req, fullMD)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(
+			req,
+			CaseMetadata.CopyWithAllFieldsSetToDefault(),
+			util.ParseFieldsForEtag,
+			util.DeduplicateFields,
+			func(fields []string) []string {
+				for i, v := range fields {
+					if v == "related" {
+						fields = append(fields[:i], fields[i+1:]...)
+					}
+				}
+				return fields
+			},
+		),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
-	}
-
-	for i, v := range createOpts.Fields {
-		if v == "related" {
-			createOpts.Fields = append(createOpts.Fields[:i], createOpts.Fields[i+1:]...)
-		}
+		return nil, AppInternalError
 	}
 
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64(
 			"user_id",
-			createOpts.GetAuthOpts().GetUserId()),
+			createOpts.GetAuth().GetUserId()),
 		slog.Int64(
 			"domain_id",
-			createOpts.GetAuthOpts().GetDomainId(),
+			createOpts.GetAuth().GetDomainId(),
 		))
 
 	res, err = c.app.Store.Case().Create(createOpts, res)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, AppDatabaseError
 	}
-	etag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
+	encodedEtag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
 	if err != nil {
 		return nil, err
 	}
-	res.Etag = etag
+	res.Etag = encodedEtag
 
 	// save before normalize
 	roleIds := res.GetRoleIds()
@@ -283,16 +288,16 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	err = c.NormalizeResponseCase(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, AppResponseNormalizingError
 	}
 
-	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleIds, res)
+	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuth().GetDomainId(), roleIds, res)
 	if ftsErr != nil {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
 	logMessage, err := wlogger.NewCreateMessage(
-		createOpts.GetAuthOpts().GetUserId(),
+		createOpts.GetAuth().GetUserId(),
 		getClientIp(ctx),
 		res.Id, res,
 	)
@@ -300,12 +305,12 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, err
 	}
 
-	logErr := c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), logMessage)
+	logErr := c.logger.SendContext(ctx, createOpts.GetAuth().GetDomainId(), logMessage)
 	if logErr != nil {
 		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
 	}
 
-	err = c.app.watcher.OnEvent(EventTypeCreate, NewWatcherData(res, createOpts.GetAuthOpts().GetDomainId()))
+	err = c.app.watcher.OnEvent(EventTypeCreate, NewWatcherData(res, createOpts.GetAuth().GetDomainId()))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s, ", err.Error()), logAttributes)
 	}
@@ -322,25 +327,30 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Etag)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
+		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid encodeEtag")
 	}
-	// Type assert CaseMetadata to *ObjectMetadata before passing to CopyWithAllFieldsSetToDefault
-	caseMD, ok := CaseMetadata.(*model.ObjectMetadata)
-	if !ok {
-		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
-	}
-	fullMD := caseMD.CopyWithAllFieldsSetToDefault()
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, fullMD)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFielder(
+			req,
+			CaseMetadata.CopyWithAllFieldsSetToDefault(),
+			func(fields []string) []string {
+				for i, v := range fields {
+					if v == "related" {
+						fields = append(fields[:i], fields[i+1:]...)
+					}
+				}
+				return fields
+			},
+		),
+		grpcopts.WithUpdateMasker(req),
+		grpcopts.WithUpdateEtag(&tag),
+	)
+
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
-	}
-	updateOpts.Etags = []*etag.Tid{&tag}
-	for i, v := range updateOpts.Fields {
-		if v == "related" {
-			updateOpts.Fields = append(updateOpts.Fields[:i], updateOpts.Fields[i+1:]...)
-		}
+		return nil, AppInternalError
 	}
 
 	logAttributes := slog.Group(
@@ -382,17 +392,17 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if err != nil {
 		switch err.(type) {
 		case *cerror.DBNoRowsError:
-			return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
+			return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid encodeEtag")
 		}
 		slog.ErrorContext(ctx, err.Error())
-		return nil, DatabaseError
+		return nil, AppDatabaseError
 	}
 
-	etag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
+	encodeEtag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
 	if err != nil {
 		return nil, err
 	}
-	res.Etag = etag
+	res.Etag = encodeEtag
 
 	// *Handle dynamic group update if applicable
 	res, err = c.handleDynamicGroupUpdate(ctx, res)
@@ -408,7 +418,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	err = c.NormalizeResponseCase(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, AppResponseNormalizingError
 	}
 
 	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, res)
@@ -489,9 +499,9 @@ func (c *CaseService) resolveDynamicContactGroup(
 		return nil, err
 	}
 
-	etag, ok := caseMap["case.etag"].(string)
+	encodedEtag, ok := caseMap["case.encodedEtag"].(string)
 	if !ok {
-		return nil, ForbiddenError
+		return nil, AppForbiddenError
 	}
 
 	// Iterate over all dynamic conditions in the group…
@@ -501,14 +511,14 @@ func (c *CaseService) resolveDynamicContactGroup(
 
 			groupID, err := strconv.Atoi(condition.Group.GetId())
 			if err != nil {
-				return nil, ResponseNormalizingError
+				return nil, AppResponseNormalizingError
 			}
 
 			var assigneeID int
 			if condition.Assignee != nil {
 				assigneeID, err = strconv.Atoi(condition.Assignee.GetId())
 				if err != nil {
-					return nil, ResponseNormalizingError
+					return nil, AppResponseNormalizingError
 				}
 			} else {
 				assigneeID = 0
@@ -520,7 +530,7 @@ func (c *CaseService) resolveDynamicContactGroup(
 				Input: &cases.InputCase{
 					Group:    &cases.Lookup{Id: int64(groupID)},
 					Assignee: &cases.Lookup{Id: int64(assigneeID)},
-					Etag:     etag,
+					Etag:     encodedEtag,
 				},
 			}
 
@@ -542,7 +552,7 @@ func (c *CaseService) resolveDynamicContactGroup(
 		XJsonMask: groupXJsonMask,
 		Input: &cases.InputCase{
 			Group: &cases.Lookup{Id: int64(groupID)},
-			Etag:  etag,
+			Etag:  encodedEtag,
 		},
 	}
 	// Final update if a default group was assigned
@@ -651,8 +661,6 @@ func evaluateSingleCondition(caseMap map[string]any, condition string) bool {
 	switch operator {
 	case "==":
 		return fmt.Sprintf("%v", fieldValue) == value
-	case "!=":
-		return fmt.Sprintf("%v", fieldValue) != value
 	default:
 		fmt.Printf("Unsupported operator: %s\n", operator)
 		return false
@@ -674,13 +682,13 @@ func resolveFieldPath(data map[string]interface{}, path string) interface{} {
 
 func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseRequest) (*cases.Case, error) {
 	if req.Etag == "" {
-		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
+		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etags is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseMetadata)
+	deleteOpts, err := opts.NewDeleteOptions(ctx, CaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, AppInternalError
 	}
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.Etag)
@@ -697,7 +705,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 			return nil, cerror.NewBadRequestError("app.case.delete.invalid_etag", "Invalid etag or insufficient rights")
 		}
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, AppDatabaseError
 	}
 	log, err := wlogger.NewDeleteMessage(deleteOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), tag.GetOid())
 	if err != nil {
@@ -735,7 +743,7 @@ func (c *CaseService) ValidateUpdateInput(
 	xJsonMask []string,
 ) cerror.AppError {
 	if input.Etag == "" {
-		return cerror.NewBadRequestError("app.case.update_case.etag_required", "Etag is required")
+		return cerror.NewBadRequestError("app.case.update_case.etag_required", "Etags is required")
 	}
 
 	// Ensure nested structures are initialized
@@ -815,7 +823,7 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 }
 
 // NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.
-func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) error {
+func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts grpcopts.Fielder) error {
 	var err error
 	fields := mainOpts.GetFields()
 	if len(fields) == 0 {
@@ -867,7 +875,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 }
 
 // NormalizeResponseCase validates and normalizes the response cases.Case to the front-end side.
-func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) error {
+func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts grpcopts.Fielder) error {
 	fields := opts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()

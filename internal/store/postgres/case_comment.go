@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 
 	"github.com/webitel/cases/auth"
 
@@ -35,7 +37,7 @@ const (
 
 // Publish implements store.CommentCaseStore for publishing a single comment.
 func (c *CaseCommentStore) Publish(
-	rpc *model.CreateOptions,
+	rpc *options.CreateOptions,
 	add *_go.CaseComment,
 ) (*_go.CaseComment, error) {
 	// Establish database connection
@@ -78,7 +80,7 @@ func (c *CaseCommentStore) Publish(
 }
 
 func (c *CaseCommentStore) buildPublishCommentsSqlizer(
-	rpc *model.CreateOptions,
+	rpc *options.CreateOptions,
 	input *_go.InputCaseComment,
 ) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
 	// Ensure "id" and "ver" are in the fields list
@@ -131,7 +133,7 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 
 // Delete implements store.CommentCaseStore.
 func (c *CaseCommentStore) Delete(
-	rpc *model.DeleteOptions,
+	rpc *opts.DeleteOptions,
 ) error {
 	// Establish database connection
 	d, dbErr := c.storage.Database()
@@ -162,7 +164,7 @@ func (c *CaseCommentStore) Delete(
 	return nil
 }
 
-func (c CaseCommentStore) buildDeleteCaseCommentQuery(rpc *model.DeleteOptions) (sq.DeleteBuilder, error) {
+func (c CaseCommentStore) buildDeleteCaseCommentQuery(rpc *opts.DeleteOptions) (sq.DeleteBuilder, error) {
 	var err error
 	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
@@ -183,7 +185,7 @@ var deleteCaseCommentQuery = store.CompactSQL(`
 	WHERE id = ANY($1) AND dc = $2
 `)
 
-func (c *CaseCommentStore) List(rpc *model.SearchOptions) (*_go.CaseCommentList, error) {
+func (c *CaseCommentStore) List(rpc *opts.SearchOptions) (*_go.CaseCommentList, error) {
 	// Connect to the database
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -242,7 +244,7 @@ func (c *CaseCommentStore) List(rpc *model.SearchOptions) (*_go.CaseCommentList,
 }
 
 func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
-	rpc *model.SearchOptions,
+	rpc *opts.SearchOptions,
 ) (sq.Sqlizer, func(*_go.CaseComment) []any, error) {
 	var defErr error
 	// Begin building the base query
@@ -309,7 +311,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 }
 
 func (c *CaseCommentStore) Update(
-	rpc *model.UpdateOptions,
+	rpc *options.GRPCUpdateOptions,
 	upd *_go.CaseComment,
 ) (*_go.CaseComment, error) {
 	// Get the database connection
@@ -387,7 +389,7 @@ func (c *CaseCommentStore) GetRolesById(
 }
 
 func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
-	rpc *model.UpdateOptions,
+	rpc *options.GRPCUpdateOptions,
 	input struct {
 		Text string
 		Id   int64
@@ -403,7 +405,7 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 		Set("updated_at", rpc.CurrentTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Set("ver", sq.Expr("ver + 1")). // Increment version
-		// input.Etag == input.ID
+		// input.Etags == input.ID
 		Where(sq.Eq{
 			"id":         rpc.Etags[0].GetOid(),
 			"ver":        rpc.Etags[0].GetVer(),
@@ -560,7 +562,7 @@ func buildCommentSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func buildCommentsSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(link *_go.CaseComment) any, int, *dberr.DBError) {
+func buildCommentsSelectAsSubquery(opts *opts.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(link *_go.CaseComment) any, int, *dberr.DBError) {
 	alias := "comments"
 	if caseAlias == alias {
 		alias = "sub_" + alias
@@ -586,7 +588,7 @@ func buildCommentsSelectAsSubquery(opts *model.SearchOptions, caseAlias string) 
 }
 
 func applyCaseCommentFilters(
-	opts *model.SearchOptions,
+	opts *opts.SearchOptions,
 	base sq.SelectBuilder,
 	alias string,
 ) (updatedBase sq.SelectBuilder, filtersApplied int, err *dberr.DBError) {

@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 	"log"
 	"strings"
 	"time"
@@ -14,7 +16,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -26,7 +27,7 @@ type StatusConditionStore struct {
 	storage *Store
 }
 
-func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s StatusConditionStore) Create(rpc *options.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.database_connection_error", err)
@@ -64,7 +65,7 @@ func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCo
 	return add, nil
 }
 
-func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_go.StatusConditionList, error) {
+func (s StatusConditionStore) List(rpc *opts.SearchOptions, statusId int64) (*_go.StatusConditionList, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.database_connection_error", err)
@@ -120,7 +121,7 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 	}, nil
 }
 
-func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) error {
+func (s StatusConditionStore) Delete(rpc *opts.DeleteOptions, statusId int64) error {
 	domainId := rpc.GetAuthOpts().GetDomainId()
 
 	query, args, err := s.buildDeleteStatusConditionQuery(rpc.ID, domainId, statusId)
@@ -146,7 +147,7 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 	return nil
 }
 
-func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s StatusConditionStore) Update(rpc *options.GRPCUpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.database_connection_error", err)
@@ -190,7 +191,7 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 	return st, nil
 }
 
-func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc *model.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
+func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc *options.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
 	query := createStatusConditionQuery
 	args := []interface{}{
 		status.Name,                     // $1 name
@@ -203,7 +204,7 @@ func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc *model.CreateO
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOptions, statusId int64) (string, []interface{}, error) {
+func (s StatusConditionStore) buildListStatusConditionQuery(rpc *opts.SearchOptions, statusId int64) (string, []interface{}, error) {
 	queryBuilder := sq.Select().
 		From("cases.status_condition AS s").
 		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId(), "s.status_id": statusId}).
@@ -270,7 +271,7 @@ func (s StatusConditionStore) buildDeleteStatusConditionQuery(id int64, domainId
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc *model.UpdateOptions, st *_go.StatusCondition) (string, []interface{}) {
+func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc *options.GRPCUpdateOptions, st *_go.StatusCondition) (string, []interface{}) {
 	var args []interface{}
 
 	// 1. Squirrel operations: Building the dynamic part of the "upd" query

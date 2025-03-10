@@ -3,6 +3,8 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 	"net/url"
 
 	"github.com/Masterminds/squirrel"
@@ -11,7 +13,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -32,7 +33,7 @@ var CaseLinkFields = []string{
 }
 
 // Create implements store.CaseLinkStore.
-func (l *CaseLinkStore) Create(rpc *model.CreateOptions, add *_go.InputCaseLink) (*_go.CaseLink, error) {
+func (l *CaseLinkStore) Create(rpc *options.CreateOptions, add *_go.InputCaseLink) (*_go.CaseLink, error) {
 	if rpc == nil {
 		return nil, dberr.NewDBError("postgres.case_link.create.check_args.opts", "create options required")
 	}
@@ -65,7 +66,7 @@ func (l *CaseLinkStore) Create(rpc *model.CreateOptions, add *_go.InputCaseLink)
 }
 
 // Delete implements store.CaseLinkStore.
-func (l *CaseLinkStore) Delete(opts *model.DeleteOptions) error {
+func (l *CaseLinkStore) Delete(opts *opts.DeleteOptions) error {
 	if opts == nil {
 		return dberr.NewDBError("postgres.case_link.delete.check_args.opts", "delete options required")
 	}
@@ -101,7 +102,7 @@ func (l *CaseLinkStore) Delete(opts *model.DeleteOptions) error {
 }
 
 // List implements store.CaseLinkStore.
-func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, error) {
+func (l *CaseLinkStore) List(opts *opts.SearchOptions) (*_go.CaseLinkList, error) {
 	// validate
 	if opts == nil {
 		return nil, dberr.NewDBError("postgres.case_link.list.check_args.opts", "search options required")
@@ -159,7 +160,7 @@ func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, erro
 }
 
 // Update implements store.CaseLinkStore.
-func (l *CaseLinkStore) Update(opts *model.UpdateOptions, upd *_go.InputCaseLink) (*_go.CaseLink, error) {
+func (l *CaseLinkStore) Update(opts *options.GRPCUpdateOptions, upd *_go.InputCaseLink) (*_go.CaseLink, error) {
 	if opts == nil {
 		return nil, dberr.NewDBError("postgres.case_link.update.check_args.opts", "update options required")
 	}
@@ -290,7 +291,7 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 	return base, plan, nil
 }
 
-func buildCreateLinkQuery(rpc *model.CreateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []func(link *_go.CaseLink) any, *dberr.DBError) {
+func buildCreateLinkQuery(rpc *options.CreateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []func(link *_go.CaseLink) any, *dberr.DBError) {
 	insertAlias := "i"
 	insert := squirrel.
 		Insert("cases.case_link").
@@ -304,7 +305,7 @@ func buildCreateLinkQuery(rpc *model.CreateOptions, add *_go.InputCaseLink) (squ
 	return buildLinkSelectColumnsAndPlan(base, insertAlias, rpc.Fields)
 }
 
-func buildUpdateLinkQuery(opts *model.UpdateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []func(link *_go.CaseLink) any, *dberr.DBError) {
+func buildUpdateLinkQuery(opts *options.GRPCUpdateOptions, add *_go.InputCaseLink) (squirrel.Sqlizer, []func(link *_go.CaseLink) any, *dberr.DBError) {
 	if len(opts.Etags) == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_link.update.etag.empty", "link etag required")
 	}
@@ -373,7 +374,7 @@ func (l *CaseLinkStore) scanLink(row pgx.Row, plan []func(link *_go.CaseLink) an
 	return &link, nil
 }
 
-func buildLinkSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (updatedBase squirrel.SelectBuilder, scanPlan []func(link *_go.CaseLink) any, filtersApplied int, dbErr *dberr.DBError) {
+func buildLinkSelectAsSubquery(opts *opts.SearchOptions, caseAlias string) (updatedBase squirrel.SelectBuilder, scanPlan []func(link *_go.CaseLink) any, filtersApplied int, dbErr *dberr.DBError) {
 	alias := "links"
 	if caseAlias == alias {
 		alias = "sub_" + alias
@@ -399,7 +400,7 @@ func buildLinkSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (upd
 	return base, plan, applied, nil
 }
 
-func applyCaseLinkFilters(opts *model.SearchOptions, base squirrel.SelectBuilder, alias string) (updatedBase squirrel.SelectBuilder, filtersApplied int, err *dberr.DBError) {
+func applyCaseLinkFilters(opts *opts.SearchOptions, base squirrel.SelectBuilder, alias string) (updatedBase squirrel.SelectBuilder, filtersApplied int, err *dberr.DBError) {
 	if opts == nil || len(opts.Filter) == 0 {
 		return base, 0, nil
 	}

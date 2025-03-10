@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/opts"
 	"log/slog"
 	"strconv"
 
@@ -44,7 +46,7 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.invalid_primary_id", "Invalid ID")
 	}
-	searchOpts, err := model.NewLocateOptions(ctx, req, RelatedCaseMetadata)
+	searchOpts, err := opts.NewLocateOptions(ctx, req, RelatedCaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -93,7 +95,7 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		return nil, cerror.NewBadRequestError("app.related_case.create_related_case.primary_case_id_required", "Primary case id required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, RelatedCaseMetadata)
+	createOpts, err := options.NewCreateOptions(ctx, req, RelatedCaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -176,7 +178,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		return nil, cerror.NewBadRequestError("app.related_case.update_related_case.id_required", "ID required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, RelatedCaseMetadata)
+	updateOpts, err := options.NewGRPCUpdateOptions(ctx, req, RelatedCaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -275,7 +277,7 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.invalid_etag", "Invalid etag")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, RelatedCaseMetadata)
+	deleteOpts, err := opts.NewDeleteOptions(ctx, RelatedCaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -290,8 +292,8 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 
 	// TODO: rbac check on main case
 	//accessMode := auth.Edit
-	//if deleteOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
-	//	access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), accessMode, deleteOpts.ParentID)
+	//if deleteOpts.GetAuth().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
+	//	access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuth(), accessMode, deleteOpts.ParentID)
 	//	if err != nil {
 	//		slog.ErrorContext(ctx, err.Error(), logAttributes)
 	//		return nil, AppForbiddenError
@@ -325,7 +327,7 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.list_related_cases.invalid_ids", "Invalid ids format")
 	}
-	searchOpts, err := model.NewSearchOptions(ctx, req, RelatedCaseMetadata)
+	searchOpts, err := opts.NewSearchOptions(ctx, req, RelatedCaseMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError

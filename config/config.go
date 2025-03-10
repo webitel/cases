@@ -57,7 +57,7 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	flag.StringVar(&watcher.TopicName, "watcher_topic", "", "Queue name")
 	flag.StringVar(&watcher.AMQPUser, "amqp_user", "", "AMQP user for publishing messages")
 	flag.IntVar(&watcher.QueuesMessagesTTL, "watcher_messages_ttl", 0, "Watcher queues messages TTL in milliseconds")
-	flag.BoolVar(&watcher.Enabled, "watch_enabled", true, "Watcher enabled")
+	flag.BoolVar(&watcher.Enabled, "watch_enabled", false, "Watcher enabled")
 
 	// add possibility to load config from file
 	flag.StringVar(&appConfig.File, "config_file", "", "Configuration file in JSON format")

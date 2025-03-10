@@ -4,6 +4,8 @@ import (
 	"context"
 	defErr "errors"
 	"fmt"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/model/opts"
 	"log/slog"
 
 	"github.com/webitel/cases/api/cases"
@@ -65,29 +67,52 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 	return res, nil
 }
 
-func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, request *cases.LinkCommunicationRequest) (*cases.LinkCommunicationResponse, error) {
-	err := ValidateCaseCommunicationsCreate(request.Input)
+func (c *CaseCommunicationService) LinkCommunication(
+	ctx context.Context,
+	req *cases.LinkCommunicationRequest,
+) (*cases.LinkCommunicationResponse, error) {
+	err := ValidateCaseCommunicationsCreate(req.Input)
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.validate_payload.error", err.Error())
 	}
-	tag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
+	tag, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.invalid_etag", "Invalid case etag")
 	}
-	createOpts, err := model.NewCreateOptions(ctx, request, CaseCommunicationMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, CaseLinkMetadata),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
 	createOpts.ParentID = tag.GetOid()
-	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", createOpts.ParentID))
+	logAttributes := slog.Group(
+		"context",
+		slog.Int64(
+			"user_id",
+			createOpts.GetAuth().GetUserId(),
+		),
+		slog.Int64(
+			"domain_id",
+			createOpts.GetAuth().GetDomainId(),
+		), slog.Int64(
+			"case_id",
+			createOpts.ParentID),
+	)
 	accessMode := auth.Edit
-	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommunicationMetadata.GetParentScopeName(), accessMode) {
+	if !createOpts.GetAuth().CheckObacAccess(CaseCommunicationMetadata.GetParentScopeName(), accessMode) {
 		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
 		return nil, ForbiddenError
 	}
-	if createOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
+	if createOpts.GetAuth().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
+		access, err := c.app.Store.Case().CheckRbacAccess(
+			createOpts,
+			createOpts.GetAuth(),
+			accessMode,
+			createOpts.ParentID,
+		)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -98,7 +123,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 		}
 	}
 
-	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, []*cases.InputCaseCommunication{request.Input})
+	res, dbErr := c.app.Store.CaseCommunication().Link(createOpts, []*cases.InputCaseCommunication{req.Input})
 	if dbErr != nil {
 		slog.ErrorContext(ctx, dbErr.Error(), logAttributes)
 		return nil, InternalError
@@ -106,7 +131,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	if len(res) == 0 {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.result.no_response", "no rows were affected (wrong ids or insufficient rights)")
 	}
-	err = NormalizeResponseCommunications(res, request.GetFields())
+	err = NormalizeResponseCommunications(res, req.GetFields())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, ResponseNormalizingError
@@ -123,7 +148,7 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.unlink_communication.invalid_etag", "Invalid case etag")
 	}
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommunicationMetadata)
+	deleteOpts, err := opts.NewDeleteOptions(ctx, CaseCommunicationMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
