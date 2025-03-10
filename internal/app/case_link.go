@@ -6,6 +6,7 @@ import (
 	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 	"log/slog"
@@ -252,33 +253,36 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		return nil, cerror.NewBadRequestError("app.case_link.list.case_etag.check_args.etag", "case etag is required")
 	}
 
-	etg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
-	}
-
-	searchOpts, err := model.NewSearchOptions(ctx, req, CaseLinkMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, CaseMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			util.EnsureIdField,
+		),
+		grpcopts.WithIDsAsEtags(etag.EtagCaseLink, req.GetIds()...),
+		grpcopts.WithSort(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.ParentId = etg.GetOid()
-	//
-	ids, err := util.ParseIds(req.GetIds(), etag.EtagCaseLink)
+	etg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
+		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
-	searchOpts.IDs = ids
+	searchOpts.AddFilter("case_id", etg.GetOid())
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
 		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("id", searchOpts.ID),
-		slog.Int64("case_id", searchOpts.ParentId),
+		slog.Int64("case_id", etg.GetOid()),
 	)
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, etg.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError

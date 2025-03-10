@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
 	"log/slog"
 
 	"github.com/webitel/cases/auth"
@@ -32,21 +34,28 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 	if req.CaseEtag == "" {
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.case_etag_required", "Case Etag is required")
 	}
+
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithSort(req),
+		grpcopts.WithFields(req, CaseFileMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			util.EnsureIdField,
+		),
+	)
+
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
 	}
-	// Build search options
-	searchOpts, err := model.NewSearchOptions(ctx, req, CaseFileMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
-	}
-	searchOpts.ParentId = tag.GetOid()
+	searchOpts.AddFilter("case_id", tag.GetOid())
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseFileMetadata.GetParentScopeName(), accessMode) {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tag.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	cerror "github.com/webitel/cases/internal/errors"
 	"log"
 	"log/slog"
 	"strconv"
@@ -16,8 +17,9 @@ import (
 
 	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
-	cerror "github.com/webitel/cases/internal/errors"
+
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 )
@@ -76,37 +78,32 @@ type CaseService struct {
 }
 
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
-	searchOpts, err := model.NewSearchOptions(ctx, req, CaseMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFilters(req),
+		grpcopts.WithFields(req, CaseMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			util.EnsureIdField,
+		),
+		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetIds()...),
+		grpcopts.WithSort(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
-	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, cerror.NewBadRequestError("app.case.search_cases.parse_ids.invalid", err.Error())
-	}
-	for _, filterString := range req.GetFilters() {
-		str := strings.Split(filterString, "=")
-		if len(str) != 2 {
-			continue
-		}
-		column := str[0]
-		value := strings.TrimSpace(str[1])
-		if column != "" {
-			searchOpts.Filter[column] = value
-		}
-	}
 	if req.GetContactId() != "" {
 		contactId, err := strconv.ParseInt(req.GetContactId(), 10, 64)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			contactId = 0
 		}
-		searchOpts.Filter["contact"] = contactId
+		searchOpts.AddFilter("contact", contactId)
 	}
-	searchOpts.IDs = ids
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
@@ -122,18 +119,16 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 }
 
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
-	searchOpts, err := model.NewLocateOptions(ctx, req, CaseMetadata)
+	searchOpts, err := grpcopts.NewLocateOptions(
+		ctx,
+		grpcopts.WithFields(req, CaseMetadata),
+		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetEtag()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
-	id, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
-	}
-	searchOpts.IDs = id
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		return nil, err

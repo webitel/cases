@@ -22,6 +22,10 @@ type Pager interface {
 	GetSize() int32
 }
 
+type Sorter interface {
+	GetSort() string
+}
+
 type Searcher interface {
 	GetQ() string
 }
@@ -30,17 +34,16 @@ type Filterer interface {
 	GetFilters() []string
 }
 
-func WithFields(fielder Fielder, md model.ObjectMetadatter) SearchOption {
+func WithFields(fielder Fielder, md model.ObjectMetadatter, fieldModifiers ...func(in []string) []string) SearchOption {
 	return func(options *SearchOptions) error {
 		if requestedFields := fielder.GetFields(); len(requestedFields) == 0 {
 			options.Fields = md.GetDefaultFields()
-		} else {
-			options.Fields = util.DeduplicateFields(util.FieldsFunc(
-				requestedFields, util.InlineFields,
-			))
+		}
+		for _, modifier := range fieldModifiers {
+			options.Fields = modifier(options.Fields)
 		}
 		options.Fields, options.UnknownFields = util.SplitKnownAndUnknownFields(options.Fields, md.GetAllFields())
-		options.Fields = util.ParseFieldsForEtag(options.Fields)
+
 		return nil
 	}
 }
@@ -94,6 +97,13 @@ func WithIDs(ids []int64) SearchOption {
 func WithID(id int64) SearchOption {
 	return func(options *SearchOptions) error {
 		options.IDs = append(options.IDs, id)
+		return nil
+	}
+}
+
+func WithSort(sorter Sorter) SearchOption {
+	return func(options *SearchOptions) error {
+		options.Sort = sorter.GetSort()
 		return nil
 	}
 }
@@ -172,6 +182,10 @@ func (s *SearchOptions) AddFilter(key string, value any) {
 	s.Filters[key] = value
 }
 
+func (s *SearchOptions) GetFilter(key string) any {
+	return s.Filters[key]
+}
+
 func (s *SearchOptions) GetIDs() []int64 {
 	return s.IDs
 }
@@ -192,12 +206,17 @@ func NewSearchOptions(ctx context.Context, opts ...SearchOption) (*SearchOptions
 	return search, nil
 }
 
-func NewLocateOptions(ctx context.Context, id int64, opts ...SearchOption) (*SearchOptions, error) {
+func NewLocateOptions(ctx context.Context, opts ...SearchOption) (*SearchOptions, error) {
 	locate, err := NewSearchOptions(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
-	locate.IDs = []int64{id}
+	if len(opts) == 0 {
+		return nil, errors.New("locate options require id to locate")
+	}
+	if len(opts) > 1 {
+		return nil, errors.New("locate options require only one id")
+	}
 
 	return locate, nil
 }

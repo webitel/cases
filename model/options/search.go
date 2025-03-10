@@ -22,6 +22,7 @@ type SearchOptions interface {
 	GetFilters() map[string]any
 	RemoveFilter(string)
 	AddFilter(string, any)
+	GetFilter(string) any
 	// shortcuts
 	GetIDs() []int64
 }

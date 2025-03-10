@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/options"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -65,7 +66,7 @@ func (c *CaseCommunicationStore) Unlink(options *model.DeleteOptions) (int64, er
 	return res.RowsAffected(), nil
 }
 
-func (c *CaseCommunicationStore) List(opts *model.SearchOptions) (*cases.ListCommunicationsResponse, error) {
+func (c *CaseCommunicationStore) List(opts options.SearchOptions) (*cases.ListCommunicationsResponse, error) {
 	base, plan, dbErr := c.buildListCaseCommunicationSqlizer(opts)
 	if dbErr != nil {
 		return nil, dbErr
@@ -92,17 +93,18 @@ func (c *CaseCommunicationStore) List(opts *model.SearchOptions) (*cases.ListCom
 	return &res, nil
 }
 
-func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(options *model.SearchOptions) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
+func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(options options.SearchOptions) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
 	if options == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_list_case_communication_sqlizer.check_args.options", "search options required")
 	}
-	if options.ParentId <= 0 {
+	parentId, ok := options.GetFilter("case_id").(int64)
+	if !ok || parentId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_list_case_communication_sqlizer.check_args.case_id", "case id required")
 	}
 	alias := "s"
-	base := squirrel.Select().From(fmt.Sprintf("%s %s", c.mainTable, alias)).PlaceholderFormat(squirrel.Dollar)
+	base := squirrel.Select().From(fmt.Sprintf("%s %s", c.mainTable, alias)).Where(fmt.Sprintf("%s = ?", store.Ident(alias, "case_id")), parentId).PlaceholderFormat(squirrel.Dollar)
 	base = store.ApplyPaging(options.GetPage(), options.GetSize(), base)
-	return c.buildSelectColumnsAndPlan(base, alias, options.Fields)
+	return c.buildSelectColumnsAndPlan(base, alias, options.GetFields())
 }
 
 func (c *CaseCommunicationStore) scanCommunications(rows pgx.Rows, plan []func(*cases.CaseCommunication) any) ([]*cases.CaseCommunication, *dberr.DBError) {

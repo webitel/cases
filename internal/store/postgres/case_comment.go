@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/model/options"
 
 	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
@@ -183,7 +183,7 @@ var deleteCaseCommentQuery = store.CompactSQL(`
 	WHERE id = ANY($1) AND dc = $2
 `)
 
-func (c *CaseCommentStore) List(rpc *model.SearchOptions) (*_go.CaseCommentList, error) {
+func (c *CaseCommentStore) List(rpc options.SearchOptions) (*_go.CaseCommentList, error) {
 	// Connect to the database
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -203,7 +203,7 @@ func (c *CaseCommentStore) List(rpc *model.SearchOptions) (*_go.CaseCommentList,
 	}
 
 	// Execute the query
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("store.case_comment.list.execution_error", err)
 	}
@@ -235,41 +235,38 @@ func (c *CaseCommentStore) List(rpc *model.SearchOptions) (*_go.CaseCommentList,
 	}
 
 	return &_go.CaseCommentList{
-		Page:  int64(rpc.Page),
+		Page:  int64(rpc.GetPage()),
 		Next:  next,
 		Items: commentList,
 	}, nil
 }
 
 func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 ) (sq.Sqlizer, func(*_go.CaseComment) []any, error) {
 	var defErr error
+
+	parentId, ok := rpc.GetFilter("case_id").(int64)
+	if !ok || parentId == 0 {
+		return nil, nil, errors.New("case id required")
+	}
 	// Begin building the base query
 	queryBuilder := sq.Select().
 		From("cases.case_comment AS cc").
 		Where(sq.Eq{"cc.dc": rpc.GetAuthOpts().GetDomainId()}).
+		Where(sq.Eq{"cc.case_id": parentId}).
 		PlaceholderFormat(sq.Dollar)
 
-	if rpc.ParentId != 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": rpc.ParentId})
-	}
 	queryBuilder, defErr = addCaseCommentRbacCondition(rpc.GetAuthOpts(), auth.Read, queryBuilder, "cc.id")
 	if defErr != nil {
 		return nil, nil, defErr
-	}
-
-	// Ensure necessary fields are included
-	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
-	if util.ContainsField(rpc.Fields, "edited") {
-		rpc.Fields = util.EnsureFields(rpc.Fields, "updated_at", "created_at")
 	}
 
 	// Build select columns and scan plan using buildCommentSelectColumnsAndPlan
 	queryBuilder, plan, err := buildCommentSelectColumnsAndPlan(
 		queryBuilder,
 		caseCommentLeft,
-		rpc.Fields,
+		rpc.GetFields(),
 		rpc.GetAuthOpts(),
 	)
 	if err != nil {
@@ -286,16 +283,16 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 	}
 
 	// Apply additional filters, sorting, and pagination as needed
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cc.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cc.id": rpc.GetIDs()})
 	}
 
-	if caseID, ok := rpc.Filter["case_id"].(string); ok && caseID != "" {
+	if caseID, ok := rpc.GetFilter("case_id").(string); ok && caseID != "" {
 		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": caseID})
 	}
 
 	// ----------Apply search by text -----------------
-	if rpc.Search != "" {
+	if rpc.GetSearch() != "" {
 		queryBuilder = store.AddSearchTerm(queryBuilder, store.Ident(caseLeft, "text"))
 	}
 

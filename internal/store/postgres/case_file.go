@@ -1,7 +1,9 @@
 package postgres
 
 import (
+	"errors"
 	"fmt"
+	"github.com/webitel/cases/model/options"
 	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
@@ -29,7 +31,7 @@ const (
 )
 
 // List implements store.CaseFileStore for listing case files.
-func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, error) {
+func (c *CaseFileStore) List(rpc options.SearchOptions) (*cases.CaseFileList, error) {
 	// Connect to the database
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -49,7 +51,7 @@ func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, err
 	}
 
 	// Execute the query
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("store.case_file.list.execution_error", err)
 	}
@@ -86,44 +88,46 @@ func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, err
 	}
 
 	return &cases.CaseFileList{
-		Page:  int64(rpc.Page),
+		Page:  int64(rpc.GetPage()),
 		Next:  next,
 		Items: fileList,
 	}, nil
 }
 
 func (c *CaseFileStore) BuildListCaseFilesSqlizer(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 ) (sq.Sqlizer, []func(file *cases.File) any, error) {
+
+	parentId, ok := rpc.GetFilter("case_id").(int64)
+	if !ok || parentId == 0 {
+		return nil, nil, errors.New("case id required")
+	}
 	// Begin building the base query with alias `cf`
 	queryBuilder := sq.Select().
 		From("storage.files AS cf").
 		Where(
 			sq.And{
 				sq.Eq{"cf.domain_id": rpc.GetAuthOpts().GetDomainId()},
-				sq.Eq{"cf.uuid": strconv.Itoa(int(rpc.ParentId))},
+				sq.Eq{"cf.uuid": strconv.Itoa(int(parentId))},
 				sq.Eq{"cf.channel": channel},
 				sq.Eq{"cf.removed": nil},
 			},
 		).
 		PlaceholderFormat(sq.Dollar)
 
-	// Ensure necessary fields are included
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
-
 	// Build select columns and scan plan using buildFilesSelectColumnsAndPlan
-	queryBuilder, plan, err := buildFilesSelectColumnsAndPlan(queryBuilder, fileAlias, rpc.Fields)
+	queryBuilder, plan, err := buildFilesSelectColumnsAndPlan(queryBuilder, fileAlias, rpc.GetFields())
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Apply additional filters, sorting, and pagination as needed
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cf.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cf.id": rpc.GetIDs()})
 	}
 
 	// ----------Apply search by name -----------------
-	if rpc.Search != "" {
+	if rpc.GetSearch() != "" {
 		queryBuilder = store.AddSearchTerm(queryBuilder, store.Ident(caseLeft, "name"))
 	}
 

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	cases "github.com/webitel/cases/api/cases"
 	"log/slog"
 
 	"github.com/webitel/cases/api/cases"
@@ -11,6 +12,7 @@ import (
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	"log/slog"
 )
 
 const caseCommentsObjScope = model.ScopeCaseComments
@@ -170,23 +172,32 @@ func (c *CaseCommentService) ListComments(
 	if req.CaseEtag == "" {
 		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.case_etag_required", "Case etag is required")
 	}
-
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, CaseCommentMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			func(in []string) []string {
+				if util.ContainsField(in, "edited") {
+					return util.EnsureFields(in, "updated_at", "created_at")
+				}
+				return in
+			},
+		),
+		grpcopts.WithIDsAsEtags(etag.EtagCaseComment, req.GetIds()...),
+		grpcopts.WithSort(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, AppInternalError
+	}
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_etag", "Invalid etag")
 	}
-
-	ids, err := util.ParseIds(req.Ids, etag.EtagCaseComment)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_qin", "Invalid Qin format")
-	}
-	searchOpts, err := model.NewSearchOptions(ctx, req, CaseCommentMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
-	}
-	searchOpts.ParentId = tag.GetOid()
-	searchOpts.IDs = ids
+	searchOpts.AddFilter("case_id", tag.GetOid())
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
 	comments, err := c.app.Store.CaseComment().List(searchOpts)

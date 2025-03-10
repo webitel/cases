@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/model/options"
 	"strconv"
 	"strings"
 	"time"
@@ -826,7 +827,7 @@ func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []int
 }
 
 // List implements store.CaseStore.
-func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
+func (c *CaseStore) List(opts options.SearchOptions) (*_go.CaseList, error) {
 	if opts == nil {
 		return nil, dberr.NewDBError("postgres.case.list.check_args.opts", "search options required")
 	}
@@ -843,7 +844,7 @@ func (c *CaseStore) List(opts *model.SearchOptions) (*_go.CaseList, error) {
 	if dbErr != nil {
 		return nil, dbErr
 	}
-	rows, err := db.Query(opts.Context, store.CompactSQL(slct), args...)
+	rows, err := db.Query(opts, store.CompactSQL(slct), args...)
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case.list.exec.error", err.Error())
 	}
@@ -888,11 +889,10 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	return false, nil
 }
 
-func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
-	opts.Fields = util.EnsureFields(opts.Fields, "id")
+func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
 	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
-	if search := opts.Search; search != "" {
+	if search := opts.GetSearch(); search != "" {
 		searchTerm, operator := store.ParseSearchTerm(search)
 		searchNumber := store.PrepareSearchNumber(search)
 		where := sq.Or{
@@ -920,10 +920,10 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		base = base.Where(where)
 
 	}
-	if len(opts.IDs) != 0 {
-		base = base.Where(fmt.Sprintf("%s = ANY(?)", store.Ident(caseLeft, "id")), opts.IDs)
+	if len(opts.GetIDs()) != 0 {
+		base = base.Where(fmt.Sprintf("%s = ANY(?)", store.Ident(caseLeft, "id")), opts.GetIDs())
 	}
-	for column, value := range opts.Filter {
+	for column, value := range opts.GetFilters() {
 		switch column {
 		case "created_by",
 			"updated_by",
@@ -1047,7 +1047,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts *model.SearchOptions) (sq.SelectBu
 		direction = "DESC"
 	}
 	var tableAlias string
-	if !util.ContainsStringIgnoreCase(opts.Fields, field) { // not joined yet
+	if !util.ContainsStringIgnoreCase(opts.GetFields(), field) { // not joined yet
 		base, tableAlias, err = c.joinRequiredTable(base, field)
 		if err != nil {
 			return base, nil, err
@@ -1392,7 +1392,7 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 }
 
 // session required to get some columns
-func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
+func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts options.SearchOptions,
 	base sq.SelectBuilder,
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	var (
@@ -1401,7 +1401,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 		err        error
 	)
 
-	for _, field := range opts.Fields {
+	for _, field := range opts.GetFields() {
 		base, tableAlias, err = c.joinRequiredTable(base, field)
 		if err != nil {
 			return base, nil, err
@@ -1829,17 +1829,14 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts *model.SearchOptions,
 				return scanner.ScanRowLookup(&caseItem.SlaCondition)
 			})
 		case "comments":
-			derivedOpts := opts.SearchDerivedOptionByField(field)
-			if derivedOpts == nil {
-				// default
-				derivedOpts = &model.SearchOptions{
-					Context: opts.Context,
-					Fields:  []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"},
-					Size:    10,
-					Page:    1,
-					Sort:    "-created_at",
-					Auth:    opts.Auth,
-				}
+
+			derivedOpts := options.SearchOptions{
+				Context: opts,
+				Fields:  []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"},
+				Size:    10,
+				Page:    1,
+				Sort:    "-created_at",
+				Auth:    opts.GetAuthOpts(),
 			}
 
 			subquery, scanPlan, filtersApplied, dbErr := buildCommentsSelectAsSubquery(derivedOpts, caseLeft)

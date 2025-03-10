@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/model/options"
 	"net/url"
 
 	"github.com/Masterminds/squirrel"
@@ -101,12 +102,14 @@ func (l *CaseLinkStore) Delete(opts *model.DeleteOptions) error {
 }
 
 // List implements store.CaseLinkStore.
-func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, error) {
+func (l *CaseLinkStore) List(opts options.SearchOptions) (*_go.CaseLinkList, error) {
 	// validate
 	if opts == nil {
 		return nil, dberr.NewDBError("postgres.case_link.list.check_args.opts", "search options required")
 	}
-	if opts.ParentId == 0 && len(opts.IDs) == 0 {
+
+	parentId, ok := opts.GetFilter("case_id").(int64)
+	if !ok || parentId == 0 {
 		return nil, dberr.NewDBError("postgres.case_link.list.check_args.parent_id", "case id required")
 	}
 	db, dbErr := l.storage.Database()
@@ -119,16 +122,14 @@ func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, erro
 		Select().
 		From(l.mainTable).
 		Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "dc")), opts.GetAuthOpts().GetDomainId()).
+		Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "case_id")), parentId).
 		PlaceholderFormat(squirrel.Dollar)
-	if opts.ParentId != 0 {
-		base = base.Where(fmt.Sprintf("%s = ?", store.Ident(l.mainTable, "case_id")), opts.ParentId)
-	}
-	if len(opts.IDs) != 0 {
-		base = base.Where(fmt.Sprintf("%s = any(?)", store.Ident(l.mainTable, "id")), opts.IDs)
+	if len(opts.GetIDs()) != 0 {
+		base = base.Where(fmt.Sprintf("%s = any(?)", store.Ident(l.mainTable, "id")), opts.GetIDs())
 	}
 	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	base = store.ApplyDefaultSorting(opts, base, linkDefaultSort)
-	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, l.mainTable, opts.Fields)
+	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, l.mainTable, opts.GetFields())
 	if dbErr != nil {
 		return nil, dbErr
 	}
@@ -139,7 +140,7 @@ func (l *CaseLinkStore) List(opts *model.SearchOptions) (*_go.CaseLinkList, erro
 		return nil, dberr.NewDBError("postgres.case_link.list.convert_sql.error", err.Error())
 	}
 
-	rows, err := db.Query(opts.Context, query, args...)
+	rows, err := db.Query(opts, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case_link.list.execute.error", err.Error())
 	}
