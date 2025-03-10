@@ -2,12 +2,12 @@ package app
 
 import (
 	"context"
-	"strings"
-	"time"
-
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
+	"log/slog"
+	"strings"
 )
 
 type StatusService struct {
@@ -16,143 +16,99 @@ type StatusService struct {
 	objClassName string
 }
 
+var StatusMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
+	{"id", true},
+	{"created_by", true},
+	{"created_at", true},
+	{"updated_by", false},
+	{"updated_at", false},
+	{"name", true},
+	{"description", true},
+})
+
 const (
-	ErrLookupNameReq = "Lookup name is required"
-	defaultFields    = "id, name, description"
+	ErrLookupNameReq    = "Lookup name is required"
+	statusDefaultFields = "id, name, description, created_by"
 )
 
 // CreateStatus implements api.StatusesServer.
 func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRequest) (*_go.Status, error) {
 	// Validate required fields
-	if req.Name == "" {
-		return nil, cerror.NewBadRequestError("status.create_status.lookup.name.required", ErrLookupNameReq)
+	if req.Input.Name == "" {
+		return nil, cerror.NewBadRequestError("status.create_status.input.name.required", ErrLookupNameReq)
 	}
 
-	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by"}
+	createOpts, err := model.NewCreateOptions(ctx, req, StatusMetadata)
 
-	t := time.Now()
-
-	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
-	// Define the current user as the creator and updater
-	currentU := &_go.Lookup{
-		Id: createOpts.GetAuthOpts().GetUserId(),
+	// Create a new input user_auth
+	input := &_go.Status{
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
 	}
 
-	// Create a new lookup user_auth
-	lookup := &_go.Status{
-		Name:        req.Name,
-		Description: req.Description,
-		CreatedBy:   currentU,
-		UpdatedBy:   currentU,
+	res, err := s.app.Store.Status().Create(createOpts, input)
+	if err != nil {
+		return nil, cerror.NewInternalError("status.create_status.store.create.failed", err.Error())
 	}
 
-	// Create the status in the store
-	l, e := s.app.Store.Status().Create(&createOpts, lookup)
-	if e != nil {
-		return nil, cerror.NewInternalError("status.create_status.store.create.failed", e.Error())
-	}
-
-	return l, nil
+	return res, nil
 }
 
 // ListStatuses implements api.StatusesServer.
 func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
-	fields := req.Fields
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFields, ", ")
-	}
 
-	// Use default page size and page number if not provided
-	page := req.Page
-	if page == 0 {
-		page = 1
+	searchOpts, err := model.NewSearchOptions(ctx, req, StatusMetadata)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
-
-	t := time.Now()
-
-	searchOptions := model.SearchOptions{
-		IDs: req.Id,
-		// UserAuthSession: session,
-		Fields:  fields,
-		Context: ctx,
-		Page:    int(page),
-		Sort:    req.Sort,
-		Size:    int(req.Size),
-		Time:    t,
-		Filter:  make(map[string]interface{}),
-		Auth:    model.GetAutherOutOfContext(ctx),
-	}
+	searchOpts.Filter = make(map[string]any)
+	searchOpts.IDs = req.Id
 
 	if req.Q != "" {
-		searchOptions.Filter["name"] = req.Q
+		searchOpts.Filter["name"] = req.Q
 	}
 
-	lookups, e := s.app.Store.Status().List(&searchOptions)
-	if e != nil {
-		return nil, cerror.NewInternalError("status.list_status.store.list.failed", e.Error())
+	res, err := s.app.Store.Status().List(searchOpts)
+	if err != nil {
+		return nil, cerror.NewInternalError("status.list_status.store.list.failed", err.Error())
 	}
 
-	return lookups, nil
+	return res, nil
 }
 
 // UpdateStatus implements api.StatusesServer.
 func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRequest) (*_go.Status, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("status.update_status.lookup.id.required", "Lookup ID is required")
+		return nil, cerror.NewBadRequestError("status.update_status.input.id.required", "Lookup ID is required")
 	}
 
-	fields := []string{"id", "updated_at", "updated_by"}
-
-	for _, f := range req.XJsonMask {
-		switch f {
-		case "name":
-			fields = append(fields, "name")
-			if req.Input.Name == "" {
-				return nil, cerror.NewBadRequestError("status.update_status.name.required", "Lookup name is required and cannot be empty")
-			}
-		case "description":
-			fields = append(fields, "description")
-		}
+	updateOpts, err := model.NewUpdateOptions(ctx, req, StatusMetadata)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
-	t := time.Now()
-
-	// Define update options
-	updateOpts := model.UpdateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
-	}
-
-	// Define the current user as the updater
-	currentU := &_go.Lookup{
-		Id: updateOpts.GetAuthOpts().GetUserId(),
-	}
-
-	// Update lookup user_auth
-	lookup := &_go.Status{
+	// Update input user_auth
+	input := &_go.Status{
 		Id:          req.Id,
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
-		UpdatedBy:   currentU,
 	}
 
-	// Update the lookup in the store
-	l, e := s.app.Store.Status().Update(&updateOpts, lookup)
-	if e != nil {
-		return nil, cerror.NewInternalError("status.update_status.store.update.failed", e.Error())
+	// Update the input in the store
+	res, err := s.app.Store.Status().Update(updateOpts, input)
+	if err != nil {
+		return nil, cerror.NewInternalError("status.update_status.store.update.failed", err.Error())
 	}
 
-	return l, nil
+	return res, nil
 }
 
 // DeleteStatus implements api.StatusesServer.
@@ -162,19 +118,17 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 		return nil, cerror.NewBadRequestError("status.delete_status.lookup.id.required", "Lookup ID is required")
 	}
 
-	t := time.Now()
-	// Define delete options
-	deleteOpts := model.DeleteOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		IDs:     []int64{req.Id},
-		Time:    t,
+	deleteOpts, err := model.NewDeleteOptions(ctx, StatusMetadata)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
+	deleteOpts.IDs = []int64{req.Id}
 
 	// Delete the lookup in the store
-	e := s.app.Store.Status().Delete(&deleteOpts)
-	if e != nil {
-		return nil, cerror.NewInternalError("status.delete_status.store.delete.failed", e.Error())
+	err = s.app.Store.Status().Delete(deleteOpts)
+	if err != nil {
+		return nil, cerror.NewInternalError("status.delete_status.store.delete.failed", err.Error())
 	}
 
 	return &(_go.Status{Id: req.Id}), nil
@@ -187,27 +141,32 @@ func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRe
 		return nil, cerror.NewBadRequestError("status.locate_status.lookup.id.required", "Lookup ID is required")
 	}
 
+	fields := util.FieldsFunc(req.Fields, util.InlineFields)
+	if len(fields) == 0 {
+		fields = strings.Split(statusDefaultFields, ",")
+	}
+
 	// Prepare a list request with necessary parameters
 	listReq := &_go.ListStatusRequest{
 		Id:     []int64{req.Id},
-		Fields: req.Fields,
+		Fields: fields,
 		Page:   1,
-		Size:   1, // We only need one item
+		Size:   1,
 	}
 
 	// Call the ListStatuses method
-	listResp, err := s.ListStatuses(ctx, listReq)
+	res, err := s.ListStatuses(ctx, listReq)
 	if err != nil {
 		return nil, cerror.NewInternalError("status.locate_status.list_status.error", err.Error())
 	}
 
 	// Check if the lookup was found
-	if len(listResp.Items) == 0 {
+	if len(res.Items) == 0 {
 		return nil, cerror.NewNotFoundError("status.locate_status.not_found", "Status lookup not found")
 	}
 
 	// Return the found status lookup
-	return &_go.LocateStatusResponse{Status: listResp.Items[0]}, nil
+	return &_go.LocateStatusResponse{Status: res.Items[0]}, nil
 }
 
 func NewStatusService(app *App) (*StatusService, cerror.AppError) {

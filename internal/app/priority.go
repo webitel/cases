@@ -2,13 +2,11 @@ package app
 
 import (
 	"context"
-	"log/slog"
-
 	api "github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/util"
-
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/util"
+	"log/slog"
 )
 
 var defaultFieldsPriority = []string{
@@ -54,7 +52,7 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 	createOpts, err := model.NewCreateOptions(ctx, req, PriorityMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	createOpts.Fields = fields
 
@@ -73,7 +71,7 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	if req.Q != "" {
 		searchOptions.Filter["name"] = req.Q
@@ -120,7 +118,7 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 	updateOpts, err := model.NewUpdateOptions(ctx, req, PriorityMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	updateOpts.Fields = fields
 	updateOpts.Mask = mask
@@ -149,7 +147,7 @@ func (p *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePri
 	deleteOpts, err := model.NewDeleteOptions(ctx, PriorityMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	deleteOpts.IDs = []int64{req.Id}
 

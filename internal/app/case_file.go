@@ -40,7 +40,7 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 	searchOpts, err := model.NewSearchOptions(ctx, req, CaseFileMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	searchOpts.ParentId = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
@@ -49,17 +49,17 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 	}
 	files, err := c.app.Store.CaseFile().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 	return files, nil
 }
@@ -72,7 +72,7 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 	deleteOpts, err := model.NewDeleteOptions(ctx, CaseFileMetadata)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 
 	caseTID, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
@@ -104,11 +104,11 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 		)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (DELETE) access to the case", logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 	}
 
@@ -123,7 +123,7 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 			)
 		default:
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, AppDatabaseError
+			return nil, DatabaseError
 		}
 	}
 

@@ -127,13 +127,13 @@ type AccessControlStore interface {
 // ------------ Dictionary Stores ------------ //
 type StatusStore interface {
 	// Create a new status lookup
-	Create(rpc *model.CreateOptions, add *_go.Status) (*_go.Status, error)
+	Create(rpc *model.CreateOptions, input *_go.Status) (*_go.Status, error)
 	// List status lookup
 	List(rpc *model.SearchOptions) (*_go.StatusList, error)
 	// Delete status lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update status lookup
-	Update(rpc *model.UpdateOptions, lookup *_go.Status) (*_go.Status, error)
+	Update(rpc *model.UpdateOptions, input *_go.Status) (*_go.Status, error)
 }
 
 type StatusConditionStore interface {
@@ -149,24 +149,24 @@ type StatusConditionStore interface {
 
 type CloseReasonGroupStore interface {
 	// Create a new close reason lookup
-	Create(rpc *model.CreateOptions, add *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
+	Create(rpc *model.CreateOptions, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
 	// List close reason lookup
 	List(rpc *model.SearchOptions) (*_go.CloseReasonGroupList, error)
 	// Delete close reason lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update close reason lookup
-	Update(rpc *model.UpdateOptions, lookup *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
+	Update(rpc *model.UpdateOptions, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
 }
 
 type CloseReasonStore interface {
 	// Create a new reason
-	Create(ctx *model.CreateOptions, add *_go.CloseReason) (*_go.CloseReason, error)
+	Create(ctx *model.CreateOptions, input *_go.CloseReason) (*_go.CloseReason, error)
 	// List reasons
 	List(ctx *model.SearchOptions, closeReasonId int64) (*_go.CloseReasonList, error)
 	// Delete reason
-	Delete(ctx *model.DeleteOptions, closeReasonId int64) error
+	Delete(ctx *model.DeleteOptions) error
 	// Update reason
-	Update(ctx *model.UpdateOptions, lookup *_go.CloseReason) (*_go.CloseReason, error)
+	Update(ctx *model.UpdateOptions, input *_go.CloseReason) (*_go.CloseReason, error)
 }
 
 type SourceStore interface {
@@ -193,13 +193,13 @@ type PriorityStore interface {
 
 type SLAStore interface {
 	// Create a new SLA lookup
-	Create(rpc *model.CreateOptions, add *_go.SLA) (*_go.SLA, error)
+	Create(rpc *model.CreateOptions, input *_go.SLA) (*_go.SLA, error)
 	// List SLA lookup
 	List(rpc *model.SearchOptions) (*_go.SLAList, error)
 	// Delete SLA lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update SLA lookup
-	Update(rpc *model.UpdateOptions, lookup *_go.SLA) (*_go.SLA, error)
+	Update(rpc *model.UpdateOptions, input *_go.SLA) (*_go.SLA, error)
 }
 
 type SLAConditionStore interface {
