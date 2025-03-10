@@ -20,11 +20,11 @@ type ServiceService struct {
 // CreateService implements cases.ServicesServer.
 func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServiceRequest) (*api.Service, error) {
 	// Validate required fields
-	if req.Name == "" {
+	if req.Input.Name == "" {
 		return nil, cerror.NewBadRequestError("service.create_service.name.required", "Service name is required")
 	}
 
-	if req.RootId == 0 {
+	if req.Input.RootId == 0 {
 		return nil, cerror.NewBadRequestError("service.create_service.root_id.required", "Root ID is required")
 	}
 
@@ -37,24 +37,17 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		Time:    t,
 	}
 
-	// Define the current user as the creator and updater
-	currentU := &api.Lookup{
-		Id: createOpts.GetAuthOpts().GetUserId(),
-	}
-
 	// Create a new Service user_auth
 	service := &api.Service{
-		Name:        req.Name,
-		Description: req.Description,
-		Code:        req.Code,
-		Sla:         req.Sla,
-		Group:       req.Group,
-		Assignee:    req.Assignee,
-		CreatedBy:   currentU,
-		UpdatedBy:   currentU,
-		State:       req.State,
-		RootId:      req.RootId,
-		CatalogId:   req.CatalogId,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		Code:        req.Input.Code,
+		Sla:         req.Input.Sla,
+		Group:       req.Input.Group,
+		Assignee:    req.Input.Assignee,
+		State:       req.Input.State,
+		RootId:      req.Input.RootId,
+		CatalogId:   req.Input.CatalogId,
 	}
 
 	// Create the Service in the store

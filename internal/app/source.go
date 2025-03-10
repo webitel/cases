@@ -21,12 +21,12 @@ type SourceService struct {
 
 func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRequest) (*_go.Source, error) {
 	// Validate required fields
-	if req.Name == "" {
+	if req.Input.Name == "" {
 		return nil, cerror.NewBadRequestError("source_service.create_source.name.required", ErrLookupNameReq)
 	}
 
 	// Validate the Type field
-	if req.Type == _go.SourceType_TYPE_UNSPECIFIED {
+	if req.Input.Type == _go.SourceType_TYPE_UNSPECIFIED {
 		return nil, cerror.NewBadRequestError("source_service.create_source.type.required", "Source type is required")
 	}
 
@@ -39,18 +39,11 @@ func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRe
 		Fields:  fields,
 	}
 
-	// Define the current user as the creator and updater
-	currentU := &_go.Lookup{
-		Id: createOpts.GetAuthOpts().GetUserId(),
-	}
-
 	// Create a new source user_auth
 	source := &_go.Source{
-		Name:        req.Name,
-		Description: req.Description,
-		Type:        req.Type,
-		CreatedBy:   currentU,
-		UpdatedBy:   currentU,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		Type:        req.Input.Type,
 	}
 
 	// Create the source in the store
@@ -98,33 +91,6 @@ func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceReque
 	if e != nil {
 		return nil, cerror.NewInternalError("source_service.list_sources.store.list.failed", e.Error())
 	}
-
-	// // Publish an event to RabbitMQ
-	// event := map[string]interface{}{
-	// 	"action": "ListSources",
-	// 	"user":   session.GetUserId(),
-	// 	"query":  req.Q,
-	// 	"type":   req.Type,
-	// 	"fields": fields,
-	// 	"page":   page,
-	// 	"size":   req.Size,
-	// }
-
-	// eventData, err := json.Marshal(event)
-	// if err != nil {
-	// 	return nil, cerror.NewInternalError("source_service.list_sources.event_marshal.failed", err.Error())
-	// }
-
-	// err = s.app.rabbit.Publish(
-	// 	user_auth.APP_SERVICE_NAME,
-	// 	"list_sources_key",
-	// 	eventData,
-	// 	strconv.Itoa(int(session.GetUserId())),
-	// 	time.Now(),
-	// )
-	// if err != nil {
-	// 	return nil, cerror.NewInternalError("source_service.list_sources.event_publish.failed", err.Error())
-	// }
 
 	return lookups, nil
 }

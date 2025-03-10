@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	cases "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
@@ -29,19 +29,19 @@ const (
 // CreateCatalog implements cases.CatalogsServer.
 func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCatalogRequest) (*cases.Catalog, error) {
 	// Validate required fields
-	if req.Name == "" {
+	if req.Input.Name == "" {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.name.required", "Catalog name is required")
 	}
-	if req.Prefix == "" {
+	if req.Input.Prefix == "" {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.prefix.required", "Catalog prefix is required")
 	}
-	if req.Sla == nil || req.Sla.GetId() == 0 {
+	if req.Input.Sla == nil || req.Input.Sla.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.sla.required", "SLA is required")
 	}
-	if req.Status == nil || req.Status.GetId() == 0 {
+	if req.Input.Status == nil || req.Input.Status.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.status.required", "Status is required")
 	}
-	if req.CloseReasonGroup == nil || req.CloseReasonGroup.GetId() == 0 {
+	if req.Input.CloseReasonGroup == nil || req.Input.CloseReasonGroup.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.close_reason_group.required", "Close reason group is required")
 	}
 	// Define create options
@@ -58,27 +58,27 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 
 	// Create a new Catalog user_auth
 	catalog := &cases.Catalog{
-		Name:             req.Name,
-		Description:      req.Description,
-		Prefix:           req.Prefix,
-		Code:             req.Code,
-		State:            req.State,
-		Sla:              req.Sla,
-		Status:           req.Status,
-		CloseReasonGroup: req.CloseReasonGroup,
+		Name:             req.Input.Name,
+		Description:      req.Input.Description,
+		Prefix:           req.Input.Prefix,
+		Code:             req.Input.Code,
+		State:            req.Input.State,
+		Sla:              req.Input.Sla,
+		Status:           req.Input.Status,
+		CloseReasonGroup: req.Input.CloseReasonGroup,
 		CreatedBy:        currentU,
 		UpdatedBy:        currentU,
 	}
 
 	// Handle multiselect fields: teams and skills
-	if len(req.Teams) > 0 {
-		catalog.Teams = make([]*cases.Lookup, len(req.Teams))
-		copy(catalog.Teams, req.Teams)
+	if len(req.Input.Teams) > 0 {
+		catalog.Teams = make([]*cases.Lookup, len(req.Input.Teams))
+		copy(catalog.Teams, req.Input.Teams)
 	}
 
-	if len(req.Skills) > 0 {
-		catalog.Skills = make([]*cases.Lookup, len(req.Skills))
-		copy(catalog.Skills, req.Skills)
+	if len(req.Input.Skills) > 0 {
+		catalog.Skills = make([]*cases.Lookup, len(req.Input.Skills))
+		copy(catalog.Skills, req.Input.Skills)
 	}
 
 	// Create the Catalog in the store
@@ -118,110 +118,6 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 		Items: deletedCatalogs,
 	}, nil
 }
-
-// // ListCatalogs implements cases.CatalogsServer.
-// func (s *CatalogService) ListCatalogs(
-// 	ctx context.Context,
-// 	req *cases.ListCatalogRequest,
-// ) (*cases.CatalogList, error) {
-// 	page := req.Page
-// 	if page == 0 {
-// 		page = 1
-// 	}
-
-// 	if len(req.Fields) == 0 {
-// 		req.Fields = strings.Split(defaultCatalogFields, ", ")
-// 	} else {
-// 		req.Fields = util.FieldsFunc(req.Fields, util.InlineFields)
-// 	}
-
-// 	if !util.ContainsField(req.Fields, "services") {
-// 		req.Fields = append(req.Fields, "services")
-// 	}
-
-// 	if req.Query != "" {
-// 		req.Fields = append(req.Fields, "searched")
-// 	}
-
-// 	if len(req.SubFields) > 0 {
-// 		req.SubFields = util.FieldsFunc(req.SubFields, util.InlineFields)
-// 	} else if len(req.SubFields) == 0 {
-// 		req.SubFields = strings.Split(defaultSubfields, ", ")
-// 	}
-
-// 	t := time.Now()
-// 	searchOptions := &model.SearchOptions{
-// 		IDs:     req.Id,
-// 		Context: ctx,
-// 		Sort:    req.Sort,
-// 		Fields:  req.Fields,
-// 		Page:    int(page),
-// 		Size:    int(req.Size),
-// 		Time:    t,
-// 		Filter:  make(map[string]any),
-// 		Auth:    model.GetAutherOutOfContext(ctx),
-// 	}
-
-// 	if req.Query != "" {
-// 		searchOptions.Filter["name"] = req.Query
-// 		req.Fields = append(req.Fields, "searched")
-// 	}
-
-// 	var (
-// 		teamID   *int64
-// 		skillIDs []*int64
-// 	)
-// 	if req.AgentID != 0 {
-
-// 		var info metadata.MD
-// 		var ok bool
-
-// 		info, ok = metadata.FromIncomingContext(ctx)
-// 		if !ok {
-// 			return nil, cerror.NewForbiddenError("internal.grpc.get_context", "Not found")
-// 		}
-// 		newCtx := metadata.NewOutgoingContext(ctx, info)
-// 		agent, err := engine.AgentServiceClient.SearchAgent(
-// 			s.app.engineAgentClient,
-// 			newCtx,
-// 			&engine.SearchAgentRequest{
-// 				Id:     []string{strconv.Itoa(int(req.AgentID))},
-// 				Fields: []string{"id", "team"},
-// 				Size:   -1,
-// 			})
-// 		print(agent)
-// 		if err != nil {
-// 			return nil, cerror.NewInternalError("catalog.list_catalogs.search.agent", err.Error())
-// 		}
-// 		skills, err := engine.AgentSkillServiceClient.SearchAgentSkill(
-// 			s.app.engineAgentSkillClient,
-// 			newCtx,
-// 			&engine.SearchAgentSkillRequest{
-// 				AgentId: req.AgentID,
-// 				Fields:  []string{"id"},
-// 				Size:    -1,
-// 			},
-// 		)
-// 		print(skills)
-// 		if err != nil {
-// 			return nil, cerror.NewInternalError("catalog.list_catalogs.search.agent_skills", err.Error())
-// 		}
-// 	}
-
-// 	catalogs, e := s.app.Store.Catalog().List(
-// 		searchOptions,
-// 		req.Depth,
-// 		req.SubFields,
-// 		req.HasSubservices,
-// 		teamID,
-// 		skillIDs,
-// 	)
-// 	if e != nil {
-// 		return nil, cerror.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
-// 	}
-
-// 	return catalogs, nil
-// }
 
 // ListCatalogs implements cases.CatalogsServer.
 func (s *CatalogService) ListCatalogs(
