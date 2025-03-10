@@ -17,7 +17,7 @@ var CaseTimelineFields = []string{
 }
 
 type CaseTimelineStore struct {
-	storage store.Store
+	storage *Store
 }
 
 func (c *CaseTimelineStore) Get(rpc *model.SearchOptions) (*cases.GetTimelineResponse, error) {
@@ -881,7 +881,7 @@ WHERE conv.id =  ANY(SELECT communication_id::uuid FROM cases.case_communication
                WHERE m.id = ANY(SELECT communication_id::bigint FROM cases.case_communication WHERE case_id = ? AND communication_type = ?::int)`
 )
 
-func NewCaseTimelineStore(store store.Store) (store.CaseTimelineStore, error) {
+func NewCaseTimelineStore(store *Store) (store.CaseTimelineStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.case_timeline.new_case_timeline_store.check_args.store",
 			"store required")

@@ -24,7 +24,7 @@ const (
 // CreateStatusCondition implements api.StatusConditionsServer.
 func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *_go.CreateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
-	if req.Name == "" {
+	if req.Input.Name == "" {
 		return nil, cerror.NewBadRequestError("status_condition.create_status_condition.name.required", ErrStatusNameReq)
 	}
 
@@ -40,17 +40,10 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 		Time:    t,
 	}
 
-	// Define the current user as the creator and updater
-	currentU := &_go.Lookup{
-		Id: createOpts.GetAuthOpts().GetUserId(),
-	}
-
 	// Create a new status user_auth
 	status := &_go.StatusCondition{
-		Name:        req.Name,
-		Description: req.Description,
-		CreatedBy:   currentU,
-		UpdatedBy:   currentU,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
 		StatusId:    req.StatusId,
 	}
 

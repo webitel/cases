@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	cases "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/util"
 
 	cerror "github.com/webitel/cases/internal/errors"
@@ -25,16 +25,16 @@ const (
 // CreateSLACondition implements cases.SLAConditionsServer.
 func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases.CreateSLAConditionRequest) (*cases.SLACondition, error) {
 	// Validate required fields
-	if req.Name == "" {
+	if req.Input.Name == "" {
 		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.name.required", "SLA Condition name is required")
 	}
-	if len(req.Priorities) == 0 {
+	if len(req.Input.Priorities) == 0 {
 		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.priorities.required", "At least one priority is required")
 	}
-	if req.ReactionTime == 0 {
+	if req.Input.ReactionTime == 0 {
 		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.reaction_time.required", "Reaction time is required")
 	}
-	if req.ResolutionTime == 0 {
+	if req.Input.ResolutionTime == 0 {
 		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.resolution_time.required", "Resolution time is required")
 	}
 	if req.SlaId == 0 {
@@ -50,7 +50,7 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 
 	// Convert []*cases.Lookup to []int64
 	var priorityIDs []int64
-	for _, priority := range req.Priorities {
+	for _, priority := range req.Input.Priorities {
 		if priority != nil { // Check for nil to avoid runtime panic
 			priorityIDs = append(priorityIDs, priority.GetId()) // Use GetId() to ensure proper handling
 		}
@@ -65,19 +65,12 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 		Ids:     priorityIDs,
 	}
 
-	// Define the current user as the creator and updater
-	currentU := &cases.Lookup{
-		Id: createOpts.GetAuthOpts().GetUserId(),
-	}
-
 	// Create a new SLACondition user_auth
 	slaCondition := &cases.SLACondition{
-		Name:           req.Name,
-		ReactionTime:   req.ReactionTime,
-		ResolutionTime: req.ResolutionTime,
+		Name:           req.Input.Name,
+		ReactionTime:   req.Input.ReactionTime,
+		ResolutionTime: req.Input.ResolutionTime,
 		SlaId:          req.SlaId,
-		CreatedBy:      currentU,
-		UpdatedBy:      currentU,
 	}
 
 	// Create the SLACondition in the store
@@ -246,7 +239,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		Name:           req.Input.Name,
 		ReactionTime:   req.Input.ReactionTime,
 		ResolutionTime: req.Input.ResolutionTime,
-		SlaId:          req.Input.SlaId,
+		SlaId:          req.SlaId,
 		UpdatedBy:      u,
 	}
 

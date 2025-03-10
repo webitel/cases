@@ -10,19 +10,15 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	cases "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
-const (
-	serviceDefaultSort = "name"
-)
-
 type ServiceStore struct {
-	storage store.Store
+	storage *Store
 }
 
 func (s *ServiceStore) Create(rpc *model.CreateOptions, add *cases.Service) (*cases.Service, error) {
@@ -600,7 +596,7 @@ func safePgText(text pgtype.Text) string {
 	return ""
 }
 
-func NewServiceStore(store store.Store) (store.ServiceStore, error) {
+func NewServiceStore(store *Store) (store.ServiceStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_service.check.bad_arguments",
 			"error creating Service interface to the service table, main store is nil")
