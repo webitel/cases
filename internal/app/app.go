@@ -47,7 +47,7 @@ var (
 		"app.process_api.response.access.error",
 		"unable access resource",
 	)
-	AppInternalError = errors.NewInternalError(
+	InternalError = errors.NewInternalError(
 		"app.process_api.execution.error",
 		"error occurred while processing request",
 	)
