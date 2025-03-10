@@ -21,7 +21,7 @@ const (
 )
 
 type SLAStore struct {
-	storage store.Store
+	storage *Store
 }
 
 // Helper function to convert plan to scan arguments.
@@ -400,7 +400,7 @@ func (s *SLAStore) Delete(rpc *model.DeleteOptions) error {
 	return nil
 }
 
-func NewSLAStore(store store.Store) (store.SLAStore, error) {
+func NewSLAStore(store *Store) (store.SLAStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_sla.check.bad_arguments",
 			"error creating SLA interface, main store is nil")

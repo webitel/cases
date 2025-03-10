@@ -20,7 +20,7 @@ import (
 )
 
 type CaseCommentStore struct {
-	storage store.Store
+	storage *Store
 }
 
 type CommentScan func(comment *_go.CaseComment) any
@@ -659,7 +659,7 @@ func addCaseCommentRbacConditionForUpdate(auth auth.Auther, access auth.AccessMo
 	return query, nil
 }
 
-func NewCaseCommentStore(store store.Store) (store.CaseCommentStore, error) {
+func NewCaseCommentStore(store *Store) (store.CaseCommentStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_case_comment.check.bad_arguments",
 			"error creating comment case interface to the case_comment table, main store is nil")

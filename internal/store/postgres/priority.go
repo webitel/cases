@@ -14,7 +14,7 @@ import (
 )
 
 type Priority struct {
-	storage store.Store
+	storage *Store
 }
 
 type PriorityScan func(priority *api.Priority) any
@@ -410,7 +410,7 @@ func buildPrioritySelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func NewPriorityStore(store store.Store) (store.PriorityStore, error) {
+func NewPriorityStore(store *Store) (store.PriorityStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_priority.check.bad_arguments",
 			"error creating priority interface to the status_condition table, main store is nil")

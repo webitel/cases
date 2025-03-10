@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/webitel/cases/auth"
 
 	_go "github.com/webitel/cases/api/cases"
@@ -44,9 +43,8 @@ type Store interface {
 	Service() ServiceStore
 
 	// ------------ Database Management ------------ //
-	Database() (*pgxpool.Pool, *dberr.DBError) // Return custom DB error
-	Open() *dberr.DBError                      // Return custom DB error
-	Close() *dberr.DBError                     // Return custom DB error
+	Open() *dberr.DBError  // Return custom DB error
+	Close() *dberr.DBError // Return custom DB error
 }
 
 // ------------ Cases Stores ------------ //

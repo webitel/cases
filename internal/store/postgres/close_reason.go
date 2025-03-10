@@ -21,7 +21,7 @@ const (
 )
 
 type CloseReason struct {
-	storage store.Store
+	storage *Store
 }
 
 // Helper function to convert plan to scan arguments.
@@ -373,7 +373,7 @@ func (s *CloseReason) Delete(rpc *model.DeleteOptions) error {
 	return nil
 }
 
-func NewCloseReasonStore(store store.Store) (store.CloseReasonStore, error) {
+func NewCloseReasonStore(store *Store) (store.CloseReasonStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_close_reason.check.bad_arguments",
 			"error creating close_reason interface, main store is nil")

@@ -23,7 +23,7 @@ const (
 )
 
 type CaseLinkStore struct {
-	storage   store.Store
+	storage   *Store
 	mainTable string
 }
 
@@ -186,7 +186,7 @@ func (l *CaseLinkStore) Update(opts *model.UpdateOptions, upd *_go.InputCaseLink
 	return res, nil
 }
 
-func NewCaseLinkStore(store store.Store) (store.CaseLinkStore, error) {
+func NewCaseLinkStore(store *Store) (store.CaseLinkStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_link_case.check.bad_arguments",
 			"error creating link case interface to the comment_case table, main store is nil")
