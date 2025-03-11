@@ -145,12 +145,6 @@ func (s *CatalogService) ListCatalogs(
 		page = 1
 	}
 
-	if len(req.Fields) == 0 {
-		req.Fields = strings.Split(defaultCatalogFields, ", ")
-	} else {
-		req.Fields = util.FieldsFunc(req.Fields, util.InlineFields)
-	}
-
 	if !util.ContainsField(req.Fields, "services") {
 		req.Fields = append(req.Fields, "services")
 	}

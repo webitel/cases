@@ -105,7 +105,7 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 		Id:          req.Id,
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
-		UpdatedBy:   &api.Lookup{Id: updateOpts.GetAuthOpts().GetUserId()},
+		UpdatedBy:   &api.Lookup{Id: updateOpts.GetAuth().GetUserId()},
 		Color:       req.Input.Color,
 	}
 

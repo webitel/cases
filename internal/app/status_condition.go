@@ -2,7 +2,7 @@ package app
 
 import (
 	"context"
-	"strings"
+	"log/slog"
 	"time"
 
 	_go "github.com/webitel/cases/api/cases"
@@ -69,9 +69,6 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 // ListStatusConditions implements api.StatusConditionsServer.
 func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_go.ListStatusConditionRequest) (*_go.StatusConditionList, error) {
 	fields := req.Fields
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsStatus, ", ")
-	}
 
 	// Use default page size and page number if not provided
 	page := req.Page
@@ -133,7 +130,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 
 	// Define the current user as the updater
 	u := &_go.Lookup{
-		Id: updateOpts.GetAuthOpts().GetUserId(),
+		Id: updateOpts.GetAuth().GetUserId(),
 	}
 	status.UpdatedBy = u
 

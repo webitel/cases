@@ -351,12 +351,12 @@ func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
 		PlaceholderFormat(sq.Dollar).
 		Set("relation_type", input.RelationType).
 		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Set("updated_by", rpc.GetAuth().GetUserId()).
 		Set("ver", sq.Expr("ver + 1")).
 		Where(sq.Eq{
 			"id":  rpc.GetEtags()[0].GetOid(),
 			"ver": rpc.GetEtags()[0].GetVer(),
-			"dc":  rpc.GetAuthOpts().GetDomainId(),
+			"dc":  rpc.GetAuth().GetDomainId(),
 		})
 
 	for _, mask := range rpc.GetMask() {

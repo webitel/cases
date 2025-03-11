@@ -277,7 +277,7 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Update
 	// 1. Squirrel operations: Building the dynamic part of the "upd" query
 	updBuilder := sq.Update("cases.status_condition").
 		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId())
+		Set("updated_by", rpc.GetAuth().GetUserId())
 
 	// Track whether "initial" or "final" are being updated
 	updateInitial := false
@@ -305,7 +305,7 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Update
 	// Build the dynamic part of the "upd" query using squirrel
 	updSql, updArgs, err := updBuilder.
 		Where(sq.Eq{"id": st.Id}).
-		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
+		Where(sq.Eq{"dc": rpc.GetAuth().GetDomainId()}).
 		Suffix("RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id").
 		ToSql()
 	if err != nil {
@@ -369,13 +369,13 @@ WHERE CASE
 
 	// 3. Adding all arguments
 	args = append(args,
-		rpc.GetAuthOpts().GetDomainId(), // $1
-		st.StatusId,                     // $2
-		st.Id,                           // $3
-		updateInitial,                   // $4
-		updateFinal,                     // $5
-		st.Final,                        // $6
-		st.Initial,                      // $7
+		rpc.GetAuth().GetDomainId(), // $1
+		st.StatusId,                 // $2
+		st.Id,                       // $3
+		updateInitial,               // $4
+		updateFinal,                 // $5
+		st.Final,                    // $6
+		st.Initial,                  // $7
 	)
 
 	// Append the dynamic query arguments

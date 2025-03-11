@@ -136,9 +136,9 @@ func (s *Source) buildUpdateSourceQuery(rpc options.UpdateOptions, source *_go.S
 	updateBuilder := sq.Update("cases.source").
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Set("updated_by", rpc.GetAuth().GetUserId()).
 		Where(sq.Eq{"id": source.Id}).
-		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
+		Where(sq.Eq{"dc": rpc.GetAuth().GetDomainId()})
 
 	for _, field := range rpc.GetMask() {
 		switch field {

@@ -131,7 +131,7 @@ func (c *CaseStore) Create(
 
 // ScanSla fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
 func (c *CaseStore) ScanSla(
-	rpc options.CreateOptions,
+	ctx context.Context,
 	txManager *transaction.TxManager,
 	serviceID int64,
 	priorityID int64,
@@ -145,7 +145,7 @@ func (c *CaseStore) ScanSla(
 ) {
 	// var slaId, reactionTime, resolutionTime, calendarId, slaConditionId int
 
-	err = txManager.QueryRow(rpc, `
+	err = txManager.QueryRow(ctx, `
 WITH RECURSIVE
     service_hierarchy AS (SELECT id,
                                  root_id,
@@ -456,9 +456,15 @@ type MergedSlot struct {
 	Disabled       bool      // Is the slot disabled
 }
 
+type TimingOptions interface {
+	GetTime() time.Time
+	GetAuth() auth.Auther
+	context.Context
+}
+
 func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	caseID *int64,
-	rpc options.CreateOptions,
+	rpc TimingOptions,
 	calendarID int,
 	reactionTime int,
 	resolutionTime int,
@@ -525,7 +531,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 }
 
 // fetchCalendarSlots retrieves working hours for a calendar
-func fetchCalendarSlots(rpc options.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]CalendarSlot, error) {
+func fetchCalendarSlots(rpc TimingOptions, txManager *transaction.TxManager, calendarID int) ([]CalendarSlot, error) {
 	rows, err := txManager.Query(rpc, `
 		SELECT day, start_time_of_day, end_time_of_day, disabled
 		FROM flow.calendar cl,
@@ -561,7 +567,7 @@ func fetchCalendarSlots(rpc options.CreateOptions, txManager *transaction.TxMana
 }
 
 // fetchExceptionSlots retrieves exceptions for specific days (overrides)
-func fetchExceptionSlots(rpc options.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]ExceptionSlot, error) {
+func fetchExceptionSlots(rpc TimingOptions, txManager *transaction.TxManager, calendarID int) ([]ExceptionSlot, error) {
 	rows, err := txManager.Query(rpc, `
 		SELECT
 			to_timestamp(x.date / 1000) AS date,
@@ -1116,13 +1122,13 @@ func (c *CaseStore) Update(
 	if txErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", txErr)
 	}
-	defer tx.Rollback(rpc.Context)
+	defer tx.Rollback(rpc)
 	txManager := transaction.NewTxManager(tx)
 
 	// * if user change Service -- SLA ; SLA Condition ; Planned Reaction / Resolve at ; Calendar could be changed
-	if util.ContainsField(rpc.Mask, "service") {
-		slaID, slaConditionID, reaction_at, resolve_at, calendarID, err := c.ScanSla(
-			options.CreateOptions{},
+	if util.ContainsField(rpc.GetMask(), "service") {
+		slaID, slaConditionID, reactionAt, resolveAt, calendarID, err := c.ScanSla(
+			rpc,
 			txManager,
 			upd.Service.GetId(),
 			upd.Priority.GetId(),
@@ -1131,15 +1137,15 @@ func (c *CaseStore) Update(
 			return nil, dberr.NewDBInternalError("postgres.case.update.scan_sla_error", err)
 		}
 
-		oid := rpc.Etags[0].GetOid()
+		oid := rpc.GetEtags()[0].GetOid()
 
 		// Calculate planned times within the transaction
 		err = c.calculatePlannedReactionAndResolutionTime(
 			&oid,
-			options.CreateOptions{rpc},
+			rpc,
 			calendarID,
-			reaction_at,
-			resolve_at,
+			reactionAt,
+			resolveAt,
 			txManager,
 			upd,
 		)
@@ -1175,7 +1181,7 @@ func (c *CaseStore) Update(
 	// Prepare scan arguments
 	scanArgs := convertToCaseScanArgs(plan, upd)
 
-	if err := txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := txManager.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, dberr.NewDBNoRowsError("postgres.case.update.update.scan_ver.not_found")
 		}
@@ -1183,10 +1189,10 @@ func (c *CaseStore) Update(
 	}
 
 	// Commit the transaction
-	if err := tx.Commit(rpc.Context); err != nil {
+	if err := tx.Commit(rpc); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.update.commit_error", err)
 	}
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		if field == "role_ids" {
 			roles, defErr := c.GetRolesById(rpc, upd.GetId(), auth.Read)
 			if defErr != nil {
@@ -1205,21 +1211,22 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	upd *_go.Case,
 ) (sq.Sqlizer, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included
-	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdAndVerField(rpc.GetFields())
 	var err error
 
 	// Initialize the update query
 	updateBuilder := sq.Update(c.mainTable).
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.CurrentTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Set("updated_at", rpc.GetTime()).
+		Set("updated_by", rpc.GetAuth().GetUserId()).
 		Where(sq.Eq{
-			"id":  rpc.Etags[0].GetOid(),
-			"ver": rpc.Etags[0].GetVer(),
-			"dc":  rpc.GetAuthOpts().GetDomainId(),
+			"id":  rpc.GetEtags()[0].GetOid(),
+			"ver": rpc.GetEtags()[0].GetVer(),
+			"dc":  rpc.GetAuth().GetDomainId(),
 		})
 
-	updateBuilder, err = addCaseRbacConditionForUpdate(rpc.GetAuthOpts(), auth.Edit, updateBuilder, "id")
+	updateBuilder, err = addCaseRbacConditionForUpdate(rpc.GetAuth(), auth.Edit, updateBuilder, "id")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1227,7 +1234,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	updateBuilder = updateBuilder.Set("ver", sq.Expr("ver + 1"))
 
 	// Handle nested fields using switch-case on req.Mask
-	for _, field := range rpc.Mask {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "subject":
 			updateBuilder = updateBuilder.Set("subject", upd.GetSubject())
@@ -1265,7 +1272,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(upd.GetPlannedResolveAt()))
 			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.GetPlannedReactionAt()))
 
-			caseIDString := strconv.FormatInt(rpc.Etags[0].GetOid(), 10)
+			caseIDString := strconv.FormatInt(rpc.GetEtags()[0].GetOid(), 10)
 
 			updateBuilder = updateBuilder.Set("name",
 				sq.Expr("CONCAT(("+prefixCTE+"), '_', CAST(? AS TEXT))",
@@ -1307,7 +1314,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	}
 
 	// Define SELECT query for returning updated fields
-	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(rpc.GetAuthOpts(), rpc.Fields,
+	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(rpc.GetAuth(), fields,
 		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
 	)
 	if err != nil {

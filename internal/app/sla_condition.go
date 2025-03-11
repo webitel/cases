@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/webitel/cases/api/cases"
@@ -114,9 +113,6 @@ func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases
 func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.ListSLAConditionRequest) (*cases.SLAConditionList, error) {
 
 	fields := req.Fields
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsSLACondition, ", ")
-	}
 
 	// Use default page size and page number if not provided
 	page := req.Page
@@ -210,7 +206,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 
 	// Define the current user as the updater
 	u := &cases.Lookup{
-		Id: updateOpts.GetAuthOpts().GetUserId(),
+		Id: updateOpts.GetAuth().GetUserId(),
 	}
 
 	// Update SLACondition user_auth

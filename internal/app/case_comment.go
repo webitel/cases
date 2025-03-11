@@ -3,8 +3,7 @@ package app
 import (
 	"context"
 	"errors"
-	cases "github.com/webitel/cases/api/cases"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/api/cases"
 	"log/slog"
 
 	"github.com/webitel/cases/auth"
@@ -112,7 +111,7 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, InternalError
 	}
 
-	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("id", tag.GetOid()))
+	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuth().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuth().GetDomainId()), slog.Int64("id", tag.GetOid()))
 
 	comment := &cases.CaseComment{
 		Id:   tag.GetOid(),
@@ -135,7 +134,7 @@ func (c *CaseCommentService) UpdateComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, ResponseNormalizingError
 	}
-	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, parentId, updatedComment)
+	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuth().GetDomainId(), roleIds, parentId, updatedComment)
 	if ftsErr != nil {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}

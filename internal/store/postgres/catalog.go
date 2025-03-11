@@ -1426,9 +1426,9 @@ func (s *CatalogStore) Update(rpc options.UpdateOptions, lookup *cases.Catalog) 
 			lookup.Id,
 			teamIDs,  // Pass empty slice if no team IDs are provided
 			skillIDs, // Pass empty slice if no skill IDs are provided
-			rpc.GetAuthOpts().GetUserId(),
+			rpc.GetAuth().GetUserId(),
 			rpc.GetTime(),
-			rpc.GetAuthOpts().GetDomainId(),
+			rpc.GetAuth().GetDomainId(),
 		)
 
 		// Execute the teams and skills update query and check for affected rows
@@ -1612,8 +1612,8 @@ WITH root_check AS (
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
-		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
+		Set("updated_by", rpc.GetAuth().GetUserId()).
+		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuth().GetDomainId()})
 
 	// Dynamically set fields based on user update preferences
 	for _, field := range rpc.GetMask() {

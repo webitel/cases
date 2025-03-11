@@ -9,7 +9,7 @@ import (
 
 type UpdateOptions interface {
 	context.Context
-	GetAuthOpts() auth.Auther
+	GetAuth() auth.Auther
 	GetFields() []string
 	GetUnknownFields() []string
 	GetDerivedSearchOpts() map[string]*SearchOptions

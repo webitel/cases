@@ -316,12 +316,12 @@ func buildUpdateLinkQuery(opts options.UpdateOptions, add *_go.InputCaseLink) (s
 	// insert
 	update := squirrel.
 		Update("cases.case_link").
-		Set("updated_by", opts.GetAuthOpts().GetUserId()).
+		Set("updated_by", opts.GetAuth().GetUserId()).
 		Set("updated_at", opts.GetTime()).
 		Set("ver", squirrel.Expr("ver+1")).
 		Where("id = ?", tid.GetOid()).
 		Where("ver = ?", tid.GetVer()).
-		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
+		Where("dc = ?", opts.GetAuth().GetDomainId()).
 		Where("case_id = ?", opts.GetParentID()).
 		Suffix("RETURNING *").
 		PlaceholderFormat(squirrel.Dollar)

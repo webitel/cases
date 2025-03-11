@@ -179,14 +179,14 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 
 	logAttributes := slog.Group(
 		"context",
-		slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()),
-		slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()),
+		slog.Int64("user_id", updateOpts.GetAuth().GetUserId()),
+		slog.Int64("domain_id", updateOpts.GetAuth().GetDomainId()),
 		slog.Int64("id", linkTid.GetOid()),
 		slog.Int64("case_id", updateOpts.ParentID),
 	)
 	accessMode := auth.Edit
-	if updateOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
-		access, err := c.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), auth.Edit, updateOpts.ParentID)
+	if updateOpts.GetAuth().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuth(), auth.Edit, updateOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError

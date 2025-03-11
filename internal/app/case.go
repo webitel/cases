@@ -340,11 +340,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		"context",
 		slog.Int64(
 			"user_id",
-			updateOpts.GetAuthOpts().GetUserId(),
+			updateOpts.GetAuth().GetUserId(),
 		),
 		slog.Int64(
 			"domain_id",
-			updateOpts.GetAuthOpts().GetDomainId(),
+			updateOpts.GetAuth().GetDomainId(),
 		),
 		slog.Int64(
 			"case_id",
@@ -404,13 +404,13 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, ResponseNormalizingError
 	}
 
-	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, res)
+	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuth().GetDomainId(), roleIds, res)
 	if ftsErr != nil {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
 	log, err := wlogger.NewCreateMessage(
-		updateOpts.GetAuthOpts().GetUserId(),
+		updateOpts.GetAuth().GetUserId(),
 		getClientIp(ctx),
 		res.Id,
 		res,
@@ -418,12 +418,12 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	logErr := c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), log)
+	logErr := c.logger.SendContext(ctx, updateOpts.GetAuth().GetDomainId(), log)
 	if logErr != nil {
 		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
 	}
 
-	err = c.app.watcher.OnEvent(EventTypeUpdate, NewWatcherData(res, updateOpts.GetAuthOpts().GetDomainId()))
+	err = c.app.watcher.OnEvent(EventTypeUpdate, NewWatcherData(res, updateOpts.GetAuth().GetDomainId()))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case update: %s, ", err.Error()), logAttributes)
 	}

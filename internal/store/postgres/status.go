@@ -161,9 +161,9 @@ func (s *Status) buildUpdateStatusQuery(
 	updateBuilder := sq.Update("cases.input").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
 		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Set("updated_by", rpc.GetAuth().GetUserId()).
 		Where(sq.Eq{"id": input.Id}).
-		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
+		Where(sq.Eq{"dc": rpc.GetAuth().GetDomainId()})
 
 	// Dynamically add fields to the SET clause
 	for _, field := range rpc.GetMask() {

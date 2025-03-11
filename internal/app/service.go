@@ -203,6 +203,11 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		grpcopts.WithUpdateFields(req, ServiceMetadata),
 		grpcopts.WithUpdateMasker(req),
 	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
+
+	}
 
 	service := &api.Service{
 		Id:          req.Id,

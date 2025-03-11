@@ -8,7 +8,6 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
-	"strings"
 )
 
 type CloseReasonGroupService struct {
@@ -158,9 +157,6 @@ func (s CloseReasonGroupService) LocateCloseReasonGroup(
 	}
 
 	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsCloseReasonGroup, ", ")
-	}
 
 	// Prepare a list request with necessary parameters
 	listReq := &_go.ListCloseReasonGroupsRequest{

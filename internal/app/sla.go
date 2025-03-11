@@ -2,9 +2,6 @@ package app
 
 import (
 	"context"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
-	"log/slog"
-	"strings"
 
 	"github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
@@ -12,7 +9,6 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
-	"strings"
 )
 
 type SLAService struct {
@@ -143,9 +139,6 @@ func (s *SLAService) LocateSLA(ctx context.Context, req *cases.LocateSLARequest)
 	}
 
 	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = strings.Split(slaDefaultFields, ", ")
-	}
 
 	// Prepare a list request with necessary parameters
 	listReq := &cases.ListSLARequest{

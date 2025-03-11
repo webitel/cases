@@ -8,7 +8,6 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
-	"strings"
 )
 
 type CloseReasonService struct {
@@ -164,11 +163,6 @@ func (s *CloseReasonService) LocateCloseReason(
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("close_reason_service.locate_close_reason.id.required", "Close reason ID is required")
-	}
-
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsCloseReason, ", ")
 	}
 
 	// Prepare a list request with necessary parameters

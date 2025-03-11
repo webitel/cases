@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"strings"
 
 	_go "github.com/webitel/cases/api/cases"

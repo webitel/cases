@@ -462,11 +462,11 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc options.UpdateOptions, l *cases.SLACondition) (string, []interface{}) {
 	// Prepare arguments for the SQL query
 	args := []interface{}{
-		l.Id,                            // $1: sla_condition_id
-		rpc.GetAuthOpts().GetUserId(),   // $2: created_by and updated_by
-		rpc.GetAuthOpts().GetDomainId(), // $3: dc
-		pq.Array(rpc.GetIDs()),          // $4: ARRAY of priority IDs
-		rpc.GetTime(),                   // $5: timestamp for updated_at
+		l.Id,                        // $1: sla_condition_id
+		rpc.GetAuth().GetUserId(),   // $2: created_by and updated_by
+		rpc.GetAuth().GetDomainId(), // $3: dc
+		pq.Array(rpc.GetIDs()),      // $4: ARRAY of priority IDs
+		rpc.GetTime(),               // $5: timestamp for updated_at
 	}
 
 	// query that updates or inserts priorities and deletes non-selected ones
@@ -498,8 +498,8 @@ func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc options.UpdateOptio
 	updateBuilder := sq.Update("cases.sla_condition").
 		PlaceholderFormat(sq.Dollar). // Set placeholder format to Dollar for PostgreSQL
 		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
-		Where(sq.Eq{"id": l.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
+		Set("updated_by", rpc.GetAuth().GetUserId()).
+		Where(sq.Eq{"id": l.Id, "dc": rpc.GetAuth().GetDomainId()})
 
 	// Dynamically add fields to the update builder based on provided fields
 	for _, field := range rpc.GetMask() {

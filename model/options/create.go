@@ -3,12 +3,12 @@ package options
 import (
 	"context"
 	"github.com/webitel/cases/auth"
-
 	"time"
 )
 
 type CreateOptions interface {
 	context.Context
+	GetAuth() auth.Auther
 	GetTime() time.Time
 	GetFields() []string
 	GetDerivedSearchOpts() map[string]*SearchOptions
@@ -16,5 +16,4 @@ type CreateOptions interface {
 	GetIDs() []int64
 	GetParentID() int64
 	GetChildID() int64
-	GetAuth() auth.Auther
 }

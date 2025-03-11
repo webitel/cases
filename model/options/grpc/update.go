@@ -78,13 +78,14 @@ type UpdateOptions struct {
 	IDs               []int64
 }
 
-func (s *UpdateOptions) GetAuthOpts() auth.Auther {
+func (s *UpdateOptions) GetAuth() auth.Auther {
 	return s.Auth
 }
 func (s *UpdateOptions) SetAuthOpts(auth auth.Auther) *UpdateOptions {
 	s.Auth = auth
 	return s
 }
+
 func (s *UpdateOptions) GetIDs() []int64            { return s.IDs }
 func (s *UpdateOptions) GetParentID() int64         { return s.ParentID }
 func (s *UpdateOptions) GetFields() []string        { return s.Fields }

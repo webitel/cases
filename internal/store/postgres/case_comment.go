@@ -400,16 +400,16 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 	updateBuilder := sq.Update("cases.case_comment").
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Set("updated_by", rpc.GetAuth().GetUserId()).
 		Set("ver", sq.Expr("ver + 1")). // Increment version
 		// input.Etag == input.ID
 		Where(sq.Eq{
 			"id":         rpc.GetEtags()[0].GetOid(),
 			"ver":        rpc.GetEtags()[0].GetVer(),
-			"dc":         rpc.GetAuthOpts().GetDomainId(),
-			"created_by": rpc.GetAuthOpts().GetUserId(), // Ensure only the creator can edit
+			"dc":         rpc.GetAuth().GetDomainId(),
+			"created_by": rpc.GetAuth().GetUserId(), // Ensure only the creator can edit
 		})
-	updateBuilder, defErr = addCaseCommentRbacConditionForUpdate(rpc.GetAuthOpts(), auth.Edit, updateBuilder, "case_comment.id")
+	updateBuilder, defErr = addCaseCommentRbacConditionForUpdate(rpc.GetAuth(), auth.Edit, updateBuilder, "case_comment.id")
 	if defErr != nil {
 		return nil, nil, defErr
 	}
@@ -428,7 +428,7 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 		selectBuilder,
 		caseCommentLeft,
 		fields,
-		rpc.GetAuthOpts(),
+		rpc.GetAuth(),
 	)
 	if err != nil {
 		return nil, nil, err
