@@ -262,7 +262,7 @@ func (s *SLAStore) Update(rpc options.UpdateOptions, update *cases.SLA) (*cases.
 	// temporary object for scanning
 	tempAdd := &cases.SLA{}
 	scanArgs := convertToSLAScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.update.execution_error", err)
 	}
 

@@ -1828,11 +1828,11 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 			})
 		case "comments":
 			commentFields := []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"}
-			subquery, scanPlan, filtersApplied, dbErr := buildCommentsSelectAsSubquery(auther, commentFields, caseLeft)
+			subquery, scanPlan, dbErr := buildCommentsSelectAsSubquery(auther, commentFields, caseLeft)
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
-			base = AddSubqueryAsColumn(base, subquery, "comments", filtersApplied > 0)
+			base = AddSubqueryAsColumn(base, subquery, "comments", false)
 			plan = append(plan, func(value *_go.Case) any {
 				var items []*_go.CaseComment
 				postProcessing := func() error {
