@@ -243,10 +243,10 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	}
 	params := map[string]any{
 		// Case-level parameters
-		"date":                rpc.GetTime(),
+		"date":                rpc.RequestTime(),
 		"contact_info":        caseItem.GetContactInfo(),
-		"user":                rpc.GetAuth().GetUserId(),
-		"dc":                  rpc.GetAuth().GetDomainId(),
+		"user":                rpc.GetAuthOpts().GetUserId(),
+		"dc":                  rpc.GetAuthOpts().GetDomainId(),
 		"sla":                 sla,
 		"sla_condition":       slaCondition,
 		"status":              caseItem.Status.GetId(),
@@ -355,7 +355,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 
 	// Construct SELECT query to return case data
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		rpc.GetAuth(),
+		rpc.GetAuthOpts(),
 		rpc.GetFields(),
 		sq.Select().PrefixExpr(
 			sq.Expr(
@@ -457,8 +457,8 @@ type MergedSlot struct {
 }
 
 type TimingOptions interface {
-	GetTime() time.Time
-	GetAuth() auth.Auther
+	RequestTime() time.Time
+	GetAuthOpts() auth.Auther
 	context.Context
 }
 
@@ -474,7 +474,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	// Determine the pivot time
 	var pivotTime time.Time
 	if caseID == nil {
-		pivotTime = rpc.GetTime()
+		pivotTime = rpc.RequestTime()
 	} else {
 		err := txManager.QueryRow(rpc, `
 			SELECT created_at FROM cases.case WHERE id = $1`, *caseID).Scan(&pivotTime)
@@ -789,7 +789,7 @@ func isSameDate(date1, date2 time.Time) bool {
 }
 
 // Delete implements store.CaseStore.
-func (c *CaseStore) Delete(rpc *model.DeleteOptions) error {
+func (c *CaseStore) Delete(rpc options.DeleteOptions) error {
 	// Establish database connection
 	d, err := c.storage.Database()
 	if err != nil {
@@ -803,7 +803,7 @@ func (c *CaseStore) Delete(rpc *model.DeleteOptions) error {
 	}
 
 	// Execute the query
-	res, execErr := d.Exec(rpc.Context, query, args...)
+	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
 		return dberr.NewDBInternalError("store.case.delete.exec_error", execErr)
 	}
@@ -816,9 +816,9 @@ func (c *CaseStore) Delete(rpc *model.DeleteOptions) error {
 	return nil
 }
 
-func (c CaseStore) buildDeleteCaseQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+func (c CaseStore) buildDeleteCaseQuery(rpc options.DeleteOptions) (string, []interface{}, error) {
 	var err error
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 	query := sq.Delete("cases.case").Where("id = ANY(?)", ids).Where("dc = ?", rpc.GetAuthOpts().GetDomainId()).PlaceholderFormat(sq.Dollar)
 	query, err = addCaseRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, query, "id")
@@ -1218,15 +1218,15 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	// Initialize the update query
 	updateBuilder := sq.Update(c.mainTable).
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuth().GetUserId()).
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{
 			"id":  rpc.GetEtags()[0].GetOid(),
 			"ver": rpc.GetEtags()[0].GetVer(),
-			"dc":  rpc.GetAuth().GetDomainId(),
+			"dc":  rpc.GetAuthOpts().GetDomainId(),
 		})
 
-	updateBuilder, err = addCaseRbacConditionForUpdate(rpc.GetAuth(), auth.Edit, updateBuilder, "id")
+	updateBuilder, err = addCaseRbacConditionForUpdate(rpc.GetAuthOpts(), auth.Edit, updateBuilder, "id")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1314,7 +1314,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	}
 
 	// Define SELECT query for returning updated fields
-	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(rpc.GetAuth(), fields,
+	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(rpc.GetAuthOpts(), fields,
 		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
 	)
 	if err != nil {

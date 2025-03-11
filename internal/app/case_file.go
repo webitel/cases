@@ -77,20 +77,11 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("app.case_file.delete_file.file_id_required", "File ID is required")
 	}
-
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseFileMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.GetId()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-
-	caseTID, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_file.delete.case_etag.parse.error", err.Error())
-	}
-
-	deleteOpts.ID = req.Id
-	deleteOpts.ParentID = caseTID.GetOid()
 
 	logAttributes := slog.Group(
 		"context",

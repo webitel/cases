@@ -10,7 +10,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
 
@@ -61,13 +60,13 @@ func (p *Priority) buildCreatePriorityQuery(
 	insertBuilder := sq.Insert("cases.priority").
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by", "color").
 		Values(
-			priority.Name,               // name
-			rpc.GetAuth().GetDomainId(), // dc
-			rpc.GetTime(),               // created_at
+			priority.Name,                                  // name
+			rpc.GetAuthOpts().GetDomainId(),                // dc
+			rpc.RequestTime(),                              // created_at
 			sq.Expr("NULLIF(?, '')", priority.Description), // NULLIF for empty description
-			rpc.GetAuth().GetUserId(),                      // created_by
-			rpc.GetTime(),                                  // updated_at
-			rpc.GetAuth().GetUserId(),                      // updated_by
+			rpc.GetAuthOpts().GetUserId(),                  // created_by
+			rpc.RequestTime(),                              // updated_at
+			rpc.GetAuthOpts().GetUserId(),                  // updated_by
 			priority.Color,                                 // color
 		).
 		PlaceholderFormat(sq.Dollar).
@@ -94,7 +93,7 @@ func (p *Priority) buildCreatePriorityQuery(
 	return selectBuilder, plan, nil
 }
 
-func (p *Priority) Delete(rpc *model.DeleteOptions) error {
+func (p *Priority) Delete(rpc options.DeleteOptions) error {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.priority.delete.database_connection_error", dbErr)
@@ -110,7 +109,7 @@ func (p *Priority) Delete(rpc *model.DeleteOptions) error {
 		return dberr.NewDBInternalError("postgres.priority.delete.query_to_sql_error", err)
 	}
 
-	res, execErr := d.Exec(rpc.Context, query, args...)
+	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
 		return dberr.NewDBInternalError("postgres.priority.delete.execution_error", execErr)
 	}
@@ -123,16 +122,16 @@ func (p *Priority) Delete(rpc *model.DeleteOptions) error {
 }
 
 func (p *Priority) buildDeletePriorityQuery(
-	rpc *model.DeleteOptions,
+	rpc options.DeleteOptions,
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
-	if len(rpc.IDs) == 0 {
+	if len(rpc.GetIDs()) == 0 {
 		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.priority.delete.missing_ids", fmt.Errorf("no IDs provided for deletion"))
 	}
 
 	// Build the delete query
 	deleteBuilder := sq.Delete("cases.priority").
-		Where(sq.Eq{"id": rpc.IDs}).
+		Where(sq.Eq{"id": rpc.GetIDs()}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
@@ -306,10 +305,10 @@ func (p *Priority) buildUpdatePriorityQuery(
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.priority").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
-		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuth().GetUserId()).
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": priority.Id}).
-		Where(sq.Eq{"dc": rpc.GetAuth().GetDomainId()})
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the `SET` clause
 	for _, field := range rpc.GetMask() {

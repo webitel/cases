@@ -111,16 +111,13 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 	if len(req.Id) == 0 {
 		return nil, cerror.NewBadRequestError("catalog.delete_catalog.id.required", "Catalog ID is required")
 	}
-
-	t := time.Now()
-	deleteOpts := model.DeleteOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		IDs:     req.Id,
-		Time:    t,
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteIDs(req.Id))
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
-	e := s.app.Store.Catalog().Delete(&deleteOpts)
+	e := s.app.Store.Catalog().Delete(deleteOpts)
 	if e != nil {
 		return nil, cerror.NewInternalError("catalog.delete_catalog.store.delete.failed", e.Error())
 	}

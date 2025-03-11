@@ -66,21 +66,21 @@ func (l *CaseLinkStore) Create(rpc options.CreateOptions, add *_go.InputCaseLink
 }
 
 // Delete implements store.CaseLinkStore.
-func (l *CaseLinkStore) Delete(opts *model.DeleteOptions) error {
+func (l *CaseLinkStore) Delete(opts options.DeleteOptions) error {
 	if opts == nil {
 		return dberr.NewDBError("postgres.case_link.delete.check_args.opts", "delete options required")
 	}
-	if opts.ID == 0 {
+	if len(opts.GetIDs()) == 0 {
 		return dberr.NewDBError("postgres.case_link.delete.check_args.id", "id required")
 	}
-	if opts.ParentID == 0 {
+	if opts.GetParentID() == 0 {
 		return dberr.NewDBError("postgres.case_link.delete.check_args.id", "case id required")
 	}
 	base := squirrel.
 		Delete(l.mainTable).
-		Where("id = ?", opts.ID).
+		Where("id = ANY(?)", opts.GetIDs()).
 		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
-		Where("case_id = ?", opts.ParentID).
+		Where("case_id = ?", opts.GetParentID()).
 		PlaceholderFormat(squirrel.Dollar)
 	query, args, err := base.ToSql()
 	if err != nil {
@@ -91,7 +91,7 @@ func (l *CaseLinkStore) Delete(opts *model.DeleteOptions) error {
 		return dbErr
 	}
 
-	res, err := db.Exec(opts.Context, query, args...)
+	res, err := db.Exec(opts, query, args...)
 	if err != nil {
 		return dberr.NewDBError("postgres.case_link.delete.execute.error", err.Error())
 	}
@@ -296,7 +296,7 @@ func buildCreateLinkQuery(rpc options.CreateOptions, fields []string, add *_go.I
 	insert := squirrel.
 		Insert("cases.case_link").
 		Columns("created_by", "updated_by", "name", "url", "case_id", "dc").
-		Values(rpc.GetAuth().GetUserId(), rpc.GetAuth().GetUserId(), add.GetName(), add.GetUrl(), rpc.GetParentID(), rpc.GetAuth().GetDomainId()).
+		Values(rpc.GetAuthOpts().GetUserId(), rpc.GetAuthOpts().GetUserId(), add.GetName(), add.GetUrl(), rpc.GetParentID(), rpc.GetAuthOpts().GetDomainId()).
 		Suffix("RETURNING *")
 	// select
 	query, args, _ := store.FormAsCTE(insert, insertAlias)
@@ -316,12 +316,12 @@ func buildUpdateLinkQuery(opts options.UpdateOptions, add *_go.InputCaseLink) (s
 	// insert
 	update := squirrel.
 		Update("cases.case_link").
-		Set("updated_by", opts.GetAuth().GetUserId()).
-		Set("updated_at", opts.GetTime()).
+		Set("updated_by", opts.GetAuthOpts().GetUserId()).
+		Set("updated_at", opts.RequestTime()).
 		Set("ver", squirrel.Expr("ver+1")).
 		Where("id = ?", tid.GetOid()).
 		Where("ver = ?", tid.GetVer()).
-		Where("dc = ?", opts.GetAuth().GetDomainId()).
+		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
 		Where("case_id = ?", opts.GetParentID()).
 		Suffix("RETURNING *").
 		PlaceholderFormat(squirrel.Dollar)

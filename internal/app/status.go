@@ -130,12 +130,11 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 		return nil, cerror.NewBadRequestError("status.delete_status.lookup.id.required", "Lookup ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, StatusMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	deleteOpts.IDs = []int64{req.Id}
 
 	// Delete the lookup in the store
 	err = s.app.Store.Status().Delete(deleteOpts)

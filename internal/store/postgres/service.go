@@ -67,7 +67,7 @@ func (s *ServiceStore) Create(rpc options.CreateOptions, add *cases.Service) (*c
 }
 
 // Delete implements store.ServiceStore.
-func (s *ServiceStore) Delete(rpc *model.DeleteOptions) error {
+func (s *ServiceStore) Delete(rpc options.DeleteOptions) error {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -75,7 +75,7 @@ func (s *ServiceStore) Delete(rpc *model.DeleteOptions) error {
 	}
 
 	// Ensure that there are IDs to delete
-	if len(rpc.IDs) == 0 {
+	if len(rpc.GetIDs()) == 0 {
 		return dberr.NewDBError("postgres.service.delete.no_ids_provided", "No IDs provided for deletion")
 	}
 
@@ -83,7 +83,7 @@ func (s *ServiceStore) Delete(rpc *model.DeleteOptions) error {
 	query, args := s.buildDeleteServiceQuery(rpc)
 
 	// Execute the delete query
-	res, err := db.Exec(rpc.Context, query, args...)
+	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.service.delete.execution_error", err)
 	}
@@ -224,18 +224,18 @@ func (s *ServiceStore) buildCreateServiceQuery(rpc options.CreateOptions, add *c
 		sla = &add.Sla.Id
 	}
 	args := []interface{}{
-		add.Name,                    // $1: name
-		add.Description,             // $2: description (can be null)
-		add.Code,                    // $3: code (can be null)
-		rpc.GetTime(),               // $4: created_at, updated_at
-		rpc.GetAuth().GetUserId(),   // $5: created_by, updated_by
-		sla,                         // $6: sla_id
-		group,                       // $7: group_id
-		assignee,                    // $8: assignee_id
-		add.State,                   // $9: state
-		rpc.GetAuth().GetDomainId(), // $10: domain ID
-		add.RootId,                  // $11: root_id (can be null)
-		add.CatalogId,               // $12: catalog_id
+		add.Name,                        // $1: name
+		add.Description,                 // $2: description (can be null)
+		add.Code,                        // $3: code (can be null)
+		rpc.RequestTime(),               // $4: created_at, updated_at
+		rpc.GetAuthOpts().GetUserId(),   // $5: created_by, updated_by
+		sla,                             // $6: sla_id
+		group,                           // $7: group_id
+		assignee,                        // $8: assignee_id
+		add.State,                       // $9: state
+		rpc.GetAuthOpts().GetDomainId(), // $10: domain ID
+		add.RootId,                      // $11: root_id (can be null)
+		add.CatalogId,                   // $12: catalog_id
 	}
 
 	query := `
@@ -288,13 +288,13 @@ FROM inserted_service
 }
 
 // Helper method to build the delete query for Service
-func (s *ServiceStore) buildDeleteServiceQuery(rpc *model.DeleteOptions) (string, []interface{}) {
+func (s *ServiceStore) buildDeleteServiceQuery(rpc options.DeleteOptions) (string, []interface{}) {
 	query := `
 		DELETE FROM cases.service_catalog
 		WHERE id = ANY($1) AND dc = $2
 	`
 	args := []interface{}{
-		pq.Array(rpc.IDs),               // $1: array of service IDs to delete
+		pq.Array(rpc.GetIDs()),          // $1: array of service IDs to delete
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
@@ -424,9 +424,9 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc options.UpdateOptions, lookup
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuth().GetUserId()).
-		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuth().GetDomainId()})
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically set fields based on what the user wants to update
 	for _, field := range rpc.GetMask() {

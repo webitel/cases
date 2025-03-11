@@ -105,7 +105,7 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 		Id:          req.Id,
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
-		UpdatedBy:   &api.Lookup{Id: updateOpts.GetAuth().GetUserId()},
+		UpdatedBy:   &api.Lookup{Id: updateOpts.GetAuthOpts().GetUserId()},
 		Color:       req.Input.Color,
 	}
 
@@ -122,12 +122,11 @@ func (p *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePri
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("app.priority.delete_priority.id_required", "Priority ID is required")
 	}
-	deleteOpts, err := model.NewDeleteOptions(ctx, PriorityMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	deleteOpts.IDs = []int64{req.Id}
 
 	err = p.app.Store.Priority().Delete(deleteOpts)
 	if err != nil {

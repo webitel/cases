@@ -91,17 +91,14 @@ func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases
 		return nil, cerror.NewBadRequestError("sla_condition_service.delete_sla_condition.id.required", "SLA Condition ID is required")
 	}
 
-	t := time.Now()
-	// Define delete options
-	deleteOpts := model.DeleteOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		IDs:     []int64{req.Id},
-		Time:    t,
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Delete the SLACondition in the store
-	e := s.app.Store.SLACondition().Delete(&deleteOpts)
+	e := s.app.Store.SLACondition().Delete(deleteOpts)
 	if e != nil {
 		return nil, cerror.NewInternalError("sla_condition_service.delete_sla_condition.store.delete.failed", e.Error())
 	}
@@ -206,7 +203,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 
 	// Define the current user as the updater
 	u := &cases.Lookup{
-		Id: updateOpts.GetAuth().GetUserId(),
+		Id: updateOpts.GetAuthOpts().GetUserId(),
 	}
 
 	// Update SLACondition user_auth

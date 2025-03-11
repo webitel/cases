@@ -88,12 +88,11 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.delete_sla.id.required", "SLA ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, SLAMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	deleteOpts.IDs = []int64{req.Id}
 
 	// Delete the SLA in the store
 	err = s.app.Store.SLA().Delete(deleteOpts)

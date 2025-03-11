@@ -83,15 +83,13 @@ func (s *ServiceService) DeleteService(ctx context.Context, req *api.DeleteServi
 		return nil, cerror.NewBadRequestError("service.delete_service.id.required", "Service ID is required")
 	}
 
-	t := time.Now()
-	deleteOpts := model.DeleteOptions{
-		Context: ctx,
-		IDs:     req.Id,
-		Time:    t,
-		Auth:    model.GetAutherOutOfContext(ctx),
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteIDs(req.Id))
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
-	e := s.app.Store.Service().Delete(&deleteOpts)
+	e := s.app.Store.Service().Delete(deleteOpts)
 	if e != nil {
 		return nil, cerror.NewInternalError("service.delete_service.store.delete.failed", e.Error())
 	}

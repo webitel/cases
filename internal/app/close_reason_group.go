@@ -131,12 +131,11 @@ func (s CloseReasonGroupService) DeleteCloseReasonGroup(
 		return nil, cerror.NewBadRequestError("close_reason_group_service.delete_close_reason_group.id.required", "Lookup ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, CloseReasonGroupMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	deleteOpts.IDs = []int64{req.Id}
 
 	// Delete the lookup in the store
 	err = s.app.Store.CloseReasonGroup().Delete(deleteOpts)

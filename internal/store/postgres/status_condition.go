@@ -121,10 +121,10 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 	}, nil
 }
 
-func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) error {
+func (s StatusConditionStore) Delete(rpc options.DeleteOptions, statusId int64) error {
 	domainId := rpc.GetAuthOpts().GetDomainId()
 
-	query, args, err := s.buildDeleteStatusConditionQuery(rpc.ID, domainId, statusId)
+	query, args, err := s.buildDeleteStatusConditionQuery(rpc.GetIDs(), domainId, statusId)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.status_condition.delete.query_build_error", err)
 	}
@@ -134,7 +134,7 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 		return dberr.NewDBInternalError("postgres.status_condition.delete.database_connection_error", err)
 	}
 
-	res, err := db.Exec(rpc.Context, query, args...)
+	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.status_condition.delete.execution_error", err)
 	}
@@ -143,7 +143,6 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 	if res.RowsAffected() == 0 {
 		return dberr.NewDBNoRowsError("postgres.status_condition.delete.not_found")
 	}
-
 	return nil
 }
 
@@ -194,12 +193,12 @@ func (s StatusConditionStore) Update(rpc options.UpdateOptions, st *_go.StatusCo
 func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
 	query := createStatusConditionQuery
 	args := []interface{}{
-		status.Name,                 // $1 name
-		rpc.GetTime(),               // $2 created_at / updated_at
-		status.Description,          // $3 description
-		rpc.GetAuth().GetUserId(),   // $4 created_by / updated_by
-		rpc.GetAuth().GetDomainId(), // $5 dc
-		status.StatusId,             // $6 status_id
+		status.Name,                     // $1 name
+		rpc.RequestTime(),               // $2 created_at / updated_at
+		status.Description,              // $3 description
+		rpc.GetAuthOpts().GetUserId(),   // $4 created_by / updated_by
+		rpc.GetAuthOpts().GetDomainId(), // $5 dc
+		status.StatusId,                 // $6 status_id
 	}
 	return query, args, nil
 }
@@ -260,11 +259,11 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 	return store.CompactSQL(query), args, nil
 }
 
-func (s StatusConditionStore) buildDeleteStatusConditionQuery(id int64, domainId, statusId int64) (string, []interface{}, error) {
+func (s StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domainId, statusId int64) (string, []interface{}, error) {
 	query := deleteStatusConditionQuery
 
 	args := []interface{}{
-		id,       // $1 id
+		ids,      // $1 id
 		domainId, // $2 dc
 		statusId, // $3 status_id
 	}
@@ -276,8 +275,8 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Update
 
 	// 1. Squirrel operations: Building the dynamic part of the "upd" query
 	updBuilder := sq.Update("cases.status_condition").
-		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuth().GetUserId())
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId())
 
 	// Track whether "initial" or "final" are being updated
 	updateInitial := false
@@ -305,7 +304,7 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Update
 	// Build the dynamic part of the "upd" query using squirrel
 	updSql, updArgs, err := updBuilder.
 		Where(sq.Eq{"id": st.Id}).
-		Where(sq.Eq{"dc": rpc.GetAuth().GetDomainId()}).
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
 		Suffix("RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id").
 		ToSql()
 	if err != nil {
@@ -369,13 +368,13 @@ WHERE CASE
 
 	// 3. Adding all arguments
 	args = append(args,
-		rpc.GetAuth().GetDomainId(), // $1
-		st.StatusId,                 // $2
-		st.Id,                       // $3
-		updateInitial,               // $4
-		updateFinal,                 // $5
-		st.Final,                    // $6
-		st.Initial,                  // $7
+		rpc.GetAuthOpts().GetDomainId(), // $1
+		st.StatusId,                     // $2
+		st.Id,                           // $3
+		updateInitial,                   // $4
+		updateFinal,                     // $5
+		st.Final,                        // $6
+		st.Initial,                      // $7
 	)
 
 	// Append the dynamic query arguments
@@ -495,7 +494,7 @@ FROM ins
 			 to_check AS (
 				 SELECT id, initial, final
 				 FROM cases.status_condition
-				 WHERE id = $1 AND dc = $2 AND status_id = $3
+				 WHERE id = ANY($1) AND dc = $2 AND status_id = $3
 			 ),
 			 remaining_conditions AS (
 				 SELECT

@@ -242,10 +242,10 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		"context",
 		slog.Int64(
 			"user_id",
-			createOpts.GetAuth().GetUserId()),
+			createOpts.GetAuthOpts().GetUserId()),
 		slog.Int64(
 			"domain_id",
-			createOpts.GetAuth().GetDomainId(),
+			createOpts.GetAuthOpts().GetDomainId(),
 		))
 
 	res, err = c.app.Store.Case().Create(createOpts, res)
@@ -277,13 +277,13 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, ResponseNormalizingError
 	}
 
-	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuth().GetDomainId(), roleIds, res)
+	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleIds, res)
 	if ftsErr != nil {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
 	logMessage, err := wlogger.NewCreateMessage(
-		createOpts.GetAuth().GetUserId(),
+		createOpts.GetAuthOpts().GetUserId(),
 		getClientIp(ctx),
 		res.Id, res,
 	)
@@ -291,12 +291,12 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, err
 	}
 
-	logErr := c.logger.SendContext(ctx, createOpts.GetAuth().GetDomainId(), logMessage)
+	logErr := c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), logMessage)
 	if logErr != nil {
 		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
 	}
 
-	err = c.app.watcher.OnEvent(EventTypeCreate, NewWatcherData(res, createOpts.GetAuth().GetDomainId()))
+	err = c.app.watcher.OnEvent(EventTypeCreate, NewWatcherData(res, createOpts.GetAuthOpts().GetDomainId()))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s, ", err.Error()), logAttributes)
 	}
@@ -340,11 +340,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		"context",
 		slog.Int64(
 			"user_id",
-			updateOpts.GetAuth().GetUserId(),
+			updateOpts.GetAuthOpts().GetUserId(),
 		),
 		slog.Int64(
 			"domain_id",
-			updateOpts.GetAuth().GetDomainId(),
+			updateOpts.GetAuthOpts().GetDomainId(),
 		),
 		slog.Int64(
 			"case_id",
@@ -404,13 +404,13 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, ResponseNormalizingError
 	}
 
-	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuth().GetDomainId(), roleIds, res)
+	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, res)
 	if ftsErr != nil {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
 	log, err := wlogger.NewCreateMessage(
-		updateOpts.GetAuth().GetUserId(),
+		updateOpts.GetAuthOpts().GetUserId(),
 		getClientIp(ctx),
 		res.Id,
 		res,
@@ -418,12 +418,12 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	logErr := c.logger.SendContext(ctx, updateOpts.GetAuth().GetDomainId(), log)
+	logErr := c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), log)
 	if logErr != nil {
 		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
 	}
 
-	err = c.app.watcher.OnEvent(EventTypeUpdate, NewWatcherData(res, updateOpts.GetAuth().GetDomainId()))
+	err = c.app.watcher.OnEvent(EventTypeUpdate, NewWatcherData(res, updateOpts.GetAuthOpts().GetDomainId()))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case update: %s, ", err.Error()), logAttributes)
 	}
@@ -669,18 +669,15 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	if req.Etag == "" {
 		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
 	}
-
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseMetadata)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.Etag)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case.delete.invalid_etag", "Invalid case etag")
+	}
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-
-	tag, err := etag.EtagOrId(etag.EtagCase, req.Etag)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case.delete_case.invalid_etag", "Invalid etag")
-	}
-	deleteOpts.IDs = []int64{tag.GetOid()}
 	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
 	err = c.app.Store.Case().Delete(deleteOpts)

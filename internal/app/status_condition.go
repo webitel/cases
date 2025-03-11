@@ -130,7 +130,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 
 	// Define the current user as the updater
 	u := &_go.Lookup{
-		Id: updateOpts.GetAuth().GetUserId(),
+		Id: updateOpts.GetAuthOpts().GetUserId(),
 	}
 	status.UpdatedBy = u
 
@@ -165,17 +165,14 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 		return nil, cerror.NewBadRequestError("status_condition.delete_status_condition.id.required", "Status ID is required")
 	}
 
-	t := time.Now()
-	// Define delete options
-	deleteOpts := model.DeleteOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		ID:      req.Id,
-		Time:    t,
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Delete the status in the store
-	err := s.app.Store.StatusCondition().Delete(&deleteOpts, req.StatusId)
+	err = s.app.Store.StatusCondition().Delete(deleteOpts, req.StatusId)
 	if err != nil {
 		switch err.(type) {
 		case *cerror.DBNoRowsError:

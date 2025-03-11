@@ -147,7 +147,7 @@ func (s *SourceService) DeleteSource(
 		return nil, cerror.NewBadRequestError("source_service.delete_source.id.required", "Source ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, SourceMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError

@@ -10,7 +10,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -103,12 +102,12 @@ func (s *CloseReason) buildCreateCloseReasonQuery(
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by", "close_reason_id").
 		Values(
 			reason.Name,
-			rpc.GetAuth().GetDomainId(),
-			rpc.GetTime(),
+			rpc.GetAuthOpts().GetDomainId(),
+			rpc.RequestTime(),
 			sq.Expr("NULLIF(?, '')", reason.Description),
-			rpc.GetAuth().GetUserId(),
-			rpc.GetTime(),
-			rpc.GetAuth().GetUserId(),
+			rpc.GetAuthOpts().GetUserId(),
+			rpc.RequestTime(),
+			rpc.GetAuthOpts().GetUserId(),
 			reason.CloseReasonGroupId,
 		).
 		PlaceholderFormat(sq.Dollar).
@@ -169,10 +168,10 @@ func (s *CloseReason) buildUpdateCloseReasonQuery(
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.close_reason").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuth().GetUserId()).
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": input.Id}).
-		Where(sq.Eq{"dc": rpc.GetAuth().GetDomainId()})
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the SET clause
 	for _, field := range rpc.GetMask() {
@@ -330,23 +329,23 @@ func (s *CloseReason) List(rpc options.SearchOptions, closeReasonId int64) (*_go
 }
 
 func (s *CloseReason) buildDeleteCloseReasonQuery(
-	rpc *model.DeleteOptions,
+	rpc options.DeleteOptions,
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
-	if len(rpc.IDs) == 0 {
+	if len(rpc.GetIDs()) == 0 {
 		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.close_reason.delete.missing_ids", fmt.Errorf("no IDs provided for deletion"))
 	}
 
 	// Build the delete query
 	deleteBuilder := sq.Delete("cases.close_reason").
-		Where(sq.Eq{"id": rpc.IDs}).
+		Where(sq.Eq{"id": rpc.GetIDs()}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	return deleteBuilder, nil
 }
 
-func (s *CloseReason) Delete(rpc *model.DeleteOptions) error {
+func (s *CloseReason) Delete(rpc options.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.close_reason.delete.database_connection_error", dbErr)
@@ -362,7 +361,7 @@ func (s *CloseReason) Delete(rpc *model.DeleteOptions) error {
 		return dberr.NewDBInternalError("postgres.close_reason.delete.query_to_sql_error", err)
 	}
 
-	res, execErr := d.Exec(rpc.Context, query, args...)
+	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
 		return dberr.NewDBInternalError("postgres.close_reason.delete.execution_error", execErr)
 	}

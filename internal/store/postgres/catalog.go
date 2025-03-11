@@ -76,17 +76,17 @@ func (s *CatalogStore) Create(rpc options.CreateOptions, add *cases.Catalog) (*c
 func (s *CatalogStore) buildCreateCatalogQuery(rpc options.CreateOptions, add *cases.Catalog) (string, []interface{}) {
 	// Define arguments for the query
 	args := []any{
-		add.Name,                    // $1: name (cannot be null)
-		add.Description,             // $2: description (could be null)
-		add.Prefix,                  // $3: prefix (could be null)
-		add.Code,                    // $4: code (could be null)
-		rpc.GetTime(),               // $5: created_at, updated_at
-		rpc.GetAuth().GetUserId(),   // $6: created_by, updated_by
-		add.Sla.Id,                  // $7: sla_id (could be null)
-		add.Status.Id,               // $8: status_id (could be null)
-		add.CloseReasonGroup.Id,     // $9: close_reason_id (could be null)
-		add.State,                   // $10: state (cannot be null)
-		rpc.GetAuth().GetDomainId(), // $11: domain ID (dc)
+		add.Name,                        // $1: name (cannot be null)
+		add.Description,                 // $2: description (could be null)
+		add.Prefix,                      // $3: prefix (could be null)
+		add.Code,                        // $4: code (could be null)
+		rpc.RequestTime(),               // $5: created_at, updated_at
+		rpc.GetAuthOpts().GetUserId(),   // $6: created_by, updated_by
+		add.Sla.Id,                      // $7: sla_id (could be null)
+		add.Status.Id,                   // $8: status_id (could be null)
+		add.CloseReasonGroup.Id,         // $9: close_reason_id (could be null)
+		add.State,                       // $10: state (cannot be null)
+		rpc.GetAuthOpts().GetDomainId(), // $11: domain ID (dc)
 	}
 
 	var teamIds []int64
@@ -183,7 +183,7 @@ FROM inserted_catalog
 }
 
 // Delete implements store.CatalogStore.
-func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
+func (s *CatalogStore) Delete(rpc options.DeleteOptions) error {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -191,7 +191,7 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 	}
 
 	// Ensure that there are IDs to delete
-	if len(rpc.IDs) == 0 {
+	if len(rpc.GetIDs()) == 0 {
 		return dberr.NewDBNoRowsError("postgres.catalog.delete.no_ids_provided")
 	}
 
@@ -199,7 +199,7 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 	query, args := s.buildDeleteCatalogQuery(rpc)
 
 	// Execute the delete query
-	res, err := db.Exec(rpc.Context, query, args...)
+	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.catalog.delete.execution_error", err)
 	}
@@ -213,7 +213,7 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 }
 
 // Helper method to build the delete query for Catalog
-func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string, []any) {
+func (s *CatalogStore) buildDeleteCatalogQuery(rpc options.DeleteOptions) (string, []any) {
 	// Build the SQL query using the provided IDs in rpc.IDs
 	query := `
 		DELETE FROM cases.service_catalog
@@ -222,7 +222,7 @@ func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string
 
 	// Use the array of IDs and domain ID (dc) for the deletion
 	args := []any{
-		pq.Array(rpc.IDs),               // $1: array of catalog IDs to delete
+		pq.Array(rpc.GetIDs()),          // $1: array of catalog IDs to delete
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
@@ -1426,9 +1426,9 @@ func (s *CatalogStore) Update(rpc options.UpdateOptions, lookup *cases.Catalog) 
 			lookup.Id,
 			teamIDs,  // Pass empty slice if no team IDs are provided
 			skillIDs, // Pass empty slice if no skill IDs are provided
-			rpc.GetAuth().GetUserId(),
-			rpc.GetTime(),
-			rpc.GetAuth().GetDomainId(),
+			rpc.GetAuthOpts().GetUserId(),
+			rpc.RequestTime(),
+			rpc.GetAuthOpts().GetDomainId(),
 		)
 
 		// Execute the teams and skills update query and check for affected rows
@@ -1611,9 +1611,9 @@ WITH root_check AS (
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuth().GetUserId()).
-		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuth().GetDomainId()})
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically set fields based on user update preferences
 	for _, field := range rpc.GetMask() {

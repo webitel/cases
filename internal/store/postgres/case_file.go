@@ -140,23 +140,23 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 }
 
 // Delete implements store.CaseFileStore.
-func (c *CaseFileStore) Delete(rpc *model.DeleteOptions) error {
+func (c *CaseFileStore) Delete(rpc options.DeleteOptions) error {
 	if rpc == nil {
 		return dberr.NewDBError("postgres.case_file.delete.check_args.opts", "delete options required")
 	}
-	if rpc.ID == 0 {
+	if len(rpc.GetIDs()) == 0 {
 		return dberr.NewDBError("postgres.case_file.delete.check_args.id", "id required")
 	}
-	if rpc.ParentID == 0 {
+	if rpc.GetParentID() == 0 {
 		return dberr.NewDBError("postgres.case_file.delete.check_args.id", "case id required")
 	}
 
 	// convert int64 to varchar (datatype in DB)
-	uuid := strconv.Itoa(int(rpc.ParentID))
+	uuid := strconv.Itoa(int(rpc.GetParentID()))
 	base := sq.
 		Update(c.mainTable).
 		Set("removed", true).
-		Where(sq.Eq{"id": rpc.ID}).
+		Where("id = ANY(?)", rpc.GetIDs()).
 		Where(sq.Eq{"domain_id": rpc.GetAuthOpts().GetDomainId()}).
 		Where(sq.Eq{"uuid": uuid}).
 		PlaceholderFormat(sq.Dollar)
@@ -172,7 +172,7 @@ func (c *CaseFileStore) Delete(rpc *model.DeleteOptions) error {
 		return dbErr
 	}
 
-	res, err := db.Exec(rpc.Context, query, args...)
+	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBError("postgres.case_file.delete.execute.error", err.Error())
 	}

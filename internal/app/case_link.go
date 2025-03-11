@@ -121,13 +121,13 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 
 	logAttributes := slog.Group(
 		"context",
-		slog.Int64("user_id", createOpts.GetAuth().GetUserId()),
-		slog.Int64("domain_id", createOpts.GetAuth().GetDomainId()),
+		slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()),
+		slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("case_id", createOpts.ParentID),
 	)
 	accessMode := auth.Edit
-	if createOpts.GetAuth().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
-		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuth(), accessMode, createOpts.ParentID)
+	if createOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -179,14 +179,14 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 
 	logAttributes := slog.Group(
 		"context",
-		slog.Int64("user_id", updateOpts.GetAuth().GetUserId()),
-		slog.Int64("domain_id", updateOpts.GetAuth().GetDomainId()),
+		slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()),
+		slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("id", linkTid.GetOid()),
 		slog.Int64("case_id", updateOpts.ParentID),
 	)
 	accessMode := auth.Edit
-	if updateOpts.GetAuth().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
-		access, err := c.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuth(), auth.Edit, updateOpts.ParentID)
+	if updateOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), auth.Edit, updateOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -218,22 +218,16 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.create.link_etag.parse.error", err.Error())
 	}
-	caseTID, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
-	}
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseLinkMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(linkTID.GetOid()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	deleteOpts.ID = linkTID.GetOid()
-	deleteOpts.ParentID = caseTID.GetOid()
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()),
 		slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("id", deleteOpts.ID),
+		slog.Int64("id", linkTID.GetOid()),
 		slog.Int64("case_id", deleteOpts.ParentID),
 	)
 	accessMode := auth.Edit

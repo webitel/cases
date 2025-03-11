@@ -8,8 +8,8 @@ import (
 
 type CreateOptions interface {
 	context.Context
-	GetAuth() auth.Auther
-	GetTime() time.Time
+	GetAuthOpts() auth.Auther
+	RequestTime() time.Time
 	GetFields() []string
 	GetDerivedSearchOpts() map[string]*SearchOptions
 	GetUnknownFields() []string

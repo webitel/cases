@@ -11,7 +11,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
 
@@ -75,14 +74,14 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 		Insert("cases.related_case").
 		Columns("dc", "primary_case_id", "related_case_id", "relation_type", "created_at", "created_by", "updated_at", "updated_by").
 		Values(
-			rpc.GetAuth().GetDomainId(), // dc
-			rpc.GetParentID(),           // primary_case_id
-			rpc.GetChildID(),            // related_case_id
-			relation,                    // relation_type
-			rpc.GetTime(),               // created_at
-			rpc.GetAuth().GetUserId(),   // created_by
-			rpc.GetTime(),               // updated_at
-			rpc.GetAuth().GetUserId(),   // updated_by
+			rpc.GetAuthOpts().GetDomainId(), // dc
+			rpc.GetParentID(),               // primary_case_id
+			rpc.GetChildID(),                // related_case_id
+			relation,                        // relation_type
+			rpc.RequestTime(),               // created_at
+			rpc.GetAuthOpts().GetUserId(),   // created_by
+			rpc.RequestTime(),               // updated_at
+			rpc.GetAuthOpts().GetUserId(),   // updated_by
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -113,7 +112,7 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 
 // Delete implements store.RelatedCaseStore for deleting a related case.
 func (r *RelatedCaseStore) Delete(
-	rpc *model.DeleteOptions,
+	rpc options.DeleteOptions,
 ) error {
 	// Get database connection
 	d, err := r.storage.Database()
@@ -128,7 +127,7 @@ func (r *RelatedCaseStore) Delete(
 	}
 
 	// Execute the query
-	res, execErr := d.Exec(rpc.Context, query, args...)
+	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
 		return dberr.NewDBInternalError("store.related_case.delete.execution_error", execErr)
 	}
@@ -141,15 +140,15 @@ func (r *RelatedCaseStore) Delete(
 	return nil
 }
 
-func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc *model.DeleteOptions) (string, []interface{}, *dberr.DBError) {
+func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc options.DeleteOptions) (string, []interface{}, *dberr.DBError) {
 	query := deleteRelatedCaseQuery
-	args := []interface{}{rpc.ID, rpc.GetAuthOpts().GetDomainId()}
+	args := []interface{}{rpc.GetIDs(), rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
 }
 
 var deleteRelatedCaseQuery = store.CompactSQL(`
 	DELETE FROM cases.related_case
-	WHERE id = $1 AND dc = $2
+	WHERE id = ANY($1) AND dc = $2
 `)
 
 // List implements store.RelatedCaseStore for fetching related cases.
@@ -350,13 +349,13 @@ func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
 	updateBuilder := sq.Update("cases.related_case").
 		PlaceholderFormat(sq.Dollar).
 		Set("relation_type", input.RelationType).
-		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuth().GetUserId()).
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Set("ver", sq.Expr("ver + 1")).
 		Where(sq.Eq{
 			"id":  rpc.GetEtags()[0].GetOid(),
 			"ver": rpc.GetEtags()[0].GetVer(),
-			"dc":  rpc.GetAuth().GetDomainId(),
+			"dc":  rpc.GetAuthOpts().GetDomainId(),
 		})
 
 	for _, mask := range rpc.GetMask() {

@@ -34,6 +34,8 @@ func WithFields(fielder Fielder, md model.ObjectMetadatter, fieldModifiers ...fu
 	return func(options *SearchOptions) error {
 		if requestedFields := fielder.GetFields(); len(requestedFields) == 0 {
 			options.Fields = md.GetDefaultFields()
+		} else {
+			options.Fields = requestedFields
 		}
 		for _, modifier := range fieldModifiers {
 			options.Fields = modifier(options.Fields)
@@ -187,7 +189,7 @@ func (s *SearchOptions) GetIDs() []int64 {
 }
 
 func NewSearchOptions(ctx context.Context, opts ...SearchOption) (*SearchOptions, error) {
-	search := &SearchOptions{createdAt: time.Now().UTC(), Context: ctx}
+	search := &SearchOptions{createdAt: time.Now().UTC(), Context: ctx, Filters: map[string]any{}}
 	if sess := model.GetAutherOutOfContext(ctx); sess != nil {
 		search.Auth = sess
 	} else {

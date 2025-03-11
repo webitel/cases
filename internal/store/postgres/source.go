@@ -9,7 +9,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -81,13 +80,13 @@ func (s *Source) buildCreateSourceQuery(rpc options.CreateOptions, source *_go.S
 		Columns("name", "dc", "created_at", "description", "type", "created_by", "updated_at", "updated_by").
 		Values(
 			source.Name,
-			rpc.GetAuth().GetDomainId(),
-			rpc.GetTime(),
+			rpc.GetAuthOpts().GetDomainId(),
+			rpc.RequestTime(),
 			sq.Expr("NULLIF(?, '')", source.Description),
 			source.Type.String(),
-			rpc.GetAuth().GetUserId(),
-			rpc.GetTime(),
-			rpc.GetAuth().GetUserId(),
+			rpc.GetAuthOpts().GetUserId(),
+			rpc.RequestTime(),
+			rpc.GetAuthOpts().GetUserId(),
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -135,10 +134,10 @@ func (s *Source) buildUpdateSourceQuery(rpc options.UpdateOptions, source *_go.S
 	fields = util.EnsureIdField(rpc.GetFields())
 	updateBuilder := sq.Update("cases.source").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuth().GetUserId()).
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": source.Id}).
-		Where(sq.Eq{"dc": rpc.GetAuth().GetDomainId()})
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	for _, field := range rpc.GetMask() {
 		switch field {
@@ -270,18 +269,18 @@ func (s *Source) List(rpc options.SearchOptions) (*_go.SourceList, error) {
 	}, nil
 }
 
-func (s *Source) buildDeleteSourceQuery(rpc *model.DeleteOptions) (sq.DeleteBuilder, error) {
-	if len(rpc.IDs) == 0 {
+func (s *Source) buildDeleteSourceQuery(rpc options.DeleteOptions) (sq.DeleteBuilder, error) {
+	if len(rpc.GetIDs()) == 0 {
 		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.source.delete.missing_ids", fmt.Errorf("no IDs provided"))
 	}
 
 	return sq.Delete("cases.source").
-		Where(sq.Eq{"id": rpc.IDs}).
+		Where(sq.Eq{"id": rpc.GetIDs()}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar), nil
 }
 
-func (s *Source) Delete(rpc *model.DeleteOptions) error {
+func (s *Source) Delete(rpc options.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.source.delete.database_connection_error", dbErr)
@@ -297,7 +296,7 @@ func (s *Source) Delete(rpc *model.DeleteOptions) error {
 		return dberr.NewDBInternalError("postgres.source.delete.query_build_error", err)
 	}
 
-	res, err := d.Exec(rpc.Context, query, args...)
+	res, err := d.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.source.delete.execution_error", err)
 	}

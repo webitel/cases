@@ -9,11 +9,11 @@ import (
 
 type UpdateOptions interface {
 	context.Context
-	GetAuth() auth.Auther
+	GetAuthOpts() auth.Auther
 	GetFields() []string
 	GetUnknownFields() []string
 	GetDerivedSearchOpts() map[string]*SearchOptions
-	GetTime() time.Time
+	RequestTime() time.Time
 	GetMask() []string
 	GetEtags() []*etag.Tid
 	GetParentID() int64

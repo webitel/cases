@@ -94,14 +94,14 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuth().GetUserId()), slog.Int64("domain_id", createOpts.GetAuth().GetDomainId()), slog.Int64("case_id", createOpts.ParentID))
+	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", createOpts.ParentID))
 	accessMode := auth.Edit
-	if !createOpts.GetAuth().CheckObacAccess(CaseCommunicationMetadata.GetParentScopeName(), accessMode) {
+	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommunicationMetadata.GetParentScopeName(), accessMode) {
 		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
 		return nil, ForbiddenError
 	}
-	if createOpts.GetAuth().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuth(), accessMode, createOpts.ParentID)
+	if createOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
+		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -137,7 +137,7 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.unlink_communication.invalid_etag", "Invalid case etag")
 	}
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommunicationMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError

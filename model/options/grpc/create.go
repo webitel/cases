@@ -68,8 +68,8 @@ func (s *CreateOptions) SetAuthOpts(a auth.Auther) *CreateOptions {
 	return s
 }
 
-func (s *CreateOptions) GetTime() time.Time { return s.Time }
-func (s *CreateOptions) GetAuth() auth.Auther {
+func (s *CreateOptions) RequestTime() time.Time { return s.Time }
+func (s *CreateOptions) GetAuthOpts() auth.Auther {
 	return s.Auth
 }
 func (s *CreateOptions) GetIDs() []int64     { return s.IDs }

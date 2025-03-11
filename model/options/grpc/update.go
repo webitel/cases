@@ -78,7 +78,7 @@ type UpdateOptions struct {
 	IDs               []int64
 }
 
-func (s *UpdateOptions) GetAuth() auth.Auther {
+func (s *UpdateOptions) GetAuthOpts() auth.Auther {
 	return s.Auth
 }
 func (s *UpdateOptions) SetAuthOpts(auth auth.Auther) *UpdateOptions {
@@ -103,7 +103,7 @@ func (s *UpdateOptions) SetEtags(etags ...*etag.Tid) *UpdateOptions {
 	s.Etags = append(s.Etags, etags...)
 	return s
 }
-func (s *UpdateOptions) GetTime() time.Time { return s.Time }
+func (s *UpdateOptions) RequestTime() time.Time { return s.Time }
 
 func NewUpdateOptions(ctx context.Context, opts ...UpdateOption) (*UpdateOptions, error) {
 	updateOpts := &UpdateOptions{

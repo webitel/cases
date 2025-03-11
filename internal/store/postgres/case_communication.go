@@ -46,7 +46,7 @@ func (c *CaseCommunicationStore) Link(options options.CreateOptions, communicati
 	return res, nil
 }
 
-func (c *CaseCommunicationStore) Unlink(options *model.DeleteOptions) (int64, error) {
+func (c *CaseCommunicationStore) Unlink(options options.DeleteOptions) (int64, error) {
 	base, dbErr := c.buildDeleteCaseCommunicationSqlizer(options)
 	if dbErr != nil {
 		return 0, dbErr
@@ -140,7 +140,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options opt
 		roles               []int64
 		callsRbac, caseRbac bool
 	)
-	if session := options.GetAuth(); session != nil {
+	if session := options.GetAuthOpts(); session != nil {
 		d := session.GetDomainId()
 		dc = &d
 		u := session.GetUserId()
@@ -180,11 +180,11 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options opt
 			} else {
 				callsSubquery = squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`, communication.CommunicationId)
 			}
-			insert = insert.Values(userId, options.GetTime(), dc, int64(communication.CommunicationType), callsSubquery, caseSubquery)
+			insert = insert.Values(userId, options.RequestTime(), dc, int64(communication.CommunicationType), callsSubquery, caseSubquery)
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CHAT:
-			insert = insert.Values(userId, options.GetTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM chat.conversation WHERE id = ?)`, communication.CommunicationId), caseSubquery)
+			insert = insert.Values(userId, options.RequestTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM chat.conversation WHERE id = ?)`, communication.CommunicationId), caseSubquery)
 		case cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL:
-			insert = insert.Values(userId, options.GetTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_email WHERE id = ?)`, communication.CommunicationId), caseSubquery)
+			insert = insert.Values(userId, options.RequestTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_email WHERE id = ?)`, communication.CommunicationId), caseSubquery)
 		default:
 			return nil, nil, dberr.NewDBError("postgres.case_communication.build.create_case_communication_sqlizer.switch_types.unknown", "unsupported communication type")
 		}
@@ -231,14 +231,14 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(base squirrel.SelectB
 	return base, plan, nil
 }
 
-func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(options *model.DeleteOptions) (query squirrel.Sqlizer, dbError *dberr.DBError) {
+func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(options options.DeleteOptions) (query squirrel.Sqlizer, dbError *dberr.DBError) {
 	if options == nil {
 		return nil, dberr.NewDBError("postgres.case_communication.build_delete_case_communication_sqlizer.check_args.options", "delete options required")
 	}
-	if len(options.IDs) == 0 {
+	if len(options.GetIDs()) == 0 {
 		return nil, dberr.NewDBError("postgres.case_communication.build_delete_case_communication_sqlizer.check_args.ids", "ids required to delete")
 	}
-	del := squirrel.Delete(c.mainTable).Where("id = ANY(?)", options.IDs)
+	del := squirrel.Delete(c.mainTable).Where("id = ANY(?)", options.GetIDs())
 	return del, nil
 }
 

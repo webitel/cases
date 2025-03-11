@@ -10,7 +10,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -120,12 +119,12 @@ func (s *SLAStore) buildCreateSLAQuery(
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by", "valid_from", "valid_to", "calendar_id", "reaction_time", "resolution_time").
 		Values(
 			sla.Name,
-			rpc.GetAuth().GetDomainId(),
-			rpc.GetTime(),
+			rpc.GetAuthOpts().GetDomainId(),
+			rpc.RequestTime(),
 			sq.Expr("NULLIF(?, '')", sla.Description),
-			rpc.GetAuth().GetUserId(),
-			rpc.GetTime(),
-			rpc.GetAuth().GetUserId(),
+			rpc.GetAuthOpts().GetUserId(),
+			rpc.RequestTime(),
+			rpc.GetAuthOpts().GetUserId(),
 			util.LocalTime(sla.ValidFrom),
 			util.LocalTime(sla.ValidTo),
 			sla.Calendar.Id,
@@ -190,10 +189,10 @@ func (s *SLAStore) buildUpdateSLAQuery(
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.sla").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
-		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuth().GetUserId()).
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": sla.Id}).
-		Where(sq.Eq{"dc": rpc.GetAuth().GetDomainId()})
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the SET clause
 	for _, field := range rpc.GetMask() {
@@ -358,23 +357,23 @@ func (s *SLAStore) List(rpc options.SearchOptions) (*cases.SLAList, error) {
 }
 
 func (s *SLAStore) buildDeleteSLAQuery(
-	rpc *model.DeleteOptions,
+	rpc options.DeleteOptions,
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
-	if len(rpc.IDs) == 0 {
+	if len(rpc.GetIDs()) == 0 {
 		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.sla.delete.missing_ids", fmt.Errorf("no IDs provided for deletion"))
 	}
 
 	// Build the delete query
 	deleteBuilder := sq.Delete("cases.sla").
-		Where(sq.Eq{"id": rpc.IDs}).
+		Where(sq.Eq{"id": rpc.GetIDs()}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	return deleteBuilder, nil
 }
 
-func (s *SLAStore) Delete(rpc *model.DeleteOptions) error {
+func (s *SLAStore) Delete(rpc options.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.sla.delete.database_connection_error", dbErr)
@@ -390,7 +389,7 @@ func (s *SLAStore) Delete(rpc *model.DeleteOptions) error {
 		return dberr.NewDBInternalError("postgres.sla.delete.query_to_sql_error", err)
 	}
 
-	res, execErr := d.Exec(rpc.Context, query, args...)
+	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
 		return dberr.NewDBInternalError("postgres.sla.delete.execution_error", execErr)
 	}

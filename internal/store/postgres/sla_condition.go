@@ -70,7 +70,7 @@ func (s *SLAConditionStore) Create(rpc options.CreateOptions, add *cases.SLACond
 	}
 
 	// Prepare the SLACondition object to return
-	t := rpc.GetTime()
+	t := rpc.RequestTime()
 	return &cases.SLACondition{
 		Id:             add.Id,
 		Name:           add.Name,
@@ -86,7 +86,7 @@ func (s *SLAConditionStore) Create(rpc options.CreateOptions, add *cases.SLACond
 }
 
 // Delete implements store.SLAConditionStore.
-func (s *SLAConditionStore) Delete(rpc *model.DeleteOptions) error {
+func (s *SLAConditionStore) Delete(rpc options.DeleteOptions) error {
 	// Establish a connection to the database
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -100,7 +100,7 @@ func (s *SLAConditionStore) Delete(rpc *model.DeleteOptions) error {
 	}
 
 	// Execute the delete query
-	res, err := d.Exec(rpc.Context, query, args...)
+	res, err := d.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.sla_condition.delete.execution_error", err)
 	}
@@ -278,13 +278,13 @@ func (s *SLAConditionStore) Update(rpc options.UpdateOptions, l *cases.SLACondit
 func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.CreateOptions, sla *cases.SLACondition) (string, []interface{}) {
 	// Create arguments for the SQL query
 	args := []interface{}{
-		sla.Name,                    // $1
-		rpc.GetTime(),               // $2
-		rpc.GetAuth().GetUserId(),   // $3
-		sla.ReactionTime,            // $4
-		sla.ResolutionTime,          // $5
-		sla.SlaId,                   // $6
-		rpc.GetAuth().GetDomainId(), // $7
+		sla.Name,                        // $1
+		rpc.RequestTime(),               // $2
+		rpc.GetAuthOpts().GetUserId(),   // $3
+		sla.ReactionTime,                // $4
+		sla.ResolutionTime,              // $5
+		sla.SlaId,                       // $6
+		rpc.GetAuthOpts().GetDomainId(), // $7
 	}
 
 	// SQL query construction
@@ -344,13 +344,13 @@ FROM inserted_sla
 }
 
 // Helper function to build the delete query for SLACondition
-func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.DeleteOptions) (string, []interface{}, error) {
 	// Create base query for deletion
 	query := deleteSLAConditionQuery
 
 	// Arguments for the query
 	args := []interface{}{
-		rpc.IDs[0],                      // $1 is the SLA Condition ID to delete
+		rpc.GetIDs()[0],                 // $1 is the SLA Condition ID to delete
 		rpc.GetAuthOpts().GetDomainId(), // $2 is the domain context (dc)
 	}
 
@@ -462,11 +462,11 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc options.UpdateOptions, l *cases.SLACondition) (string, []interface{}) {
 	// Prepare arguments for the SQL query
 	args := []interface{}{
-		l.Id,                        // $1: sla_condition_id
-		rpc.GetAuth().GetUserId(),   // $2: created_by and updated_by
-		rpc.GetAuth().GetDomainId(), // $3: dc
-		pq.Array(rpc.GetIDs()),      // $4: ARRAY of priority IDs
-		rpc.GetTime(),               // $5: timestamp for updated_at
+		l.Id,                            // $1: sla_condition_id
+		rpc.GetAuthOpts().GetUserId(),   // $2: created_by and updated_by
+		rpc.GetAuthOpts().GetDomainId(), // $3: dc
+		pq.Array(rpc.GetIDs()),          // $4: ARRAY of priority IDs
+		rpc.RequestTime(),               // $5: timestamp for updated_at
 	}
 
 	// query that updates or inserts priorities and deletes non-selected ones
@@ -497,9 +497,9 @@ FROM (SELECT sla_condition_id
 func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc options.UpdateOptions, l *cases.SLACondition) (string, []interface{}, error) {
 	updateBuilder := sq.Update("cases.sla_condition").
 		PlaceholderFormat(sq.Dollar). // Set placeholder format to Dollar for PostgreSQL
-		Set("updated_at", rpc.GetTime()).
-		Set("updated_by", rpc.GetAuth().GetUserId()).
-		Where(sq.Eq{"id": l.Id, "dc": rpc.GetAuth().GetDomainId()})
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Where(sq.Eq{"id": l.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the update builder based on provided fields
 	for _, field := range rpc.GetMask() {

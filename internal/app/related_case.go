@@ -126,14 +126,14 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 
 	logAttributes := slog.Group(
 		"context",
-		slog.Int64("user_id", createOpts.GetAuth().GetUserId()),
-		slog.Int64("domain_id", createOpts.GetAuth().GetDomainId()),
+		slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()),
+		slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("parent_id", createOpts.ParentID),
 		slog.Int64("child_id", createOpts.ChildID),
 	)
 	primaryAccessMode := auth.Edit
-	if createOpts.GetAuth().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), primaryAccessMode) {
-		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuth(), primaryAccessMode, createOpts.ParentID)
+	if createOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), primaryAccessMode) {
+		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), primaryAccessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -144,8 +144,8 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		}
 	}
 	secondaryAccessMode := auth.Read
-	if createOpts.GetAuth().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), secondaryAccessMode) {
-		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuth(), secondaryAccessMode, createOpts.ChildID)
+	if createOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), secondaryAccessMode) {
+		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), secondaryAccessMode, createOpts.ChildID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -235,13 +235,13 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 	relatedId := relatedCaseTag.GetOid()
 	logAttributes := slog.Group(
 		"context",
-		slog.Int64("user_id", updateOpts.GetAuth().GetUserId()),
-		slog.Int64("domain_id", updateOpts.GetAuth().GetDomainId()),
+		slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()),
+		slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("parent_id", updateOpts.ParentID),
 	)
 	primaryAccessMode := auth.Edit
-	if updateOpts.GetAuth().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), primaryAccessMode) {
-		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuth(), primaryAccessMode, primaryId)
+	if updateOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), primaryAccessMode) {
+		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), primaryAccessMode, primaryId)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -252,8 +252,8 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		}
 	}
 	secondaryAccessMode := auth.Read
-	if updateOpts.GetAuth().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), secondaryAccessMode) {
-		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuth(), secondaryAccessMode, relatedId)
+	if updateOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), secondaryAccessMode) {
+		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), secondaryAccessMode, relatedId)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -287,12 +287,11 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.invalid_etag", "Invalid etag")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, RelatedCaseMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	deleteOpts.ID = tag.GetOid()
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()),
@@ -302,8 +301,8 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 
 	// TODO: rbac check on main case
 	//accessMode := auth.Edit
-	//if deleteOpts.GetAuth().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
-	//	access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuth(), accessMode, deleteOpts.ParentID)
+	//if deleteOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
+	//	access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), accessMode, deleteOpts.ParentID)
 	//	if err != nil {
 	//		slog.ErrorContext(ctx, err.Error(), logAttributes)
 	//		return nil, AppForbiddenError

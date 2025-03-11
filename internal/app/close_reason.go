@@ -138,13 +138,11 @@ func (s *CloseReasonService) DeleteCloseReason(
 		return nil, cerror.NewBadRequestError("close_reason_service.delete_close_reason.id.required", "Close reason ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, CloseReasonMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-
-	deleteOpts.IDs = []int64{req.Id}
 
 	// Delete the close reason in the store
 	err = s.app.Store.CloseReason().Delete(deleteOpts)
