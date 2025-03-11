@@ -624,7 +624,7 @@ func buildTimelineEmailsColumn(caseId int64) (base squirrel.Sqlizer, plan []func
 
 // endregion
 
-func (c *CaseTimelineStore) GetCounter(rpc *model.SearchOptions) ([]*model.TimelineCounter, error) {
+func (c *CaseTimelineStore) GetCounter(rpc options.SearchOptions) ([]*model.TimelineCounter, error) {
 	query, plan, dbErr := buildTimelineCounterSqlizer(rpc)
 	if dbErr != nil {
 		return nil, dbErr
@@ -659,15 +659,18 @@ func (c *CaseTimelineStore) GetCounter(rpc *model.SearchOptions) ([]*model.Timel
 
 // region Timeline Counter Build Functions
 
-func buildTimelineCounterSqlizer(rpc *model.SearchOptions) (query squirrel.Sqlizer, scanPlan []func(response *model.TimelineCounter) any, dbError *dberr.DBError) {
+func buildTimelineCounterSqlizer(rpc options.SearchOptions) (query squirrel.Sqlizer, scanPlan []func(response *model.TimelineCounter) any, dbError *dberr.DBError) {
 	if rpc == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.rpc", "search options required")
 	}
-	caseId := rpc.ParentId
+	if len(rpc.GetIDs()) == 0 {
+		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id empty")
+	}
+	caseId := rpc.GetIDs()[0]
 	if caseId <= 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id empty")
 	}
-	fields := rpc.Fields[:]
+	fields := rpc.GetFields()
 	if len(fields) == 0 {
 		fields = CaseTimelineFields
 	}

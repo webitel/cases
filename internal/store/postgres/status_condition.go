@@ -15,7 +15,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -65,7 +64,7 @@ func (s StatusConditionStore) Create(rpc options.CreateOptions, add *_go.StatusC
 	return add, nil
 }
 
-func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_go.StatusConditionList, error) {
+func (s StatusConditionStore) List(rpc options.SearchOptions, statusId int64) (*_go.StatusConditionList, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.database_connection_error", err)
@@ -76,7 +75,7 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.query_build_error", err)
 	}
 
-	rows, err := db.Query(rpc.Context, query, args...)
+	rows, err := db.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.execution_error", err)
 	}
@@ -104,18 +103,18 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 			tempCreatedAt, tempUpdatedAt time.Time
 		)
 
-		scanArgs := s.buildScanArgs(rpc.Fields, st, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt)
+		scanArgs := s.buildScanArgs(rpc.GetFields(), st, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt)
 		if err := rows.Scan(scanArgs...); err != nil {
 			return nil, dberr.NewDBInternalError("postgres.status_condition.list.row_scan_error", err)
 		}
 
-		s.populateStatusConditionFields(rpc.Fields, st, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt)
+		s.populateStatusConditionFields(rpc.GetFields(), st, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt)
 		statusList = append(statusList, st)
 		lCount++
 	}
 
 	return &_go.StatusConditionList{
-		Page:  int32(rpc.Page),
+		Page:  int32(rpc.GetPage()),
 		Next:  next,
 		Items: statusList,
 	}, nil
@@ -203,16 +202,12 @@ func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.Create
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOptions, statusId int64) (string, []interface{}, error) {
+func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.SearchOptions, statusId int64) (string, []interface{}, error) {
 	queryBuilder := sq.Select().
 		From("cases.status_condition AS s").
 		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId(), "s.status_id": statusId}).
 		PlaceholderFormat(sq.Dollar)
-
-	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
-	rpc.Fields = append(fields, "id")
-
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		switch field {
 		case "id", "name", "initial", "final", "created_at", "updated_at", "description":
 			queryBuilder = queryBuilder.Column("s." + field)
@@ -231,14 +226,14 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 		}
 	}
 
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	if len(ids) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": ids})
 	}
 
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substrs := util.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})

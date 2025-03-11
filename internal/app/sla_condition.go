@@ -2,13 +2,12 @@ package app
 
 import (
 	"context"
-	"log/slog"
-	"time"
-
 	"github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
+	"log/slog"
 )
 
 type SLAConditionService struct {
@@ -108,36 +107,30 @@ func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases
 
 // ListSLAConditions implements cases.SLAConditionsServer.
 func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.ListSLAConditionRequest) (*cases.SLAConditionList, error) {
-
-	fields := req.Fields
-
-	// Use default page size and page number if not provided
-	page := req.Page
-	if page == 0 {
-		page = 1
+	searchOptions, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, SLAConditionMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithIDs(req.Id),
+		grpcopts.WithSort(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
-
-	t := time.Now()
-	searchOptions := model.SearchOptions{
-		ParentId: req.SlaId,
-		IDs:      req.Id,
-		// UserAuthSession:  session,
-		Fields:  fields,
-		Context: ctx,
-		Sort:    req.Sort,
-		Page:    int(page),
-		Size:    int(req.Size),
-		Time:    t,
-		Filter:  make(map[string]interface{}),
-		ID:      req.PriorityId,
-		Auth:    model.GetAutherOutOfContext(ctx),
+	searchOptions.AddFilter("sla_id", req.SlaId)
+	if req.PriorityId != 0 {
+		searchOptions.AddFilter("priority_id", req.PriorityId)
 	}
 
 	if req.Q != "" {
-		searchOptions.Filter["name"] = req.Q
+		searchOptions.AddFilter("name", req.Q)
 	}
 
-	slaConditions, e := s.app.Store.SLACondition().List(&searchOptions)
+	slaConditions, e := s.app.Store.SLACondition().List(searchOptions)
 	if e != nil {
 		return nil, cerror.NewInternalError("sla_condition_service.list_sla_conditions.store.list.failed", e.Error())
 	}

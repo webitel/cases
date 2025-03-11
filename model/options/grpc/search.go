@@ -161,7 +161,19 @@ func (s *SearchOptions) GetPage() int {
 }
 
 func (s *SearchOptions) GetSize() int {
-	return s.Size
+	if s == nil {
+		return DefaultSearchSize
+	}
+	switch {
+	case s.Size < 0:
+		return -1
+	case s.Size > 0:
+		// CHECK for too big values !
+		return s.Size
+	case s.Size == 0:
+		return DefaultSearchSize
+	}
+	panic("unreachable code")
 }
 
 func (s *SearchOptions) GetSort() string {

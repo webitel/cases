@@ -2,13 +2,12 @@ package app
 
 import (
 	"context"
-	"log/slog"
-	"time"
-
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
+	"log/slog"
 )
 
 type StatusConditionService struct {
@@ -68,33 +67,26 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 
 // ListStatusConditions implements api.StatusConditionsServer.
 func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_go.ListStatusConditionRequest) (*_go.StatusConditionList, error) {
-	fields := req.Fields
-
-	// Use default page size and page number if not provided
-	page := req.Page
-	if page == 0 {
-		page = 1
-	}
-
-	t := time.Now()
-	searchOptions := model.SearchOptions{
-		IDs: req.Id,
-		// UserAuthSession: session,
-		Fields:  fields,
-		Context: ctx,
-		Sort:    req.Sort,
-		Page:    int(page),
-		Size:    int(req.Size),
-		Time:    t,
-		Filter:  make(map[string]interface{}),
-		Auth:    model.GetAutherOutOfContext(ctx),
+	searchOptions, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, StatusConditionMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithIDs(req.Id),
+		grpcopts.WithSort(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	if req.Q != "" {
-		searchOptions.Filter["name"] = req.Q
+		searchOptions.AddFilter("name", req.Q)
 	}
 
-	statuses, e := s.app.Store.StatusCondition().List(&searchOptions, req.StatusId)
+	statuses, e := s.app.Store.StatusCondition().List(searchOptions, req.StatusId)
 	if e != nil {
 		return nil, cerror.NewInternalError("status_condition.list_status_conditions.store.list.failed", e.Error())
 	}

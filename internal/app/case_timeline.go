@@ -89,16 +89,16 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline_counter.check_args.invalid_etag", "Invalid case etag")
 	}
-	searchOpts := &model.SearchOptions{Context: ctx, Fields: CaseTimelineMetadata.GetDefaultFields(), ParentId: tid.GetOid(), Auth: model.GetAutherOutOfContext(ctx)}
+	searchOpts := &grpcopts.SearchOptions{Context: ctx, Fields: CaseTimelineMetadata.GetDefaultFields(), IDs: []int64{tid.GetOid()}, Auth: model.GetAutherOutOfContext(ctx)}
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
 		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("case_id", searchOpts.ParentId),
+		slog.Int64("case_id", tid.GetOid()),
 	)
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseTimelineMetadata.GetParentScopeName(), accessMode) {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tid.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError

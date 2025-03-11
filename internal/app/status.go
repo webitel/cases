@@ -69,7 +69,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		ctx,
 		grpcopts.WithSearch(req),
 		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, SLAMetadata,
+		grpcopts.WithFields(req, StatusMetadata,
 			util.DeduplicateFields,
 			util.EnsureIdField,
 		),

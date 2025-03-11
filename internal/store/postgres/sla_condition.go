@@ -15,7 +15,6 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -115,7 +114,7 @@ func (s *SLAConditionStore) Delete(rpc options.DeleteOptions) error {
 }
 
 // List implements store.SLAConditionStore.
-func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionList, error) {
+func (s *SLAConditionStore) List(rpc options.SearchOptions) (*cases.SLAConditionList, error) {
 	// Establish a connection to the database
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -129,7 +128,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 	}
 
 	// Execute the search query
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla_condition.list.execution_error", err)
 	}
@@ -156,7 +155,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 
 		// Build scan arguments dynamically
 		scanArgs := s.buildScanArgs(
-			rpc.Fields, slaCondition, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt, &prioritiesJSON,
+			rpc.GetFields(), slaCondition, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt, &prioritiesJSON,
 		)
 
 		if err := rows.Scan(scanArgs...); err != nil {
@@ -165,7 +164,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 
 		// Populate SLACondition fields
 		s.populateSLAConditionFields(
-			rpc.Fields, slaCondition, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt,
+			rpc.GetFields(), slaCondition, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt,
 		)
 
 		// Parse JSON priorities into SLACondition.Priorities
@@ -185,7 +184,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 	}
 
 	return &cases.SLAConditionList{
-		Page:  int32(rpc.Page),
+		Page:  int32(rpc.GetPage()),
 		Next:  next,
 		Items: slaConditionList,
 	}, nil
@@ -358,23 +357,17 @@ func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.DeleteOptio
 }
 
 // buildSearchSLAConditionQuery constructs the SQL search query for SLAConditions.
-func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.SearchOptions) (string, []interface{}, error) {
+	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
-
 	queryBuilder := sq.Select().
 		From("cases.sla_condition AS g").
-		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId(), "g.sla_id": rpc.ParentId}).
+		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId(), "g.sla_id": rpc.GetFilter("sla_id")}).
 		PlaceholderFormat(sq.Dollar)
-
-	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
-
-	//-----ALWAYS INCLUDE ID FIELD-----
-	rpc.Fields = append(fields, "id") // FIXME ------ NEED to pass only if absent
 
 	groupByFields := []string{"g.id"} // Start with the mandatory fields for GROUP BY
 
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		switch field {
 		case "id", "name", "reaction_time", "resolution_time",
 			"sla_id", "created_at", "updated_at":
@@ -414,36 +407,38 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
-	if rpc.ID != 0 {
+	if priorityId := rpc.GetFilter("priority_id"); priorityId != nil {
 		// Join cases.priority_sla_condition only if filtering by priority_id
 		queryBuilder = queryBuilder.
 			LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
-			Where(sq.Eq{"ps.priority_id": rpc.ID})
+			Where(sq.Eq{"ps.priority_id": priorityId})
 	}
 
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substrs := util.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
 	// Adjust sort if calendar is present
-	sortField := rpc.Sort
+	sortField := rpc.GetSort()
 	// Remove any leading "+" or "-" for comparison
 	field := strings.TrimPrefix(strings.TrimPrefix(sortField, "-"), "+")
 
 	if field == "priorities" {
-		// Replace "calendar" with "cal.name" for sorting
-		if strings.HasPrefix(sortField, "-") {
-			rpc.Sort = "-p.name"
+		s := "p.name"
+		desc := strings.HasPrefix(sortField, "-")
+		// Determine sort direction
+		if desc {
+			s += " DESC"
 		} else {
-			// Covers both no prefix and "+" prefix
-			rpc.Sort = "p.name"
+			s += " ASC"
 		}
+		queryBuilder = queryBuilder.OrderBy(s)
+	} else {
+		// -------- Apply sorting ----------
+		queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
 	}
-
-	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)

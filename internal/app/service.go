@@ -2,15 +2,13 @@ package app
 
 import (
 	"context"
-	"log/slog"
-	"strings"
-	"time"
-
 	api "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
+	"log/slog"
+	"strings"
 )
 
 var ServiceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
@@ -106,45 +104,31 @@ func (s *ServiceService) DeleteService(ctx context.Context, req *api.DeleteServi
 
 // ListServices implements cases.ServicesServer.
 func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceRequest) (*api.ServiceList, error) {
-	page := req.Page
-	if page == 0 {
-		page = 1
-	}
-
-	if len(req.Fields) == 0 {
-		req.Fields = strings.Split(defaultSubfields, ", ")
-	} else {
-		req.Fields = util.FieldsFunc(req.Fields, util.InlineFields)
-	}
-
-	if !util.ContainsField(req.Fields, "id") {
-		req.Fields = append(req.Fields, "id")
-	}
-
-	t := time.Now()
-	searchOptions := &model.SearchOptions{
-		Fields: req.Fields,
-		IDs:    req.Id,
-		// UserAuthSession: session,
-		Context: ctx,
-		Sort:    req.Sort,
-		Page:    int(page),
-		Size:    int(req.Size),
-		Time:    t,
-		Filter:  make(map[string]interface{}),
-		Auth:    model.GetAutherOutOfContext(ctx),
+	searchOptions, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, ServiceMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithIDs(req.Id),
+		grpcopts.WithSort(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	if req.Q != "" {
-		searchOptions.Filter["name"] = req.Q
+		searchOptions.AddFilter("name", req.Q)
 	}
 
 	if req.RootId != 0 {
-		searchOptions.Filter["root_id"] = req.RootId
+		searchOptions.AddFilter("root_id", req.RootId)
 	}
 
 	if req.State {
-		searchOptions.Filter["state"] = req.State
+		searchOptions.AddFilter("state", req.State)
 	}
 
 	services, e := s.app.Store.Service().List(searchOptions)

@@ -11,8 +11,6 @@ import (
 	"github.com/webitel/cases/util"
 	"google.golang.org/grpc/metadata"
 	"log/slog"
-	"strings"
-	"time"
 )
 
 type CatalogService struct {
@@ -137,40 +135,27 @@ func (s *CatalogService) ListCatalogs(
 	ctx context.Context,
 	req *cases.ListCatalogRequest,
 ) (*cases.CatalogList, error) {
-	page := req.Page
-	if page == 0 {
-		page = 1
-	}
-
-	if !util.ContainsField(req.Fields, "services") {
-		req.Fields = append(req.Fields, "services")
-	}
-
 	if req.Query != "" {
 		req.Fields = append(req.Fields, "searched")
 	}
-
-	if len(req.SubFields) > 0 {
-		req.SubFields = util.FieldsFunc(req.SubFields, util.InlineFields)
-	} else if len(req.SubFields) == 0 {
-		req.SubFields = strings.Split(defaultSubfields, ", ")
+	searchOptions, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, CatalogMetadata,
+			util.DeduplicateFields,
+			func(in []string) []string {
+				return util.EnsureFields(in, "id", "services")
+			},
+		),
+		grpcopts.WithIDs(req.Id),
+		grpcopts.WithSort(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
-
-	t := time.Now()
-	searchOptions := &model.SearchOptions{
-		IDs:     req.Id,
-		Context: ctx,
-		Sort:    req.Sort,
-		Fields:  req.Fields,
-		Page:    int(page),
-		Size:    int(req.Size),
-		Time:    t,
-		Filter:  make(map[string]any),
-		Auth:    model.GetAutherOutOfContext(ctx),
-	}
-
 	if req.State {
-		searchOptions.Filter["state"] = req.State
+		searchOptions.AddFilter("state", req.State)
 	}
 
 	if !searchOptions.GetAuthOpts().HasSuperPermission(auth.SuperSelectPermission) { // if user doesn't have super select permission, then apply filters
@@ -195,14 +180,14 @@ func (s *CatalogService) ListCatalogs(
 				)
 				if team := agent.Team; team != nil {
 					if team.GetId() > 0 {
-						searchOptions.Filter["team"] = agent.Team.Id
+						searchOptions.AddFilter("team", agent.Team.Id)
 					}
 				}
 				if agent.Skills != nil && len(agent.Skills) != 0 {
 					for _, skill := range agent.Skills {
 						skills = append(skills, skill.GetId())
 					}
-					searchOptions.Filter["skills"] = skills
+					searchOptions.AddFilter("skills", skills)
 
 				}
 			}
@@ -213,7 +198,7 @@ func (s *CatalogService) ListCatalogs(
 	}
 
 	if req.Query != "" {
-		searchOptions.Filter["name"] = req.Query
+		searchOptions.AddFilter("name", req.Query)
 		req.Fields = append(req.Fields, "searched")
 	}
 

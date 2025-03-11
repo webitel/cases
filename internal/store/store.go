@@ -89,7 +89,7 @@ type CaseCommentStore interface {
 // Case timeline
 type CaseTimelineStore interface {
 	Get(rpc options.SearchOptions) (*_go.GetTimelineResponse, error)
-	GetCounter(rpc *model.SearchOptions) ([]*model.TimelineCounter, error)
+	GetCounter(rpc options.SearchOptions) ([]*model.TimelineCounter, error)
 }
 
 // Case connected communications (chats, calls etc.)
@@ -139,7 +139,7 @@ type StatusConditionStore interface {
 	// Create a new status сondition
 	Create(ctx options.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error)
 	// List status сondition
-	List(ctx *model.SearchOptions, statusId int64) (*_go.StatusConditionList, error)
+	List(ctx options.SearchOptions, statusId int64) (*_go.StatusConditionList, error)
 	// Delete status сondition
 	Delete(ctx options.DeleteOptions, statusId int64) error
 	// Update status сondition
@@ -205,7 +205,7 @@ type SLAConditionStore interface {
 	// Create a new SLA сondition
 	Create(ctx options.CreateOptions, add *_go.SLACondition, priorities []int64) (*_go.SLACondition, error)
 	// List SLA сondition
-	List(ctx *model.SearchOptions) (*_go.SLAConditionList, error)
+	List(ctx options.SearchOptions) (*_go.SLAConditionList, error)
 	// Delete SLA сondition
 	Delete(ctx options.DeleteOptions) error
 	// Update SLA сondition
@@ -217,7 +217,7 @@ type CatalogStore interface {
 	// Create a new catalog
 	Create(rpc options.CreateOptions, add *_go.Catalog) (*_go.Catalog, error)
 	// List catalogs
-	List(rpc *model.SearchOptions, depth int64, subfields []string, hasSubservices bool) (*_go.CatalogList, error)
+	List(rpc options.SearchOptions, depth int64, subfields []string, hasSubservices bool) (*_go.CatalogList, error)
 	// Delete catalog
 	Delete(rpc options.DeleteOptions) error
 	// Update catalog
@@ -229,7 +229,7 @@ type ServiceStore interface {
 	// Create a new service
 	Create(rpc options.CreateOptions, add *_go.Service) (*_go.Service, error)
 	// List services
-	List(rpc *model.SearchOptions) (*_go.ServiceList, error)
+	List(rpc options.SearchOptions) (*_go.ServiceList, error)
 	// Delete service
 	Delete(rpc options.DeleteOptions) error
 	// Update service

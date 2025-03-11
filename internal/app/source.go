@@ -73,7 +73,7 @@ func (s *SourceService) ListSources(
 		ctx,
 		grpcopts.WithSearch(req),
 		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, SLAMetadata,
+		grpcopts.WithFields(req, SourceMetadata,
 			util.DeduplicateFields,
 			util.EnsureIdField,
 		),

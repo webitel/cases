@@ -14,7 +14,6 @@ import (
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -97,7 +96,7 @@ func (s *ServiceStore) Delete(rpc options.DeleteOptions) error {
 }
 
 // List implements store.ServiceStore.
-func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error) {
+func (s *ServiceStore) List(rpc options.SearchOptions) (*cases.ServiceList, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -111,7 +110,7 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 	}
 
 	// Execute the query
-	rows, err := db.Query(rpc.Context, query, args...)
+	rows, err := db.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.service.list.query_execution_error", err)
 	}
@@ -138,7 +137,7 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 		var createdAt, updatedAt time.Time
 
 		// Build the scan arguments for the current row
-		scanArgs, postScanHandler := s.buildServiceScanArgs(service, &createdAt, &updatedAt, rpc.Fields)
+		scanArgs, postScanHandler := s.buildServiceScanArgs(service, &createdAt, &updatedAt, rpc.GetFields())
 
 		// Scan the row into the service object
 		if err := rows.Scan(scanArgs...); err != nil {
@@ -158,7 +157,7 @@ func (s *ServiceStore) List(rpc *model.SearchOptions) (*cases.ServiceList, error
 	}
 
 	return &cases.ServiceList{
-		Page:  int32(rpc.Page),
+		Page:  int32(rpc.GetPage()),
 		Next:  next,
 		Items: services,
 	}, nil
@@ -301,7 +300,7 @@ func (s *ServiceStore) buildDeleteServiceQuery(rpc options.DeleteOptions) (strin
 	return store.CompactSQL(query), args
 }
 
-func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
+func (s *ServiceStore) buildSearchServiceQuery(rpc options.SearchOptions) (string, []interface{}, error) {
 	// Map of fields to their corresponding SQL expressions
 	fieldMap := map[string]string{
 		"id":          "service.id",
@@ -326,7 +325,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 		Where("service.root_id IS NOT NULL")
 
 	// Include requested fields in the SELECT clause
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		if column, ok := fieldMap[field]; ok {
 			queryBuilder = queryBuilder.Column(column)
 		}
@@ -349,21 +348,21 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 	}
 
 	// Apply filters
-	if rootID, ok := rpc.Filter["root_id"].(int64); ok && rootID > 0 {
+	if rootID, ok := rpc.GetFilter("root_id").(int64); ok && rootID > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.root_id": rootID})
 	}
 
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substr := util.Substring(name)
 		queryBuilder = queryBuilder.Where(sq.ILike{"service.name": "%" + strings.Join(substr, "%") + "%"})
 	}
 
-	if state, ok := rpc.Filter["state"]; ok {
+	if state := rpc.GetFilter("state"); state != nil {
 		queryBuilder = queryBuilder.Where(sq.Eq{"service.state": state})
 	}
 
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"service.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"service.id": rpc.GetIDs()})
 	}
 
 	// Apply sorting dynamically
@@ -380,7 +379,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc *model.SearchOptions) (string
 	return store.CompactSQL(query), args, nil
 }
 
-func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.SelectBuilder {
+func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.SearchOptions) sq.SelectBuilder {
 	sortableFields := map[string]string{
 		"name":        "service.name",
 		"code":        "service.code",
@@ -393,7 +392,7 @@ func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions
 	sortApplied := false
 
 	// Loop through the provided sorting fields
-	sortField := rpc.Sort
+	sortField := rpc.GetSort()
 	sortDirection := "ASC"
 	if len(sortField) > 0 {
 		switch sortField[0] {

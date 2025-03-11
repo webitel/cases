@@ -40,10 +40,10 @@ func buildSourceSelectColumnsAndPlan(
 		switch field {
 		case "id":
 			base = base.Column(store.Ident(sourceLeft, "id"))
-			plan = append(plan, func(s *_go.Source) any { return &s.Id })
+			plan = append(plan, func(s *_go.Source) any { return scanner.ScanInt64(&s.Id) })
 		case "name":
 			base = base.Column(store.Ident(sourceLeft, "name"))
-			plan = append(plan, func(s *_go.Source) any { return &s.Name })
+			plan = append(plan, func(s *_go.Source) any { return scanner.ScanText(&s.Name) })
 		case "description":
 			base = base.Column(store.Ident(sourceLeft, "description"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanText(&s.Description) })
