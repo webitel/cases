@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"strings"
 
 	_go "github.com/webitel/cases/api/cases"
@@ -75,22 +76,23 @@ func (s *SourceService) ListSources(
 	ctx context.Context,
 	req *_go.ListSourceRequest,
 ) (*_go.SourceList, error) {
-
-	searchOpts, err := model.NewSearchOptions(ctx, req, SourceMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, SLAMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.IDs = req.Id
-	searchOpts.Filter = make(map[string]any)
-
-	if req.Q != "" {
-		searchOpts.Filter["name"] = req.Q
-	}
-
-	if len(req.Type) > 0 {
-		searchOpts.Filter["type"] = req.Type
-	}
+	searchOpts.AddFilter("name", req.Q)
+	searchOpts.AddFilter("type", req.Type)
 
 	res, err := s.app.Store.Source().List(searchOpts)
 	if err != nil {

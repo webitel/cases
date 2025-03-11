@@ -141,7 +141,7 @@ func (p *Priority) buildDeletePriorityQuery(
 
 // List implements store.PriorityStore.
 func (p *Priority) List(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 	notInSla int64,
 	inSla int64,
 ) (*api.PriorityList, error) {
@@ -161,7 +161,7 @@ func (p *Priority) List(
 	}
 	query = store.CompactSQL(query)
 
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.execution_error", err)
 	}
@@ -190,18 +190,17 @@ func (p *Priority) List(
 	}
 
 	return &api.PriorityList{
-		Page:  int32(rpc.Page),
+		Page:  int32(rpc.GetPage()),
 		Next:  next,
 		Items: priorities,
 	}, nil
 }
 
 func (p *Priority) buildListPriorityQuery(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 	notInSla int64,
 	inSla int64,
 ) (sq.SelectBuilder, []PriorityScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
 
 	queryBuilder := sq.Select().
 		From("cases.priority AS cp").
@@ -209,12 +208,12 @@ func (p *Priority) buildListPriorityQuery(
 		PlaceholderFormat(sq.Dollar)
 
 	// Add ID filter if provided
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cp.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cp.id": rpc.GetIDs()})
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substr := util.Substring(name)
 		combinedLike := strings.Join(substr, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"cp.name": combinedLike})
@@ -253,8 +252,8 @@ func (p *Priority) buildListPriorityQuery(
 	}
 
 	// Filter by IDs
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cp.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cp.id": rpc.GetIDs()})
 	}
 
 	// -------- Apply sorting ----------
@@ -264,7 +263,7 @@ func (p *Priority) buildListPriorityQuery(
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
-	queryBuilder, plan, err := buildPrioritySelectColumnsAndPlan(queryBuilder, rpc.Fields)
+	queryBuilder, plan, err := buildPrioritySelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.priority.search.query_build_error", err)
 	}

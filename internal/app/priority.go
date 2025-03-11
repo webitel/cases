@@ -6,6 +6,7 @@ import (
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
 	"log/slog"
 )
 
@@ -59,18 +60,24 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 
 // ListPriorities implements api.PrioritiesServer.
 func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPriorityRequest) (*api.PriorityList, error) {
-	searchOptions, err := model.NewSearchOptions(ctx, req, PriorityMetadata)
-	searchOptions.IDs = req.Id
-
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, PriorityMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	if req.Q != "" {
-		searchOptions.Filter["name"] = req.Q
-	}
+	searchOpts.AddFilter("name", req.Q)
 
-	prios, err := p.app.Store.Priority().List(searchOptions, req.NotInSla, req.InSlaCond)
+	prios, err := p.app.Store.Priority().List(searchOpts, req.NotInSla, req.InSlaCond)
 	if err != nil {
 		return nil, cerror.NewInternalError("app.priority.list_priorities.store_list_failed", err.Error())
 	}

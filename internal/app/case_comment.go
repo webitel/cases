@@ -3,14 +3,16 @@ package app
 import (
 	"context"
 	"errors"
-	"github.com/webitel/cases/api/cases"
+	cases "github.com/webitel/cases/api/cases"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"log/slog"
+
 	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
-	"log/slog"
 )
 
 const caseCommentsObjScope = model.ScopeCaseComments
@@ -44,17 +46,24 @@ func (c *CaseCommentService) LocateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.etag_required", "Etag is required")
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Etag)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.invalid_etag", "Invalid etag")
-	}
-
-	searchOpts, err := model.NewLocateOptions(ctx, req, CaseCommentMetadata)
+	searchOpts, err := grpcopts.NewLocateOptions(
+		ctx,
+		grpcopts.WithFields(req, CaseCommentMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			func(in []string) []string {
+				if util.ContainsField(in, "edited") {
+					return util.EnsureFields(in, "updated_at", "created_at")
+				}
+				return in
+			},
+		),
+		grpcopts.WithIDsAsEtags(etag.EtagCaseComment, req.GetEtag()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.IDs = []int64{tag.GetOid()}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 
 	commentList, err := c.app.Store.CaseComment().List(searchOpts)
@@ -65,7 +74,7 @@ func (c *CaseCommentService) LocateComment(
 	if len(commentList.Items) == 0 {
 		return nil, cerror.NewNotFoundError("app.case_comment.locate_comment.not_found", "Comment not found")
 	} else if len(commentList.Items) > 1 {
-		return nil, cerror.NewInternalError("app.case_comment.locate_comment.multiple_found", "Multiple comments found")
+		return nil, InternalError
 	}
 
 	err = NormalizeCommentsResponse(commentList.Items[0], req)

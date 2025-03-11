@@ -65,18 +65,22 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 
 // ListStatuses implements api.StatusesServer.
 func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
-
-	searchOpts, err := model.NewSearchOptions(ctx, req, StatusMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, SLAMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.Filter = make(map[string]any)
-	searchOpts.IDs = req.Id
-
-	if req.Q != "" {
-		searchOpts.Filter["name"] = req.Q
-	}
+	searchOpts.AddFilter("name", req.Q)
 
 	res, err := s.app.Store.Status().List(searchOpts)
 	if err != nil {

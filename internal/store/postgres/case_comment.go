@@ -559,7 +559,7 @@ func buildCommentSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func buildCommentsSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(link *_go.CaseComment) any, int, *dberr.DBError) {
+func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlias string) (sq.SelectBuilder, []func(link *_go.CaseComment) any, *dberr.DBError) {
 	alias := "comments"
 	if caseAlias == alias {
 		alias = "sub_" + alias
@@ -568,67 +568,16 @@ func buildCommentsSelectAsSubquery(opts *model.SearchOptions, caseAlias string) 
 		Select().
 		From("cases.case_comment " + alias).
 		Where(fmt.Sprintf("%s = %s", store.Ident(alias, "case_id"), store.Ident(caseAlias, "id")))
-	base, err := addCaseCommentRbacCondition(opts.Auth, auth.Read, base, store.Ident(alias, "id"))
+	base, err := addCaseCommentRbacCondition(auther, auth.Read, base, store.Ident(alias, "id"))
 	if err != nil {
-		return base, nil, 0, dberr.NewDBError("store.case_comment.build_comments_subquery.rbac_err", err.Error())
+		return base, nil, dberr.NewDBError("store.case_comment.build_comments_subquery.rbac_err", err.Error())
 	}
-	base, plan, dbErr := buildCommentSelectColumnsAndPlan(base, alias, opts.Fields, opts.GetAuthOpts())
+	base, plan, dbErr := buildCommentSelectColumnsAndPlan(base, alias, fields, auther)
 	if dbErr != nil {
-		return base, nil, 0, dbErr
+		return base, nil, dbErr
 	}
-	base, applied, dbErr := applyCaseCommentFilters(opts, base, alias)
-	if dbErr != nil {
-		return base, nil, 0, dbErr
-	}
-	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
-	return base, plan, applied, nil
-}
-
-func applyCaseCommentFilters(
-	opts *model.SearchOptions,
-	base sq.SelectBuilder,
-	alias string,
-) (updatedBase sq.SelectBuilder, filtersApplied int, err *dberr.DBError) {
-	if opts == nil || len(opts.Filter) == 0 {
-		return base, 0, nil
-	}
-
-	for column, value := range opts.Filter {
-		if !util.ContainsStringIgnoreCase(opts.Fields, column) {
-			continue
-		}
-		switch column {
-		case "created_by":
-			switch v := value.(type) {
-			case int64, int, int32, *int64, *int, *int32:
-				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseCommentCreatedByAlias, "id")), v)
-			case string, *string:
-				// apply search
-				// base = store.AddSearchTerm(base, )
-			}
-		case "author":
-			switch v := value.(type) {
-			case int64, int, int32, *int64, *int, *int32:
-				//
-				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseCommentAuthorAlias, "id")), v)
-			case string, *string:
-				// apply search
-				// base = store.AddSearchTerm(base, )
-			}
-		case "updated_by":
-			switch v := value.(type) {
-			case int64, int, int32, *int64, *int, *int32:
-				//
-				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseCommentUpdatedByAlias, "id")), v)
-			case string, *string:
-				// apply search
-				// base = store.AddSearchTerm(base, )
-			}
-			filtersApplied++
-		}
-
-	}
-	return
+	base = store.ApplyPaging(1, model.DefaultSearchSize, base)
+	return base, plan, nil
 }
 
 func addCaseCommentRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {

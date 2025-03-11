@@ -245,9 +245,8 @@ func (s CloseReasonGroup) Update(
 }
 
 func (s CloseReasonGroup) buildListCloseReasonGroupQuery(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 ) (sq.SelectBuilder, []CloseReasonGroupScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
 
 	queryBuilder := sq.Select().
 		From("cases.close_reason_group AS g").
@@ -255,12 +254,12 @@ func (s CloseReasonGroup) buildListCloseReasonGroupQuery(
 		PlaceholderFormat(sq.Dollar)
 
 	// Add ID filter if provided
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": rpc.GetIDs()})
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substr := util.Substring(name)
 		combinedLike := strings.Join(substr, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
@@ -273,7 +272,7 @@ func (s CloseReasonGroup) buildListCloseReasonGroupQuery(
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
-	queryBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(queryBuilder, rpc.Fields)
+	queryBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 	if err != nil {
 		return sq.SelectBuilder{}, nil,
 			dberr.NewDBInternalError(
@@ -285,7 +284,7 @@ func (s CloseReasonGroup) buildListCloseReasonGroupQuery(
 	return queryBuilder, plan, nil
 }
 
-func (s CloseReasonGroup) List(rpc *model.SearchOptions) (*_go.CloseReasonGroupList, error) {
+func (s CloseReasonGroup) List(rpc options.SearchOptions) (*_go.CloseReasonGroupList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.database_connection_error", dbErr)
@@ -302,7 +301,7 @@ func (s CloseReasonGroup) List(rpc *model.SearchOptions) (*_go.CloseReasonGroupL
 	}
 	query = store.CompactSQL(query)
 
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.execution_error", err)
 	}

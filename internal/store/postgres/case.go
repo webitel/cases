@@ -355,10 +355,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 
 	// Construct SELECT query to return case data
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		&model.SearchOptions{
-			Context: rpc.Context,
-			Fields:  rpc.Fields,
-		},
+		rpc.GetAuth(),
+		rpc.GetFields(),
 		sq.Select().PrefixExpr(
 			sq.Expr(
 				boundQuery,
@@ -472,7 +470,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	if caseID == nil {
 		pivotTime = rpc.GetTime()
 	} else {
-		err := txManager.QueryRow(rpc.Context, `
+		err := txManager.QueryRow(rpc, `
 			SELECT created_at FROM cases.case WHERE id = $1`, *caseID).Scan(&pivotTime)
 		if err != nil {
 			return fmt.Errorf("failed to fetch created_at for caseID %d: %w", *caseID, err)
@@ -496,7 +494,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 
 	// Fetch timezone offset
 	var offset time.Duration
-	err = txManager.QueryRow(rpc.Context, `
+	err = txManager.QueryRow(rpc, `
 		SELECT tz.utc_offset
 		FROM flow.calendar cl
 		    LEFT JOIN flow.calendar_timezones tz ON tz.id = cl.timezone_id
@@ -528,7 +526,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 
 // fetchCalendarSlots retrieves working hours for a calendar
 func fetchCalendarSlots(rpc options.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]CalendarSlot, error) {
-	rows, err := txManager.Query(rpc.Context, `
+	rows, err := txManager.Query(rpc, `
 		SELECT day, start_time_of_day, end_time_of_day, disabled
 		FROM flow.calendar cl,
 		     UNNEST(accepts::flow.calendar_accept_time[]) x
@@ -890,7 +888,7 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 
 func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
-	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
+	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts.GetAuthOpts(), opts.GetFields(), base)
 	if search := opts.GetSearch(); search != "" {
 		searchTerm, operator := store.ParseSearchTerm(search)
 		searchNumber := store.PrepareSearchNumber(search)
@@ -1114,7 +1112,7 @@ func (c *CaseStore) Update(
 	}
 
 	// Begin a transaction
-	tx, txErr := db.Begin(rpc.Context)
+	tx, txErr := db.Begin(rpc)
 	if txErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", txErr)
 	}
@@ -1309,13 +1307,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	}
 
 	// Define SELECT query for returning updated fields
-	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		&model.SearchOptions{
-			Size:   -1,
-			Fields: rpc.Fields,
-			Auth:   rpc.GetAuthOpts(),
-			Time:   rpc.Time,
-		},
+	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(rpc.GetAuthOpts(), rpc.Fields,
 		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
 	)
 	if err != nil {
@@ -1391,7 +1383,7 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 }
 
 // session required to get some columns
-func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts options.SearchOptions,
+func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []string,
 	base sq.SelectBuilder,
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	var (
@@ -1400,7 +1392,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts options.SearchOptions,
 		err        error
 	)
 
-	for _, field := range opts.GetFields() {
+	for _, field := range fields {
 		base, tableAlias, err = c.joinRequiredTable(base, field)
 		if err != nil {
 			return base, nil, err
@@ -1828,17 +1820,8 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts options.SearchOptions,
 				return scanner.ScanRowLookup(&caseItem.SlaCondition)
 			})
 		case "comments":
-
-			derivedOpts := options.SearchOptions{
-				Context: opts,
-				Fields:  []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"},
-				Size:    10,
-				Page:    1,
-				Sort:    "-created_at",
-				Auth:    opts.GetAuthOpts(),
-			}
-
-			subquery, scanPlan, filtersApplied, dbErr := buildCommentsSelectAsSubquery(derivedOpts, caseLeft)
+			commentFields := []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"}
+			subquery, scanPlan, filtersApplied, dbErr := buildCommentsSelectAsSubquery(auther, commentFields, caseLeft)
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
@@ -1850,30 +1833,20 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts options.SearchOptions,
 						return nil
 					}
 					res := &_go.CaseCommentList{}
-					res.Items, res.Next = store.ResolvePaging(opts.GetSize(), items)
-					res.Page = int64(opts.GetPage())
+					res.Items, res.Next = store.ResolvePaging(model.DefaultSearchSize, items)
+					res.Page = 1
 					value.Comments = res
 					return nil
 				}
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
 		case "links":
-			derivedOpts := opts.SearchDerivedOptionByField(field)
-			if derivedOpts == nil {
-				// default
-				derivedOpts = &model.SearchOptions{
-					Context: opts.Context,
-					Fields:  []string{"id", "ver", "name", "url", "created_by", "author", "created_at"},
-					Size:    10,
-					Page:    1,
-					Sort:    "-created_at",
-				}
-			}
-			subquery, scanPlan, filtersApplied, dbErr := buildLinkSelectAsSubquery(derivedOpts, caseLeft)
+			linksFields := []string{"id", "ver", "name", "url", "created_by", "author", "created_at"}
+			subquery, scanPlan, dbErr := buildLinkSelectAsSubquery(linksFields, caseLeft)
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
-			base = AddSubqueryAsColumn(base, subquery, field, filtersApplied > 0)
+			base = AddSubqueryAsColumn(base, subquery, field, false)
 			plan = append(plan, func(value *_go.Case) any {
 				var items []*_go.CaseLink
 				postProcessing := func() error {
@@ -1881,30 +1854,22 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts options.SearchOptions,
 						return nil
 					}
 					res := &_go.CaseLinkList{}
-					res.Items, res.Next = store.ResolvePaging(opts.GetSize(), items)
-					res.Page = int64(opts.GetPage())
+					res.Items, res.Next = store.ResolvePaging(model.DefaultSearchSize, items)
+					res.Page = 1
 					value.Links = res
 					return nil
 				}
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
 		case "files":
-			derivedOpts := opts.SearchDerivedOptionByField(field)
-			if derivedOpts == nil {
-				derivedOpts = &model.SearchOptions{
-					Page: 1,
-					Size: 10,
-					Sort: "-created_at",
-					Fields: []string{
-						"id",
-						"size",
-						"mime",
-						"name",
-						"created_at",
-					},
-				}
+			filesFields := []string{
+				"id",
+				"size",
+				"mime",
+				"name",
+				"created_at",
 			}
-			subquery, scanPlan, filtersApplied, dbErr := buildFilesSelectAsSubquery(derivedOpts, caseLeft)
+			subquery, scanPlan, filtersApplied, dbErr := buildFilesSelectAsSubquery(filesFields, caseLeft)
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
@@ -1916,11 +1881,8 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(opts options.SearchOptions,
 						return nil
 					}
 					res := &_go.CaseFileList{Items: items}
-					if len(items) > int(opts.GetSize()) {
-						res.Items = res.Items[:len(res.Items)-1]
-						res.Next = true
-					}
-					res.Page = int64(opts.GetPage())
+					res.Items, res.Next = store.ResolvePaging(model.DefaultSearchSize, items)
+					res.Page = 1
 					value.Files = res
 					return nil
 				}

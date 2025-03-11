@@ -193,22 +193,21 @@ func (s *Source) Update(rpc options.UpdateOptions, source *_go.Source) (*_go.Sou
 	return temp, nil
 }
 
-func (s *Source) buildListSourceQuery(rpc *model.SearchOptions) (sq.SelectBuilder, []SourceScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+func (s *Source) buildListSourceQuery(rpc options.SearchOptions) (sq.SelectBuilder, []SourceScan, error) {
 	queryBuilder := sq.Select().
 		From("cases.source AS s").
 		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.GetIDs()})
 	}
 
-	if name, ok := rpc.Filter["name"].(string); ok && name != "" {
+	if name, ok := rpc.GetFilter("name").(string); ok && name != "" {
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": "%" + name + "%"})
 	}
 
-	if types, ok := rpc.Filter["type"].([]_go.SourceType); ok && len(types) > 0 {
+	if types, ok := rpc.GetFilter("type").([]_go.SourceType); ok && len(types) > 0 {
 		var typeStrings []string
 		for _, t := range types {
 			typeStrings = append(typeStrings, t.String())
@@ -219,10 +218,10 @@ func (s *Source) buildListSourceQuery(rpc *model.SearchOptions) (sq.SelectBuilde
 	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
-	return buildSourceSelectColumnsAndPlan(queryBuilder, rpc.Fields)
+	return buildSourceSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 }
 
-func (s *Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
+func (s *Source) List(rpc options.SearchOptions) (*_go.SourceList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.list.database_connection_error", dbErr)
@@ -238,7 +237,7 @@ func (s *Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 		return nil, dberr.NewDBInternalError("postgres.source.list.query_build_error", err)
 	}
 
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.list.execution_error", err)
 	}

@@ -237,23 +237,21 @@ func (s *CloseReason) Update(rpc options.UpdateOptions, input *_go.CloseReason) 
 }
 
 func (s *CloseReason) buildListCloseReasonQuery(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 	closeReasonId int64,
 ) (sq.SelectBuilder, []CloseReasonScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
-
 	queryBuilder := sq.Select().
 		From("cases.close_reason AS cr").
 		Where(sq.Eq{"cr.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	// Add ID filter if provided
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cr.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cr.id": rpc.GetIDs()})
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substr := util.Substring(name)
 		combinedLike := strings.Join(substr, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"cr.name": combinedLike})
@@ -271,7 +269,7 @@ func (s *CloseReason) buildListCloseReasonQuery(
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
-	queryBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(queryBuilder, rpc.Fields)
+	queryBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.close_reason.search.query_build_error", err)
 	}
@@ -279,7 +277,7 @@ func (s *CloseReason) buildListCloseReasonQuery(
 	return queryBuilder, plan, nil
 }
 
-func (s *CloseReason) List(rpc *model.SearchOptions, closeReasonId int64) (*_go.CloseReasonList, error) {
+func (s *CloseReason) List(rpc options.SearchOptions, closeReasonId int64) (*_go.CloseReasonList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.list.database_connection_error", dbErr)
@@ -296,7 +294,7 @@ func (s *CloseReason) List(rpc *model.SearchOptions, closeReasonId int64) (*_go.
 	}
 	query = store.CompactSQL(query)
 
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.list.execution_error", err)
 	}

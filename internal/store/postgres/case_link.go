@@ -13,7 +13,6 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/util"
 )
 
 const (
@@ -375,7 +374,7 @@ func (l *CaseLinkStore) scanLink(row pgx.Row, plan []func(link *_go.CaseLink) an
 	return &link, nil
 }
 
-func buildLinkSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (updatedBase squirrel.SelectBuilder, scanPlan []func(link *_go.CaseLink) any, filtersApplied int, dbErr *dberr.DBError) {
+func buildLinkSelectAsSubquery(fields []string, caseAlias string) (updatedBase squirrel.SelectBuilder, scanPlan []func(link *_go.CaseLink) any, dbErr *dberr.DBError) {
 	alias := "links"
 	if caseAlias == alias {
 		alias = "sub_" + alias
@@ -384,65 +383,15 @@ func buildLinkSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (upd
 		Select().
 		From("cases.case_link " + alias).
 		Where(fmt.Sprintf("%s = %s", store.Ident(alias, "case_id"), store.Ident(caseAlias, "id")))
-	if opts.Search != "" {
-		base = store.AddSearchTerm(base, opts.Search, store.Ident(alias, "name"), store.Ident(alias, "url"))
-	}
 
-	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, alias, opts.Fields)
+	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, alias, fields)
 	if dbErr != nil {
-		return base, nil, 0, dbErr
+		return base, nil, dbErr
 	}
-	base, applied, dbErr := applyCaseLinkFilters(opts, base, alias)
-	if dbErr != nil {
-		return base, nil, 0, dbErr
-	}
-	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
+	base = store.ApplyPaging(1, model.DefaultSearchSize, base)
 
-	return base, plan, applied, nil
+	return base, plan, nil
 }
-
-func applyCaseLinkFilters(opts *model.SearchOptions, base squirrel.SelectBuilder, alias string) (updatedBase squirrel.SelectBuilder, filtersApplied int, err *dberr.DBError) {
-	if opts == nil || len(opts.Filter) == 0 {
-		return base, 0, nil
-	}
-
-	for column, value := range opts.Filter {
-		if !util.ContainsStringIgnoreCase(opts.Fields, column) {
-			continue
-		}
-		switch column {
-		case "created_by":
-			switch v := value.(type) {
-			case int64, int, int32, *int64, *int, *int32:
-				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLinkCreatedByAlias, "id")), v)
-			case string, *string:
-				// apply search
-				// base = store.AddSearchTerm(base, )
-			}
-		case "author":
-			switch v := value.(type) {
-			case int64, int, int32, *int64, *int, *int32:
-				//
-				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLinkUpdatedByAlias, "id")), v)
-			case string, *string:
-				// apply search
-				// base = store.AddSearchTerm(base, )
-			}
-		case "updated_by":
-			switch v := value.(type) {
-			case int64, int, int32, *int64, *int, *int32:
-				//
-				base = base.Where(fmt.Sprintf("%s = ?", store.Ident(caseLinkAuthorAlias, "id")), v)
-			case string, *string:
-				// apply search
-				// base = store.AddSearchTerm(base, )
-			}
-		}
-		filtersApplied++
-	}
-	return base, filtersApplied, nil
-}
-
 func ValidateLinkCreate(caseId int64, input *_go.InputCaseLink) *dberr.DBError {
 	if caseId <= 0 {
 		return dberr.NewDBError("postgres.case_link.validate_create.check_args.case_id", "case id required")

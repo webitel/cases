@@ -154,7 +154,7 @@ var deleteRelatedCaseQuery = store.CompactSQL(`
 
 // List implements store.RelatedCaseStore for fetching related cases.
 func (r *RelatedCaseStore) List(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 ) (*cases.RelatedCaseList, error) {
 	// Get database connection
 	d, err := r.storage.Database()
@@ -175,7 +175,7 @@ func (r *RelatedCaseStore) List(
 	}
 
 	// Execute the query
-	rows, execErr := d.Query(rpc.Context, query, args...)
+	rows, execErr := d.Query(rpc, query, args...)
 	if execErr != nil {
 		return nil, dberr.NewDBInternalError("store.related_case.list.execution_error", execErr)
 	}
@@ -252,9 +252,8 @@ func (r *RelatedCaseStore) ParseRelationTypeWithReversion(
 
 // buildListRelatedCaseSqlizer dynamically builds the SELECT query for related cases.
 func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 ) (sq.SelectBuilder, func(*cases.RelatedCase) []any, *dberr.DBError) {
-	rpc.Fields = util.EnsureFields(rpc.Fields, "created_at")
 
 	// Start building the base query
 	queryBuilder := sq.Select().
@@ -263,14 +262,18 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 		PlaceholderFormat(sq.Dollar)
 
 	// Filter by parent case if provided
+	parentId, ok := rpc.GetFilter("case_id").(int64)
+	if !ok || parentId == 0 {
+		return queryBuilder, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id required")
+	}
 
 	queryBuilder = queryBuilder.Where(sq.Or{
-		sq.Eq{"rc.primary_case_id": rpc.ParentId},
-		sq.Eq{"rc.related_case_id": rpc.ParentId},
+		sq.Eq{"rc.primary_case_id": parentId},
+		sq.Eq{"rc.related_case_id": parentId},
 	})
 
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"rc.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"rc.id": rpc.GetIDs()})
 	}
 
 	// -------- Apply sorting by creation date ----------
@@ -280,7 +283,7 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Build columns dynamically using helper
-	queryBuilder, plan, err := buildRelatedCasesSelectColumnsAndPlan(queryBuilder, relatedCaseLeft, rpc.Fields)
+	queryBuilder, plan, err := buildRelatedCasesSelectColumnsAndPlan(queryBuilder, relatedCaseLeft, rpc.GetFields())
 	if err != nil {
 		return queryBuilder, nil, err
 	}

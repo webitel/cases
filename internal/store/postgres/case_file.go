@@ -264,7 +264,7 @@ func buildFilesSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(file *cases.File) any, int, *dberr.DBError) {
+func buildFilesSelectAsSubquery(fields []string, caseAlias string) (sq.SelectBuilder, []func(file *cases.File) any, int, *dberr.DBError) {
 	alias := "files"
 	if caseAlias == alias {
 		alias = "sub_" + alias
@@ -274,9 +274,9 @@ func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq
 		From("storage.files " + alias).
 		Where(fmt.Sprintf("%s = %s::text", store.Ident(alias, "uuid"), store.Ident(caseAlias, "id"))).
 		Where(fmt.Sprintf("%s = '%s'", store.Ident(alias, "channel"), channel))
-	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
+	base = store.ApplyPaging(1, model.DefaultSearchSize, base)
 
-	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, opts.Fields)
+	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, fields)
 	if dbErr != nil {
 		return base, nil, 0, dbErr
 	}

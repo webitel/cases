@@ -2,6 +2,10 @@ package app
 
 import (
 	"context"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"log/slog"
+	"strings"
+
 	"github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
@@ -106,18 +110,22 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 
 // ListSLAs implements cases.SLAsServer.
 func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*cases.SLAList, error) {
-
-	searchOpts, err := model.NewSearchOptions(ctx, req, SLAMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, SLAMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.Filter = make(map[string]any)
-	searchOpts.IDs = req.Id
-
-	if req.Q != "" {
-		searchOpts.Filter["name"] = req.Q
-	}
+	searchOpts.AddFilter("name", req.GetQ())
 
 	res, err := s.app.Store.SLA().List(searchOpts)
 	if err != nil {

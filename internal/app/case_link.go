@@ -40,33 +40,35 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 		return nil, cerror.NewBadRequestError("app.case_link.locate.check_args.etag", "Etag is required")
 	}
 
-	etg, err := etag.EtagOrId(etag.EtagCaseLink, req.GetEtag())
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
-	}
-
 	caseEtg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_case_etag.error", err.Error())
 	}
 
-	searchOpts, err := model.NewLocateOptions(ctx, req, CaseLinkMetadata)
+	searchOpts, err := grpcopts.NewLocateOptions(
+		ctx,
+		grpcopts.WithFields(req, CaseCommentMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+			util.ParseFieldsForEtag,
+		),
+		grpcopts.WithIDsAsEtags(etag.EtagCaseLink, req.GetEtag()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.IDs = []int64{etg.GetOid()}
-	searchOpts.ParentId = caseEtg.GetOid()
+	searchOpts.AddFilter("case_id", caseEtg.GetOid())
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
 		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("id", searchOpts.IDs[0]),
-		slog.Int64("case_id", searchOpts.ParentId),
+		slog.Int64("case_id", caseEtg.GetOid()),
 	)
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, caseEtg.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError

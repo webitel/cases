@@ -270,9 +270,8 @@ func (s *SLAStore) Update(rpc options.UpdateOptions, update *cases.SLA) (*cases.
 }
 
 func (s *SLAStore) buildListSLAQuery(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 ) (sq.SelectBuilder, []SLAScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
 
 	queryBuilder := sq.Select().
 		From("cases.sla AS s").
@@ -280,12 +279,12 @@ func (s *SLAStore) buildListSLAQuery(
 		PlaceholderFormat(sq.Dollar)
 
 	// Add ID filter if provided
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.GetIDs()})
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substr := util.Substring(name)
 		combinedLike := strings.Join(substr, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
@@ -298,7 +297,7 @@ func (s *SLAStore) buildListSLAQuery(
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
-	queryBuilder, plan, err := buildSLASelectColumnsAndPlan(queryBuilder, rpc.Fields)
+	queryBuilder, plan, err := buildSLASelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.sla.search.query_build_error", err)
 	}
@@ -306,7 +305,7 @@ func (s *SLAStore) buildListSLAQuery(
 	return queryBuilder, plan, nil
 }
 
-func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
+func (s *SLAStore) List(rpc options.SearchOptions) (*cases.SLAList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.list.database_connection_error", dbErr)
@@ -323,7 +322,7 @@ func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 	}
 	query = store.CompactSQL(query)
 
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.list.execution_error", err)
 	}
@@ -352,7 +351,7 @@ func (s *SLAStore) List(rpc *model.SearchOptions) (*cases.SLAList, error) {
 	}
 
 	return &cases.SLAList{
-		Page:  int32(rpc.Page),
+		Page:  int32(rpc.GetPage()),
 		Next:  next,
 		Items: slas,
 	}, nil

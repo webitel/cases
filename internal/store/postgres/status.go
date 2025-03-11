@@ -224,9 +224,8 @@ func (s *Status) Update(rpc options.UpdateOptions, input *_go.Status) (*_go.Stat
 }
 
 func (s *Status) buildListStatusQuery(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 ) (sq.SelectBuilder, []StatusScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
 
 	queryBuilder := sq.Select().
 		From("cases.status AS s").
@@ -234,12 +233,12 @@ func (s *Status) buildListStatusQuery(
 		PlaceholderFormat(sq.Dollar)
 
 	// Add ID filter if provided
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.GetIDs()})
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substr := util.Substring(name)
 		combinedLike := strings.Join(substr, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
@@ -252,7 +251,7 @@ func (s *Status) buildListStatusQuery(
 	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
-	queryBuilder, plan, err := buildStatusSelectColumnsAndPlan(queryBuilder, rpc.Fields)
+	queryBuilder, plan, err := buildStatusSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.status.search.query_build_error", err)
 	}
@@ -260,7 +259,7 @@ func (s *Status) buildListStatusQuery(
 	return queryBuilder, plan, nil
 }
 
-func (s *Status) List(rpc *model.SearchOptions) (*_go.StatusList, error) {
+func (s *Status) List(rpc options.SearchOptions) (*_go.StatusList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.list.database_connection_error", dbErr)
@@ -277,7 +276,7 @@ func (s *Status) List(rpc *model.SearchOptions) (*_go.StatusList, error) {
 	}
 	query = store.CompactSQL(query)
 
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.list.execution_error", err)
 	}
@@ -306,7 +305,7 @@ func (s *Status) List(rpc *model.SearchOptions) (*_go.StatusList, error) {
 	}
 
 	return &_go.StatusList{
-		Page:  int32(rpc.Page),
+		Page:  int32(rpc.GetPage()),
 		Next:  next,
 		Items: statuses,
 	}, nil

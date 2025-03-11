@@ -63,17 +63,22 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(
 	ctx context.Context,
 	req *_go.ListCloseReasonGroupsRequest,
 ) (*_go.CloseReasonGroupList, error) {
-	searchOpts, err := model.NewSearchOptions(ctx, req, CloseReasonGroupMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, CloseReasonGroupMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.IDs = req.Id
-	searchOpts.Filter = make(map[string]any)
-
-	if req.Q != "" {
-		searchOpts.Filter["name"] = req.Q
-	}
+	searchOpts.AddFilter("name", req.Q)
 
 	res, err := s.app.Store.CloseReasonGroup().List(searchOpts)
 	if err != nil {
