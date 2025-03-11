@@ -2,18 +2,12 @@ package app
 
 import (
 	"context"
-	"strings"
-
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
-)
-
-const (
-	defaultFieldsSource = "id, name, description, type, created_by"
 )
 
 type SourceService struct {
@@ -172,11 +166,6 @@ func (s *SourceService) LocateSource(
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("source_service.locate_source.id.required", "Source ID is required")
-	}
-
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsSource, ", ")
 	}
 
 	// Prepare a list request with necessary parameters
