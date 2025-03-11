@@ -107,8 +107,9 @@ func (s *UpdateOptions) RequestTime() time.Time { return s.Time }
 
 func NewUpdateOptions(ctx context.Context, opts ...UpdateOption) (*UpdateOptions, error) {
 	updateOpts := &UpdateOptions{
-		Context: ctx,
-		Time:    time.Now().UTC(),
+		Context:           ctx,
+		Time:              time.Now().UTC(),
+		DerivedSearchOpts: make(map[string]*options.SearchOptions),
 	}
 
 	// Apply functional updateOpts

@@ -3,6 +3,7 @@ package postgres
 import (
 	"fmt"
 	"github.com/webitel/cases/model/options"
+	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 	_go "github.com/webitel/cases/api/cases"
@@ -49,7 +50,9 @@ func buildSourceSelectColumnsAndPlan(
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanText(&s.Description) })
 		case "type":
 			base = base.Column(store.Ident(sourceLeft, "type"))
-			plan = append(plan, func(s *_go.Source) any { return scanner.ScanSourceType(&s.Type) })
+			plan = append(plan, func(s *_go.Source) any {
+				return &scanner.SourceTypeScanner{SourceType: &s.Type}
+			})
 		case "created_at":
 			base = base.Column(store.Ident(sourceLeft, "created_at"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanTimestamp(&s.CreatedAt) })
@@ -71,6 +74,28 @@ func buildSourceSelectColumnsAndPlan(
 		}
 	}
 	return base, plan, nil
+}
+
+// StringToType converts a string into the corresponding Type enum value.
+//
+// Types are specified ONLY for Source dictionary and are ENUMS in API.
+func stringToType(typeStr string) (_go.SourceType, error) {
+	switch strings.ToUpper(typeStr) {
+	case "CALL":
+		return _go.SourceType_CALL, nil
+	case "CHAT":
+		return _go.SourceType_CHAT, nil
+	case "SOCIAL_MEDIA":
+		return _go.SourceType_SOCIAL_MEDIA, nil
+	case "EMAIL":
+		return _go.SourceType_EMAIL, nil
+	case "API":
+		return _go.SourceType_API, nil
+	case "MANUAL":
+		return _go.SourceType_MANUAL, nil
+	default:
+		return _go.SourceType_TYPE_UNSPECIFIED, fmt.Errorf("invalid type value: %s", typeStr)
+	}
 }
 
 func (s *Source) buildCreateSourceQuery(rpc options.CreateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {

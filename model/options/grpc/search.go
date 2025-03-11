@@ -201,7 +201,11 @@ func (s *SearchOptions) GetIDs() []int64 {
 }
 
 func NewSearchOptions(ctx context.Context, opts ...SearchOption) (*SearchOptions, error) {
-	search := &SearchOptions{createdAt: time.Now().UTC(), Context: ctx, Filters: map[string]any{}}
+	search := &SearchOptions{
+		createdAt: time.Now().UTC(),
+		Context:   ctx,
+		Filters:   make(map[string]any),
+	}
 	if sess := model.GetAutherOutOfContext(ctx); sess != nil {
 		search.Auth = sess
 	} else {

@@ -20,6 +20,10 @@ func WithCreateFields(
 	return func(o *CreateOptions) error {
 		if requestedFields := fielder.GetFields(); len(requestedFields) == 0 {
 			o.Fields = md.GetDefaultFields()
+		} else {
+			o.Fields = util.DeduplicateFields(util.FieldsFunc(
+				requestedFields, util.InlineFields,
+			))
 		}
 		o.Fields, o.UnknownFields = util.SplitKnownAndUnknownFields(o.Fields, md.GetAllFields())
 
@@ -96,8 +100,9 @@ func (s *CreateOptions) CurrentTime() time.Time {
 
 func NewCreateOptions(ctx context.Context, opts ...CreateOption) (*CreateOptions, error) {
 	createOpts := &CreateOptions{
-		Context: ctx,
-		Time:    time.Now().UTC(),
+		Context:           ctx,
+		Time:              time.Now().UTC(),
+		DerivedSearchOpts: make(map[string]*options.SearchOptions),
 	}
 
 	// Set authentication
