@@ -22,23 +22,24 @@ type CatalogService struct {
 }
 
 var CatalogMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{Name: "id", Default: false},
-	{Name: "root_id", Default: false},
+	{Name: "id", Default: true},
+	{Name: "root_id", Default: true},
 	{Name: "name", Default: true},
 	{Name: "description", Default: true},
-	{Name: "prefix", Default: false},
-	{Name: "code", Default: false},
-	{Name: "state", Default: false},
-	{Name: "sla", Default: false},
+	{Name: "prefix", Default: true},
+	{Name: "code", Default: true},
+	{Name: "state", Default: true},
+	{Name: "sla", Default: true},
 	{Name: "status", Default: true},
-	{Name: "close_reason_group", Default: false},
+	{Name: "close_reason_group", Default: true},
 	{Name: "teams", Default: true},
 	{Name: "skills", Default: true},
 	{Name: "created_at", Default: true},
 	{Name: "created_by", Default: true},
-	{Name: "updated_at", Default: true},
+	{Name: "updated_at", Default: false},
 	{Name: "updated_by", Default: false},
 	{Name: "services", Default: true},
+	{Name: "searched", Default: true},
 })
 
 const (

@@ -429,7 +429,7 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc options.UpdateOptions, lookup
 		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically set fields based on what the user wants to update
-	for _, field := range rpc.GetFields() {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)

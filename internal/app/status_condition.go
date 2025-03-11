@@ -22,11 +22,15 @@ const (
 )
 
 var StatusConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{Name: "id", Default: false},
+	{Name: "id", Default: true},
 	{Name: "name", Default: true},
 	{Name: "description", Default: true},
 	{Name: "initial", Default: true},
 	{Name: "final", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
 })
 
 // CreateStatusCondition implements api.StatusConditionsServer.

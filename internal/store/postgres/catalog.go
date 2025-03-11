@@ -1385,7 +1385,7 @@ func (s *CatalogStore) Update(rpc options.UpdateOptions, lookup *cases.Catalog) 
 	updateSkills := false
 
 	// Check if the fields exist in rpc.Fields
-	for _, field := range rpc.GetFields() {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "teams":
 			updateTeams = true
@@ -1517,7 +1517,7 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 	placeholderIndex := 5 // Start placeholder index after the initial args
 
 	// Check if "teams" is in rpc.Fields, even if teamIDs is empty
-	if util.FieldExists("teams", rpc.GetFields()) {
+	if util.FieldExists("teams", rpc.GetMask()) {
 		query += `
  updated_teams AS (
     INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, updated_at, dc)
@@ -1541,7 +1541,7 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 	}
 
 	// Check if "skills" is in rpc.Fields, even if skillIDs are empty
-	if util.FieldExists("skills", rpc.GetFields()) {
+	if util.FieldExists("skills", rpc.GetMask()) {
 		if cteAdded {
 			query += `,` // Only add a comma if there is already a CTE defined (for teams)
 		}
@@ -1573,11 +1573,11 @@ SELECT COUNT(*)
 FROM (
     ` + func() string {
 		var result string
-		if util.FieldExists("teams", rpc.GetFields()) {
+		if util.FieldExists("teams", rpc.GetMask()) {
 			result += `SELECT catalog_id FROM updated_teams UNION ALL SELECT catalog_id FROM deleted_teams`
 		}
-		if util.FieldExists("skills", rpc.GetFields()) {
-			if util.FieldExists("teams", rpc.GetFields()) {
+		if util.FieldExists("skills", rpc.GetMask()) {
+			if util.FieldExists("teams", rpc.GetMask()) {
 				result += ` UNION ALL `
 			}
 			result += `SELECT catalog_id FROM updated_skills UNION ALL SELECT catalog_id FROM deleted_skills`
@@ -1616,7 +1616,7 @@ WITH root_check AS (
 		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically set fields based on user update preferences
-	for _, field := range rpc.GetFields() {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)

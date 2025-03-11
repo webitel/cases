@@ -19,9 +19,16 @@ type SLAConditionService struct {
 }
 
 var SLAConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{Name: "id", Default: false},
+	{Name: "id", Default: true},
 	{Name: "name", Default: true},
-	{Name: "priority", Default: true},
+	{Name: "priorities", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
+	{Name: "reaction_time", Default: true},
+	{Name: "resolution_time", Default: true},
+	{Name: "sla_id", Default: true},
 })
 
 // CreateSLACondition implements cases.SLAConditionsServer.

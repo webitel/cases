@@ -14,10 +14,19 @@ import (
 )
 
 var ServiceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{Name: "id", Default: false},
+	{Name: "id", Default: true},
 	{Name: "name", Default: true},
 	{Name: "description", Default: true},
-	{Name: "root_id", Default: false},
+	{Name: "root_id", Default: true},
+	{Name: "code", Default: true},
+	{Name: "state", Default: true},
+	{Name: "sla", Default: true},
+	{Name: "group", Default: true},
+	{Name: "assignee", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
 })
 
 type ServiceService struct {
