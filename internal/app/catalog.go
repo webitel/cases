@@ -2,17 +2,17 @@ package app
 
 import (
 	"context"
+	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/api/engine"
 	"github.com/webitel/cases/auth"
+	cerror "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
 	"google.golang.org/grpc/metadata"
 	"log/slog"
 	"strings"
 	"time"
-
-	"github.com/webitel/cases/api/cases"
-	cerror "github.com/webitel/cases/internal/errors"
-	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/util"
 )
 
 type CatalogService struct {
@@ -21,9 +21,28 @@ type CatalogService struct {
 	objClassName string
 }
 
+var CatalogMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
+	{Name: "id", Default: false},
+	{Name: "root_id", Default: false},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
+	{Name: "prefix", Default: false},
+	{Name: "code", Default: false},
+	{Name: "state", Default: false},
+	{Name: "sla", Default: false},
+	{Name: "status", Default: true},
+	{Name: "close_reason_group", Default: false},
+	{Name: "teams", Default: true},
+	{Name: "skills", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "updated_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "services", Default: true},
+})
+
 const (
-	defaultCatalogFields = "id, root_id, name, description, prefix, code, state, sla, status, close_reason_group, teams, skills, created_at, created_by, updated_at, updated_by, services"
-	defaultSubfields     = "id, name, description, root_id"
+	defaultSubfields = "id, name, description, root_id"
 )
 
 // CreateCatalog implements cases.CatalogsServer.
@@ -45,15 +64,13 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		return nil, cerror.NewBadRequestError("catalog.create_catalog.close_reason_group.required", "Close reason group is required")
 	}
 	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Time:    time.Now(),
-	}
-
-	// Define the current user as the creator and updater
-	currentU := &cases.Lookup{
-		Id: createOpts.GetAuthOpts().GetUserId(),
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, CatalogMetadata),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Create a new Catalog user_auth
@@ -66,8 +83,6 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		Sla:              req.Input.Sla,
 		Status:           req.Input.Status,
 		CloseReasonGroup: req.Input.CloseReasonGroup,
-		CreatedBy:        currentU,
-		UpdatedBy:        currentU,
 	}
 
 	// Handle multiselect fields: teams and skills
@@ -82,7 +97,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	}
 
 	// Create the Catalog in the store
-	r, e := s.app.Store.Catalog().Create(&createOpts, catalog)
+	r, e := s.app.Store.Catalog().Create(createOpts, catalog)
 	if e != nil {
 		return nil, cerror.NewInternalError("catalog.create_catalog.store.create.failed", e.Error())
 	}
@@ -254,84 +269,16 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("catalog.update_catalog.id.required", "Catalog ID is required")
 	}
-	if req.Input == nil {
-		// TODO: what if input nil? reset all fields?
-	}
-
-	// List of fields to update
-	fields := []string{"id"}
-
-	// Validate required fields and build the list of fields for update
-	for _, f := range req.XJsonMask {
-		// Handle prefixed fields
-		if strings.HasPrefix(f, "skills") {
-			if !util.ContainsField(fields, "skills") {
-				fields = append(fields, "skills")
-			}
-			continue
-		}
-
-		if strings.HasPrefix(f, "teams") {
-			if !util.ContainsField(fields, "teams") {
-				fields = append(fields, "teams")
-			}
-			continue
-		}
-
-		if strings.HasPrefix(f, "close_reason_group") {
-			if !util.ContainsField(fields, "close_reason_group_id") {
-				fields = append(fields, "close_reason_group_id")
-			}
-			continue
-		}
-
-		if strings.HasPrefix(f, "status") {
-			if req.Input.Status.GetId() == 0 {
-				return nil, cerror.NewBadRequestError("catalog.update_catalog.status.required", "Catalog status is required and cannot be empty")
-			}
-			if !util.ContainsField(fields, "status_id") {
-				fields = append(fields, "status_id")
-			}
-			continue
-		}
-
-		if strings.HasPrefix(f, "sla") {
-			if req.Input.Sla.GetId() == 0 {
-				return nil, cerror.NewBadRequestError("catalog.update_catalog.sla.required", "Catalog SLA is required and cannot be empty")
-			}
-			if !util.ContainsField(fields, "sla_id") {
-				fields = append(fields, "sla_id")
-			}
-			continue
-		}
-
-		// Handle exact matches
-		switch f {
-		case "name":
-			if req.Input.Name == "" {
-				return nil, cerror.NewBadRequestError("catalog.update_catalog.name.required", "Catalog name is required and cannot be empty")
-			}
-			fields = append(fields, "name")
-		case "prefix":
-			if req.Input.Prefix == "" {
-				return nil, cerror.NewBadRequestError("catalog.update_catalog.prefix.required", "Catalog prefix is required and cannot be empty")
-			}
-			fields = append(fields, "prefix")
-		case "description":
-			fields = append(fields, "description")
-		case "code":
-			fields = append(fields, "code")
-		case "state":
-			fields = append(fields, "state")
-		}
-	}
 
 	// Build update options
-	updateOpts := model.UpdateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
-		Time:    time.Now(),
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, CaseMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Build catalog from the request input
@@ -345,9 +292,6 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		Sla:              req.Input.Sla,
 		Status:           req.Input.Status,
 		CloseReasonGroup: req.Input.CloseReasonGroup,
-		UpdatedBy: &cases.Lookup{
-			Id: updateOpts.GetAuthOpts().GetUserId(),
-		},
 	}
 	// Add teams if provided
 	if len(req.Input.Teams) > 0 {
@@ -360,7 +304,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 	}
 
 	// Update the catalog
-	r, e := s.app.Store.Catalog().Update(&updateOpts, catalog)
+	r, e := s.app.Store.Catalog().Update(updateOpts, catalog)
 	if e != nil {
 		return nil, cerror.NewInternalError("catalog.update_catalog.store.update.failed", e.Error())
 	}

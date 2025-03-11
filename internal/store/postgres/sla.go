@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/options"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
@@ -109,21 +110,22 @@ func buildSLASelectColumnsAndPlan(
 }
 
 func (s *SLAStore) buildCreateSLAQuery(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	sla *cases.SLA,
 ) (sq.SelectBuilder, []SLAScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	// Build the INSERT query with a RETURNING clause
 	insertBuilder := sq.Insert("cases.sla").
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by", "valid_from", "valid_to", "calendar_id", "reaction_time", "resolution_time").
 		Values(
 			sla.Name,
-			rpc.GetAuthOpts().GetDomainId(),
-			rpc.Time,
+			rpc.GetAuth().GetDomainId(),
+			rpc.GetTime(),
 			sq.Expr("NULLIF(?, '')", sla.Description),
-			rpc.GetAuthOpts().GetUserId(),
-			rpc.Time,
-			rpc.GetAuthOpts().GetUserId(),
+			rpc.GetAuth().GetUserId(),
+			rpc.GetTime(),
+			rpc.GetAuth().GetUserId(),
 			util.LocalTime(sla.ValidFrom),
 			util.LocalTime(sla.ValidTo),
 			sla.Calendar.Id,
@@ -143,7 +145,7 @@ func (s *SLAStore) buildCreateSLAQuery(
 	cte := sq.Expr("WITH s AS ("+insertSQL+")", args...)
 
 	// Dynamically build the SELECT query for the resulting row
-	selectBuilder, plan, err := buildSLASelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildSLASelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -154,7 +156,7 @@ func (s *SLAStore) buildCreateSLAQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA, error) {
+func (s *SLAStore) Create(rpc options.CreateOptions, add *cases.SLA) (*cases.SLA, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.create.database_connection_error", dbErr)
@@ -172,7 +174,7 @@ func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA,
 	// temporary object for scanning
 	tempAdd := &cases.SLA{}
 	scanArgs := convertToSLAScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.create.execution_error", err)
 	}
 
@@ -180,20 +182,21 @@ func (s *SLAStore) Create(rpc *model.CreateOptions, add *cases.SLA) (*cases.SLA,
 }
 
 func (s *SLAStore) buildUpdateSLAQuery(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	sla *cases.SLA,
 ) (sq.SelectBuilder, []SLAScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.sla").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
-		Set("updated_at", rpc.Time).
+		Set("updated_at", rpc.GetTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": sla.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the SET clause
-	for _, field := range rpc.Mask {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			if sla.Name != "" {
@@ -230,7 +233,7 @@ func (s *SLAStore) buildUpdateSLAQuery(
 	cte := sq.Expr("WITH s AS ("+updateSQL+")", args...)
 
 	// Build select clause and scan plan dynamically using buildSLASelectColumnsAndPlan
-	selectBuilder, plan, err := buildSLASelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildSLASelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -241,7 +244,7 @@ func (s *SLAStore) buildUpdateSLAQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *SLAStore) Update(rpc *model.UpdateOptions, update *cases.SLA) (*cases.SLA, error) {
+func (s *SLAStore) Update(rpc options.UpdateOptions, update *cases.SLA) (*cases.SLA, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.update.database_connection_error", dbErr)

@@ -7,6 +7,7 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
 )
@@ -45,7 +46,10 @@ func (s *SourceService) CreateSource(
 		return nil, cerror.NewBadRequestError("source_service.create_source.type.required", "Source type is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, SourceMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, SourceMetadata),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -106,7 +110,11 @@ func (s *SourceService) UpdateSource(
 		return nil, cerror.NewBadRequestError("source_service.update_source.id.required", "Source ID is required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, SourceMetadata)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, SourceMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError

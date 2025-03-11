@@ -7,9 +7,10 @@ import (
 
 	"github.com/webitel/cases/auth"
 
-	cases "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 )
@@ -93,11 +94,6 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		return nil, cerror.NewBadRequestError("app.related_case.create_related_case.primary_case_id_required", "Primary case id required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, RelatedCaseMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
-	}
 	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
@@ -113,8 +109,17 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 			"Invalid relatedCase etag",
 		)
 	}
-	createOpts.ParentID = primaryCaseTag.GetOid()
-	createOpts.ChildID = relatedCaseTag.GetOid()
+
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, RelatedCaseMetadata),
+		grpcopts.WithCreateParentID(primaryCaseTag.GetOid()),
+		grpcopts.WithCreateChildID(relatedCaseTag.GetOid()),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
+	}
 
 	logAttributes := slog.Group(
 		"context",
@@ -124,8 +129,8 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		slog.Int64("child_id", createOpts.ChildID),
 	)
 	primaryAccessMode := auth.Edit
-	if createOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), primaryAccessMode) {
-		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), primaryAccessMode, createOpts.ParentID)
+	if createOpts.GetAuth().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), primaryAccessMode) {
+		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuth(), primaryAccessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -136,8 +141,8 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		}
 	}
 	secondaryAccessMode := auth.Read
-	if createOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), secondaryAccessMode) {
-		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), secondaryAccessMode, createOpts.ChildID)
+	if createOpts.GetAuth().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), secondaryAccessMode) {
+		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuth(), secondaryAccessMode, createOpts.ChildID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -176,11 +181,6 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		return nil, cerror.NewBadRequestError("app.related_case.update_related_case.id_required", "ID required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, RelatedCaseMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
-	}
 	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
@@ -188,7 +188,16 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 			"Invalid ID",
 		)
 	}
-	updateOpts.Etags = []*etag.Tid{&tag}
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, RelatedCaseMetadata),
+		grpcopts.WithUpdateEtag(&tag),
+		grpcopts.WithUpdateMasker(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
+	}
 
 	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetPrimaryCase().GetId())))
 	if err != nil {

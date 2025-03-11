@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/options"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
@@ -84,21 +85,22 @@ func buildStatusSelectColumnsAndPlan(
 }
 
 func (s *Status) buildCreateStatusQuery(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	input *_go.Status,
 ) (sq.SelectBuilder, []StatusScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	// Build the INSERT query with a RETURNING clause
 	insertBuilder := sq.Insert("cases.input").
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by").
 		Values(
-			input.Name,                      // name
-			rpc.GetAuthOpts().GetDomainId(), // dc
-			rpc.Time,                        // created_at
+			input.Name,                  // name
+			rpc.GetAuth().GetDomainId(), // dc
+			rpc.GetTime(),               // created_at
 			sq.Expr("NULLIF(?, '')", input.Description), // NULLIF for empty description
-			rpc.GetAuthOpts().GetUserId(),               // created_by
-			rpc.Time,                                    // updated_at
-			rpc.GetAuthOpts().GetUserId(),               // updated_by
+			rpc.GetAuth().GetUserId(),                   // created_by
+			rpc.GetTime(),                               // updated_at
+			rpc.GetAuth().GetUserId(),                   // updated_by
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *") // RETURNING all columns for use in the next SELECT
@@ -113,7 +115,7 @@ func (s *Status) buildCreateStatusQuery(
 	cte := sq.Expr("WITH s AS ("+insertSQL+")", args...)
 
 	// Dynamically build the SELECT query for the resulting row
-	selectBuilder, plan, err := buildStatusSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildStatusSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -124,7 +126,7 @@ func (s *Status) buildCreateStatusQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *Status) Create(rpc *model.CreateOptions, input *_go.Status) (*_go.Status, error) {
+func (s *Status) Create(rpc options.CreateOptions, input *_go.Status) (*_go.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.create.database_connection_error", dbErr)
@@ -142,7 +144,7 @@ func (s *Status) Create(rpc *model.CreateOptions, input *_go.Status) (*_go.Statu
 	// temporary object for scanning
 	tempAdd := &_go.Status{}
 	scanArgs := convertToStatusScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.create.execution_error", err)
 	}
 
@@ -150,20 +152,21 @@ func (s *Status) Create(rpc *model.CreateOptions, input *_go.Status) (*_go.Statu
 }
 
 func (s *Status) buildUpdateStatusQuery(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	input *_go.Status,
 ) (sq.SelectBuilder, []StatusScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.input").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
-		Set("updated_at", rpc.Time).
+		Set("updated_at", rpc.GetTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": input.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the SET clause
-	for _, field := range rpc.Mask {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			if input.Name != "" {
@@ -184,7 +187,7 @@ func (s *Status) buildUpdateStatusQuery(
 	cte := sq.Expr("WITH s AS ("+updateSQL+")", args...)
 
 	// Build select clause and scan plan dynamically using buildStatusSelectColumnsAndPlan
-	selectBuilder, plan, err := buildStatusSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildStatusSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -195,7 +198,7 @@ func (s *Status) buildUpdateStatusQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *Status) Update(rpc *model.UpdateOptions, input *_go.Status) (*_go.Status, error) {
+func (s *Status) Update(rpc options.UpdateOptions, input *_go.Status) (*_go.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.input.database_connection_error", dbErr)
@@ -213,7 +216,7 @@ func (s *Status) Update(rpc *model.UpdateOptions, input *_go.Status) (*_go.Statu
 	// temporary object for scanning
 	tempAdd := &_go.Status{}
 	scanArgs := convertToStatusScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.input.execution_error", err)
 	}
 

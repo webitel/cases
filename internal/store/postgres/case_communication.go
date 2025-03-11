@@ -19,7 +19,7 @@ type CaseCommunicationStore struct {
 	mainTable string
 }
 
-func (c *CaseCommunicationStore) Link(options *model.CreateOptions, communications []*cases.InputCaseCommunication) ([]*cases.CaseCommunication, error) {
+func (c *CaseCommunicationStore) Link(options options.CreateOptions, communications []*cases.InputCaseCommunication) ([]*cases.CaseCommunication, error) {
 	if len(communications) == 0 {
 		return nil, dberr.NewDBError("postgres.case_communication.link.check_args.communications", "empty communications")
 	}
@@ -124,23 +124,23 @@ func (c *CaseCommunicationStore) scanCommunications(rows pgx.Rows, plan []func(*
 	return res, nil
 }
 
-func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *model.CreateOptions, communications []*cases.InputCaseCommunication) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
+func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options options.CreateOptions, communications []*cases.InputCaseCommunication) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
 	if options == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_create_case_communication_sqlizer.check_args.options", "create options required")
 	}
-	if options.ParentID <= 0 {
+	if options.GetParentID() <= 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_create_case_communication_sqlizer.check_args.case_id", "case id required")
 	}
 	insert := squirrel.Insert(c.mainTable).Columns("created_by", "created_at", "dc", "communication_type", "communication_id", "case_id").Suffix("ON CONFLICT DO NOTHING RETURNING *")
 
 	var (
-		caseId              = options.ParentID
+		caseId              = options.GetParentID()
 		dc                  *int64
 		userId              *int64
 		roles               []int64
 		callsRbac, caseRbac bool
 	)
-	if session := options.GetAuthOpts(); session != nil {
+	if session := options.GetAuth(); session != nil {
 		d := session.GetDomainId()
 		dc = &d
 		u := session.GetUserId()
@@ -180,11 +180,11 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 			} else {
 				callsSubquery = squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`, communication.CommunicationId)
 			}
-			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), callsSubquery, caseSubquery)
+			insert = insert.Values(userId, options.GetTime(), dc, int64(communication.CommunicationType), callsSubquery, caseSubquery)
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CHAT:
-			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM chat.conversation WHERE id = ?)`, communication.CommunicationId), caseSubquery)
+			insert = insert.Values(userId, options.GetTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM chat.conversation WHERE id = ?)`, communication.CommunicationId), caseSubquery)
 		case cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL:
-			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_email WHERE id = ?)`, communication.CommunicationId), caseSubquery)
+			insert = insert.Values(userId, options.GetTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_email WHERE id = ?)`, communication.CommunicationId), caseSubquery)
 		default:
 			return nil, nil, dberr.NewDBError("postgres.case_communication.build.create_case_communication_sqlizer.switch_types.unknown", "unsupported communication type")
 		}
@@ -195,7 +195,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build.create_case_communication_sqlizer.form_cte.error", err.Error())
 	}
 	base := squirrel.Select().From(insertAlias).Prefix(insertCte, args...).PlaceholderFormat(squirrel.Dollar)
-	return c.buildSelectColumnsAndPlan(base, insertAlias, options.Fields)
+	return c.buildSelectColumnsAndPlan(base, insertAlias, options.GetFields())
 }
 
 func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fields []string) (query squirrel.SelectBuilder, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {

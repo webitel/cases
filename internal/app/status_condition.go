@@ -8,6 +8,7 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 )
 
 type StatusConditionService struct {
@@ -17,9 +18,16 @@ type StatusConditionService struct {
 }
 
 const (
-	ErrStatusNameReq    = "Status name is required"
-	defaultFieldsStatus = "id, name, description, initial, final"
+	ErrStatusNameReq = "Status name is required"
 )
+
+var StatusConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
+	{Name: "id", Default: false},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
+	{Name: "initial", Default: true},
+	{Name: "final", Default: true},
+})
 
 // CreateStatusCondition implements api.StatusConditionsServer.
 func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *_go.CreateStatusConditionRequest) (*_go.StatusCondition, error) {
@@ -28,16 +36,14 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 		return nil, cerror.NewBadRequestError("status_condition.create_status_condition.name.required", ErrStatusNameReq)
 	}
 
-	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "created_at", "updated_at", "created_by", "updated_by"}
-
-	t := time.Now()
-
 	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, StatusConditionMetadata),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Create a new status user_auth
@@ -48,7 +54,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 	}
 
 	// Create the status in the store
-	st, e := s.app.Store.StatusCondition().Create(&createOpts, status)
+	st, e := s.app.Store.StatusCondition().Create(createOpts, status)
 	if e != nil {
 		return nil, cerror.NewInternalError("status_condition.create_status_condition.store.create.failed", e.Error())
 	}
@@ -110,36 +116,15 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 		Description: req.Input.Description,
 	}
 
-	fields := []string{"id", "lookup_id"}
-
-	for _, f := range req.XJsonMask {
-		if f == "name" {
-			fields = append(fields, "name")
-			if req.Input.Name == "" {
-				return nil, cerror.NewBadRequestError("status_condition.update_status_condition.name.required", "Status name is required and cannot be empty")
-			}
-		}
-		if f == "description" {
-			fields = append(fields, "description")
-		}
-		if f == "initial" {
-			fields = append(fields, "initial")
-			status.Initial = req.Input.Initial.Value
-		}
-		if f == "final" {
-			fields = append(fields, "final")
-			status.Final = req.Input.Final.Value
-		}
-	}
-
-	t := time.Now()
-
 	// Define update options
-	updateOpts := model.UpdateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, StatusConditionMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Define the current user as the updater
@@ -149,7 +134,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	status.UpdatedBy = u
 
 	// Update the status in the store
-	st, err := s.app.Store.StatusCondition().Update(&updateOpts, status)
+	st, err := s.app.Store.StatusCondition().Update(updateOpts, status)
 	if err != nil {
 		switch err.(type) {
 		case *cerror.DBCheckViolationError:

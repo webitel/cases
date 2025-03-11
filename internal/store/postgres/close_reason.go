@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/options"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
@@ -93,20 +94,21 @@ func buildCloseReasonSelectColumnsAndPlan(
 }
 
 func (s *CloseReason) buildCreateCloseReasonQuery(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	reason *_go.CloseReason,
 ) (sq.SelectBuilder, []CloseReasonScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	insertBuilder := sq.Insert("cases.close_reason").
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by", "close_reason_id").
 		Values(
 			reason.Name,
-			rpc.GetAuthOpts().GetDomainId(),
-			rpc.CurrentTime(),
+			rpc.GetAuth().GetDomainId(),
+			rpc.GetTime(),
 			sq.Expr("NULLIF(?, '')", reason.Description),
-			rpc.GetAuthOpts().GetUserId(),
-			rpc.CurrentTime(),
-			rpc.GetAuthOpts().GetUserId(),
+			rpc.GetAuth().GetUserId(),
+			rpc.GetTime(),
+			rpc.GetAuth().GetUserId(),
 			reason.CloseReasonGroupId,
 		).
 		PlaceholderFormat(sq.Dollar).
@@ -122,7 +124,7 @@ func (s *CloseReason) buildCreateCloseReasonQuery(
 	cte := sq.Expr("WITH cr AS ("+insertSQL+")", args...)
 
 	// Dynamically build the SELECT query for the resulting row
-	selectBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -133,7 +135,7 @@ func (s *CloseReason) buildCreateCloseReasonQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *CloseReason) Create(rpc *model.CreateOptions, input *_go.CloseReason) (*_go.CloseReason, error) {
+func (s *CloseReason) Create(rpc options.CreateOptions, input *_go.CloseReason) (*_go.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.create.database_connection_error", dbErr)
@@ -151,7 +153,7 @@ func (s *CloseReason) Create(rpc *model.CreateOptions, input *_go.CloseReason) (
 	// temporary object for scanning
 	tempAdd := &_go.CloseReason{}
 	scanArgs := convertToCloseReasonScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.create.execution_error", err)
 	}
 
@@ -159,20 +161,21 @@ func (s *CloseReason) Create(rpc *model.CreateOptions, input *_go.CloseReason) (
 }
 
 func (s *CloseReason) buildUpdateCloseReasonQuery(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	input *_go.CloseReason,
 ) (sq.SelectBuilder, []CloseReasonScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.close_reason").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_at", rpc.GetTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": input.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the SET clause
-	for _, field := range rpc.Mask {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			if input.Name != "" {
@@ -197,7 +200,7 @@ func (s *CloseReason) buildUpdateCloseReasonQuery(
 	cte := sq.Expr("WITH cr AS ("+updateSQL+")", args...)
 
 	// Build select clause and scan plan dynamically using buildCloseReasonSelectColumnsAndPlan
-	selectBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -208,7 +211,7 @@ func (s *CloseReason) buildUpdateCloseReasonQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *CloseReason) Update(rpc *model.UpdateOptions, input *_go.CloseReason) (*_go.CloseReason, error) {
+func (s *CloseReason) Update(rpc options.UpdateOptions, input *_go.CloseReason) (*_go.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.input.database_connection_error", dbErr)
@@ -226,7 +229,7 @@ func (s *CloseReason) Update(rpc *model.UpdateOptions, input *_go.CloseReason) (
 	// temporary object for scanning
 	tempAdd := &_go.CloseReason{}
 	scanArgs := convertToCloseReasonScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.input.execution_error", err)
 	}
 

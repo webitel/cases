@@ -3,6 +3,7 @@ package postgres
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/webitel/cases/model/options"
 	"strings"
 	"time"
 
@@ -22,7 +23,7 @@ type CatalogStore struct {
 }
 
 // Create implements store.CatalogStore.
-func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*cases.Catalog, error) {
+func (s *CatalogStore) Create(rpc options.CreateOptions, add *cases.Catalog) (*cases.Catalog, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -38,7 +39,7 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 		teamLookups, skillLookups        []byte
 	)
 
-	err := db.QueryRow(rpc.Context, query, args...).Scan(
+	err := db.QueryRow(rpc, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Prefix,
 		&add.Code, &add.State,
 		&createdAt, &updatedAt,
@@ -72,20 +73,20 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 	return add, nil
 }
 
-func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
+func (s *CatalogStore) buildCreateCatalogQuery(rpc options.CreateOptions, add *cases.Catalog) (string, []interface{}) {
 	// Define arguments for the query
 	args := []any{
-		add.Name,                        // $1: name (cannot be null)
-		add.Description,                 // $2: description (could be null)
-		add.Prefix,                      // $3: prefix (could be null)
-		add.Code,                        // $4: code (could be null)
-		rpc.Time,                        // $5: created_at, updated_at
-		rpc.GetAuthOpts().GetUserId(),   // $6: created_by, updated_by
-		add.Sla.Id,                      // $7: sla_id (could be null)
-		add.Status.Id,                   // $8: status_id (could be null)
-		add.CloseReasonGroup.Id,         // $9: close_reason_id (could be null)
-		add.State,                       // $10: state (cannot be null)
-		rpc.GetAuthOpts().GetDomainId(), // $11: domain ID (dc)
+		add.Name,                    // $1: name (cannot be null)
+		add.Description,             // $2: description (could be null)
+		add.Prefix,                  // $3: prefix (could be null)
+		add.Code,                    // $4: code (could be null)
+		rpc.GetTime(),               // $5: created_at, updated_at
+		rpc.GetAuth().GetUserId(),   // $6: created_by, updated_by
+		add.Sla.Id,                  // $7: sla_id (could be null)
+		add.Status.Id,               // $8: status_id (could be null)
+		add.CloseReasonGroup.Id,     // $9: close_reason_id (could be null)
+		add.State,                   // $10: state (cannot be null)
+		rpc.GetAuth().GetDomainId(), // $11: domain ID (dc)
 	}
 
 	var teamIds []int64
@@ -1364,7 +1365,7 @@ WHERE parent.level < CASE WHEN `)
 }
 
 // Update implements store.CatalogStore.
-func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (*cases.Catalog, error) {
+func (s *CatalogStore) Update(rpc options.UpdateOptions, lookup *cases.Catalog) (*cases.Catalog, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -1372,19 +1373,19 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 	}
 
 	// Start a transaction using the TxManager
-	tx, err := db.Begin(rpc.Context)
+	tx, err := db.Begin(rpc)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.update.transaction_start_error", err)
 	}
 	txManager := transaction.NewTxManager(tx) // Create a new TxManager instance
-	defer txManager.Rollback(rpc.Context)     // Ensure rollback on error
+	defer txManager.Rollback(rpc)             // Ensure rollback on error
 
 	// Check if rpc.Fields contains team_ids or skill_ids
 	updateTeams := false
 	updateSkills := false
 
 	// Check if the fields exist in rpc.Fields
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		switch field {
 		case "teams":
 			updateTeams = true
@@ -1426,13 +1427,13 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 			teamIDs,  // Pass empty slice if no team IDs are provided
 			skillIDs, // Pass empty slice if no skill IDs are provided
 			rpc.GetAuthOpts().GetUserId(),
-			rpc.Time,
+			rpc.GetTime(),
 			rpc.GetAuthOpts().GetDomainId(),
 		)
 
 		// Execute the teams and skills update query and check for affected rows
 		var affectedRows int
-		err = txManager.QueryRow(rpc.Context, query, args...).Scan(&affectedRows)
+		err = txManager.QueryRow(rpc, query, args...).Scan(&affectedRows)
 		if err != nil {
 			return nil, dberr.NewDBInternalError("postgres.catalog.update.teams_skills_update_error", err)
 		}
@@ -1455,7 +1456,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 		teamLookups, skillLookups        []byte
 	)
 
-	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
+	err = txManager.QueryRow(rpc, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &createdAt,
 		&lookup.Sla.Id, &lookup.Sla.Name,
 		&lookup.Status.Id, &lookup.Status.Name,
@@ -1470,7 +1471,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 	}
 
 	// Commit the transaction
-	if err := txManager.Commit(rpc.Context); err != nil {
+	if err := txManager.Commit(rpc); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.update.transaction_commit_error", err)
 	}
 
@@ -1493,7 +1494,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 }
 
 func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	catalogID int64,
 	teamIDs,
 	skillIDs []int64,
@@ -1516,7 +1517,7 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 	placeholderIndex := 5 // Start placeholder index after the initial args
 
 	// Check if "teams" is in rpc.Fields, even if teamIDs is empty
-	if util.FieldExists("teams", rpc.Fields) {
+	if util.FieldExists("teams", rpc.GetFields()) {
 		query += `
  updated_teams AS (
     INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, updated_at, dc)
@@ -1540,7 +1541,7 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 	}
 
 	// Check if "skills" is in rpc.Fields, even if skillIDs are empty
-	if util.FieldExists("skills", rpc.Fields) {
+	if util.FieldExists("skills", rpc.GetFields()) {
 		if cteAdded {
 			query += `,` // Only add a comma if there is already a CTE defined (for teams)
 		}
@@ -1572,11 +1573,11 @@ SELECT COUNT(*)
 FROM (
     ` + func() string {
 		var result string
-		if util.FieldExists("teams", rpc.Fields) {
+		if util.FieldExists("teams", rpc.GetFields()) {
 			result += `SELECT catalog_id FROM updated_teams UNION ALL SELECT catalog_id FROM deleted_teams`
 		}
-		if util.FieldExists("skills", rpc.Fields) {
-			if util.FieldExists("teams", rpc.Fields) {
+		if util.FieldExists("skills", rpc.GetFields()) {
+			if util.FieldExists("teams", rpc.GetFields()) {
 				result += ` UNION ALL `
 			}
 			result += `SELECT catalog_id FROM updated_skills UNION ALL SELECT catalog_id FROM deleted_skills`
@@ -1590,7 +1591,7 @@ FROM (
 }
 
 func (s *CatalogStore) buildUpdateCatalogQuery(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	lookup *cases.Catalog,
 ) (string, []interface{}, error) {
 	// Start the WITH clause to check if root_id is NULL
@@ -1610,12 +1611,12 @@ WITH root_check AS (
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.Time).
+		Set("updated_at", rpc.GetTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically set fields based on user update preferences
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		switch field {
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)

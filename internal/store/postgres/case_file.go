@@ -12,7 +12,6 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
-	util "github.com/webitel/cases/util"
 )
 
 type CaseFileStore struct {
@@ -63,7 +62,7 @@ func (c *CaseFileStore) List(rpc options.SearchOptions) (*cases.CaseFileList, er
 	fetchAll := rpc.GetSize() == -1
 
 	for rows.Next() {
-		if !fetchAll && lCount >= int(rpc.GetSize()) {
+		if !fetchAll && lCount >= rpc.GetSize() {
 			next = true
 			break
 		}

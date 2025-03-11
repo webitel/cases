@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/model/options"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -30,7 +31,7 @@ const (
 
 // Create implements store.RelatedCaseStore for creating a new related case.
 func (r *RelatedCaseStore) Create(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	relation *cases.RelationType,
 ) (*cases.RelatedCase, error) {
 	// Establish database connection
@@ -57,7 +58,7 @@ func (r *RelatedCaseStore) Create(
 	relatedCase := &cases.RelatedCase{}
 	scanArgs := convertToRelatedCaseScanArgs(plan, relatedCase)
 
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("store.related_case.create.execution_error", err)
 	}
 
@@ -66,7 +67,7 @@ func (r *RelatedCaseStore) Create(
 
 // buildCreateRelatedCaseSqlizer builds the insert and select SQLizer for creating related cases.
 func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	relation *cases.RelationType,
 ) (sq.Sqlizer, []func(*cases.RelatedCase) any, *dberr.DBError) {
 	// Insert query
@@ -74,14 +75,14 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 		Insert("cases.related_case").
 		Columns("dc", "primary_case_id", "related_case_id", "relation_type", "created_at", "created_by", "updated_at", "updated_by").
 		Values(
-			rpc.GetAuthOpts().GetDomainId(), // dc
-			rpc.ParentID,                    // primary_case_id
-			rpc.ChildID,                     // related_case_id
-			relation,                        // relation_type
-			rpc.CurrentTime(),               // created_at
-			rpc.GetAuthOpts().GetUserId(),   // created_by
-			rpc.CurrentTime(),               // updated_at
-			rpc.GetAuthOpts().GetUserId(),   // updated_by
+			rpc.GetAuth().GetDomainId(), // dc
+			rpc.GetParentID(),           // primary_case_id
+			rpc.GetChildID(),            // related_case_id
+			relation,                    // relation_type
+			rpc.GetTime(),               // created_at
+			rpc.GetAuth().GetUserId(),   // created_by
+			rpc.GetTime(),               // updated_at
+			rpc.GetAuth().GetUserId(),   // updated_by
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -98,7 +99,7 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 	selectBuilder := sq.Select()
 
 	// Use helper to build select columns and scan plan
-	selectBuilder, plan, dbErr := buildRelatedCasesSelectColumnsAndPlan(selectBuilder, relatedCaseLeft, rpc.Fields)
+	selectBuilder, plan, dbErr := buildRelatedCasesSelectColumnsAndPlan(selectBuilder, relatedCaseLeft, rpc.GetFields())
 	if dbErr != nil {
 		return nil, nil, dbErr
 	}
@@ -297,7 +298,7 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 }
 
 func (r *RelatedCaseStore) Update(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	input *cases.InputRelatedCase,
 ) (*cases.RelatedCase, error) {
 	// Get database connection
@@ -323,7 +324,7 @@ func (r *RelatedCaseStore) Update(
 	scanArgs := convertToRelatedCaseScanArgs(plan, updatedCase)
 
 	// Execute query and scan the result
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, dberr.NewDBNotFoundError("store.related_case.update.not_found", "Related case not found")
 		}
@@ -335,26 +336,27 @@ func (r *RelatedCaseStore) Update(
 
 // buildUpdateRelatedCaseSqlizer dynamically builds the update query for related cases.
 func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	input *cases.InputRelatedCase,
 ) (sq.Sqlizer, []func(*cases.RelatedCase) any, *dberr.DBError) {
 	// Ensure "id" and "ver" are included
-	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdAndVerField(rpc.GetFields())
 
 	// Start building the update query
 	updateBuilder := sq.Update("cases.related_case").
 		PlaceholderFormat(sq.Dollar).
 		Set("relation_type", input.RelationType).
-		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_at", rpc.GetTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Set("ver", sq.Expr("ver + 1")).
 		Where(sq.Eq{
-			"id":  rpc.Etags[0].GetOid(),
-			"ver": rpc.Etags[0].GetVer(),
+			"id":  rpc.GetEtags()[0].GetOid(),
+			"ver": rpc.GetEtags()[0].GetVer(),
 			"dc":  rpc.GetAuthOpts().GetDomainId(),
 		})
 
-	for _, mask := range rpc.Mask {
+	for _, mask := range rpc.GetMask() {
 		switch mask {
 		case "primaryCaseId":
 			updateBuilder = updateBuilder.Set("primary_case_id", input.GetPrimaryCase().GetId())
@@ -369,7 +371,7 @@ func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
 		From(relatedCaseLeft)
 
 	// Use helper function to dynamically build columns and scan plan
-	selectBuilder, plan, err := buildRelatedCasesSelectColumnsAndPlan(selectBuilder, relatedCaseLeft, rpc.Fields)
+	selectBuilder, plan, err := buildRelatedCasesSelectColumnsAndPlan(selectBuilder, relatedCaseLeft, fields)
 	if err != nil {
 		return nil, nil, err
 	}

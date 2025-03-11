@@ -2,14 +2,23 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
 	api "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 )
+
+var ServiceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
+	{Name: "id", Default: false},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
+	{Name: "root_id", Default: false},
+})
 
 type ServiceService struct {
 	app *App
@@ -28,13 +37,13 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		return nil, cerror.NewBadRequestError("service.create_service.root_id.required", "Root ID is required")
 	}
 
-	t := time.Now()
-
-	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Time:    t,
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, ServiceMetadata),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Create a new Service user_auth
@@ -51,7 +60,7 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 	}
 
 	// Create the Service in the store
-	r, e := s.app.Store.Service().Create(&createOpts, service)
+	r, e := s.app.Store.Service().Create(createOpts, service)
 	if e != nil {
 		return nil, cerror.NewInternalError("service.create_service.store.create.failed", e.Error())
 	}
@@ -180,61 +189,11 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		return nil, cerror.NewBadRequestError("service.update_service.id.required", "Service ID is required")
 	}
 
-	fields := []string{"id"}
-
-	for _, f := range req.XJsonMask {
-		// Handle fields with specific prefixes
-		if strings.HasPrefix(f, "sla") {
-			if !util.ContainsField(fields, "sla_id") {
-				fields = append(fields, "sla_id")
-			}
-			continue
-		}
-
-		if strings.HasPrefix(f, "group") {
-			if !util.ContainsField(fields, "group_id") {
-				fields = append(fields, "group_id")
-			}
-			continue
-		}
-
-		if strings.HasPrefix(f, "assignee") {
-			if !util.ContainsField(fields, "assignee_id") {
-				fields = append(fields, "assignee_id")
-			}
-			continue
-		}
-
-		// Handle exact matches
-		switch f {
-		case "name":
-			fields = append(fields, "name")
-			if req.Input.Name == "" {
-				return nil, cerror.NewBadRequestError("service.update_service.name.required", "Service name is required and cannot be empty")
-			}
-		case "description":
-			fields = append(fields, "description")
-		case "root_id":
-			fields = append(fields, "root_id")
-		case "code":
-			fields = append(fields, "code")
-		case "state":
-			fields = append(fields, "state")
-		}
-	}
-
-	t := time.Now()
-
-	updateOpts := model.UpdateOptions{
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
-		Auth:    model.GetAutherOutOfContext(ctx),
-	}
-
-	u := &api.Lookup{
-		Id: updateOpts.GetAuthOpts().GetUserId(),
-	}
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, ServiceMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
 
 	service := &api.Service{
 		Id:          req.Id,
@@ -244,12 +203,11 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		Sla:         req.Input.Sla,
 		Group:       req.Input.Group,
 		Assignee:    req.Input.Assignee,
-		UpdatedBy:   u,
 		State:       req.Input.State,
 		RootId:      req.Input.RootId,
 	}
 
-	r, e := s.app.Store.Service().Update(&updateOpts, service)
+	r, e := s.app.Store.Service().Update(updateOpts, service)
 	if e != nil {
 		return nil, cerror.NewInternalError("service.update_service.store.update.failed", e.Error())
 	}

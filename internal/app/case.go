@@ -5,23 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	cerror "github.com/webitel/cases/internal/errors"
-	"log"
-	"log/slog"
-	"strconv"
-	"strings"
-
-	wlogger "github.com/webitel/logger/pkg/client/v2"
-
-	"google.golang.org/grpc/metadata"
-
 	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
-
+	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
+	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/etag"
+	"google.golang.org/grpc/metadata"
+	"log/slog"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -223,33 +218,34 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Links:            links,
 		Related:          related,
 	}
-	// Type assert CaseMetadata to *ObjectMetadata before passing to CopyWithAllFieldsSetToDefault
-	caseMD, ok := CaseMetadata.(*model.ObjectMetadata)
-	if !ok {
-		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
-	}
-	fullMD := caseMD.CopyWithAllFieldsSetToDefault()
 
-	createOpts, err := model.NewCreateOptions(ctx, req, fullMD)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(
+			req,
+			CaseMetadata.CopyWithAllFieldsSetToDefault(),
+			func(fields []string) []string {
+				for i, v := range fields {
+					if v == "related" {
+						fields = append(fields[:i], fields[i+1:]...)
+					}
+				}
+				return fields
+			}),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
-	}
-
-	for i, v := range createOpts.Fields {
-		if v == "related" {
-			createOpts.Fields = append(createOpts.Fields[:i], createOpts.Fields[i+1:]...)
-		}
 	}
 
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64(
 			"user_id",
-			createOpts.GetAuthOpts().GetUserId()),
+			createOpts.GetAuth().GetUserId()),
 		slog.Int64(
 			"domain_id",
-			createOpts.GetAuthOpts().GetDomainId(),
+			createOpts.GetAuth().GetDomainId(),
 		))
 
 	res, err = c.app.Store.Case().Create(createOpts, res)
@@ -281,13 +277,13 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, ResponseNormalizingError
 	}
 
-	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleIds, res)
+	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuth().GetDomainId(), roleIds, res)
 	if ftsErr != nil {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}
 
 	logMessage, err := wlogger.NewCreateMessage(
-		createOpts.GetAuthOpts().GetUserId(),
+		createOpts.GetAuth().GetUserId(),
 		getClientIp(ctx),
 		res.Id, res,
 	)
@@ -295,12 +291,12 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, err
 	}
 
-	logErr := c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), logMessage)
+	logErr := c.logger.SendContext(ctx, createOpts.GetAuth().GetDomainId(), logMessage)
 	if logErr != nil {
 		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
 	}
 
-	err = c.app.watcher.OnEvent(EventTypeCreate, NewWatcherData(res, createOpts.GetAuthOpts().GetDomainId()))
+	err = c.app.watcher.OnEvent(EventTypeCreate, NewWatcherData(res, createOpts.GetAuth().GetDomainId()))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s, ", err.Error()), logAttributes)
 	}
@@ -319,24 +315,26 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		slog.ErrorContext(ctx, err.Error())
 		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
 	}
-	// Type assert CaseMetadata to *ObjectMetadata before passing to CopyWithAllFieldsSetToDefault
-	caseMD, ok := CaseMetadata.(*model.ObjectMetadata)
-	if !ok {
-		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
-	}
-	fullMD := caseMD.CopyWithAllFieldsSetToDefault()
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, fullMD)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(
+			req,
+			CaseMetadata.CopyWithAllFieldsSetToDefault(),
+			func(fields []string) []string {
+				for i, v := range fields {
+					if v == "related" {
+						fields = append(fields[:i], fields[i+1:]...)
+					}
+				}
+				return fields
+			}),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
 	updateOpts.Etags = []*etag.Tid{&tag}
-	for i, v := range updateOpts.Fields {
-		if v == "related" {
-			updateOpts.Fields = append(updateOpts.Fields[:i], updateOpts.Fields[i+1:]...)
-		}
-	}
 
 	logAttributes := slog.Group(
 		"context",

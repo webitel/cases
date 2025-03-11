@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/options"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
@@ -94,21 +95,22 @@ func buildCloseReasonGroupSelectColumnsAndPlan(
 }
 
 func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	group *_go.CloseReasonGroup,
 ) (sq.SelectBuilder, []CloseReasonGroupScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	// Build the INSERT query with a RETURNING clause
 	insertBuilder := sq.Insert("cases.close_reason_group").
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by").
 		Values(
 			group.Name,
-			rpc.GetAuthOpts().GetDomainId(),
-			rpc.CurrentTime(),
+			rpc.GetAuth().GetDomainId(),
+			rpc.GetTime(),
 			sq.Expr("NULLIF(?, '')", group.Description),
-			rpc.GetAuthOpts().GetUserId(),
-			rpc.CurrentTime(),
-			rpc.GetAuthOpts().GetUserId(),
+			rpc.GetAuth().GetUserId(),
+			rpc.GetTime(),
+			rpc.GetAuth().GetUserId(),
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -127,7 +129,7 @@ func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(
 	cte := sq.Expr("WITH g AS ("+insertSQL+")", args...)
 
 	// Dynamically build the SELECT query for the resulting row
-	selectBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -138,7 +140,7 @@ func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s CloseReasonGroup) Create(rpc *model.CreateOptions, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error) {
+func (s CloseReasonGroup) Create(rpc options.CreateOptions, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.database_connection_error", dbErr)
@@ -156,7 +158,7 @@ func (s CloseReasonGroup) Create(rpc *model.CreateOptions, input *_go.CloseReaso
 	// temporary object for scanning
 	tempAdd := &_go.CloseReasonGroup{}
 	scanArgs := convertToCloseReasonGroupScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.execution_error", err)
 	}
 
@@ -164,20 +166,21 @@ func (s CloseReasonGroup) Create(rpc *model.CreateOptions, input *_go.CloseReaso
 }
 
 func (s CloseReasonGroup) buildUpdateCloseReasonGroupQuery(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	input *_go.CloseReasonGroup,
 ) (sq.SelectBuilder, []CloseReasonGroupScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.close_reason_group").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
-		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_at", rpc.GetTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": input.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the SET clause
-	for _, field := range rpc.Mask {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			if input.Name != "" {
@@ -202,7 +205,7 @@ func (s CloseReasonGroup) buildUpdateCloseReasonGroupQuery(
 	cte := sq.Expr("WITH g AS ("+updateSQL+")", args...)
 
 	// Build select clause and scan plan dynamically using buildCloseReasonGroupSelectColumnsAndPlan
-	selectBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -214,7 +217,7 @@ func (s CloseReasonGroup) buildUpdateCloseReasonGroupQuery(
 }
 
 func (s CloseReasonGroup) Update(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	input *_go.CloseReasonGroup,
 ) (*_go.CloseReasonGroup, error) {
 	d, dbErr := s.storage.Database()
@@ -234,7 +237,7 @@ func (s CloseReasonGroup) Update(
 	// temporary object for scanning
 	tempAdd := &_go.CloseReasonGroup{}
 	scanArgs := convertToCloseReasonGroupScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.input.execution_error", err)
 	}
 

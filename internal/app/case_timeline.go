@@ -50,7 +50,7 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
 	if err != nil {

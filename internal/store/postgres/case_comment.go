@@ -35,7 +35,7 @@ const (
 
 // Publish implements store.CommentCaseStore for publishing a single comment.
 func (c *CaseCommentStore) Publish(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	add *_go.CaseComment,
 ) (*_go.CaseComment, error) {
 	// Establish database connection
@@ -59,11 +59,11 @@ func (c *CaseCommentStore) Publish(
 	scanArgs := convertToScanArgs(plan, add)
 
 	// Execute the query and scan the result directly into `add`
-	if err = d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err = d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("store.case_comment.publish.scan_error", err)
 	}
 
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		if field == "role_ids" {
 			roles, defErr := c.GetRolesById(rpc, add.GetId(), auth.Read)
 			if defErr != nil {
@@ -78,24 +78,25 @@ func (c *CaseCommentStore) Publish(
 }
 
 func (c *CaseCommentStore) buildPublishCommentsSqlizer(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	input *_go.InputCaseComment,
 ) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
 	// Ensure "id" and "ver" are in the fields list
-	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdAndVerField(rpc.GetFields())
 	var err error
 	// Build the insert query with a RETURNING clause
 	insertBuilder := sq.
 		Insert("cases.case_comment").
 		Columns("dc", "case_id", "created_at", "created_by", "updated_at", "updated_by", "comment").
 		Values(
-			rpc.GetAuthOpts().GetDomainId(), // dc
-			rpc.ParentID,                    // case_id
-			rpc.CurrentTime(),               // created_at (and updated_at)
-			rpc.GetAuthOpts().GetUserId(),   // created_by (and updated_by)
-			rpc.CurrentTime(),               // updated_at
-			rpc.GetAuthOpts().GetUserId(),   // updated_by
-			input.Text,                      // comment text
+			rpc.GetAuth().GetDomainId(), // dc
+			rpc.GetParentID(),           // case_id
+			rpc.GetTime(),               // created_at (and updated_at)
+			rpc.GetAuth().GetUserId(),   // created_by (and updated_by)
+			rpc.GetTime(),               // updated_at
+			rpc.GetAuth().GetUserId(),   // updated_by
+			input.Text,                  // comment text
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -114,8 +115,8 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 	selectBuilder, plan, dbErr := buildCommentSelectColumnsAndPlan(
 		selectBuilder,
 		caseCommentLeft,
-		rpc.Fields,
-		rpc.GetAuthOpts(),
+		fields,
+		rpc.GetAuth(),
 	)
 	if dbErr != nil {
 		return nil, nil, dbErr
@@ -306,7 +307,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 }
 
 func (c *CaseCommentStore) Update(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	upd *_go.CaseComment,
 ) (*_go.CaseComment, error) {
 	// Get the database connection
@@ -337,14 +338,14 @@ func (c *CaseCommentStore) Update(
 	// Convert plan to scanArgs
 	scanArgs := convertToScanArgs(plan, upd)
 
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Explicitly indicate that the user is not the creator
 			return nil, dberr.NewDBNotFoundError("postgres.case_comment.update.scan_ver.not_found", "Comment not found")
 		}
 		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.execution_error", err)
 	}
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		if field == "role_ids" {
 			roles, defErr := c.GetRolesById(rpc, upd.GetId(), auth.Read)
 			if defErr != nil {
@@ -384,7 +385,7 @@ func (c *CaseCommentStore) GetRolesById(
 }
 
 func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	input struct {
 		Text string
 		Id   int64
@@ -392,18 +393,19 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 ) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
 	var defErr error
 	// Ensure "id" and "ver" are in the fields list
-	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdAndVerField(rpc.GetFields())
 
 	// Begin the update statement for `cases.case_comment`
 	updateBuilder := sq.Update("cases.case_comment").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_at", rpc.GetTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Set("ver", sq.Expr("ver + 1")). // Increment version
 		// input.Etag == input.ID
 		Where(sq.Eq{
-			"id":         rpc.Etags[0].GetOid(),
-			"ver":        rpc.Etags[0].GetVer(),
+			"id":         rpc.GetEtags()[0].GetOid(),
+			"ver":        rpc.GetEtags()[0].GetVer(),
 			"dc":         rpc.GetAuthOpts().GetDomainId(),
 			"created_by": rpc.GetAuthOpts().GetUserId(), // Ensure only the creator can edit
 		})
@@ -425,7 +427,7 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 	selectBuilder, plan, err := buildCommentSelectColumnsAndPlan(
 		selectBuilder,
 		caseCommentLeft,
-		rpc.Fields,
+		fields,
 		rpc.GetAuthOpts(),
 	)
 	if err != nil {

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/options"
 
 	sq "github.com/Masterminds/squirrel"
 	_go "github.com/webitel/cases/api/cases"
@@ -73,19 +74,20 @@ func buildSourceSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func (s *Source) buildCreateSourceQuery(rpc *model.CreateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+func (s *Source) buildCreateSourceQuery(rpc options.CreateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	insertBuilder := sq.Insert("cases.source").
 		Columns("name", "dc", "created_at", "description", "type", "created_by", "updated_at", "updated_by").
 		Values(
 			source.Name,
-			rpc.GetAuthOpts().GetDomainId(),
-			rpc.CurrentTime(),
+			rpc.GetAuth().GetDomainId(),
+			rpc.GetTime(),
 			sq.Expr("NULLIF(?, '')", source.Description),
 			source.Type.String(),
-			rpc.GetAuthOpts().GetUserId(),
-			rpc.CurrentTime(),
-			rpc.GetAuthOpts().GetUserId(),
+			rpc.GetAuth().GetUserId(),
+			rpc.GetTime(),
+			rpc.GetAuth().GetUserId(),
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -96,7 +98,7 @@ func (s *Source) buildCreateSourceQuery(rpc *model.CreateOptions, source *_go.So
 	}
 
 	cte := sq.Expr("WITH s AS ("+insertSQL+")", args...)
-	selectBuilder, plan, err := buildSourceSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildSourceSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -104,7 +106,7 @@ func (s *Source) buildCreateSourceQuery(rpc *model.CreateOptions, source *_go.So
 	return selectBuilder.PrefixExpr(cte).From(sourceLeft), plan, nil
 }
 
-func (s *Source) Create(rpc *model.CreateOptions, source *_go.Source) (*_go.Source, error) {
+func (s *Source) Create(rpc options.CreateOptions, source *_go.Source) (*_go.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.create.database_connection_error", dbErr)
@@ -121,23 +123,24 @@ func (s *Source) Create(rpc *model.CreateOptions, source *_go.Source) (*_go.Sour
 	}
 
 	temp := &_go.Source{}
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(convertToSourceScanArgs(plan, temp)...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(convertToSourceScanArgs(plan, temp)...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.create.execution_error", err)
 	}
 
 	return temp, nil
 }
 
-func (s *Source) buildUpdateSourceQuery(rpc *model.UpdateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+func (s *Source) buildUpdateSourceQuery(rpc options.UpdateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	updateBuilder := sq.Update("cases.source").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_at", rpc.GetTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": source.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
-	for _, field := range rpc.Mask {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			if source.Name != "" {
@@ -158,7 +161,7 @@ func (s *Source) buildUpdateSourceQuery(rpc *model.UpdateOptions, source *_go.So
 	}
 
 	cte := sq.Expr("WITH s AS ("+updateSQL+")", args...)
-	selectBuilder, plan, err := buildSourceSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildSourceSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -166,7 +169,7 @@ func (s *Source) buildUpdateSourceQuery(rpc *model.UpdateOptions, source *_go.So
 	return selectBuilder.PrefixExpr(cte).From(sourceLeft), plan, nil
 }
 
-func (s *Source) Update(rpc *model.UpdateOptions, source *_go.Source) (*_go.Source, error) {
+func (s *Source) Update(rpc options.UpdateOptions, source *_go.Source) (*_go.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.update.database_connection_error", dbErr)
@@ -183,7 +186,7 @@ func (s *Source) Update(rpc *model.UpdateOptions, source *_go.Source) (*_go.Sour
 	}
 
 	temp := &_go.Source{}
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(convertToSourceScanArgs(plan, temp)...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(convertToSourceScanArgs(plan, temp)...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.update.execution_error", err)
 	}
 

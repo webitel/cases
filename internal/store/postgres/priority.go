@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/model/options"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
@@ -25,7 +26,7 @@ const (
 )
 
 // Create implements store.PriorityStore.
-func (p *Priority) Create(rpc *model.CreateOptions, add *api.Priority) (*api.Priority, error) {
+func (p *Priority) Create(rpc options.CreateOptions, add *api.Priority) (*api.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.create.database_connection_error", dbErr)
@@ -43,7 +44,7 @@ func (p *Priority) Create(rpc *model.CreateOptions, add *api.Priority) (*api.Pri
 	// temporary object for scanning
 	tempAdd := &api.Priority{}
 	scanArgs := convertToPriorityScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.create.execution_error", err)
 	}
 
@@ -51,21 +52,22 @@ func (p *Priority) Create(rpc *model.CreateOptions, add *api.Priority) (*api.Pri
 }
 
 func (p *Priority) buildCreatePriorityQuery(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	priority *api.Priority,
 ) (sq.SelectBuilder, []PriorityScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	// Build the INSERT query with a RETURNING clause
 	insertBuilder := sq.Insert("cases.priority").
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by", "color").
 		Values(
-			priority.Name,                   // name
-			rpc.GetAuthOpts().GetDomainId(), // dc
-			rpc.Time,                        // created_at
+			priority.Name,               // name
+			rpc.GetAuth().GetDomainId(), // dc
+			rpc.GetTime(),               // created_at
 			sq.Expr("NULLIF(?, '')", priority.Description), // NULLIF for empty description
-			rpc.GetAuthOpts().GetUserId(),                  // created_by
-			rpc.Time,                                       // updated_at
-			rpc.GetAuthOpts().GetUserId(),                  // updated_by
+			rpc.GetAuth().GetUserId(),                      // created_by
+			rpc.GetTime(),                                  // updated_at
+			rpc.GetAuth().GetUserId(),                      // updated_by
 			priority.Color,                                 // color
 		).
 		PlaceholderFormat(sq.Dollar).
@@ -81,7 +83,7 @@ func (p *Priority) buildCreatePriorityQuery(
 	cte := sq.Expr("WITH cp AS ("+insertSQL+")", args...)
 
 	// Dynamically build the SELECT query for the resulting row
-	selectBuilder, plan, err := buildPrioritySelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildPrioritySelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -271,7 +273,7 @@ func (p *Priority) buildListPriorityQuery(
 }
 
 // Update implements store.PriorityStore.
-func (p *Priority) Update(rpc *model.UpdateOptions, update *api.Priority) (*api.Priority, error) {
+func (p *Priority) Update(rpc options.UpdateOptions, update *api.Priority) (*api.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.update.database_connection_error", dbErr)
@@ -289,7 +291,7 @@ func (p *Priority) Update(rpc *model.UpdateOptions, update *api.Priority) (*api.
 	// temporary object for scanning
 	tempAdd := &api.Priority{}
 	scanArgs := convertToPriorityScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.update.execution_error", err)
 	}
 
@@ -297,20 +299,21 @@ func (p *Priority) Update(rpc *model.UpdateOptions, update *api.Priority) (*api.
 }
 
 func (p *Priority) buildUpdatePriorityQuery(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	priority *api.Priority,
 ) (sq.SelectBuilder, []PriorityScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.priority").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
-		Set("updated_at", rpc.Time).
+		Set("updated_at", rpc.GetTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": priority.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the `SET` clause
-	for _, field := range rpc.Mask {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			if priority.Name != "" {
@@ -335,7 +338,7 @@ func (p *Priority) buildUpdatePriorityQuery(
 	cte := sq.Expr("WITH cp AS ("+updateSQL+")", args...)
 
 	// Build select clause and scan plan dynamically using `buildPrioritySelectColumnsAndPlan`
-	selectBuilder, plan, err := buildPrioritySelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildPrioritySelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}

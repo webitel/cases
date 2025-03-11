@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"github.com/webitel/cases/model/options"
 	"log"
 	"strings"
 	"time"
@@ -26,17 +27,17 @@ type StatusConditionStore struct {
 	storage *Store
 }
 
-func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s StatusConditionStore) Create(rpc options.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.database_connection_error", err)
 	}
 
-	tx, err := db.BeginTx(rpc.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := db.BeginTx(rpc, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.transaction_begin_error", err)
 	}
-	defer s.handleTx(rpc.Context, tx, &err)
+	defer s.handleTx(rpc, tx, &err)
 
 	query, args, err := s.buildCreateStatusConditionQuery(rpc, add)
 	if err != nil {
@@ -48,7 +49,7 @@ func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCo
 		createdAt, updatedAt time.Time
 	)
 
-	err = tx.QueryRow(rpc.Context, query, args...).Scan(
+	err = tx.QueryRow(rpc, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &updatedAt, &add.Description, &add.Initial, &add.Final,
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &add.StatusId,
 	)
@@ -146,19 +147,19 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 	return nil
 }
 
-func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s StatusConditionStore) Update(rpc options.UpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.database_connection_error", err)
 	}
 
-	tx, err := db.BeginTx(rpc.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := db.BeginTx(rpc, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.transaction_begin_error", err)
 	}
-	defer s.handleTx(rpc.Context, tx, &err)
+	defer s.handleTx(rpc, tx, &err)
 
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "initial":
 			if !st.Initial {
@@ -174,7 +175,7 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		createdAt, updatedAt time.Time
 	)
 
-	err = tx.QueryRow(rpc.Context, query, args...).Scan(
+	err = tx.QueryRow(rpc, query, args...).Scan(
 		&st.Id, &st.Name, &createdAt, &updatedAt, &st.Description, &st.Initial, &st.Final,
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &st.StatusId,
 	)
@@ -190,15 +191,15 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 	return st, nil
 }
 
-func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc *model.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
+func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
 	query := createStatusConditionQuery
 	args := []interface{}{
-		status.Name,                     // $1 name
-		rpc.Time,                        // $2 created_at / updated_at
-		status.Description,              // $3 description
-		rpc.GetAuthOpts().GetUserId(),   // $4 created_by / updated_by
-		rpc.GetAuthOpts().GetDomainId(), // $5 dc
-		status.StatusId,                 // $6 status_id
+		status.Name,                 // $1 name
+		rpc.GetTime(),               // $2 created_at / updated_at
+		status.Description,          // $3 description
+		rpc.GetAuth().GetUserId(),   // $4 created_by / updated_by
+		rpc.GetAuth().GetDomainId(), // $5 dc
+		status.StatusId,             // $6 status_id
 	}
 	return query, args, nil
 }
@@ -270,12 +271,12 @@ func (s StatusConditionStore) buildDeleteStatusConditionQuery(id int64, domainId
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc *model.UpdateOptions, st *_go.StatusCondition) (string, []interface{}) {
+func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.UpdateOptions, st *_go.StatusCondition) (string, []interface{}) {
 	var args []interface{}
 
 	// 1. Squirrel operations: Building the dynamic part of the "upd" query
 	updBuilder := sq.Update("cases.status_condition").
-		Set("updated_at", rpc.Time).
+		Set("updated_at", rpc.GetTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId())
 
 	// Track whether "initial" or "final" are being updated
@@ -283,7 +284,7 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc *model.UpdateO
 	updateFinal := false
 
 	// Add update-specific fields if provided by the user
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			if st.Name != "" {

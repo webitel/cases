@@ -21,7 +21,7 @@ import (
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	"github.com/webitel/cases/model"
-	util "github.com/webitel/cases/util"
+	"github.com/webitel/cases/util"
 )
 
 type CaseStore struct {
@@ -32,7 +32,6 @@ type CaseStore struct {
 const (
 	caseLeft                  = "c"
 	caseDefaultSort           = "created_at"
-	casesObjClassScopeName    = model.ScopeCases
 	caseCreatedByAlias        = "cb"
 	caseUpdatedByAlias        = "ub"
 	caseSourceAlias           = "src"
@@ -53,7 +52,7 @@ const (
 )
 
 func (c *CaseStore) Create(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	add *_go.Case,
 ) (*_go.Case, error) {
 	// Get the database connection
@@ -63,11 +62,11 @@ func (c *CaseStore) Create(
 	}
 
 	// Begin a transaction
-	tx, err := d.Begin(rpc.Context)
+	tx, err := d.Begin(rpc)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", err)
 	}
-	defer tx.Rollback(rpc.Context)
+	defer tx.Rollback(rpc)
 	txManager := transaction.NewTxManager(tx)
 
 	// Scan SLA details
@@ -107,16 +106,16 @@ func (c *CaseStore) Create(
 	scanArgs := convertToCaseScanArgs(plan, add)
 
 	// Execute the query
-	if err = txManager.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err = txManager.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.execution_error", err)
 	}
 
 	// Commit the transaction
-	if err := tx.Commit(rpc.Context); err != nil {
+	if err := tx.Commit(rpc); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.commit_error", err)
 	}
 
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		if field == "role_ids" {
 			roles, defErr := c.GetRolesById(rpc, add.GetId(), auth.Read)
 			if defErr != nil {
@@ -132,7 +131,7 @@ func (c *CaseStore) Create(
 
 // ScanSla fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
 func (c *CaseStore) ScanSla(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	txManager *transaction.TxManager,
 	serviceID int64,
 	priorityID int64,
@@ -146,7 +145,7 @@ func (c *CaseStore) ScanSla(
 ) {
 	// var slaId, reactionTime, resolutionTime, calendarId, slaConditionId int
 
-	err = txManager.QueryRow(rpc.Context, `
+	err = txManager.QueryRow(rpc, `
 WITH RECURSIVE
     service_hierarchy AS (SELECT id,
                                  root_id,
@@ -202,7 +201,7 @@ FROM deepest_service ds
 }
 
 func (c *CaseStore) buildCreateCaseSqlizer(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	caseItem *_go.Case,
 	sla int,
 	slaCondition int,
@@ -244,10 +243,10 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	}
 	params := map[string]any{
 		// Case-level parameters
-		"date":                rpc.CurrentTime(),
+		"date":                rpc.GetTime(),
 		"contact_info":        caseItem.GetContactInfo(),
-		"user":                rpc.GetAuthOpts().GetUserId(),
-		"dc":                  rpc.GetAuthOpts().GetDomainId(),
+		"user":                rpc.GetAuth().GetUserId(),
+		"dc":                  rpc.GetAuth().GetDomainId(),
 		"sla":                 sla,
 		"sla_condition":       slaCondition,
 		"status":              caseItem.Status.GetId(),
@@ -461,7 +460,7 @@ type MergedSlot struct {
 
 func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	caseID *int64,
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	calendarID int,
 	reactionTime int,
 	resolutionTime int,
@@ -471,7 +470,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 	// Determine the pivot time
 	var pivotTime time.Time
 	if caseID == nil {
-		pivotTime = rpc.CurrentTime()
+		pivotTime = rpc.GetTime()
 	} else {
 		err := txManager.QueryRow(rpc.Context, `
 			SELECT created_at FROM cases.case WHERE id = $1`, *caseID).Scan(&pivotTime)
@@ -528,7 +527,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 }
 
 // fetchCalendarSlots retrieves working hours for a calendar
-func fetchCalendarSlots(rpc *model.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]CalendarSlot, error) {
+func fetchCalendarSlots(rpc options.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]CalendarSlot, error) {
 	rows, err := txManager.Query(rpc.Context, `
 		SELECT day, start_time_of_day, end_time_of_day, disabled
 		FROM flow.calendar cl,
@@ -564,8 +563,8 @@ func fetchCalendarSlots(rpc *model.CreateOptions, txManager *transaction.TxManag
 }
 
 // fetchExceptionSlots retrieves exceptions for specific days (overrides)
-func fetchExceptionSlots(rpc *model.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]ExceptionSlot, error) {
-	rows, err := txManager.Query(rpc.Context, `
+func fetchExceptionSlots(rpc options.CreateOptions, txManager *transaction.TxManager, calendarID int) ([]ExceptionSlot, error) {
+	rows, err := txManager.Query(rpc, `
 		SELECT
 			to_timestamp(x.date / 1000) AS date,
 			x.work_start AS start_time_of_day,
@@ -1105,7 +1104,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 
 // region UPDATE
 func (c *CaseStore) Update(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	upd *_go.Case,
 ) (*_go.Case, error) {
 	// Establish database connection
@@ -1125,7 +1124,7 @@ func (c *CaseStore) Update(
 	// * if user change Service -- SLA ; SLA Condition ; Planned Reaction / Resolve at ; Calendar could be changed
 	if util.ContainsField(rpc.Mask, "service") {
 		slaID, slaConditionID, reaction_at, resolve_at, calendarID, err := c.ScanSla(
-			&model.CreateOptions{Context: rpc.Context},
+			options.CreateOptions{},
 			txManager,
 			upd.Service.GetId(),
 			upd.Priority.GetId(),
@@ -1139,7 +1138,7 @@ func (c *CaseStore) Update(
 		// Calculate planned times within the transaction
 		err = c.calculatePlannedReactionAndResolutionTime(
 			&oid,
-			&model.CreateOptions{Context: rpc.Context, Time: rpc.CurrentTime()},
+			options.CreateOptions{rpc},
 			calendarID,
 			reaction_at,
 			resolve_at,
@@ -1204,7 +1203,7 @@ func (c *CaseStore) Update(
 }
 
 func (c *CaseStore) buildUpdateCaseSqlizer(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	upd *_go.Case,
 ) (sq.Sqlizer, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included

@@ -2,14 +2,13 @@ package app
 
 import (
 	"context"
-	"log/slog"
-	"strings"
-
 	"github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/util"
-
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
+	"log/slog"
+	"strings"
 )
 
 type SLAService struct {
@@ -36,10 +35,6 @@ var SLAMetadata = model.NewObjectMetadata(
 		{"resolution_time", true},
 	})
 
-const (
-	slaDefaultFields = "id, name, description, calendar, created_by, created_at, reaction_time, resolution_time"
-)
-
 // CreateSLA implements cases.SLAsServer.
 func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest) (*cases.SLA, error) {
 	// Validate required fields
@@ -56,7 +51,10 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.resolution_time.required", "Resolution time is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, SLAMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, SLAMetadata),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -171,7 +169,11 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.update_sla.id.required", "SLA ID is required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, SLAMetadata)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, SLAMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError

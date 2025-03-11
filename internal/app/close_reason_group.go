@@ -5,6 +5,7 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
 	"strings"
@@ -15,10 +16,6 @@ type CloseReasonGroupService struct {
 	_go.UnimplementedCloseReasonGroupsServer
 	objClassName string
 }
-
-const (
-	defaultFieldsCloseReasonGroup = "id, name, description, created_by"
-)
 
 var CloseReasonGroupMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{"id", true},
@@ -39,7 +36,10 @@ func (s CloseReasonGroupService) CreateCloseReasonGroup(
 		return nil, cerror.NewBadRequestError("close_reason_group_service.create_close_reason_group.name.required", "Lookup name is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CloseReasonGroupMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, CloseReasonGroupMetadata),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -92,7 +92,11 @@ func (s CloseReasonGroupService) UpdateCloseReasonGroup(
 		return nil, cerror.NewBadRequestError("close_reason_group_service.update_close_reason_group.id.required", "Lookup ID is required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CloseReasonGroupMetadata)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, CloseReasonGroupMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError

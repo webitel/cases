@@ -13,10 +13,6 @@ import (
 
 type SearchOption func(options *SearchOptions) error
 
-type Fielder interface {
-	GetFields() []string
-}
-
 type Pager interface {
 	GetPage() int32
 	GetSize() int32

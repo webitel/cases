@@ -3,13 +3,11 @@ package app
 import (
 	"context"
 	"errors"
-	cases "github.com/webitel/cases/api/cases"
-	"log/slog"
-
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 	"log/slog"
@@ -95,12 +93,16 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, CaseCommentMetadata),
+		grpcopts.WithUpdateEtag(&tag),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	updateOpts.Etags = []*etag.Tid{&tag}
+
 	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("id", tag.GetOid()))
 
 	comment := &cases.CaseComment{
@@ -191,7 +193,7 @@ func (c *CaseCommentService) ListComments(
 	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, InternalError
 	}
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
@@ -225,7 +227,10 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault())
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, CaseCommentMetadata),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -236,15 +241,15 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.invalid_etag", "Invalid etag")
 	}
 	createOpts.ParentID = tag.GetOid()
-	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuth().GetUserId()), slog.Int64("domain_id", createOpts.GetAuth().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
 	accessMode := auth.Read
-	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommentMetadata.GetParentScopeName(), accessMode) {
+	if !createOpts.GetAuth().CheckObacAccess(CaseCommentMetadata.GetParentScopeName(), accessMode) {
 		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
 		return nil, ForbiddenError
 	}
-	if createOpts.GetAuthOpts().IsRbacCheckRequired(CaseCommentMetadata.GetParentScopeName(), accessMode) {
-		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
+	if createOpts.GetAuth().IsRbacCheckRequired(CaseCommentMetadata.GetParentScopeName(), accessMode) {
+		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuth(), accessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -269,7 +274,7 @@ func (c *CaseCommentService) PublishComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, ResponseNormalizingError
 	}
-	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleId, parentId, comment)
+	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuth().GetDomainId(), roleId, parentId, comment)
 	if ftsErr != nil {
 		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
 	}

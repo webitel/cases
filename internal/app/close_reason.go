@@ -5,6 +5,7 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
 	"strings"
@@ -27,10 +28,6 @@ var CloseReasonMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*
 	{"close_reason_id", false},
 })
 
-const (
-	defaultFieldsCloseReason = "id, name, description, created_by"
-)
-
 // CreateCloseReason implements api.CloseReasonsServer.
 func (s *CloseReasonService) CreateCloseReason(
 	ctx context.Context,
@@ -41,7 +38,10 @@ func (s *CloseReasonService) CreateCloseReason(
 		return nil, cerror.NewBadRequestError("close_reason_service.create_close_reason.name.required", "Close reason name is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CloseReasonMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, CloseReasonMetadata),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -98,7 +98,11 @@ func (s *CloseReasonService) UpdateCloseReason(
 		return nil, cerror.NewBadRequestError("close_reason_service.update_close_reason.id.required", "Close reason ID is required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CloseReasonMetadata)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, CloseReasonMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError

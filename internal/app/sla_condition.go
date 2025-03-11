@@ -2,14 +2,14 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/util"
-
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 )
 
 type SLAConditionService struct {
@@ -18,9 +18,11 @@ type SLAConditionService struct {
 	objClassName string
 }
 
-const (
-	defaultFieldsSLACondition = "id, name, priority"
-)
+var SLAConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
+	{Name: "id", Default: false},
+	{Name: "name", Default: true},
+	{Name: "priority", Default: true},
+})
 
 // CreateSLACondition implements cases.SLAConditionsServer.
 func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases.CreateSLAConditionRequest) (*cases.SLACondition, error) {
@@ -41,13 +43,6 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 		return nil, cerror.NewBadRequestError("sla_condition_service.create_sla_condition.sla_id.required", "SLA ID is required")
 	}
 
-	fields := []string{
-		"id", "name", "reaction_time", "resolution_time", "sla_id",
-		"created_at", "updated_at", "created_by", "updated_by",
-	}
-
-	t := time.Now()
-
 	// Convert []*cases.Lookup to []int64
 	var priorityIDs []int64
 	for _, priority := range req.Input.Priorities {
@@ -56,13 +51,14 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 		}
 	}
 
-	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
-		Ids:     priorityIDs,
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, SLAConditionMetadata),
+		grpcopts.WithCreateIDs(priorityIDs),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Create a new SLACondition user_auth
@@ -74,7 +70,7 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 	}
 
 	// Create the SLACondition in the store
-	r, e := s.app.Store.SLACondition().Create(&createOpts, slaCondition, priorityIDs)
+	r, e := s.app.Store.SLACondition().Create(createOpts, slaCondition, priorityIDs)
 	if e != nil {
 		return nil, cerror.NewInternalError("sla_condition_service.create_sla_condition.store.create.failed", e.Error())
 	}
@@ -185,32 +181,6 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		return nil, cerror.NewBadRequestError("sla_condition_service.update_sla_condition.id.required", "SLA Condition ID is required")
 	}
 
-	fields := []string{"id"}
-
-	for _, f := range req.XJsonMask {
-		if strings.HasPrefix(f, "priorities") {
-			if !util.ContainsField(fields, "priorities") {
-				fields = append(fields, "priorities")
-			}
-			continue
-		}
-		switch f {
-		case "name":
-			fields = append(fields, "name")
-			if req.Input.Name == "" {
-				return nil, cerror.NewBadRequestError("sla_condition_service.update_sla_condition.name.required", "SLA Condition name is required and cannot be empty")
-			}
-		case "reaction_time":
-			fields = append(fields, "reaction_time")
-		case "resolution_time":
-			fields = append(fields, "resolution_time")
-		case "sla_id":
-			fields = append(fields, "sla_id")
-		}
-	}
-
-	t := time.Now()
-
 	// Convert []*cases.Lookup to []int64
 	var priorityIDs []int64
 	for _, priority := range req.Input.Priorities {
@@ -220,12 +190,15 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 	}
 
 	// Define update options
-	updateOpts := model.UpdateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
-		IDs:     priorityIDs,
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, SLAConditionMetadata),
+		grpcopts.WithUpdateMasker(req),
+		grpcopts.WithUpdateIDs(priorityIDs),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Define the current user as the updater
@@ -244,7 +217,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 	}
 
 	// Update the SLACondition in the store
-	r, e := s.app.Store.SLACondition().Update(&updateOpts, slaCondition)
+	r, e := s.app.Store.SLACondition().Update(updateOpts, slaCondition)
 	if e != nil {
 		return nil, cerror.NewInternalError("sla_condition_service.update_sla_condition.store.update.failed", e.Error())
 	}

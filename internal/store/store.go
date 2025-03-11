@@ -51,11 +51,11 @@ type Store interface {
 // ------------ Cases Stores ------------ //
 type CaseStore interface {
 	// Create a new case
-	Create(rpc *model.CreateOptions, add *_go.Case) (*_go.Case, error)
+	Create(rpc options.CreateOptions, add *_go.Case) (*_go.Case, error)
 	// List cases
 	List(rpc options.SearchOptions) (*_go.CaseList, error)
 	// Update case
-	Update(req *model.UpdateOptions, upd *_go.Case) (*_go.Case, error)
+	Update(req options.UpdateOptions, upd *_go.Case) (*_go.Case, error)
 	// Delete case
 	Delete(req *model.DeleteOptions) error
 	// Check case by current auth options
@@ -65,11 +65,11 @@ type CaseStore interface {
 // RelatedCases attribute attached to the case (n:1)
 type CaseLinkStore interface {
 	// Create link
-	Create(rpc *model.CreateOptions, add *_go.InputCaseLink) (*_go.CaseLink, error)
+	Create(rpc options.CreateOptions, add *_go.InputCaseLink) (*_go.CaseLink, error)
 	// List links
 	List(rpc options.SearchOptions) (*_go.CaseLinkList, error)
 	// Update link
-	Update(req *model.UpdateOptions, upd *_go.InputCaseLink) (*_go.CaseLink, error)
+	Update(req options.UpdateOptions, upd *_go.InputCaseLink) (*_go.CaseLink, error)
 	// Delete link
 	Delete(req *model.DeleteOptions) error
 }
@@ -77,11 +77,11 @@ type CaseLinkStore interface {
 // Comments attribute attached to the case (n:1)
 type CaseCommentStore interface {
 	// Create comment
-	Publish(rpc *model.CreateOptions, add *_go.CaseComment) (*_go.CaseComment, error)
+	Publish(rpc options.CreateOptions, add *_go.CaseComment) (*_go.CaseComment, error)
 	// List comments
-	List(rpc options.SearchOptions) (*_go.CaseCommentList, error)
+	List(rpc *model.SearchOptions) (*_go.CaseCommentList, error)
 	// Update comment
-	Update(req *model.UpdateOptions, upd *_go.CaseComment) (*_go.CaseComment, error)
+	Update(req options.UpdateOptions, upd *_go.CaseComment) (*_go.CaseComment, error)
 	// Delete comment
 	Delete(req *model.DeleteOptions) error
 }
@@ -94,7 +94,7 @@ type CaseTimelineStore interface {
 
 // Case connected communications (chats, calls etc.)
 type CaseCommunicationStore interface {
-	Link(*model.CreateOptions, []*_go.InputCaseCommunication) ([]*_go.CaseCommunication, error)
+	Link(options.CreateOptions, []*_go.InputCaseCommunication) ([]*_go.CaseCommunication, error)
 	Unlink(*model.DeleteOptions) (int64, error)
 	List(opts options.SearchOptions) (*_go.ListCommunicationsResponse, error)
 }
@@ -108,11 +108,11 @@ type CaseFileStore interface {
 
 type RelatedCaseStore interface {
 	// Create relation
-	Create(rpc *model.CreateOptions, relation *_go.RelationType) (*_go.RelatedCase, error)
+	Create(rpc options.CreateOptions, relation *_go.RelationType) (*_go.RelatedCase, error)
 	// List related cases
 	List(rpc options.SearchOptions) (*_go.RelatedCaseList, error)
 	// Update relation
-	Update(req *model.UpdateOptions, upd *_go.InputRelatedCase) (*_go.RelatedCase, error)
+	Update(req options.UpdateOptions, upd *_go.InputRelatedCase) (*_go.RelatedCase, error)
 	// Delete relation
 	Delete(req *model.DeleteOptions) error
 }
@@ -126,112 +126,112 @@ type AccessControlStore interface {
 // ------------ Dictionary Stores ------------ //
 type StatusStore interface {
 	// Create a new status lookup
-	Create(rpc *model.CreateOptions, input *_go.Status) (*_go.Status, error)
+	Create(rpc options.CreateOptions, input *_go.Status) (*_go.Status, error)
 	// List status lookup
 	List(rpc options.SearchOptions) (*_go.StatusList, error)
 	// Delete status lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update status lookup
-	Update(rpc *model.UpdateOptions, input *_go.Status) (*_go.Status, error)
+	Update(rpc options.UpdateOptions, input *_go.Status) (*_go.Status, error)
 }
 
 type StatusConditionStore interface {
 	// Create a new status сondition
-	Create(ctx *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error)
+	Create(ctx options.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error)
 	// List status сondition
 	List(ctx options.SearchOptions, statusId int64) (*_go.StatusConditionList, error)
 	// Delete status сondition
 	Delete(ctx *model.DeleteOptions, statusId int64) error
 	// Update status сondition
-	Update(ctx *model.UpdateOptions, status *_go.StatusCondition) (*_go.StatusCondition, error)
+	Update(ctx options.UpdateOptions, status *_go.StatusCondition) (*_go.StatusCondition, error)
 }
 
 type CloseReasonGroupStore interface {
 	// Create a new close reason lookup
-	Create(rpc *model.CreateOptions, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
+	Create(rpc options.CreateOptions, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
 	// List close reason lookup
 	List(rpc options.SearchOptions) (*_go.CloseReasonGroupList, error)
 	// Delete close reason lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update close reason lookup
-	Update(rpc *model.UpdateOptions, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
+	Update(rpc options.UpdateOptions, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
 }
 
 type CloseReasonStore interface {
 	// Create a new reason
-	Create(ctx *model.CreateOptions, input *_go.CloseReason) (*_go.CloseReason, error)
+	Create(ctx options.CreateOptions, input *_go.CloseReason) (*_go.CloseReason, error)
 	// List reasons
 	List(ctx options.SearchOptions, closeReasonId int64) (*_go.CloseReasonList, error)
 	// Delete reason
 	Delete(ctx *model.DeleteOptions) error
 	// Update reason
-	Update(ctx *model.UpdateOptions, input *_go.CloseReason) (*_go.CloseReason, error)
+	Update(ctx options.UpdateOptions, input *_go.CloseReason) (*_go.CloseReason, error)
 }
 
 type SourceStore interface {
 	// Create a new source lookup
-	Create(rpc *model.CreateOptions, add *_go.Source) (*_go.Source, error)
+	Create(rpc options.CreateOptions, add *_go.Source) (*_go.Source, error)
 	// List source lookup
 	List(rpc options.SearchOptions) (*_go.SourceList, error)
 	// Delete source lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update source lookup
-	Update(rpc *model.UpdateOptions, lookup *_go.Source) (*_go.Source, error)
+	Update(rpc options.UpdateOptions, lookup *_go.Source) (*_go.Source, error)
 }
 
 type PriorityStore interface {
 	// Create a new priority lookup
-	Create(rpc *model.CreateOptions, add *_go.Priority) (*_go.Priority, error)
+	Create(rpc options.CreateOptions, add *_go.Priority) (*_go.Priority, error)
 	// List priority lookup
 	List(rpc options.SearchOptions, notInSla int64, inSla int64) (*_go.PriorityList, error)
 	// Delete priority lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update priority lookup
-	Update(rpc *model.UpdateOptions, lookup *_go.Priority) (*_go.Priority, error)
+	Update(rpc options.UpdateOptions, lookup *_go.Priority) (*_go.Priority, error)
 }
 
 type SLAStore interface {
 	// Create a new SLA lookup
-	Create(rpc *model.CreateOptions, input *_go.SLA) (*_go.SLA, error)
+	Create(rpc options.CreateOptions, input *_go.SLA) (*_go.SLA, error)
 	// List SLA lookup
 	List(rpc options.SearchOptions) (*_go.SLAList, error)
 	// Delete SLA lookup
 	Delete(rpc *model.DeleteOptions) error
 	// Update SLA lookup
-	Update(rpc *model.UpdateOptions, input *_go.SLA) (*_go.SLA, error)
+	Update(rpc options.UpdateOptions, input *_go.SLA) (*_go.SLA, error)
 }
 
 type SLAConditionStore interface {
 	// Create a new SLA сondition
-	Create(ctx *model.CreateOptions, add *_go.SLACondition, priorities []int64) (*_go.SLACondition, error)
+	Create(ctx options.CreateOptions, add *_go.SLACondition, priorities []int64) (*_go.SLACondition, error)
 	// List SLA сondition
 	List(ctx options.SearchOptions) (*_go.SLAConditionList, error)
 	// Delete SLA сondition
 	Delete(ctx *model.DeleteOptions) error
 	// Update SLA сondition
-	Update(ctx *model.UpdateOptions, lookup *_go.SLACondition) (*_go.SLACondition, error)
+	Update(ctx options.UpdateOptions, lookup *_go.SLACondition) (*_go.SLACondition, error)
 }
 
 // CatalogStore is parent store managing service catalogs.
 type CatalogStore interface {
 	// Create a new catalog
-	Create(rpc *model.CreateOptions, add *_go.Catalog) (*_go.Catalog, error)
+	Create(rpc options.CreateOptions, add *_go.Catalog) (*_go.Catalog, error)
 	// List catalogs
 	List(rpc options.SearchOptions, depth int64, subfields []string, hasSubservices bool) (*_go.CatalogList, error)
 	// Delete catalog
 	Delete(rpc *model.DeleteOptions) error
 	// Update catalog
-	Update(rpc *model.UpdateOptions, lookup *_go.Catalog) (*_go.Catalog, error)
+	Update(rpc options.UpdateOptions, lookup *_go.Catalog) (*_go.Catalog, error)
 }
 
 // Service is child store managing services within catalogs.
 type ServiceStore interface {
 	// Create a new service
-	Create(rpc *model.CreateOptions, add *_go.Service) (*_go.Service, error)
+	Create(rpc options.CreateOptions, add *_go.Service) (*_go.Service, error)
 	// List services
 	List(rpc options.SearchOptions) (*_go.ServiceList, error)
 	// Delete service
 	Delete(rpc *model.DeleteOptions) error
 	// Update service
-	Update(rpc *model.UpdateOptions, lookup *_go.Service) (*_go.Service, error)
+	Update(rpc options.UpdateOptions, lookup *_go.Service) (*_go.Service, error)
 }
