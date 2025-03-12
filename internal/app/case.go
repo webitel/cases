@@ -116,7 +116,10 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
 	searchOpts, err := grpcopts.NewLocateOptions(
 		ctx,
-		grpcopts.WithFields(req, CaseMetadata),
+		grpcopts.WithFields(req, CaseMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			util.EnsureIdField),
 		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetEtag()),
 	)
 	if err != nil {
