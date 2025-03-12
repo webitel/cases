@@ -61,8 +61,7 @@ func (c *CaseCommentService) LocateComment(
 		grpcopts.WithIDsAsEtags(etag.EtagCaseComment, req.GetEtag()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 
@@ -108,8 +107,7 @@ func (c *CaseCommentService) UpdateComment(
 		grpcopts.WithUpdateEtag(&tag),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("id", tag.GetOid()))
@@ -156,8 +154,7 @@ func (c *CaseCommentService) DeleteComment(
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()), slog.Int64("id", tag.GetOid()))
 
@@ -199,8 +196,7 @@ func (c *CaseCommentService) ListComments(
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
@@ -239,8 +235,7 @@ func (c *CaseCommentService) PublishComment(
 		grpcopts.WithCreateFields(req, CaseCommentMetadata),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)

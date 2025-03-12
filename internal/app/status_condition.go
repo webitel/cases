@@ -7,7 +7,6 @@ import (
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"log/slog"
 )
 
 type StatusConditionService struct {
@@ -45,8 +44,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 		grpcopts.WithCreateFields(req, StatusConditionMetadata),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Create a new status user_auth
@@ -78,8 +76,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	if req.Q != "" {
@@ -116,8 +113,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Define the current user as the updater
@@ -159,8 +155,7 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Delete the status in the store

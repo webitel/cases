@@ -40,8 +40,7 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 		grpcopts.WithSort(request),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	tag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
@@ -91,8 +90,7 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 		grpcopts.WithCreateParentID(tag.GetOid()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", createOpts.ParentID))
 	accessMode := auth.Edit
@@ -139,8 +137,7 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	deleteOpts.IDs = []int64{tag.GetOid()}
 	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()))

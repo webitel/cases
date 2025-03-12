@@ -7,7 +7,6 @@ import (
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"log/slog"
 )
 
 type CloseReasonService struct {
@@ -42,8 +41,7 @@ func (s *CloseReasonService) CreateCloseReason(
 		grpcopts.WithCreateFields(req, CloseReasonMetadata),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	input := &_go.CloseReason{
@@ -78,8 +76,7 @@ func (s *CloseReasonService) ListCloseReasons(
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	searchOpts.AddFilter("name", req.Q)
 
@@ -107,8 +104,7 @@ func (s *CloseReasonService) UpdateCloseReason(
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Update close reason user_auth
@@ -140,8 +136,7 @@ func (s *CloseReasonService) DeleteCloseReason(
 
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Delete the close reason in the store

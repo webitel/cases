@@ -53,6 +53,10 @@ var (
 	)
 )
 
+func NewBadRequestError(err error) errors.AppError {
+	return errors.NewBadRequestError("app.process_api.validation.error", err.Error())
+}
+
 func getClientIp(ctx context.Context) string {
 	v := ctx.Value("grpc_ctx")
 	info, ok := v.(metadata.MD)

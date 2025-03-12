@@ -7,7 +7,6 @@ import (
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"log/slog"
 )
 
 type SourceService struct {
@@ -45,8 +44,7 @@ func (s *SourceService) CreateSource(
 		grpcopts.WithCreateFields(req, SourceMetadata),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	input := &_go.Source{
@@ -81,8 +79,7 @@ func (s *SourceService) ListSources(
 		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	searchOpts.AddFilter("name", req.Q)
 	searchOpts.AddFilter("type", req.Type)
@@ -111,8 +108,7 @@ func (s *SourceService) UpdateSource(
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	input := &_go.Source{
@@ -143,8 +139,7 @@ func (s *SourceService) DeleteSource(
 
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	deleteOpts.IDs = []int64{req.Id}

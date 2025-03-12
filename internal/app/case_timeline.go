@@ -49,8 +49,7 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 		grpcopts.WithSort(request),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
 	if err != nil {

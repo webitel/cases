@@ -88,8 +88,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	if req.GetContactId() != "" {
@@ -121,8 +120,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetEtag()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	list, err := c.app.Store.Case().List(searchOpts)
@@ -130,7 +128,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 		return nil, err
 	}
 	if len(list.Items) == 0 {
-		return nil, cerror.NewBadRequestError("app.case_link.locate.not_found", "entity not found")
+		return nil, cerror.NewBadRequestError("app.case.locate.not_found", "entity not found")
 	}
 	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
@@ -235,8 +233,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			}),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	logAttributes := slog.Group(
@@ -332,8 +329,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 			}),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	updateOpts.Etags = []*etag.Tid{&tag}
 
@@ -676,8 +672,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 

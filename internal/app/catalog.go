@@ -68,8 +68,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		grpcopts.WithCreateFields(req, CatalogMetadata),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Create a new Catalog user_auth
@@ -111,8 +110,7 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteIDs(req.Id))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	e := s.app.Store.Catalog().Delete(deleteOpts)
@@ -151,8 +149,7 @@ func (s *CatalogService) ListCatalogs(
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	if req.State {
 		searchOptions.AddFilter("state", req.State)
@@ -254,8 +251,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Build catalog from the request input

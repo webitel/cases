@@ -7,7 +7,6 @@ import (
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"log/slog"
 	"strings"
 )
 
@@ -49,8 +48,7 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		grpcopts.WithCreateFields(req, ServiceMetadata),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Create a new Service user_auth
@@ -83,8 +81,7 @@ func (s *ServiceService) DeleteService(ctx context.Context, req *api.DeleteServi
 
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteIDs(req.Id))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	e := s.app.Store.Service().Delete(deleteOpts)
@@ -115,8 +112,7 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	if req.Q != "" {
@@ -186,9 +182,7 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
-
+		return nil, NewBadRequestError(err)
 	}
 
 	service := &api.Service{

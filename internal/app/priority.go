@@ -7,7 +7,6 @@ import (
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"log/slog"
 )
 
 var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
@@ -46,8 +45,7 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 		grpcopts.WithCreateFields(req, PriorityMetadata),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	l, err := p.app.Store.Priority().Create(createOpts, lookup)
@@ -72,8 +70,7 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	searchOpts.AddFilter("name", req.Q)
 
@@ -97,8 +94,7 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	lookup := &api.Priority{
@@ -124,8 +120,7 @@ func (p *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePri
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	err = p.app.Store.Priority().Delete(deleteOpts)

@@ -7,7 +7,6 @@ import (
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"log/slog"
 )
 
 type SLAConditionService struct {
@@ -62,8 +61,7 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 		grpcopts.WithCreateIDs(priorityIDs),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Create a new SLACondition user_auth
@@ -92,8 +90,7 @@ func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases
 
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Delete the SLACondition in the store
@@ -118,8 +115,7 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	searchOptions.AddFilter("sla_id", req.SlaId)
 	if req.PriorityId != 0 {
@@ -190,8 +186,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		grpcopts.WithUpdateIDs(priorityIDs),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Define the current user as the updater

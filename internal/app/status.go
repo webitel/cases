@@ -7,7 +7,6 @@ import (
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"log/slog"
 	"strings"
 )
 
@@ -45,8 +44,7 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 	)
 
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Create a new input user_auth
@@ -77,8 +75,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	searchOpts.AddFilter("name", req.Q)
 
@@ -103,8 +100,7 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Update input user_auth
@@ -132,8 +128,7 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Delete the lookup in the store

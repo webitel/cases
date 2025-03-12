@@ -44,6 +44,9 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 			util.EnsureIdField,
 		),
 	)
+	if err != nil {
+		return nil, NewBadRequestError(err)
+	}
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
@@ -77,8 +80,7 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.GetId()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	logAttributes := slog.Group(

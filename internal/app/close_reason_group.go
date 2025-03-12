@@ -7,7 +7,6 @@ import (
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"log/slog"
 )
 
 type CloseReasonGroupService struct {
@@ -40,8 +39,7 @@ func (s CloseReasonGroupService) CreateCloseReasonGroup(
 		grpcopts.WithCreateFields(req, CloseReasonGroupMetadata),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	input := &_go.CloseReasonGroup{
@@ -74,8 +72,7 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(
 		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	searchOpts.AddFilter("name", req.Q)
 
@@ -102,8 +99,7 @@ func (s CloseReasonGroupService) UpdateCloseReasonGroup(
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Update lookup user_auth
@@ -133,8 +129,7 @@ func (s CloseReasonGroupService) DeleteCloseReasonGroup(
 
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	// Delete the lookup in the store

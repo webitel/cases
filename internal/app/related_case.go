@@ -51,8 +51,7 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 		grpcopts.WithIDsAsEtags(etag.EtagRelatedCase, req.GetEtag()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	searchOpts.AddFilter("case_id", caseTid.GetOid())
 	logAttributes := slog.Group(
@@ -120,8 +119,7 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		grpcopts.WithCreateChildID(relatedCaseTag.GetOid()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	logAttributes := slog.Group(
@@ -198,8 +196,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetPrimaryCase().GetId())))
@@ -289,8 +286,7 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	logAttributes := slog.Group(
 		"context",
@@ -341,8 +337,7 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 		grpcopts.WithIDsAsEtags(etag.EtagRelatedCase, req.GetIds()...),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	tag, err := etag.EtagOrId(etag.EtagCase, req.PrimaryCaseEtag)
 	if err != nil {

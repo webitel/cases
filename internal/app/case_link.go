@@ -56,8 +56,7 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 		grpcopts.WithIDsAsEtags(etag.EtagCaseLink, req.GetEtag()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	searchOpts.AddFilter("case_id", caseEtg.GetOid())
 	logAttributes := slog.Group(
@@ -116,8 +115,7 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		grpcopts.WithCreateParentID(caseTid.GetOid()),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	logAttributes := slog.Group(
@@ -174,8 +172,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		grpcopts.WithUpdateEtag(&linkTid),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 
 	logAttributes := slog.Group(
@@ -221,8 +218,7 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(linkTID.GetOid()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	logAttributes := slog.Group(
 		"context",
@@ -271,8 +267,7 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
+		return nil, NewBadRequestError(err)
 	}
 	etg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
 	if err != nil {
