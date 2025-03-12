@@ -87,7 +87,9 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
 		grpcopts.WithCreateFields(request, CaseCommunicationMetadata,
+			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
+			util.EnsureIdField,
 		),
 		grpcopts.WithCreateParentID(tag.GetOid()),
 	)

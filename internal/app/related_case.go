@@ -114,7 +114,10 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
-		grpcopts.WithCreateFields(req, RelatedCaseMetadata),
+		grpcopts.WithCreateFields(req, RelatedCaseMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			util.EnsureIdField),
 		grpcopts.WithCreateParentID(primaryCaseTag.GetOid()),
 		grpcopts.WithCreateChildID(relatedCaseTag.GetOid()),
 	)

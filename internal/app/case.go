@@ -231,6 +231,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		grpcopts.WithCreateFields(
 			req,
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
 			func(fields []string) []string {
 				for i, v := range fields {
 					if v == "related" {

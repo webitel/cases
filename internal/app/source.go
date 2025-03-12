@@ -81,8 +81,12 @@ func (s *SourceService) ListSources(
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	searchOpts.AddFilter("name", req.Q)
-	searchOpts.AddFilter("type", req.Type)
+	if req.Q != "" {
+		searchOpts.AddFilter("name", req.Q)
+	}
+	if len(req.Type) > 0 {
+		searchOpts.AddFilter("type", req.Type)
+	}
 
 	res, err := s.app.Store.Source().List(searchOpts)
 	if err != nil {
