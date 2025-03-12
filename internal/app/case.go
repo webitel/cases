@@ -689,6 +689,7 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 	}
 
 	watcher := NewDefaultWatcher()
+	// TODO: triggers
 	//caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher)
 	//if err != nil {
 	//	return nil, cerror.NewInternalError("app.case.new_case_service.start.error", err.Error())

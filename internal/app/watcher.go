@@ -72,21 +72,11 @@ func NewDefaultWatcherManager(state bool) *DefaultWatcherManager {
 
 func (d *DefaultWatcherManager) AddWatcher(clusterId string, watcher Watcher) {
 	slice := d.clusters[clusterId]
-	if slice == nil {
-		slice = []Watcher{watcher}
-		d.clusters[clusterId] = slice
-	} else {
-		slice = append(slice, watcher)
-	}
+	slice = append(slice, watcher)
 }
 
 func (d *DefaultWatcherManager) RemoveCluster(clusterId string) {
-	slice := d.clusters[clusterId]
-	if slice == nil {
-		return
-	} else {
-		delete(d.clusters, clusterId)
-	}
+	delete(d.clusters, clusterId)
 }
 
 func (d *DefaultWatcherManager) GetCluster(clusterId string) []Watcher {
@@ -151,7 +141,10 @@ func (dw *DefaultWatcher) Notify(et EventType, entity WatchMarshaller) error {
 		return err
 	}
 	for _, o := range dw.observers[et] {
-		_ = o.Update(et, data, entity.GetArgs())
+		err = o.Update(et, data, entity.GetArgs())
+		if err != nil {
+			slog.Error(fmt.Sprintf("observer %s: %s", o.GetId(), err.Error()))
+		}
 	}
 	return nil
 }
@@ -310,7 +303,7 @@ func (l *FullTextSearchObserver[T, V]) GetId() string {
 	return l.id
 }
 
-func (l *FullTextSearchObserver[T, V]) Update(et EventType, data []byte, args map[string]any) error {
+func (l *FullTextSearchObserver[T, V]) Update(et EventType, _ []byte, args map[string]any) error {
 	auth, ok := args["session"].(auth.Auther)
 	if !ok {
 		return fmt.Errorf("could not get session auth")
