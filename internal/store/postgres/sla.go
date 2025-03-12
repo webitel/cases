@@ -117,7 +117,12 @@ func (s *SLAStore) buildCreateSLAQuery(
 	fields = util.EnsureIdField(rpc.GetFields())
 	// Build the INSERT query with a RETURNING clause
 	insertBuilder := sq.Insert("cases.sla").
-		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by", "valid_from", "valid_to", "calendar_id", "reaction_time", "resolution_time").
+		Columns(
+			"name", "dc", "created_at",
+			"description", "created_by", "updated_at",
+			"updated_by", "valid_from", "valid_to",
+			"calendar_id", "reaction_time", "resolution_time",
+		).
 		Values(
 			sla.Name,
 			rpc.GetAuthOpts().GetDomainId(),

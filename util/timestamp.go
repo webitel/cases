@@ -71,12 +71,12 @@ func hasTimeZone(timeStr string) bool {
 	return len(timeStr) > 10 && (timeStr[len(timeStr)-1] == 'Z' || timeStr[len(timeStr)-6] == '+' || timeStr[len(timeStr)-6] == '-')
 }
 
-// LocalTime returns the local Time
-// corresponding to the given Unix time,
-// posibly precised with UnixToTimestamp
-func LocalTime(ts int64) time.Time {
+// LocalTime returns the local Time corresponding to the given Unix time,
+// possibly precised with UnixToTimestamp. Returns nil if ts is 0.
+func LocalTime(ts int64) *time.Time {
 	if ts > 0 {
-		return time.UnixMilli(ts).UTC()
+		t := time.UnixMilli(ts).UTC()
+		return &t
 	}
-	return time.Time{} // Return zero value if `ts` is 0 or negative
+	return nil // Return nil if `ts` is 0 or negative
 }
