@@ -91,7 +91,7 @@ func (s *Status) buildCreateStatusQuery(
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
 	// Build the INSERT query with a RETURNING clause
-	insertBuilder := sq.Insert("cases.input").
+	insertBuilder := sq.Insert("cases.status").
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by").
 		Values(
 			input.Name,                                  // name
@@ -158,7 +158,7 @@ func (s *Status) buildUpdateStatusQuery(
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
 	// Start the UPDATE query
-	updateBuilder := sq.Update("cases.input").
+	updateBuilder := sq.Update("cases.status").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
 		Set("updated_at", rpc.RequestTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
