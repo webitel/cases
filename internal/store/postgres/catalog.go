@@ -1631,14 +1631,14 @@ WITH root_check AS (
 			updateQueryBuilder = updateQueryBuilder.Set("code", sq.Expr("NULLIF(?, '')", lookup.Code))
 		case "state":
 			updateQueryBuilder = updateQueryBuilder.Set("state", lookup.State)
-		case "sla_id":
+		case "sla":
 			updateQueryBuilder = updateQueryBuilder.Set("sla_id", lookup.Sla.Id)
-		case "status_id":
+		case "status":
 			updateQueryBuilder = updateQueryBuilder.Set("status_id",
 				sq.Expr("(CASE WHEN (SELECT root_id FROM root_check) IS NULL THEN ? ELSE status_id END)",
 					lookup.Status.Id,
 				))
-		case "close_reason_group_id":
+		case "close_reason_group":
 			updateQueryBuilder = updateQueryBuilder.Set("close_reason_group_id",
 				sq.Expr("(CASE WHEN (SELECT root_id FROM root_check) IS NULL THEN NULLIF(?, 0) ELSE close_reason_group_id END)",
 					lookup.CloseReasonGroup.Id,
