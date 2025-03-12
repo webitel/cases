@@ -40,7 +40,7 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
-		grpcopts.WithCreateFields(req, SourceMetadata),
+		grpcopts.WithCreateFields(req, StatusMetadata),
 	)
 
 	if err != nil {
@@ -96,7 +96,7 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 
 	updateOpts, err := grpcopts.NewUpdateOptions(
 		ctx,
-		grpcopts.WithUpdateFields(req, SourceMetadata),
+		grpcopts.WithUpdateFields(req, StatusMetadata),
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
