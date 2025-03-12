@@ -364,6 +364,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.SearchOptio
 	queryBuilder := sq.Select().
 		From("cases.sla_condition AS g").
 		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId(), "g.sla_id": rpc.GetFilter("sla_id")}).
+		LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
 		PlaceholderFormat(sq.Dollar)
 
 	groupByFields := []string{"g.id"} // Start with the mandatory fields for GROUP BY
@@ -400,7 +401,6 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.SearchOptio
 					) FILTER (WHERE p.id IS NOT NULL),
 					'[]'
 				) AS priorities`).
-				LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
 				LeftJoin("cases.priority AS p ON ps.priority_id = p.id")
 		}
 	}
@@ -411,7 +411,6 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.SearchOptio
 	if priorityId := rpc.GetFilter("priority_id"); priorityId != nil {
 		// Join cases.priority_sla_condition only if filtering by priority_id
 		queryBuilder = queryBuilder.
-			LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
 			Where(sq.Eq{"ps.priority_id": priorityId})
 	}
 
