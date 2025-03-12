@@ -24,6 +24,7 @@ var ServiceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*mode
 	{Name: "created_at", Default: true},
 	{Name: "updated_by", Default: false},
 	{Name: "updated_at", Default: false},
+	{Name: "catalog_id", Default: false},
 })
 
 type ServiceService struct {
