@@ -3,6 +3,7 @@ package postgres
 import (
 	"encoding/json"
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"strings"
 	"time"
@@ -178,7 +179,7 @@ FROM inserted_catalog
          LEFT JOIN skills_agg ON skills_agg.catalog_id = inserted_catalog.id;
 `
 
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 // Delete implements store.CatalogStore.
@@ -225,7 +226,7 @@ func (s *CatalogStore) buildDeleteCatalogQuery(rpc options.DeleteOptions) (strin
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 // List implements store.CatalogStore.
@@ -792,7 +793,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		searchCondition = "AND id IN (SELECT target_catalog_id FROM search_catalog)"
 	}
 
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Prefix query
 	prefixQuery := fmt.Sprintf(`
@@ -833,12 +834,12 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		return "", nil, dberr.NewDBInternalError("postgres.catalog.query_build_error", err)
 	}
 
-	q, args, err := store.BindNamed(sqlQuery, params)
+	q, args, err := util2.BindNamed(sqlQuery, params)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to bind named parameters: %w", err)
 	}
 
-	return store.CompactSQL(q), args, nil
+	return util2.CompactSQL(q), args, nil
 }
 
 func buildServiceJSONBAgg(subfields []string, searched bool) string {
@@ -1583,7 +1584,7 @@ FROM (
 ) AS total_affected;`
 
 	// Return the constructed query and arguments
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 func (s *CatalogStore) buildUpdateCatalogQuery(
@@ -1692,7 +1693,7 @@ GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name,
 	`, checkRoot, updateSQL)
 
 	// Return the final combined query and arguments
-	return store.CompactSQL(query), args, nil
+	return util2.CompactSQL(query), args, nil
 }
 
 func NewCatalogStore(store *Store) (store.CatalogStore, error) {

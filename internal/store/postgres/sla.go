@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"strings"
 
@@ -42,27 +43,27 @@ func buildSLASelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(slaLeft, "id"))
+			base = base.Column(util2.Ident(slaLeft, "id"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return &sla.Id
 			})
 		case "name":
-			base = base.Column(store.Ident(slaLeft, "name"))
+			base = base.Column(util2.Ident(slaLeft, "name"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return &sla.Name
 			})
 		case "description":
-			base = base.Column(store.Ident(slaLeft, "description"))
+			base = base.Column(util2.Ident(slaLeft, "description"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanText(&sla.Description)
 			})
 		case "valid_from":
-			base = base.Column(store.Ident(slaLeft, "valid_from"))
+			base = base.Column(util2.Ident(slaLeft, "valid_from"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanTimestamp(&sla.ValidFrom)
 			})
 		case "valid_to":
-			base = base.Column(store.Ident(slaLeft, "valid_to"))
+			base = base.Column(util2.Ident(slaLeft, "valid_to"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanTimestamp(&sla.ValidTo)
 			})
@@ -72,22 +73,22 @@ func buildSLASelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&sla.Calendar)
 			})
 		case "reaction_time":
-			base = base.Column(store.Ident(slaLeft, "reaction_time"))
+			base = base.Column(util2.Ident(slaLeft, "reaction_time"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return &sla.ReactionTime
 			})
 		case "resolution_time":
-			base = base.Column(store.Ident(slaLeft, "resolution_time"))
+			base = base.Column(util2.Ident(slaLeft, "resolution_time"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return &sla.ResolutionTime
 			})
 		case "created_at":
-			base = base.Column(store.Ident(slaLeft, "created_at"))
+			base = base.Column(util2.Ident(slaLeft, "created_at"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanTimestamp(&sla.CreatedAt)
 			})
 		case "updated_at":
-			base = base.Column(store.Ident(slaLeft, "updated_at"))
+			base = base.Column(util2.Ident(slaLeft, "updated_at"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanTimestamp(&sla.UpdatedAt)
 			})
@@ -290,10 +291,10 @@ func (s *SLAStore) buildListSLAQuery(
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
+	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, plan, err := buildSLASelectColumnsAndPlan(queryBuilder, rpc.GetFields())
@@ -319,7 +320,7 @@ func (s *SLAStore) List(rpc options.SearchOptions) (*cases.SLAList, error) {
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.list.query_build_error", err)
 	}
-	query = store.CompactSQL(query)
+	query = util2.CompactSQL(query)
 
 	rows, err := d.Query(rpc, query, args...)
 	if err != nil {

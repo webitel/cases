@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"log"
 	"strings"
@@ -240,10 +241,10 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.SearchOp
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, statusConditionDefaultSort)
+	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, statusConditionDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Convert the query to SQL and arguments
 	query, args, err := queryBuilder.ToSql()
@@ -251,7 +252,7 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.SearchOp
 		return "", nil, dberr.NewDBInternalError("postgres.status_condition.list.query_build_error", err)
 	}
 
-	return store.CompactSQL(query), args, nil
+	return util2.CompactSQL(query), args, nil
 }
 
 func (s StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domainId, statusId int64) (string, []interface{}, error) {
@@ -376,7 +377,7 @@ WHERE CASE
 	args = append(args, updArgs...)
 	// fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
 
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 func (s StatusConditionStore) getDBConnection() (*pgxpool.Pool, error) {
@@ -458,7 +459,7 @@ func (s StatusConditionStore) containsField(fields []string, field string) bool 
 
 // ---- STATIC SQL QUERIES ----
 var (
-	createStatusConditionQuery = store.CompactSQL(`
+	createStatusConditionQuery = util2.CompactSQL(`
 WITH existing_status AS (SELECT COUNT(*) AS count FROM cases.status_condition WHERE dc = $5 AND status_id = $6),
      default_values
          AS (SELECT CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS initial_default,
@@ -484,7 +485,7 @@ FROM ins
          LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
          LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;`)
 
-	deleteStatusConditionQuery = store.CompactSQL(`
+	deleteStatusConditionQuery = util2.CompactSQL(`
 		 WITH
 			 to_check AS (
 				 SELECT id, initial, final

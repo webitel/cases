@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"strings"
 
@@ -42,27 +43,27 @@ func buildStatusSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(statusLeft, "id"))
+			base = base.Column(util2.Ident(statusLeft, "id"))
 			plan = append(plan, func(status *_go.Status) any {
 				return &status.Id
 			})
 		case "name":
-			base = base.Column(store.Ident(statusLeft, "name"))
+			base = base.Column(util2.Ident(statusLeft, "name"))
 			plan = append(plan, func(status *_go.Status) any {
 				return &status.Name
 			})
 		case "description":
-			base = base.Column(store.Ident(statusLeft, "description"))
+			base = base.Column(util2.Ident(statusLeft, "description"))
 			plan = append(plan, func(status *_go.Status) any {
 				return scanner.ScanText(&status.Description)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(statusLeft, "created_at"))
+			base = base.Column(util2.Ident(statusLeft, "created_at"))
 			plan = append(plan, func(status *_go.Status) any {
 				return scanner.ScanTimestamp(&status.CreatedAt)
 			})
 		case "updated_at":
-			base = base.Column(store.Ident(statusLeft, "updated_at"))
+			base = base.Column(util2.Ident(statusLeft, "updated_at"))
 			plan = append(plan, func(status *_go.Status) any {
 				return scanner.ScanTimestamp(&status.UpdatedAt)
 			})
@@ -244,10 +245,10 @@ func (s *Status) buildListStatusQuery(
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
+	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, plan, err := buildStatusSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
@@ -273,7 +274,7 @@ func (s *Status) List(rpc options.SearchOptions) (*_go.StatusList, error) {
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.list.query_build_error", err)
 	}
-	query = store.CompactSQL(query)
+	query = util2.CompactSQL(query)
 
 	rows, err := d.Query(rpc, query, args...)
 	if err != nil {

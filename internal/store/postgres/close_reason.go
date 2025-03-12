@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"strings"
 
@@ -42,27 +43,27 @@ func buildCloseReasonSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(crLeft, "id"))
+			base = base.Column(util2.Ident(crLeft, "id"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return &reason.Id
 			})
 		case "name":
-			base = base.Column(store.Ident(crLeft, "name"))
+			base = base.Column(util2.Ident(crLeft, "name"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return &reason.Name
 			})
 		case "description":
-			base = base.Column(store.Ident(crLeft, "description"))
+			base = base.Column(util2.Ident(crLeft, "description"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return scanner.ScanText(&reason.Description)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(crLeft, "created_at"))
+			base = base.Column(util2.Ident(crLeft, "created_at"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return scanner.ScanTimestamp(&reason.CreatedAt)
 			})
 		case "updated_at":
-			base = base.Column(store.Ident(crLeft, "updated_at"))
+			base = base.Column(util2.Ident(crLeft, "updated_at"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return scanner.ScanTimestamp(&reason.UpdatedAt)
 			})
@@ -81,7 +82,7 @@ func buildCloseReasonSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&reason.CreatedBy)
 			})
 		case "close_reason_id":
-			base = base.Column(store.Ident(crLeft, "close_reason_id"))
+			base = base.Column(util2.Ident(crLeft, "close_reason_id"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return &reason.CloseReasonGroupId
 			})
@@ -262,10 +263,10 @@ func (s *CloseReason) buildListCloseReasonQuery(
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, closeReasonDefaultSort)
+	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, closeReasonDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
@@ -291,7 +292,7 @@ func (s *CloseReason) List(rpc options.SearchOptions, closeReasonId int64) (*_go
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.list.query_build_error", err)
 	}
-	query = store.CompactSQL(query)
+	query = util2.CompactSQL(query)
 
 	rows, err := d.Query(rpc, query, args...)
 	if err != nil {

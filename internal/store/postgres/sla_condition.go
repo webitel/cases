@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"strings"
 	"time"
@@ -339,7 +340,7 @@ FROM inserted_sla
          LEFT JOIN inserted_priorities ON inserted_sla.id = inserted_priorities.sla_condition_id
          LEFT JOIN cases.priority p ON p.id = inserted_priorities.priority_id;`
 
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 // Helper function to build the delete query for SLACondition
@@ -437,11 +438,11 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.SearchOptio
 		queryBuilder = queryBuilder.OrderBy(s)
 	} else {
 		// -------- Apply sorting ----------
-		queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
+		queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
 	}
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Apply GROUP BY clause
 	queryBuilder = queryBuilder.GroupBy(groupByFields...)
@@ -451,7 +452,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.SearchOptio
 		return "", nil, dberr.NewDBInternalError("postgres.sla_condition.query_build.sql_generation_error", err)
 	}
 
-	return store.CompactSQL(query), args, nil
+	return util2.CompactSQL(query), args, nil
 }
 
 func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc options.UpdateOptions, l *cases.SLACondition) (string, []interface{}) {
@@ -617,7 +618,7 @@ func (s *SLAConditionStore) populatePriorities(
 	}
 }
 
-var deleteSLAConditionQuery = store.CompactSQL(
+var deleteSLAConditionQuery = util2.CompactSQL(
 	`DELETE FROM cases.sla_condition
 	 WHERE id = $1 AND dc = $2
 	`)

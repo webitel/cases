@@ -35,10 +35,10 @@ func Run() {
 
 	// slog + OTEL logging
 	service := resource.NewSchemaless(
-		semconv.ServiceName(model.APP_SERVICE_NAME),
+		semconv.ServiceName(model.AppServiceName),
 		semconv.ServiceVersion(model.CurrentVersion),
 		semconv.ServiceInstanceID(config.Consul.Id),
-		semconv.ServiceNamespace(model.NAMESPACE_NAME),
+		semconv.ServiceNamespace(model.NamespaceName),
 	)
 	shutdown := logging.Setup(service)
 
@@ -85,12 +85,21 @@ func initSignals(application *app.App) {
 
 func handleSignals(signal os.Signal, application *app.App) {
 	if signal == syscall.SIGTERM || signal == syscall.SIGINT || signal == syscall.SIGKILL {
-		application.Stop()
-		slog.Info("cases.main.received_kill_signal", slog.String("signal", signal.String()), slog.String("status", "service gracefully stopped"))
+		err := application.Stop()
+		if err != nil {
+			return
+		}
+		slog.Info(
+			"cases.main.received_kill_signal",
+			slog.String(
+				"signal",
+				signal.String(),
+			),
+			slog.String(
+				"status",
+				"service gracefully stopped",
+			),
+		)
 		os.Exit(0)
 	}
 }
-
-//func setupLogger() {
-//	slog.New(slog.NewTextHandler(os.Stdout))
-//}

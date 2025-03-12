@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"strings"
 	"time"
@@ -283,7 +284,7 @@ FROM inserted_service
          LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_service.updated_by;
     `
 
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 // Helper method to build the delete query for Service
@@ -297,7 +298,7 @@ func (s *ServiceStore) buildDeleteServiceQuery(rpc options.DeleteOptions) (strin
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 func (s *ServiceStore) buildSearchServiceQuery(rpc options.SearchOptions) (string, []interface{}, error) {
@@ -368,7 +369,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.SearchOptions) (strin
 	// Apply sorting dynamically
 	queryBuilder = applyServiceSorting(queryBuilder, rpc)
 
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Build the query
 	query, args, err := queryBuilder.ToSql()
@@ -376,7 +377,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.SearchOptions) (strin
 		return "", nil, dberr.NewDBInternalError("postgres.service.query_build_error", err)
 	}
 
-	return store.CompactSQL(query), args, nil
+	return util2.CompactSQL(query), args, nil
 }
 
 func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.SearchOptions) sq.SelectBuilder {
@@ -501,7 +502,7 @@ FROM updated_service AS service
 	`, updateSQL)
 
 	// Return the final combined query and arguments
-	return store.CompactSQL(query), args, nil
+	return util2.CompactSQL(query), args, nil
 }
 
 // buildServiceScanArgs builds scan arguments dynamically and returns a post-processing function.

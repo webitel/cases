@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"strings"
 
@@ -40,24 +41,24 @@ func buildSourceSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(sourceLeft, "id"))
+			base = base.Column(util2.Ident(sourceLeft, "id"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanInt64(&s.Id) })
 		case "name":
-			base = base.Column(store.Ident(sourceLeft, "name"))
+			base = base.Column(util2.Ident(sourceLeft, "name"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanText(&s.Name) })
 		case "description":
-			base = base.Column(store.Ident(sourceLeft, "description"))
+			base = base.Column(util2.Ident(sourceLeft, "description"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanText(&s.Description) })
 		case "type":
-			base = base.Column(store.Ident(sourceLeft, "type"))
+			base = base.Column(util2.Ident(sourceLeft, "type"))
 			plan = append(plan, func(s *_go.Source) any {
 				return &scanner.SourceTypeScanner{SourceType: &s.Type}
 			})
 		case "created_at":
-			base = base.Column(store.Ident(sourceLeft, "created_at"))
+			base = base.Column(util2.Ident(sourceLeft, "created_at"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanTimestamp(&s.CreatedAt) })
 		case "updated_at":
-			base = base.Column(store.Ident(sourceLeft, "updated_at"))
+			base = base.Column(util2.Ident(sourceLeft, "updated_at"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanTimestamp(&s.UpdatedAt) })
 		case "created_by":
 			base = base.Column(fmt.Sprintf(
@@ -239,8 +240,8 @@ func (s *Source) buildListSourceQuery(rpc options.SearchOptions) (sq.SelectBuild
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.type": typeStrings})
 	}
 
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return buildSourceSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 }

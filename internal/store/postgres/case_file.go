@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/model/options/defaults"
 	"strconv"
@@ -127,14 +128,14 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 
 	// ----------Apply search by name -----------------
 	if rpc.GetSearch() != "" {
-		queryBuilder = store.AddSearchTerm(queryBuilder, store.Ident(caseLeft, "name"))
+		queryBuilder = util.AddSearchTerm(queryBuilder, util.Ident(caseLeft, "name"))
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
+	queryBuilder = util.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, plan, nil
 }
@@ -162,7 +163,7 @@ func (c *CaseFileStore) Delete(rpc options.DeleteOptions) error {
 		PlaceholderFormat(sq.Dollar)
 
 	query, args, err := base.ToSql()
-	query = store.CompactSQL(query)
+	query = util.CompactSQL(query)
 
 	if err != nil {
 		return dberr.NewDBError("postgres.case_file.delete.parse_query.error", err.Error())
@@ -211,7 +212,7 @@ func buildFilesSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(left, "id"))
+			base = base.Column(util.Ident(left, "id"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Id
 			})
@@ -222,22 +223,22 @@ func buildFilesSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&file.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(left, "uploaded_at"))
+			base = base.Column(util.Ident(left, "uploaded_at"))
 			plan = append(plan, func(file *cases.File) any {
 				return scanner.ScanTimestamp(&file.CreatedAt)
 			})
 		case "size":
-			base = base.Column(store.Ident(left, "size"))
+			base = base.Column(util.Ident(left, "size"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Size
 			})
 		case "mime":
-			base = base.Column(store.Ident(left, "mime_type"))
+			base = base.Column(util.Ident(left, "mime_type"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Mime
 			})
 		case "name":
-			base = base.Column(store.Ident(left, "view_name"))
+			base = base.Column(util.Ident(left, "view_name"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Name
 			})
@@ -272,9 +273,9 @@ func buildFilesSelectAsSubquery(fields []string, caseAlias string) (sq.SelectBui
 	base := sq.
 		Select().
 		From("storage.files " + alias).
-		Where(fmt.Sprintf("%s = %s::text", store.Ident(alias, "uuid"), store.Ident(caseAlias, "id"))).
-		Where(fmt.Sprintf("%s = '%s'", store.Ident(alias, "channel"), channel))
-	base = store.ApplyPaging(1, defaults.DefaultSearchSize, base)
+		Where(fmt.Sprintf("%s = %s::text", util.Ident(alias, "uuid"), util.Ident(caseAlias, "id"))).
+		Where(fmt.Sprintf("%s = '%s'", util.Ident(alias, "channel"), channel))
+	base = util.ApplyPaging(1, defaults.DefaultSearchSize, base)
 
 	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, fields)
 	if dbErr != nil {

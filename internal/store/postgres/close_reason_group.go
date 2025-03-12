@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"strings"
 
@@ -42,27 +43,27 @@ func buildCloseReasonGroupSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(crgLeft, "id"))
+			base = base.Column(util2.Ident(crgLeft, "id"))
 			plan = append(plan, func(group *_go.CloseReasonGroup) any {
 				return &group.Id
 			})
 		case "name":
-			base = base.Column(store.Ident(crgLeft, "name"))
+			base = base.Column(util2.Ident(crgLeft, "name"))
 			plan = append(plan, func(group *_go.CloseReasonGroup) any {
 				return &group.Name
 			})
 		case "description":
-			base = base.Column(store.Ident(crgLeft, "description"))
+			base = base.Column(util2.Ident(crgLeft, "description"))
 			plan = append(plan, func(group *_go.CloseReasonGroup) any {
 				return scanner.ScanText(&group.Description)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(crgLeft, "created_at"))
+			base = base.Column(util2.Ident(crgLeft, "created_at"))
 			plan = append(plan, func(group *_go.CloseReasonGroup) any {
 				return scanner.ScanTimestamp(&group.CreatedAt)
 			})
 		case "updated_at":
-			base = base.Column(store.Ident(crgLeft, "updated_at"))
+			base = base.Column(util2.Ident(crgLeft, "updated_at"))
 			plan = append(plan, func(group *_go.CloseReasonGroup) any {
 				return scanner.ScanTimestamp(&group.UpdatedAt)
 			})
@@ -265,10 +266,10 @@ func (s CloseReasonGroup) buildListCloseReasonGroupQuery(
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, closeReasonGroupDefaultSort)
+	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, closeReasonGroupDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
@@ -298,7 +299,7 @@ func (s CloseReasonGroup) List(rpc options.SearchOptions) (*_go.CloseReasonGroup
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.query_build_error", err)
 	}
-	query = store.CompactSQL(query)
+	query = util2.CompactSQL(query)
 
 	rows, err := d.Query(rpc, query, args...)
 	if err != nil {

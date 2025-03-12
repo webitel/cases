@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 
 	"github.com/Masterminds/squirrel"
@@ -35,7 +36,7 @@ func (c *CaseCommunicationStore) Link(options options.CreateOptions, communicati
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case_communication.link.convert_to_sql.err", err.Error())
 	}
-	rows, err := db.Query(options, store.CompactSQL(sql), args...)
+	rows, err := db.Query(options, util.CompactSQL(sql), args...)
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case_communication.exec.error", err.Error())
 	}
@@ -88,7 +89,7 @@ func (c *CaseCommunicationStore) List(opts options.SearchOptions) (*cases.ListCo
 		return nil, dbErr
 	}
 	var res cases.ListCommunicationsResponse
-	res.Data, res.Next = store.ResolvePaging(opts.GetSize(), items)
+	res.Data, res.Next = util.ResolvePaging(opts.GetSize(), items)
 	res.Page = int32(opts.GetPage())
 	return &res, nil
 }
@@ -102,8 +103,8 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(options optio
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_list_case_communication_sqlizer.check_args.case_id", "case id required")
 	}
 	alias := "s"
-	base := squirrel.Select().From(fmt.Sprintf("%s %s", c.mainTable, alias)).Where(fmt.Sprintf("%s = ?", store.Ident(alias, "case_id")), parentId).PlaceholderFormat(squirrel.Dollar)
-	base = store.ApplyPaging(options.GetPage(), options.GetSize(), base)
+	base := squirrel.Select().From(fmt.Sprintf("%s %s", c.mainTable, alias)).Where(fmt.Sprintf("%s = ?", util.Ident(alias, "case_id")), parentId).PlaceholderFormat(squirrel.Dollar)
+	base = util.ApplyPaging(options.GetPage(), options.GetSize(), base)
 	return c.buildSelectColumnsAndPlan(base, alias, options.GetFields())
 }
 
@@ -190,7 +191,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options opt
 		}
 	}
 	insertAlias := "i"
-	insertCte, args, err := store.FormAsCTE(insert, insertAlias)
+	insertCte, args, err := util.FormAsCTE(insert, insertAlias)
 	if err != nil {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build.create_case_communication_sqlizer.form_cte.error", err.Error())
 	}
@@ -205,22 +206,22 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(base squirrel.SelectB
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(left, "id"))
+			base = base.Column(util.Ident(left, "id"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return &comm.Id
 			})
 		case "ver":
-			base = base.Column(store.Ident(left, "ver"))
+			base = base.Column(util.Ident(left, "ver"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return &comm.Ver
 			})
 		case "communication_type":
-			base = base.Column(store.Ident(left, "communication_type"))
+			base = base.Column(util.Ident(left, "communication_type"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return &comm.CommunicationType
 			})
 		case "communication_id":
-			base = base.Column(store.Ident(left, "communication_id"))
+			base = base.Column(util.Ident(left, "communication_id"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return scanner.ScanText(&comm.CommunicationId)
 			})

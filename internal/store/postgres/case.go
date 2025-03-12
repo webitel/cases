@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/model/options/defaults"
 	"strconv"
@@ -101,7 +102,7 @@ func (c *CaseStore) Create(
 		return nil, dberr.NewDBInternalError("postgres.case.create.query_to_sql_error", err)
 	}
 
-	query = store.CompactSQL(query)
+	query = util2.CompactSQL(query)
 
 	// Prepare the scan arguments
 	scanArgs := convertToCaseScanArgs(plan, add)
@@ -349,7 +350,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	// **  Query: "INSERT INTO cases.case (name, subject) VALUES (:name, :subject)"**
 	// **  Params: map[string]interface{}{"name": "test_name", "subject": "test_subject"}**
 	// **  Result: "INSERT INTO cases.case (name, col2) subject ($1, $2)", []interface{}{"test_name", "test_subject"}**
-	boundQuery, args, err := store.BindNamed(query, params)
+	boundQuery, args, err := util2.BindNamed(query, params)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.case.create.bind_named_error", err)
 	}
@@ -843,12 +844,12 @@ func (c *CaseStore) List(opts options.SearchOptions) (*_go.CaseList, error) {
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case.list.to_sql.error", err.Error())
 	}
-	slct = store.CompactSQL(slct)
+	slct = util2.CompactSQL(slct)
 	db, dbErr := c.storage.Database()
 	if dbErr != nil {
 		return nil, dbErr
 	}
-	rows, err := db.Query(opts, store.CompactSQL(slct), args...)
+	rows, err := db.Query(opts, util2.CompactSQL(slct), args...)
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case.list.exec.error", err.Error())
 	}
@@ -857,7 +858,7 @@ func (c *CaseStore) List(opts options.SearchOptions) (*_go.CaseList, error) {
 	if err != nil {
 		return nil, err
 	}
-	res.Items, res.Next = store.ResolvePaging(opts.GetSize(), res.Items)
+	res.Items, res.Next = util2.ResolvePaging(opts.GetSize(), res.Items)
 	res.Page = int64(opts.GetPage())
 	return &res, nil
 }
@@ -897,8 +898,8 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
 	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts.GetAuthOpts(), opts.GetFields(), base)
 	if search := opts.GetSearch(); search != "" {
-		searchTerm, operator := store.ParseSearchTerm(search)
-		searchNumber := store.PrepareSearchNumber(search)
+		searchTerm, operator := util2.ParseSearchTerm(search)
+		searchNumber := util2.PrepareSearchNumber(search)
 		where := sq.Or{
 			sq.Expr(fmt.Sprintf(`%s.reporter = ANY (SELECT contact_id
                         FROM contacts.contact_phone ct_ph
@@ -917,15 +918,15 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
                         FROM contacts.contact_imclient ct_im
                         WHERE ct_im.user_id IN (SELECT id FROM chat.client WHERE name %s ?))`, caseLeft, operator),
 				searchTerm),
-			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "subject"), operator), searchTerm),
-			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "name"), operator), searchTerm),
-			sq.Expr(fmt.Sprintf("%s %s ?", store.Ident(caseLeft, "contact_info"), operator), searchTerm),
+			sq.Expr(fmt.Sprintf("%s %s ?", util2.Ident(caseLeft, "subject"), operator), searchTerm),
+			sq.Expr(fmt.Sprintf("%s %s ?", util2.Ident(caseLeft, "name"), operator), searchTerm),
+			sq.Expr(fmt.Sprintf("%s %s ?", util2.Ident(caseLeft, "contact_info"), operator), searchTerm),
 		}
 		base = base.Where(where)
 
 	}
 	if len(opts.GetIDs()) != 0 {
-		base = base.Where(fmt.Sprintf("%s = ANY(?)", store.Ident(caseLeft, "id")), opts.GetIDs())
+		base = base.Where(fmt.Sprintf("%s = ANY(?)", util2.Ident(caseLeft, "id")), opts.GetIDs())
 	}
 	for column, value := range opts.GetFilters() {
 		switch column {
@@ -972,7 +973,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 					}
 					valuesInt = append(valuesInt, converted)
 				}
-				col := store.Ident(caseLeft, dbColumn)
+				col := util2.Ident(caseLeft, dbColumn)
 				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
 				if isNull {
 					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
@@ -1002,7 +1003,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 					}
 					valuesInt = append(valuesInt, converted)
 				}
-				col := store.Ident(caseAuthorAlias, "id")
+				col := util2.Ident(caseAuthorAlias, "id")
 				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
 				if isNull {
 					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
@@ -1011,22 +1012,22 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 			}
 		case "rating.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
-			base = base.Where(fmt.Sprintf("%s >= ?::INT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("%s >= ?::INT", util2.Ident(caseLeft, cutted)), value)
 		case "rating.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
-			base = base.Where(fmt.Sprintf("%s <= ?::INT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("%s <= ?::INT", util2.Ident(caseLeft, cutted)), value)
 		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolve_at.from", "created_at.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
-			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT > ?::BIGINT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT > ?::BIGINT", util2.Ident(caseLeft, cutted)), value)
 		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolve_at.to", "created_at.to":
 			cutted, _ := strings.CutSuffix(column, ".to")
-			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT < ?::BIGINT", store.Ident(caseLeft, cutted)), value)
+			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT < ?::BIGINT", util2.Ident(caseLeft, cutted)), value)
 		case "attachments":
 			var operator string
 			if value != "true" {
 				operator = "NOT "
 			}
-			base = base.Where(sq.Expr(fmt.Sprintf(operator+"EXISTS (SELECT id FROM storage.files WHERE uuid = %s::varchar UNION SELECT id FROM cases.case_link WHERE case_link.case_id = %[1]s)", store.Ident(caseLeft, "id"))))
+			base = base.Where(sq.Expr(fmt.Sprintf(operator+"EXISTS (SELECT id FROM storage.files WHERE uuid = %s::varchar UNION SELECT id FROM cases.case_link WHERE case_link.case_id = %[1]s)", util2.Ident(caseLeft, "id"))))
 		case "contact":
 			base = base.Where(sq.Or{
 				sq.Expr(fmt.Sprintf("%s.reporter = ?", caseLeft), value),
@@ -1039,13 +1040,13 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 	}
 
 	if sess := opts.GetAuthOpts(); sess != nil {
-		base = base.Where(store.Ident(caseLeft, "dc = ?"), opts.GetAuthOpts().GetDomainId())
-		base, err = addCaseRbacCondition(sess, auth.Read, base, store.Ident(caseLeft, "id"))
+		base = base.Where(util2.Ident(caseLeft, "dc = ?"), opts.GetAuthOpts().GetDomainId())
+		base, err = addCaseRbacCondition(sess, auth.Read, base, util2.Ident(caseLeft, "id"))
 	}
 	// pagination
-	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
+	base = util2.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	// sort
-	field, direction := store.GetSortingOperator(opts)
+	field, direction := util2.GetSortingOperator(opts)
 	if field == "" {
 		field = caseDefaultSort
 		direction = "DESC"
@@ -1095,13 +1096,13 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 	}
 	switch field {
 	case "id", "ver", "created_at", "updated_at", "name", "subject", "description", "planned_reaction_at", "planned_resolve_at", "reacted_at", "resolved_at", "contact_info", "close_result", "rating", "rating_comment":
-		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, field), direction))
+		base = base.OrderBy(fmt.Sprintf("%s %s", util2.Ident(tableAlias, field), direction))
 	case "created_by", "updated_by", "source", "close_reason_group", "close_reason", "sla", "status_condition", "status", "priority", "service", "group":
-		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, "name"), direction))
+		base = base.OrderBy(fmt.Sprintf("%s %s", util2.Ident(tableAlias, "name"), direction))
 	case "author", "assignee", "reporter", "impacted":
-		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, "common_name"), direction))
+		base = base.OrderBy(fmt.Sprintf("%s %s", util2.Ident(tableAlias, "common_name"), direction))
 	case "sla_condition":
-		base = base.OrderBy(fmt.Sprintf("%s %s", store.Ident(tableAlias, "name"), direction))
+		base = base.OrderBy(fmt.Sprintf("%s %s", util2.Ident(tableAlias, "name"), direction))
 	}
 
 	return base, plan, nil
@@ -1177,7 +1178,7 @@ func (c *CaseStore) Update(
 		return nil, dberr.NewDBInternalError("postgres.case.update.query_to_sql_error", sqErr)
 	}
 
-	query = store.CompactSQL(query)
+	query = util2.CompactSQL(query)
 
 	// Prepare scan arguments
 	scanArgs := convertToCaseScanArgs(plan, upd)
@@ -1338,54 +1339,54 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 	switch field {
 	case "created_by":
 		tableAlias = caseCreatedByAlias
-		joinTable(tableAlias, "directory.wbt_user", store.Ident(caseLeft, "created_by"))
+		joinTable(tableAlias, "directory.wbt_user", util2.Ident(caseLeft, "created_by"))
 	case "updated_by":
 		tableAlias = caseUpdatedByAlias
-		joinTable(tableAlias, "directory.wbt_user", store.Ident(caseLeft, "updated_by"))
+		joinTable(tableAlias, "directory.wbt_user", util2.Ident(caseLeft, "updated_by"))
 	case "source":
 		tableAlias = caseSourceAlias
-		joinTable(tableAlias, "cases.source", store.Ident(caseLeft, "source"))
+		joinTable(tableAlias, "cases.source", util2.Ident(caseLeft, "source"))
 	case "close_reason_group":
 		tableAlias = caseCloseReasonGroupAlias
-		joinTable(tableAlias, "cases.close_reason_group", store.Ident(caseLeft, "close_reason_group"))
+		joinTable(tableAlias, "cases.close_reason_group", util2.Ident(caseLeft, "close_reason_group"))
 	case "author":
 		createdByAlias := "cb_au"
 		tableAlias = caseAuthorAlias
-		joinTable(createdByAlias, "directory.wbt_user", store.Ident(caseLeft, "created_by"))
-		joinTable(tableAlias, "contacts.contact", store.Ident(createdByAlias, "contact_id"))
+		joinTable(createdByAlias, "directory.wbt_user", util2.Ident(caseLeft, "created_by"))
+		joinTable(tableAlias, "contacts.contact", util2.Ident(createdByAlias, "contact_id"))
 	case "close":
 		tableAlias = caseCloseReasonAlias
-		joinTable(tableAlias, "cases.close_reason", store.Ident(caseLeft, "close_reason"))
+		joinTable(tableAlias, "cases.close_reason", util2.Ident(caseLeft, "close_reason"))
 	case "close_reason":
 		tableAlias = "cr_sh"
-		joinTable(tableAlias, "cases.close_reason", store.Ident(caseLeft, "close_reason"))
+		joinTable(tableAlias, "cases.close_reason", util2.Ident(caseLeft, "close_reason"))
 	case "sla":
 		tableAlias = caseSlaAlias
-		joinTable(tableAlias, "cases.sla", store.Ident(caseLeft, "sla"))
+		joinTable(tableAlias, "cases.sla", util2.Ident(caseLeft, "sla"))
 	case "status":
 		tableAlias = caseStatusAlias
-		joinTable(tableAlias, "cases.status", store.Ident(caseLeft, "status"))
+		joinTable(tableAlias, "cases.status", util2.Ident(caseLeft, "status"))
 	case "priority":
 		tableAlias = casePriorityAlias
-		joinTable(tableAlias, "cases.priority", store.Ident(caseLeft, "priority"))
+		joinTable(tableAlias, "cases.priority", util2.Ident(caseLeft, "priority"))
 	case "service":
 		tableAlias = caseServiceAlias
-		joinTable(tableAlias, "cases.service_catalog", store.Ident(caseLeft, "service"))
+		joinTable(tableAlias, "cases.service_catalog", util2.Ident(caseLeft, "service"))
 	case "assignee":
 		tableAlias = caseAssigneeAlias
-		joinTable(tableAlias, "contacts.contact", store.Ident(caseLeft, "assignee"))
+		joinTable(tableAlias, "contacts.contact", util2.Ident(caseLeft, "assignee"))
 	case "reporter":
 		tableAlias = caseReporterAlias
-		joinTable(tableAlias, "contacts.contact", store.Ident(caseLeft, "reporter"))
+		joinTable(tableAlias, "contacts.contact", util2.Ident(caseLeft, "reporter"))
 	case "impacted":
 		tableAlias = caseImpactedAlias
-		joinTable(tableAlias, "contacts.contact", store.Ident(caseLeft, "impacted"))
+		joinTable(tableAlias, "contacts.contact", util2.Ident(caseLeft, "impacted"))
 	case "group":
 		tableAlias = caseGroupAlias
-		joinTable(tableAlias, "contacts.group", store.Ident(caseLeft, "contact_group"))
+		joinTable(tableAlias, "contacts.group", util2.Ident(caseLeft, "contact_group"))
 	case "sla_condition":
 		tableAlias = caseSlaConditionAlias
-		joinTable(tableAlias, "cases.sla_condition", store.Ident(caseLeft, "sla_condition_id"))
+		joinTable(tableAlias, "cases.sla_condition", util2.Ident(caseLeft, "sla_condition_id"))
 	}
 	return base, tableAlias, nil
 }
@@ -1411,12 +1412,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 		}
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(tableAlias, "id AS case_id"))
+			base = base.Column(util2.Ident(tableAlias, "id AS case_id"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Id
 			})
 		case "ver":
-			base = base.Column(store.Ident(tableAlias, "ver"))
+			base = base.Column(util2.Ident(tableAlias, "ver"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Ver
 			})
@@ -1427,7 +1428,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 				return scanner.ScanRowLookup(&caseItem.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(tableAlias, "created_at"))
+			base = base.Column(util2.Ident(tableAlias, "created_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.CreatedAt)
 			})
@@ -1438,22 +1439,22 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 				return scanner.ScanRowLookup(&caseItem.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(store.Ident(tableAlias, "updated_at"))
+			base = base.Column(util2.Ident(tableAlias, "updated_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.UpdatedAt)
 			})
 		case "name":
-			base = base.Column(store.Ident(tableAlias, "name"))
+			base = base.Column(util2.Ident(tableAlias, "name"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Name
 			})
 		case "subject":
-			base = base.Column(store.Ident(tableAlias, "subject"))
+			base = base.Column(util2.Ident(tableAlias, "subject"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Subject
 			})
 		case "description":
-			base = base.Column(store.Ident(tableAlias, "description"))
+			base = base.Column(util2.Ident(tableAlias, "description"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanText(&caseItem.Description)
 			})
@@ -1550,12 +1551,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 				})
 			})
 		case "planned_reaction_at":
-			base = base.Column(store.Ident(caseLeft, "planned_reaction_at"))
+			base = base.Column(util2.Ident(caseLeft, "planned_reaction_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.PlannedReactionAt)
 			})
 		case "planned_resolve_at":
-			base = base.Column(store.Ident(caseLeft, "planned_resolve_at"))
+			base = base.Column(util2.Ident(caseLeft, "planned_resolve_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.PlannedResolveAt)
 			})
@@ -1571,7 +1572,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 				return scanner.ScanRowLookup(&caseItem.Author)
 			})
 		case "close":
-			base = base.Column(store.Ident(caseLeft, "close_result"))
+			base = base.Column(util2.Ident(caseLeft, "close_result"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Close == nil {
 					caseItem.Close = &_go.CloseInfo{}
@@ -1587,14 +1588,14 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 				return scanner.ScanRowLookup(&caseItem.Close.CloseReason)
 			})
 		case "rate":
-			base = base.Column(store.Ident(caseLeft, "rating"))
+			base = base.Column(util2.Ident(caseLeft, "rating"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Rate == nil {
 					caseItem.Rate = &_go.RateInfo{}
 				}
 				return scanner.ScanInt64(&caseItem.Rate.Rating)
 			})
-			base = base.Column(store.Ident(caseLeft, "rating_comment"))
+			base = base.Column(util2.Ident(caseLeft, "rating_comment"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				if caseItem.Rate == nil {
 					caseItem.Rate = &_go.RateInfo{}
@@ -1812,7 +1813,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 				return scanner.ScanRowLookup(&caseItem.Reporter)
 			})
 		case "contact_info":
-			base = base.Column(store.Ident(caseLeft, field))
+			base = base.Column(util2.Ident(caseLeft, field))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanText(&caseItem.ContactInfo)
 			})
@@ -1841,7 +1842,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 						return nil
 					}
 					res := &_go.CaseCommentList{}
-					res.Items, res.Next = store.ResolvePaging(defaults.DefaultSearchSize, items)
+					res.Items, res.Next = util2.ResolvePaging(defaults.DefaultSearchSize, items)
 					res.Page = 1
 					value.Comments = res
 					return nil
@@ -1862,7 +1863,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 						return nil
 					}
 					res := &_go.CaseLinkList{}
-					res.Items, res.Next = store.ResolvePaging(defaults.DefaultSearchSize, items)
+					res.Items, res.Next = util2.ResolvePaging(defaults.DefaultSearchSize, items)
 					res.Page = 1
 					value.Links = res
 					return nil
@@ -1889,7 +1890,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 						return nil
 					}
 					res := &_go.CaseFileList{Items: items}
-					res.Items, res.Next = store.ResolvePaging(defaults.DefaultSearchSize, items)
+					res.Items, res.Next = util2.ResolvePaging(defaults.DefaultSearchSize, items)
 					res.Page = 1
 					value.Files = res
 					return nil
@@ -1950,7 +1951,7 @@ func buildRelatedCasesSubquery(caseAlias string) (sq.SelectBuilder, error) {
 		From("cases.related_case rc").
 		Join("cases.case c_child ON rc.related_case_id = c_child.id").
 		LeftJoin("directory.wbt_user u ON rc.created_by = u.id").
-		Where(fmt.Sprintf("%s = %s.id", store.Ident("rc", "primary_case_id"), caseAlias)), nil
+		Where(fmt.Sprintf("%s = %s.id", util2.Ident("rc", "primary_case_id"), caseAlias)), nil
 }
 
 func AddSubqueryAsColumn(mainQuery sq.SelectBuilder, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) sq.SelectBuilder {

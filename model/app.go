@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	APP_SERVICE_NAME = "cases"
-	NAMESPACE_NAME   = "webitel"
+	AppServiceName = "cases"
+	NamespaceName  = "webitel"
 )
 
 func GetAutherOutOfContext(ctx context.Context) auth.Auther {

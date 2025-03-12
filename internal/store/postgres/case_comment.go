@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/webitel/cases/auth"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/model/options/defaults"
 
@@ -180,7 +181,7 @@ func (c CaseCommentStore) buildDeleteCaseCommentQuery(rpc options.DeleteOptions)
 	return base, nil
 }
 
-var deleteCaseCommentQuery = store.CompactSQL(`
+var deleteCaseCommentQuery = util2.CompactSQL(`
 	DELETE FROM cases.case_comment
 	WHERE id = ANY($1) AND dc = $2
 `)
@@ -295,14 +296,14 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 
 	// ----------Apply search by text -----------------
 	if rpc.GetSearch() != "" {
-		queryBuilder = store.AddSearchTerm(queryBuilder, store.Ident(caseLeft, "text"))
+		queryBuilder = util2.AddSearchTerm(queryBuilder, util2.Ident(caseLeft, "text"))
 	}
 
 	// -------- Apply sorting by creation date ----------
 	queryBuilder = queryBuilder.OrderBy("created_at ASC")
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, planBuilder, nil
 }
@@ -487,12 +488,12 @@ func buildCommentSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(left, "id"))
+			base = base.Column(util2.Ident(left, "id"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Id
 			})
 		case "ver":
-			base = base.Column(store.Ident(left, "ver"))
+			base = base.Column(util2.Ident(left, "ver"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Ver
 			})
@@ -503,7 +504,7 @@ func buildCommentSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&comment.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(left, "created_at"))
+			base = base.Column(util2.Ident(left, "created_at"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanTimestamp(&comment.CreatedAt)
 			})
@@ -514,12 +515,12 @@ func buildCommentSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&comment.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(store.Ident(left, "updated_at"))
+			base = base.Column(util2.Ident(left, "updated_at"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanTimestamp(&comment.UpdatedAt)
 			})
 		case "text":
-			base = base.Column(store.Ident(left, "comment"))
+			base = base.Column(util2.Ident(left, "comment"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Text
 			})
@@ -544,7 +545,7 @@ func buildCommentSelectColumnsAndPlan(
 		case "role_ids":
 			// skip
 		case "case_id":
-			base = base.Column(store.Ident(left, "case_id"))
+			base = base.Column(util2.Ident(left, "case_id"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanInt64(&comment.CaseId)
 			})
@@ -568,8 +569,8 @@ func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlia
 	base := sq.
 		Select().
 		From("cases.case_comment " + alias).
-		Where(fmt.Sprintf("%s = %s", store.Ident(alias, "case_id"), store.Ident(caseAlias, "id")))
-	base, err := addCaseCommentRbacCondition(auther, auth.Read, base, store.Ident(alias, "id"))
+		Where(fmt.Sprintf("%s = %s", util2.Ident(alias, "case_id"), util2.Ident(caseAlias, "id")))
+	base, err := addCaseCommentRbacCondition(auther, auth.Read, base, util2.Ident(alias, "id"))
 	if err != nil {
 		return base, nil, dberr.NewDBError("store.case_comment.build_comments_subquery.rbac_err", err.Error())
 	}
@@ -577,7 +578,7 @@ func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlia
 	if dbErr != nil {
 		return base, nil, dbErr
 	}
-	base = store.ApplyPaging(1, defaults.DefaultSearchSize, base)
+	base = util2.ApplyPaging(1, defaults.DefaultSearchSize, base)
 	return base, plan, nil
 }
 
