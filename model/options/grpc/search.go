@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 	"strings"
@@ -30,7 +31,7 @@ type Filterer interface {
 	GetFilters() []string
 }
 
-func WithFields(fielder Fielder, md model.ObjectMetadatter, fieldModifiers ...func(in []string) []string) SearchOption {
+func WithFields(fielder shared.Fielder, md model.ObjectMetadatter, fieldModifiers ...func(in []string) []string) SearchOption {
 	return func(options *SearchOptions) error {
 		if requestedFields := fielder.GetFields(); len(requestedFields) == 0 {
 			options.Fields = md.GetDefaultFields()

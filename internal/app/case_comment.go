@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/model/options/grpc/shared"
 	"log/slog"
 
 	"github.com/webitel/cases/auth"
@@ -287,7 +288,7 @@ func (c *CaseCommentService) PublishComment(
 	return comment, nil
 }
 
-func NormalizeCommentsResponse(res interface{}, opts grpcopts.Fielder) error {
+func NormalizeCommentsResponse(res interface{}, opts shared.Fielder) error {
 	requestedFields := opts.GetFields()
 	if len(requestedFields) == 0 {
 		requestedFields = CaseCommentMetadata.GetDefaultFields()

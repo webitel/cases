@@ -6,6 +6,7 @@ import (
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"time"
 )
@@ -13,7 +14,7 @@ import (
 type CreateOption func(*CreateOptions) error
 
 func WithCreateFields(
-	fielder Fielder,
+	fielder shared.Fielder,
 	md model.ObjectMetadatter,
 	fieldsModifiers ...func(fields []string) []string,
 ) CreateOption {

@@ -6,6 +6,7 @@ import (
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/options/grpc/shared"
 	util2 "github.com/webitel/cases/model/options/grpc/util"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
@@ -19,7 +20,7 @@ type UpdateMasker interface {
 }
 
 func WithUpdateFields(
-	fielder Fielder,
+	fielder shared.Fielder,
 	md model.ObjectMetadatter,
 	fieldsModifiers ...func(fields []string) []string,
 ) UpdateOption {

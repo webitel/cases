@@ -7,6 +7,7 @@ import (
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 	"log/slog"
@@ -319,7 +320,7 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 	return &CaseLinkService{app: app}, nil
 }
 
-func NormalizeResponseLink(res *cases.CaseLink, opts grpcopts.Fielder) error {
+func NormalizeResponseLink(res *cases.CaseLink, opts shared.Fielder) error {
 	var err error
 	hasEtag, hasId, hasVer := util.FindEtagFields(opts.GetFields())
 	if hasEtag {
