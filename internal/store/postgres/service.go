@@ -420,46 +420,46 @@ func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.SearchOption
 }
 
 // Helper method to build the combined update and select query for Service using Squirrel
-func (s *ServiceStore) buildUpdateServiceQuery(rpc options.UpdateOptions, lookup *cases.Service) (string, []interface{}, error) {
+func (s *ServiceStore) buildUpdateServiceQuery(rpc options.UpdateOptions, input *cases.Service) (string, []interface{}, error) {
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.RequestTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
-		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
+		Where(sq.Eq{"id": input.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically set fields based on what the user wants to update
 	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
-			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)
+			updateQueryBuilder = updateQueryBuilder.Set("name", input.Name)
 		case "description":
 			// Use NULLIF to store NULL if description is an empty string
-			updateQueryBuilder = updateQueryBuilder.Set("description", sq.Expr("NULLIF(?, '')", lookup.Description))
+			updateQueryBuilder = updateQueryBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
 		case "code":
 			// Use NULLIF to store NULL if code is an empty string
-			updateQueryBuilder = updateQueryBuilder.Set("code", sq.Expr("NULLIF(?, '')", lookup.Code))
-		case "sla_id":
+			updateQueryBuilder = updateQueryBuilder.Set("code", sq.Expr("NULLIF(?, '')", input.Code))
+		case "sla":
 			// Use NULLIF to store NULL if sla_id is 0
-			updateQueryBuilder = updateQueryBuilder.Set("sla_id", sq.Expr("NULLIF(?, 0)", lookup.Sla.Id))
-		case "group_id":
+			updateQueryBuilder = updateQueryBuilder.Set("sla_id", sq.Expr("NULLIF(?, 0)", input.Sla.Id))
+		case "group":
 			var val *int64
-			if lookup.Group != nil {
-				val = &lookup.Group.Id
+			if input.Group != nil {
+				val = &input.Group.Id
 			}
 			// Use NULLIF to store NULL if group_id is 0
 			updateQueryBuilder = updateQueryBuilder.Set("group_id", sq.Expr("NULLIF(?, 0)", val))
-		case "assignee_id":
+		case "assignee":
 			var val *int64
-			if lookup.Assignee != nil {
-				val = &lookup.Assignee.Id
+			if input.Assignee != nil {
+				val = &input.Assignee.Id
 			}
 			// Use NULLIF to store NULL if assignee_id is 0
 			updateQueryBuilder = updateQueryBuilder.Set("assignee_id", sq.Expr("NULLIF(?, 0)", val))
 		case "state":
-			updateQueryBuilder = updateQueryBuilder.Set("state", lookup.State)
+			updateQueryBuilder = updateQueryBuilder.Set("state", input.State)
 		case "root_id":
-			updateQueryBuilder = updateQueryBuilder.Set("root_id", lookup.RootId)
+			updateQueryBuilder = updateQueryBuilder.Set("root_id", input.RootId)
 		}
 	}
 
