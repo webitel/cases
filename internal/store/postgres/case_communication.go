@@ -38,7 +38,7 @@ func (c *CaseCommunicationStore) Link(options options.CreateOptions, communicati
 	}
 	rows, err := db.Query(options, util.CompactSQL(sql), args...)
 	if err != nil {
-		return nil, dberr.NewDBError("postgres.case_communication.exec.error", err.Error())
+		return nil, dberr.NewDBError("postgres.case_communication.link.exec.error", err.Error())
 	}
 	res, dbErr := c.scanCommunications(rows, plan)
 	if dbErr != nil {
@@ -132,7 +132,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options opt
 	if options.GetParentID() <= 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_create_case_communication_sqlizer.check_args.case_id", "case id required")
 	}
-	insert := squirrel.Insert(c.mainTable).Columns("created_by", "created_at", "dc", "communication_type", "communication_id", "case_id").Suffix("ON CONFLICT DO NOTHING RETURNING *")
+	insert := squirrel.Insert(c.mainTable).Columns("created_by", "created_at", "dc", "communication_type", "communication_id", "case_id").Suffix("RETURNING *")
 
 	var (
 		caseId              = options.GetParentID()
