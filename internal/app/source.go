@@ -2,15 +2,11 @@ package app
 
 import (
 	"context"
-	"strings"
-
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
-)
-
-const (
-	defaultSourceFields = "id, name, description,type"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
 )
 
 type SourceService struct {
@@ -19,203 +15,152 @@ type SourceService struct {
 	objClassName string
 }
 
-func (s SourceService) CreateSource(ctx context.Context, req *_go.CreateSourceRequest) (*_go.Source, error) {
-	// Validate required fields
-	if req.Name == "" {
-		return nil, cerror.NewBadRequestError("source_service.create_source.name.required", ErrLookupNameReq)
-	}
+var SourceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
+	{"id", true},
+	{"created_by", true},
+	{"created_at", true},
+	{"updated_by", false},
+	{"updated_at", false},
+	{"name", true},
+	{"description", true},
+	{"type", true},
+})
 
-	// Validate the Type field
-	if req.Type == _go.SourceType_TYPE_UNSPECIFIED {
+// CreateSource implements api.SourcesServer.
+func (s *SourceService) CreateSource(
+	ctx context.Context,
+	req *_go.CreateSourceRequest,
+) (*_go.Source, error) {
+	// Validate required fields
+	if req.Input.Name == "" {
+		return nil, cerror.NewBadRequestError("source_service.create_source.name.required", "Source name is required")
+	}
+	if req.Input.Type == _go.SourceType_TYPE_UNSPECIFIED {
 		return nil, cerror.NewBadRequestError("source_service.create_source.type.required", "Source type is required")
 	}
 
-	fields := []string{"id", "name", "description", "type", "created_at", "updated_at", "created_by", "updated_by"}
-
-	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, SourceMetadata),
+	)
+	if err != nil {
+		return nil, NewBadRequestError(err)
 	}
 
-	// Define the current user as the creator and updater
-	currentU := &_go.Lookup{
-		Id: createOpts.GetAuthOpts().GetUserId(),
-	}
-
-	// Create a new source user_auth
-	source := &_go.Source{
-		Name:        req.Name,
-		Description: req.Description,
-		Type:        req.Type,
-		CreatedBy:   currentU,
-		UpdatedBy:   currentU,
+	input := &_go.Source{
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		Type:        req.Input.Type,
 	}
 
 	// Create the source in the store
-	l, e := s.app.Store.Source().Create(&createOpts, source)
-	if e != nil {
-		return nil, cerror.NewInternalError("source_service.create_source.store.create.failed", e.Error())
+	res, err := s.app.Store.Source().Create(createOpts, input)
+	if err != nil {
+		return nil, cerror.NewInternalError("source_service.create_source.store.create.failed", err.Error())
 	}
 
-	return l, nil
+	return res, nil
 }
 
-func (s SourceService) ListSources(ctx context.Context, req *_go.ListSourceRequest) (*_go.SourceList, error) {
-	fields := req.Fields
-	if len(fields) == 0 {
-		fields = strings.Split(defaultSourceFields, ", ")
+// ListSources implements api.SourcesServer.
+func (s *SourceService) ListSources(
+	ctx context.Context,
+	req *_go.ListSourceRequest,
+) (*_go.SourceList, error) {
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, SourceMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
+	)
+	if err != nil {
+		return nil, NewBadRequestError(err)
+	}
+	searchOpts.AddFilter("name", req.Q)
+	searchOpts.AddFilter("type", req.Type)
+
+	res, err := s.app.Store.Source().List(searchOpts)
+	if err != nil {
+		return nil, cerror.NewInternalError("source_service.list_sources.store.list.failed", err.Error())
 	}
 
-	// Use default page size and page number if not provided
-	page := req.Page
-	if page == 0 {
-		page = 1
-	}
-
-	searchOptions := model.SearchOptions{
-		IDs: req.Id,
-		//UserAuthSession: session,
-		Fields:  fields,
-		Context: ctx,
-		Page:    int(page),
-		Sort:    req.Sort,
-		Size:    int(req.Size),
-		Filter:  make(map[string]interface{}),
-		Auth:    model.GetAutherOutOfContext(ctx),
-	}
-
-	if req.Q != "" {
-		searchOptions.Filter["name"] = req.Q
-	}
-
-	if len(req.Type) > 0 {
-		searchOptions.Filter["type"] = req.Type
-	}
-
-	lookups, e := s.app.Store.Source().List(&searchOptions)
-	if e != nil {
-		return nil, cerror.NewInternalError("source_service.list_sources.store.list.failed", e.Error())
-	}
-
-	// // Publish an event to RabbitMQ
-	// event := map[string]interface{}{
-	// 	"action": "ListSources",
-	// 	"user":   session.GetUserId(),
-	// 	"query":  req.Q,
-	// 	"type":   req.Type,
-	// 	"fields": fields,
-	// 	"page":   page,
-	// 	"size":   req.Size,
-	// }
-
-	// eventData, err := json.Marshal(event)
-	// if err != nil {
-	// 	return nil, cerror.NewInternalError("source_service.list_sources.event_marshal.failed", err.Error())
-	// }
-
-	// err = s.app.rabbit.Publish(
-	// 	user_auth.APP_SERVICE_NAME,
-	// 	"list_sources_key",
-	// 	eventData,
-	// 	strconv.Itoa(int(session.GetUserId())),
-	// 	time.Now(),
-	// )
-	// if err != nil {
-	// 	return nil, cerror.NewInternalError("source_service.list_sources.event_publish.failed", err.Error())
-	// }
-
-	return lookups, nil
+	return res, nil
 }
 
-func (s SourceService) UpdateSource(ctx context.Context, req *_go.UpdateSourceRequest) (*_go.Source, error) {
+// UpdateSource implements api.SourcesServer.
+func (s *SourceService) UpdateSource(
+	ctx context.Context,
+	req *_go.UpdateSourceRequest,
+) (*_go.Source, error) {
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("source_service.update_source.id.required", "Source ID is required")
 	}
 
-	// Fields to update
-	fields := []string{"id", "updated_at", "updated_by"}
-
-	// Validate fields and add them to the update list
-	for _, f := range req.XJsonMask {
-		switch f {
-		case "name":
-			// Validate that name is not empty
-			if req.Input.Name == "" {
-				return nil, cerror.NewBadRequestError("source_service.update_source.name.required", "Name is required and cannot be empty")
-			}
-			fields = append(fields, "name")
-
-		case "description":
-			fields = append(fields, "description")
-
-		case "type":
-			// Validate that type is not unspecified
-			if req.Input.Type == _go.SourceType_TYPE_UNSPECIFIED {
-				return nil, cerror.NewBadRequestError("source_service.update_source.type.required", "Type is required and cannot be unspecified")
-			}
-			fields = append(fields, "type")
-		}
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, SourceMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
+	if err != nil {
+		return nil, NewBadRequestError(err)
 	}
 
-	// Define update options
-	updateOpts := model.UpdateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
-	}
-
-	// Define the current user as the updater
-	currentU := &_go.Lookup{
-		Id: updateOpts.GetAuthOpts().GetUserId(),
-	}
-
-	// Update source user_auth
-	source := &_go.Source{
+	input := &_go.Source{
 		Id:          req.Id,
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
 		Type:        req.Input.Type,
-		UpdatedBy:   currentU,
 	}
 
 	// Update the source in the store
-	l, e := s.app.Store.Source().Update(&updateOpts, source)
-	if e != nil {
-		return nil, cerror.NewInternalError("source_service.update_source.store.update.failed", e.Error())
+	res, err := s.app.Store.Source().Update(updateOpts, input)
+	if err != nil {
+		return nil, cerror.NewInternalError("source_service.update_source.store.update.failed", err.Error())
 	}
 
-	return l, nil
+	return res, nil
 }
 
-func (s SourceService) DeleteSource(ctx context.Context, req *_go.DeleteSourceRequest) (*_go.Source, error) {
+// DeleteSource implements api.SourcesServer.
+func (s *SourceService) DeleteSource(
+	ctx context.Context,
+	req *_go.DeleteSourceRequest,
+) (*_go.Source, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("source_service.delete_source.id.required", "Lookup ID is required")
+		return nil, cerror.NewBadRequestError("source_service.delete_source.id.required", "Source ID is required")
 	}
 
-	// Define delete options
-	deleteOpts := model.DeleteOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		IDs:     []int64{req.Id},
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
+	if err != nil {
+		return nil, NewBadRequestError(err)
 	}
+
+	deleteOpts.IDs = []int64{req.Id}
 
 	// Delete the source in the store
-	e := s.app.Store.Source().Delete(&deleteOpts)
-	if e != nil {
-		return nil, cerror.NewInternalError("source_service.delete_source.store.delete.failed", e.Error())
+	err = s.app.Store.Source().Delete(deleteOpts)
+	if err != nil {
+		return nil, cerror.NewInternalError("source_service.delete_source.store.delete.failed", err.Error())
 	}
 
 	return &(_go.Source{Id: req.Id}), nil
 }
 
-func (s SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceRequest) (*_go.LocateSourceResponse, error) {
+// LocateSource implements api.SourcesServer.
+func (s *SourceService) LocateSource(
+	ctx context.Context,
+	req *_go.LocateSourceRequest,
+) (*_go.LocateSourceResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("source_service.locate_source.id.required", "Lookup ID is required")
+		return nil, cerror.NewBadRequestError("source_service.locate_source.id.required", "Source ID is required")
 	}
 
 	// Prepare a list request with necessary parameters
@@ -223,22 +168,20 @@ func (s SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceRe
 		Id:     []int64{req.Id},
 		Fields: req.Fields,
 		Page:   1,
-		Size:   1, // We only need one item
+		Size:   1,
 	}
 
-	// Call the ListSources method
-	listResp, err := s.ListSources(ctx, listReq)
+	res, err := s.ListSources(ctx, listReq)
 	if err != nil {
 		return nil, cerror.NewInternalError("source_service.locate_source.list_sources.error", err.Error())
 	}
 
-	// Check if the source was found
-	if len(listResp.Items) == 0 {
+	if len(res.Items) == 0 {
 		return nil, cerror.NewNotFoundError("source_service.locate_source.not_found", "Source not found")
 	}
 
 	// Return the found source
-	return &_go.LocateSourceResponse{Source: listResp.Items[0]}, nil
+	return &_go.LocateSourceResponse{Source: res.Items[0]}, nil
 }
 
 func NewSourceService(app *App) (*SourceService, cerror.AppError) {

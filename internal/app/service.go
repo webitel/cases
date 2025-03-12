@@ -2,14 +2,30 @@ package app
 
 import (
 	"context"
-	"strings"
-	"time"
-
 	api "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
+	"strings"
 )
+
+var ServiceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
+	{Name: "id", Default: true},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
+	{Name: "root_id", Default: true},
+	{Name: "code", Default: true},
+	{Name: "state", Default: true},
+	{Name: "sla", Default: true},
+	{Name: "group", Default: true},
+	{Name: "assignee", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
+	{Name: "catalog_id", Default: false},
+})
 
 type ServiceService struct {
 	app *App
@@ -20,45 +36,37 @@ type ServiceService struct {
 // CreateService implements cases.ServicesServer.
 func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServiceRequest) (*api.Service, error) {
 	// Validate required fields
-	if req.Name == "" {
+	if req.Input.Name == "" {
 		return nil, cerror.NewBadRequestError("service.create_service.name.required", "Service name is required")
 	}
 
-	if req.RootId == 0 {
+	if req.Input.RootId == 0 {
 		return nil, cerror.NewBadRequestError("service.create_service.root_id.required", "Root ID is required")
 	}
 
-	t := time.Now()
-
-	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Time:    t,
-	}
-
-	// Define the current user as the creator and updater
-	currentU := &api.Lookup{
-		Id: createOpts.GetAuthOpts().GetUserId(),
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, ServiceMetadata),
+	)
+	if err != nil {
+		return nil, NewBadRequestError(err)
 	}
 
 	// Create a new Service user_auth
 	service := &api.Service{
-		Name:        req.Name,
-		Description: req.Description,
-		Code:        req.Code,
-		Sla:         req.Sla,
-		Group:       req.Group,
-		Assignee:    req.Assignee,
-		CreatedBy:   currentU,
-		UpdatedBy:   currentU,
-		State:       req.State,
-		RootId:      req.RootId,
-		CatalogId:   req.CatalogId,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
+		Code:        req.Input.Code,
+		Sla:         req.Input.Sla,
+		Group:       req.Input.Group,
+		Assignee:    req.Input.Assignee,
+		State:       req.Input.State,
+		RootId:      req.Input.RootId,
+		CatalogId:   req.Input.CatalogId,
 	}
 
 	// Create the Service in the store
-	r, e := s.app.Store.Service().Create(&createOpts, service)
+	r, e := s.app.Store.Service().Create(createOpts, service)
 	if e != nil {
 		return nil, cerror.NewInternalError("service.create_service.store.create.failed", e.Error())
 	}
@@ -72,15 +80,12 @@ func (s *ServiceService) DeleteService(ctx context.Context, req *api.DeleteServi
 		return nil, cerror.NewBadRequestError("service.delete_service.id.required", "Service ID is required")
 	}
 
-	t := time.Now()
-	deleteOpts := model.DeleteOptions{
-		Context: ctx,
-		IDs:     req.Id,
-		Time:    t,
-		Auth:    model.GetAutherOutOfContext(ctx),
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteIDs(req.Id))
+	if err != nil {
+		return nil, NewBadRequestError(err)
 	}
 
-	e := s.app.Store.Service().Delete(&deleteOpts)
+	e := s.app.Store.Service().Delete(deleteOpts)
 	if e != nil {
 		return nil, cerror.NewInternalError("service.delete_service.store.delete.failed", e.Error())
 	}
@@ -97,45 +102,30 @@ func (s *ServiceService) DeleteService(ctx context.Context, req *api.DeleteServi
 
 // ListServices implements cases.ServicesServer.
 func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceRequest) (*api.ServiceList, error) {
-	page := req.Page
-	if page == 0 {
-		page = 1
-	}
-
-	if len(req.Fields) == 0 {
-		req.Fields = strings.Split(defaultSubfields, ", ")
-	} else {
-		req.Fields = util.FieldsFunc(req.Fields, util.InlineFields)
-	}
-
-	if !util.ContainsField(req.Fields, "id") {
-		req.Fields = append(req.Fields, "id")
-	}
-
-	t := time.Now()
-	searchOptions := &model.SearchOptions{
-		Fields: req.Fields,
-		IDs:    req.Id,
-		// UserAuthSession: session,
-		Context: ctx,
-		Sort:    req.Sort,
-		Page:    int(page),
-		Size:    int(req.Size),
-		Time:    t,
-		Filter:  make(map[string]interface{}),
-		Auth:    model.GetAutherOutOfContext(ctx),
+	searchOptions, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, ServiceMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithIDs(req.Id),
+		grpcopts.WithSort(req),
+	)
+	if err != nil {
+		return nil, NewBadRequestError(err)
 	}
 
 	if req.Q != "" {
-		searchOptions.Filter["name"] = req.Q
+		searchOptions.AddFilter("name", req.Q)
 	}
 
 	if req.RootId != 0 {
-		searchOptions.Filter["root_id"] = req.RootId
+		searchOptions.AddFilter("root_id", req.RootId)
 	}
 
 	if req.State {
-		searchOptions.Filter["state"] = req.State
+		searchOptions.AddFilter("state", req.State)
 	}
 
 	services, e := s.app.Store.Service().List(searchOptions)
@@ -187,60 +177,13 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		return nil, cerror.NewBadRequestError("service.update_service.id.required", "Service ID is required")
 	}
 
-	fields := []string{"id"}
-
-	for _, f := range req.XJsonMask {
-		// Handle fields with specific prefixes
-		if strings.HasPrefix(f, "sla") {
-			if !util.ContainsField(fields, "sla_id") {
-				fields = append(fields, "sla_id")
-			}
-			continue
-		}
-
-		if strings.HasPrefix(f, "group") {
-			if !util.ContainsField(fields, "group_id") {
-				fields = append(fields, "group_id")
-			}
-			continue
-		}
-
-		if strings.HasPrefix(f, "assignee") {
-			if !util.ContainsField(fields, "assignee_id") {
-				fields = append(fields, "assignee_id")
-			}
-			continue
-		}
-
-		// Handle exact matches
-		switch f {
-		case "name":
-			fields = append(fields, "name")
-			if req.Input.Name == "" {
-				return nil, cerror.NewBadRequestError("service.update_service.name.required", "Service name is required and cannot be empty")
-			}
-		case "description":
-			fields = append(fields, "description")
-		case "root_id":
-			fields = append(fields, "root_id")
-		case "code":
-			fields = append(fields, "code")
-		case "state":
-			fields = append(fields, "state")
-		}
-	}
-
-	t := time.Now()
-
-	updateOpts := model.UpdateOptions{
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
-		Auth:    model.GetAutherOutOfContext(ctx),
-	}
-
-	u := &api.Lookup{
-		Id: updateOpts.GetAuthOpts().GetUserId(),
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, ServiceMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
+	if err != nil {
+		return nil, NewBadRequestError(err)
 	}
 
 	service := &api.Service{
@@ -251,12 +194,11 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 		Sla:         req.Input.Sla,
 		Group:       req.Input.Group,
 		Assignee:    req.Input.Assignee,
-		UpdatedBy:   u,
 		State:       req.Input.State,
 		RootId:      req.Input.RootId,
 	}
 
-	r, e := s.app.Store.Service().Update(&updateOpts, service)
+	r, e := s.app.Store.Service().Update(updateOpts, service)
 	if e != nil {
 		return nil, cerror.NewInternalError("service.update_service.store.update.failed", e.Error())
 	}

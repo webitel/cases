@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -14,11 +16,11 @@ import (
 )
 
 type CaseCommunicationStore struct {
-	storage   store.Store
+	storage   *Store
 	mainTable string
 }
 
-func (c *CaseCommunicationStore) Link(options *model.CreateOptions, communications []*cases.InputCaseCommunication) ([]*cases.CaseCommunication, error) {
+func (c *CaseCommunicationStore) Link(options options.CreateOptions, communications []*cases.InputCaseCommunication) ([]*cases.CaseCommunication, error) {
 	if len(communications) == 0 {
 		return nil, dberr.NewDBError("postgres.case_communication.link.check_args.communications", "empty communications")
 	}
@@ -34,7 +36,7 @@ func (c *CaseCommunicationStore) Link(options *model.CreateOptions, communicatio
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case_communication.link.convert_to_sql.err", err.Error())
 	}
-	rows, err := db.Query(options, store.CompactSQL(sql), args...)
+	rows, err := db.Query(options, util.CompactSQL(sql), args...)
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case_communication.exec.error", err.Error())
 	}
@@ -45,7 +47,7 @@ func (c *CaseCommunicationStore) Link(options *model.CreateOptions, communicatio
 	return res, nil
 }
 
-func (c *CaseCommunicationStore) Unlink(options *model.DeleteOptions) (int64, error) {
+func (c *CaseCommunicationStore) Unlink(options options.DeleteOptions) (int64, error) {
 	base, dbErr := c.buildDeleteCaseCommunicationSqlizer(options)
 	if dbErr != nil {
 		return 0, dbErr
@@ -65,7 +67,7 @@ func (c *CaseCommunicationStore) Unlink(options *model.DeleteOptions) (int64, er
 	return res.RowsAffected(), nil
 }
 
-func (c *CaseCommunicationStore) List(opts *model.SearchOptions) (*cases.ListCommunicationsResponse, error) {
+func (c *CaseCommunicationStore) List(opts options.SearchOptions) (*cases.ListCommunicationsResponse, error) {
 	base, plan, dbErr := c.buildListCaseCommunicationSqlizer(opts)
 	if dbErr != nil {
 		return nil, dbErr
@@ -87,22 +89,23 @@ func (c *CaseCommunicationStore) List(opts *model.SearchOptions) (*cases.ListCom
 		return nil, dbErr
 	}
 	var res cases.ListCommunicationsResponse
-	res.Data, res.Next = store.ResolvePaging(opts.GetSize(), items)
+	res.Data, res.Next = util.ResolvePaging(opts.GetSize(), items)
 	res.Page = int32(opts.GetPage())
 	return &res, nil
 }
 
-func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(options *model.SearchOptions) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
+func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(options options.SearchOptions) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
 	if options == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_list_case_communication_sqlizer.check_args.options", "search options required")
 	}
-	if options.ParentId <= 0 {
+	parentId, ok := options.GetFilter("case_id").(int64)
+	if !ok || parentId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_list_case_communication_sqlizer.check_args.case_id", "case id required")
 	}
 	alias := "s"
-	base := squirrel.Select().From(fmt.Sprintf("%s %s", c.mainTable, alias)).PlaceholderFormat(squirrel.Dollar)
-	base = store.ApplyPaging(options.GetPage(), options.GetSize(), base)
-	return c.buildSelectColumnsAndPlan(base, alias, options.Fields)
+	base := squirrel.Select().From(fmt.Sprintf("%s %s", c.mainTable, alias)).Where(fmt.Sprintf("%s = ?", util.Ident(alias, "case_id")), parentId).PlaceholderFormat(squirrel.Dollar)
+	base = util.ApplyPaging(options.GetPage(), options.GetSize(), base)
+	return c.buildSelectColumnsAndPlan(base, alias, options.GetFields())
 }
 
 func (c *CaseCommunicationStore) scanCommunications(rows pgx.Rows, plan []func(*cases.CaseCommunication) any) ([]*cases.CaseCommunication, *dberr.DBError) {
@@ -122,17 +125,17 @@ func (c *CaseCommunicationStore) scanCommunications(rows pgx.Rows, plan []func(*
 	return res, nil
 }
 
-func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *model.CreateOptions, communications []*cases.InputCaseCommunication) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
+func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options options.CreateOptions, communications []*cases.InputCaseCommunication) (query squirrel.Sqlizer, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
 	if options == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_create_case_communication_sqlizer.check_args.options", "create options required")
 	}
-	if options.ParentID <= 0 {
+	if options.GetParentID() <= 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build_create_case_communication_sqlizer.check_args.case_id", "case id required")
 	}
 	insert := squirrel.Insert(c.mainTable).Columns("created_by", "created_at", "dc", "communication_type", "communication_id", "case_id").Suffix("ON CONFLICT DO NOTHING RETURNING *")
 
 	var (
-		caseId              = options.ParentID
+		caseId              = options.GetParentID()
 		dc                  *int64
 		userId              *int64
 		roles               []int64
@@ -178,22 +181,22 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(options *mo
 			} else {
 				callsSubquery = squirrel.Expr(`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`, communication.CommunicationId)
 			}
-			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), callsSubquery, caseSubquery)
+			insert = insert.Values(userId, options.RequestTime(), dc, int64(communication.CommunicationType), callsSubquery, caseSubquery)
 		case cases.CaseCommunicationsTypes_COMMUNICATION_CHAT:
-			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM chat.conversation WHERE id = ?)`, communication.CommunicationId), caseSubquery)
+			insert = insert.Values(userId, options.RequestTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM chat.conversation WHERE id = ?)`, communication.CommunicationId), caseSubquery)
 		case cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL:
-			insert = insert.Values(userId, options.CurrentTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_email WHERE id = ?)`, communication.CommunicationId), caseSubquery)
+			insert = insert.Values(userId, options.RequestTime(), dc, int64(communication.CommunicationType), squirrel.Expr(`(SELECT id FROM call_center.cc_email WHERE id = ?)`, communication.CommunicationId), caseSubquery)
 		default:
 			return nil, nil, dberr.NewDBError("postgres.case_communication.build.create_case_communication_sqlizer.switch_types.unknown", "unsupported communication type")
 		}
 	}
 	insertAlias := "i"
-	insertCte, args, err := store.FormAsCTE(insert, insertAlias)
+	insertCte, args, err := util.FormAsCTE(insert, insertAlias)
 	if err != nil {
 		return nil, nil, dberr.NewDBError("postgres.case_communication.build.create_case_communication_sqlizer.form_cte.error", err.Error())
 	}
 	base := squirrel.Select().From(insertAlias).Prefix(insertCte, args...).PlaceholderFormat(squirrel.Dollar)
-	return c.buildSelectColumnsAndPlan(base, insertAlias, options.Fields)
+	return c.buildSelectColumnsAndPlan(base, insertAlias, options.GetFields())
 }
 
 func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fields []string) (query squirrel.SelectBuilder, plan []func(caseCommunication *cases.CaseCommunication) any, dbError *dberr.DBError) {
@@ -203,22 +206,22 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(base squirrel.SelectB
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(left, "id"))
+			base = base.Column(util.Ident(left, "id"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return &comm.Id
 			})
 		case "ver":
-			base = base.Column(store.Ident(left, "ver"))
+			base = base.Column(util.Ident(left, "ver"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return &comm.Ver
 			})
 		case "communication_type":
-			base = base.Column(store.Ident(left, "communication_type"))
+			base = base.Column(util.Ident(left, "communication_type"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return &comm.CommunicationType
 			})
 		case "communication_id":
-			base = base.Column(store.Ident(left, "communication_id"))
+			base = base.Column(util.Ident(left, "communication_id"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return scanner.ScanText(&comm.CommunicationId)
 			})
@@ -229,14 +232,14 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(base squirrel.SelectB
 	return base, plan, nil
 }
 
-func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(options *model.DeleteOptions) (query squirrel.Sqlizer, dbError *dberr.DBError) {
+func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(options options.DeleteOptions) (query squirrel.Sqlizer, dbError *dberr.DBError) {
 	if options == nil {
 		return nil, dberr.NewDBError("postgres.case_communication.build_delete_case_communication_sqlizer.check_args.options", "delete options required")
 	}
-	if len(options.IDs) == 0 {
+	if len(options.GetIDs()) == 0 {
 		return nil, dberr.NewDBError("postgres.case_communication.build_delete_case_communication_sqlizer.check_args.ids", "ids required to delete")
 	}
-	del := squirrel.Delete(c.mainTable).Where("id = ANY(?)", options.IDs)
+	del := squirrel.Delete(c.mainTable).Where("id = ANY(?)", options.GetIDs())
 	return del, nil
 }
 
@@ -244,7 +247,7 @@ var s store.CaseCommunicationStore = &CaseCommunicationStore{}
 
 var CaseCommunicationFields = []string{"id", "ver", "communication_type", "communication_id"}
 
-func NewCaseCommunicationStore(store store.Store) (store.CaseCommunicationStore, error) {
+func NewCaseCommunicationStore(store *Store) (store.CaseCommunicationStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_case_communication.check.bad_arguments",
 			"error creating case communication store, main store is nil")

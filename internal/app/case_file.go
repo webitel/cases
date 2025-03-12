@@ -2,14 +2,14 @@ package app
 
 import (
 	"context"
-	"log/slog"
-
+	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
-
-	cases "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	"log/slog"
 )
 
 type CaseFileService struct {
@@ -32,34 +32,44 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 	if req.CaseEtag == "" {
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.case_etag_required", "Case Etag is required")
 	}
+
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithSort(req),
+		grpcopts.WithFields(req, CaseFileMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			util.EnsureIdField,
+		),
+	)
+	if err != nil {
+		return nil, NewBadRequestError(err)
+	}
+
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
 	}
-	// Build search options
-	searchOpts, err := model.NewSearchOptions(ctx, req, CaseFileMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
-	}
-	searchOpts.ParentId = tag.GetOid()
+	searchOpts.AddFilter("case_id", tag.GetOid())
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseFileMetadata.GetParentScopeName(), accessMode) {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tag.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 	}
 	files, err := c.app.Store.CaseFile().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, AppDatabaseError
+		return nil, DatabaseError
 	}
 	return files, nil
 }
@@ -68,20 +78,10 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("app.case_file.delete_file.file_id_required", "File ID is required")
 	}
-
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseFileMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.GetId()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()))
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, AppInternalError
+		return nil, NewBadRequestError(err)
 	}
-
-	caseTID, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_file.delete.case_etag.parse.error", err.Error())
-	}
-
-	deleteOpts.ID = req.Id
-	deleteOpts.ParentID = caseTID.GetOid()
 
 	logAttributes := slog.Group(
 		"context",
@@ -104,11 +104,11 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 		)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (DELETE) access to the case", logAttributes)
-			return nil, AppForbiddenError
+			return nil, ForbiddenError
 		}
 	}
 
@@ -123,7 +123,7 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 			)
 		default:
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, AppDatabaseError
+			return nil, DatabaseError
 		}
 	}
 

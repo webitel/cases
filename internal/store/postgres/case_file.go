@@ -1,7 +1,11 @@
 package postgres
 
 import (
+	"errors"
 	"fmt"
+	"github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/options/defaults"
 	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
@@ -9,12 +13,10 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
-	util "github.com/webitel/cases/util"
 )
 
 type CaseFileStore struct {
-	storage   store.Store
+	storage   *Store
 	mainTable string
 }
 
@@ -29,7 +31,7 @@ const (
 )
 
 // List implements store.CaseFileStore for listing case files.
-func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, error) {
+func (c *CaseFileStore) List(rpc options.SearchOptions) (*cases.CaseFileList, error) {
 	// Connect to the database
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -49,7 +51,7 @@ func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, err
 	}
 
 	// Execute the query
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("store.case_file.list.execution_error", err)
 	}
@@ -61,7 +63,7 @@ func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, err
 	fetchAll := rpc.GetSize() == -1
 
 	for rows.Next() {
-		if !fetchAll && lCount >= int(rpc.GetSize()) {
+		if !fetchAll && lCount >= rpc.GetSize() {
 			next = true
 			break
 		}
@@ -86,80 +88,82 @@ func (c *CaseFileStore) List(rpc *model.SearchOptions) (*cases.CaseFileList, err
 	}
 
 	return &cases.CaseFileList{
-		Page:  int64(rpc.Page),
+		Page:  int64(rpc.GetPage()),
 		Next:  next,
 		Items: fileList,
 	}, nil
 }
 
 func (c *CaseFileStore) BuildListCaseFilesSqlizer(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 ) (sq.Sqlizer, []func(file *cases.File) any, error) {
+
+	parentId, ok := rpc.GetFilter("case_id").(int64)
+	if !ok || parentId == 0 {
+		return nil, nil, errors.New("case id required")
+	}
 	// Begin building the base query with alias `cf`
 	queryBuilder := sq.Select().
 		From("storage.files AS cf").
 		Where(
 			sq.And{
 				sq.Eq{"cf.domain_id": rpc.GetAuthOpts().GetDomainId()},
-				sq.Eq{"cf.uuid": strconv.Itoa(int(rpc.ParentId))},
+				sq.Eq{"cf.uuid": strconv.Itoa(int(parentId))},
 				sq.Eq{"cf.channel": channel},
 				sq.Eq{"cf.removed": nil},
 			},
 		).
 		PlaceholderFormat(sq.Dollar)
 
-	// Ensure necessary fields are included
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
-
 	// Build select columns and scan plan using buildFilesSelectColumnsAndPlan
-	queryBuilder, plan, err := buildFilesSelectColumnsAndPlan(queryBuilder, fileAlias, rpc.Fields)
+	queryBuilder, plan, err := buildFilesSelectColumnsAndPlan(queryBuilder, fileAlias, rpc.GetFields())
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Apply additional filters, sorting, and pagination as needed
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cf.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cf.id": rpc.GetIDs()})
 	}
 
 	// ----------Apply search by name -----------------
-	if rpc.Search != "" {
-		queryBuilder = store.AddSearchTerm(queryBuilder, store.Ident(caseLeft, "name"))
+	if rpc.GetSearch() != "" {
+		queryBuilder = util.AddSearchTerm(queryBuilder, util.Ident(caseLeft, "name"))
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
+	queryBuilder = util.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, plan, nil
 }
 
 // Delete implements store.CaseFileStore.
-func (c *CaseFileStore) Delete(rpc *model.DeleteOptions) error {
+func (c *CaseFileStore) Delete(rpc options.DeleteOptions) error {
 	if rpc == nil {
 		return dberr.NewDBError("postgres.case_file.delete.check_args.opts", "delete options required")
 	}
-	if rpc.ID == 0 {
+	if len(rpc.GetIDs()) == 0 {
 		return dberr.NewDBError("postgres.case_file.delete.check_args.id", "id required")
 	}
-	if rpc.ParentID == 0 {
+	if rpc.GetParentID() == 0 {
 		return dberr.NewDBError("postgres.case_file.delete.check_args.id", "case id required")
 	}
 
 	// convert int64 to varchar (datatype in DB)
-	uuid := strconv.Itoa(int(rpc.ParentID))
+	uuid := strconv.Itoa(int(rpc.GetParentID()))
 	base := sq.
 		Update(c.mainTable).
 		Set("removed", true).
-		Where(sq.Eq{"id": rpc.ID}).
+		Where("id = ANY(?)", rpc.GetIDs()).
 		Where(sq.Eq{"domain_id": rpc.GetAuthOpts().GetDomainId()}).
 		Where(sq.Eq{"uuid": uuid}).
 		PlaceholderFormat(sq.Dollar)
 
 	query, args, err := base.ToSql()
-	query = store.CompactSQL(query)
+	query = util.CompactSQL(query)
 
 	if err != nil {
 		return dberr.NewDBError("postgres.case_file.delete.parse_query.error", err.Error())
@@ -169,7 +173,7 @@ func (c *CaseFileStore) Delete(rpc *model.DeleteOptions) error {
 		return dbErr
 	}
 
-	res, err := db.Exec(rpc.Context, query, args...)
+	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBError("postgres.case_file.delete.execute.error", err.Error())
 	}
@@ -208,7 +212,7 @@ func buildFilesSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(left, "id"))
+			base = base.Column(util.Ident(left, "id"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Id
 			})
@@ -219,22 +223,22 @@ func buildFilesSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&file.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(left, "uploaded_at"))
+			base = base.Column(util.Ident(left, "uploaded_at"))
 			plan = append(plan, func(file *cases.File) any {
 				return scanner.ScanTimestamp(&file.CreatedAt)
 			})
 		case "size":
-			base = base.Column(store.Ident(left, "size"))
+			base = base.Column(util.Ident(left, "size"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Size
 			})
 		case "mime":
-			base = base.Column(store.Ident(left, "mime_type"))
+			base = base.Column(util.Ident(left, "mime_type"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Mime
 			})
 		case "name":
-			base = base.Column(store.Ident(left, "view_name"))
+			base = base.Column(util.Ident(left, "view_name"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Name
 			})
@@ -261,7 +265,7 @@ func buildFilesSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq.SelectBuilder, []func(file *cases.File) any, int, *dberr.DBError) {
+func buildFilesSelectAsSubquery(fields []string, caseAlias string) (sq.SelectBuilder, []func(file *cases.File) any, int, *dberr.DBError) {
 	alias := "files"
 	if caseAlias == alias {
 		alias = "sub_" + alias
@@ -269,11 +273,11 @@ func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq
 	base := sq.
 		Select().
 		From("storage.files " + alias).
-		Where(fmt.Sprintf("%s = %s::text", store.Ident(alias, "uuid"), store.Ident(caseAlias, "id"))).
-		Where(fmt.Sprintf("%s = '%s'", store.Ident(alias, "channel"), channel))
-	base = store.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
+		Where(fmt.Sprintf("%s = %s::text", util.Ident(alias, "uuid"), util.Ident(caseAlias, "id"))).
+		Where(fmt.Sprintf("%s = '%s'", util.Ident(alias, "channel"), channel))
+	base = util.ApplyPaging(1, defaults.DefaultSearchSize, base)
 
-	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, opts.Fields)
+	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, fields)
 	if dbErr != nil {
 		return base, nil, 0, dbErr
 	}
@@ -282,7 +286,7 @@ func buildFilesSelectAsSubquery(opts *model.SearchOptions, caseAlias string) (sq
 }
 
 // NewCaseFileStore initializes a new CaseFileStore.
-func NewCaseFileStore(store store.Store) (store.CaseFileStore, error) {
+func NewCaseFileStore(store *Store) (store.CaseFileStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_case_file.check.bad_arguments", "error creating case file interface, main store is nil")
 	}

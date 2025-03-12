@@ -3,6 +3,8 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -10,12 +12,11 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	util "github.com/webitel/cases/util"
 )
 
 type RelatedCaseStore struct {
-	storage store.Store
+	storage *Store
 }
 
 const (
@@ -30,7 +31,7 @@ const (
 
 // Create implements store.RelatedCaseStore for creating a new related case.
 func (r *RelatedCaseStore) Create(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	relation *cases.RelationType,
 ) (*cases.RelatedCase, error) {
 	// Establish database connection
@@ -47,7 +48,7 @@ func (r *RelatedCaseStore) Create(
 
 	// Convert queryBuilder to SQL
 	query, args, sqlErr := queryBuilder.ToSql()
-	query = store.CompactSQL(query)
+	query = util2.CompactSQL(query)
 
 	if sqlErr != nil {
 		return nil, dberr.NewDBInternalError("store.related_case.create.query_build_error", sqlErr)
@@ -57,7 +58,7 @@ func (r *RelatedCaseStore) Create(
 	relatedCase := &cases.RelatedCase{}
 	scanArgs := convertToRelatedCaseScanArgs(plan, relatedCase)
 
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("store.related_case.create.execution_error", err)
 	}
 
@@ -66,7 +67,7 @@ func (r *RelatedCaseStore) Create(
 
 // buildCreateRelatedCaseSqlizer builds the insert and select SQLizer for creating related cases.
 func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	relation *cases.RelationType,
 ) (sq.Sqlizer, []func(*cases.RelatedCase) any, *dberr.DBError) {
 	// Insert query
@@ -75,12 +76,12 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 		Columns("dc", "primary_case_id", "related_case_id", "relation_type", "created_at", "created_by", "updated_at", "updated_by").
 		Values(
 			rpc.GetAuthOpts().GetDomainId(), // dc
-			rpc.ParentID,                    // primary_case_id
-			rpc.ChildID,                     // related_case_id
+			rpc.GetParentID(),               // primary_case_id
+			rpc.GetChildID(),                // related_case_id
 			relation,                        // relation_type
-			rpc.CurrentTime(),               // created_at
+			rpc.RequestTime(),               // created_at
 			rpc.GetAuthOpts().GetUserId(),   // created_by
-			rpc.CurrentTime(),               // updated_at
+			rpc.RequestTime(),               // updated_at
 			rpc.GetAuthOpts().GetUserId(),   // updated_by
 		).
 		PlaceholderFormat(sq.Dollar).
@@ -98,7 +99,7 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 	selectBuilder := sq.Select()
 
 	// Use helper to build select columns and scan plan
-	selectBuilder, plan, dbErr := buildRelatedCasesSelectColumnsAndPlan(selectBuilder, relatedCaseLeft, rpc.Fields)
+	selectBuilder, plan, dbErr := buildRelatedCasesSelectColumnsAndPlan(selectBuilder, relatedCaseLeft, rpc.GetFields())
 	if dbErr != nil {
 		return nil, nil, dbErr
 	}
@@ -112,7 +113,7 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 
 // Delete implements store.RelatedCaseStore for deleting a related case.
 func (r *RelatedCaseStore) Delete(
-	rpc *model.DeleteOptions,
+	rpc options.DeleteOptions,
 ) error {
 	// Get database connection
 	d, err := r.storage.Database()
@@ -127,7 +128,7 @@ func (r *RelatedCaseStore) Delete(
 	}
 
 	// Execute the query
-	res, execErr := d.Exec(rpc.Context, query, args...)
+	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
 		return dberr.NewDBInternalError("store.related_case.delete.execution_error", execErr)
 	}
@@ -140,20 +141,20 @@ func (r *RelatedCaseStore) Delete(
 	return nil
 }
 
-func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc *model.DeleteOptions) (string, []interface{}, *dberr.DBError) {
+func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc options.DeleteOptions) (string, []interface{}, *dberr.DBError) {
 	query := deleteRelatedCaseQuery
-	args := []interface{}{rpc.ID, rpc.GetAuthOpts().GetDomainId()}
+	args := []interface{}{rpc.GetIDs(), rpc.GetAuthOpts().GetDomainId()}
 	return query, args, nil
 }
 
-var deleteRelatedCaseQuery = store.CompactSQL(`
+var deleteRelatedCaseQuery = util2.CompactSQL(`
 	DELETE FROM cases.related_case
-	WHERE id = $1 AND dc = $2
+	WHERE id = ANY($1) AND dc = $2
 `)
 
 // List implements store.RelatedCaseStore for fetching related cases.
 func (r *RelatedCaseStore) List(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 ) (*cases.RelatedCaseList, error) {
 	// Get database connection
 	d, err := r.storage.Database()
@@ -174,7 +175,7 @@ func (r *RelatedCaseStore) List(
 	}
 
 	// Execute the query
-	rows, execErr := d.Query(rpc.Context, query, args...)
+	rows, execErr := d.Query(rpc, query, args...)
 	if execErr != nil {
 		return nil, dberr.NewDBInternalError("store.related_case.list.execution_error", execErr)
 	}
@@ -251,9 +252,8 @@ func (r *RelatedCaseStore) ParseRelationTypeWithReversion(
 
 // buildListRelatedCaseSqlizer dynamically builds the SELECT query for related cases.
 func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 ) (sq.SelectBuilder, func(*cases.RelatedCase) []any, *dberr.DBError) {
-	rpc.Fields = util.EnsureFields(rpc.Fields, "created_at")
 
 	// Start building the base query
 	queryBuilder := sq.Select().
@@ -262,24 +262,28 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 		PlaceholderFormat(sq.Dollar)
 
 	// Filter by parent case if provided
+	parentId, ok := rpc.GetFilter("case_id").(int64)
+	if !ok || parentId == 0 {
+		return queryBuilder, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id required")
+	}
 
 	queryBuilder = queryBuilder.Where(sq.Or{
-		sq.Eq{"rc.primary_case_id": rpc.ParentId},
-		sq.Eq{"rc.related_case_id": rpc.ParentId},
+		sq.Eq{"rc.primary_case_id": parentId},
+		sq.Eq{"rc.related_case_id": parentId},
 	})
 
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"rc.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"rc.id": rpc.GetIDs()})
 	}
 
 	// -------- Apply sorting by creation date ----------
 	queryBuilder = queryBuilder.OrderBy("created_at ASC")
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Build columns dynamically using helper
-	queryBuilder, plan, err := buildRelatedCasesSelectColumnsAndPlan(queryBuilder, relatedCaseLeft, rpc.Fields)
+	queryBuilder, plan, err := buildRelatedCasesSelectColumnsAndPlan(queryBuilder, relatedCaseLeft, rpc.GetFields())
 	if err != nil {
 		return queryBuilder, nil, err
 	}
@@ -297,7 +301,7 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 }
 
 func (r *RelatedCaseStore) Update(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	input *cases.InputRelatedCase,
 ) (*cases.RelatedCase, error) {
 	// Get database connection
@@ -323,7 +327,7 @@ func (r *RelatedCaseStore) Update(
 	scanArgs := convertToRelatedCaseScanArgs(plan, updatedCase)
 
 	// Execute query and scan the result
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, dberr.NewDBNotFoundError("store.related_case.update.not_found", "Related case not found")
 		}
@@ -335,26 +339,27 @@ func (r *RelatedCaseStore) Update(
 
 // buildUpdateRelatedCaseSqlizer dynamically builds the update query for related cases.
 func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	input *cases.InputRelatedCase,
 ) (sq.Sqlizer, []func(*cases.RelatedCase) any, *dberr.DBError) {
 	// Ensure "id" and "ver" are included
-	rpc.Fields = util.EnsureIdAndVerField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdAndVerField(rpc.GetFields())
 
 	// Start building the update query
 	updateBuilder := sq.Update("cases.related_case").
 		PlaceholderFormat(sq.Dollar).
 		Set("relation_type", input.RelationType).
-		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_at", rpc.RequestTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Set("ver", sq.Expr("ver + 1")).
 		Where(sq.Eq{
-			"id":  rpc.Etags[0].GetOid(),
-			"ver": rpc.Etags[0].GetVer(),
+			"id":  rpc.GetEtags()[0].GetOid(),
+			"ver": rpc.GetEtags()[0].GetVer(),
 			"dc":  rpc.GetAuthOpts().GetDomainId(),
 		})
 
-	for _, mask := range rpc.Mask {
+	for _, mask := range rpc.GetMask() {
 		switch mask {
 		case "primaryCaseId":
 			updateBuilder = updateBuilder.Set("primary_case_id", input.GetPrimaryCase().GetId())
@@ -369,7 +374,7 @@ func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
 		From(relatedCaseLeft)
 
 	// Use helper function to dynamically build columns and scan plan
-	selectBuilder, plan, err := buildRelatedCasesSelectColumnsAndPlan(selectBuilder, relatedCaseLeft, rpc.Fields)
+	selectBuilder, plan, err := buildRelatedCasesSelectColumnsAndPlan(selectBuilder, relatedCaseLeft, fields)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -406,12 +411,12 @@ func buildRelatedCasesSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(left, "id"))
+			base = base.Column(util2.Ident(left, "id"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return &rc.Id
 			})
 		case "ver":
-			base = base.Column(store.Ident(left, "ver"))
+			base = base.Column(util2.Ident(left, "ver"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return &rc.Ver
 			})
@@ -422,7 +427,7 @@ func buildRelatedCasesSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&rc.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(left, "created_at"))
+			base = base.Column(util2.Ident(left, "created_at"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanTimestamp(&rc.CreatedAt)
 			})
@@ -433,12 +438,12 @@ func buildRelatedCasesSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&rc.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(store.Ident(left, "updated_at"))
+			base = base.Column(util2.Ident(left, "updated_at"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanTimestamp(&rc.UpdatedAt)
 			})
 		case "relation":
-			base = base.Column(store.Ident(left, "relation_type"))
+			base = base.Column(util2.Ident(left, "relation_type"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return &rc.RelationType
 			})
@@ -479,7 +484,7 @@ func convertToRelatedCaseScanArgs(plan []func(*cases.RelatedCase) any, rc *cases
 	return scanArgs
 }
 
-func NewRelatedCaseStore(store store.Store) (store.RelatedCaseStore, error) {
+func NewRelatedCaseStore(store *Store) (store.RelatedCaseStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_related_case.check.bad_arguments",
 			"error creating related case interface, main store is nil")

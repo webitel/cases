@@ -2,386 +2,364 @@ package postgres
 
 import (
 	"fmt"
-	"log"
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 	"strings"
-	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
+type StatusScan func(status *_go.Status) any
+
 const (
+	statusLeft        = "s"
 	statusDefaultSort = "name"
 )
 
 type Status struct {
-	storage store.Store
+	storage *Store
 }
 
-// Create creates a new status in the database. Implements the store.StatusStore interface.
-func (s Status) Create(rpc *model.CreateOptions, add *_go.Status) (*_go.Status, error) {
-	d, dbErr := s.storage.Database()
-
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.status.create.database_connection_error", dbErr)
+// Helper function to convert plan to scan arguments.
+func convertToStatusScanArgs(plan []StatusScan, status *_go.Status) []any {
+	var scanArgs []any
+	for _, scan := range plan {
+		scanArgs = append(scanArgs, scan(status))
 	}
-
-	query, args, err := s.buildCreateStatusQuery(rpc, add)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.status.create.query_build_error", err)
-	}
-
-	var (
-		createdByLookup, updatedByLookup _go.Lookup
-		createdAt, updatedAt             time.Time
-	)
-
-	err = d.QueryRow(rpc.Context, query, args...).Scan(
-		&add.Id, &add.Name, &createdAt, &add.Description,
-		&createdByLookup.Id, &createdByLookup.Name,
-		&updatedAt, &updatedByLookup.Id, &updatedByLookup.Name,
-	)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.status.create.execution_error", err)
-	}
-
-	t := rpc.Time
-
-	return &_go.Status{
-		Id:          add.Id,
-		Name:        add.Name,
-		Description: add.Description,
-		CreatedAt:   util.Timestamp(t),
-		UpdatedAt:   util.Timestamp(t),
-		CreatedBy:   &createdByLookup,
-		UpdatedBy:   &updatedByLookup,
-	}, nil
+	return scanArgs
 }
 
-// List retrieves a list of statuses from the database. Implements the store.StatusStore interface.
-func (s Status) List(rpc *model.SearchOptions) (*_go.StatusList, error) {
+// Helper function to dynamically build select columns and plan.
+func buildStatusSelectColumnsAndPlan(
+	base sq.SelectBuilder,
+	fields []string,
+) (sq.SelectBuilder, []StatusScan, error) {
+	var plan []StatusScan
+	for _, field := range fields {
+		switch field {
+		case "id":
+			base = base.Column(util2.Ident(statusLeft, "id"))
+			plan = append(plan, func(status *_go.Status) any {
+				return &status.Id
+			})
+		case "name":
+			base = base.Column(util2.Ident(statusLeft, "name"))
+			plan = append(plan, func(status *_go.Status) any {
+				return &status.Name
+			})
+		case "description":
+			base = base.Column(util2.Ident(statusLeft, "description"))
+			plan = append(plan, func(status *_go.Status) any {
+				return scanner.ScanText(&status.Description)
+			})
+		case "created_at":
+			base = base.Column(util2.Ident(statusLeft, "created_at"))
+			plan = append(plan, func(status *_go.Status) any {
+				return scanner.ScanTimestamp(&status.CreatedAt)
+			})
+		case "updated_at":
+			base = base.Column(util2.Ident(statusLeft, "updated_at"))
+			plan = append(plan, func(status *_go.Status) any {
+				return scanner.ScanTimestamp(&status.UpdatedAt)
+			})
+		case "created_by":
+			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.created_by) created_by", statusLeft))
+			plan = append(plan, func(status *_go.Status) any {
+				return scanner.ScanRowLookup(&status.CreatedBy)
+			})
+		case "updated_by":
+			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by", statusLeft))
+			plan = append(plan, func(status *_go.Status) any {
+				return scanner.ScanRowLookup(&status.UpdatedBy)
+			})
+		default:
+			return base, nil, dberr.NewDBInternalError("postgres.status.unknown_field", fmt.Errorf("unknown field: %s", field))
+		}
+	}
+	return base, plan, nil
+}
+
+func (s *Status) buildCreateStatusQuery(
+	rpc options.CreateOptions,
+	input *_go.Status,
+) (sq.SelectBuilder, []StatusScan, error) {
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
+	// Build the INSERT query with a RETURNING clause
+	insertBuilder := sq.Insert("cases.input").
+		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by").
+		Values(
+			input.Name,                                  // name
+			rpc.GetAuthOpts().GetDomainId(),             // dc
+			rpc.RequestTime(),                           // created_at
+			sq.Expr("NULLIF(?, '')", input.Description), // NULLIF for empty description
+			rpc.GetAuthOpts().GetUserId(),               // created_by
+			rpc.RequestTime(),                           // updated_at
+			rpc.GetAuthOpts().GetUserId(),               // updated_by
+		).
+		PlaceholderFormat(sq.Dollar).
+		Suffix("RETURNING *") // RETURNING all columns for use in the next SELECT
+
+	// Convert the INSERT query into a CTE
+	insertSQL, args, err := insertBuilder.ToSql()
+	if err != nil {
+		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.input.create.query_build_error", err)
+	}
+
+	// Use the INSERT query as a CTE (Common Table Expression)
+	cte := sq.Expr("WITH s AS ("+insertSQL+")", args...)
+
+	// Dynamically build the SELECT query for the resulting row
+	selectBuilder, plan, err := buildStatusSelectColumnsAndPlan(sq.Select(), fields)
+	if err != nil {
+		return sq.SelectBuilder{}, nil, err
+	}
+
+	// Combine the CTE with the SELECT query
+	selectBuilder = selectBuilder.PrefixExpr(cte).From(statusLeft)
+
+	return selectBuilder, plan, nil
+}
+
+func (s *Status) Create(rpc options.CreateOptions, input *_go.Status) (*_go.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.status.list.database_connection_error", dbErr)
+		return nil, dberr.NewDBInternalError("postgres.status.create.database_connection_error", dbErr)
 	}
 
-	query, args, err := s.buildSearchStatusQuery(rpc)
+	selectBuilder, plan, err := s.buildCreateStatusQuery(rpc, input)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.status.list.query_build_error", err)
+		return nil, dberr.NewDBInternalError("postgres.status.create.build_query_error", err)
 	}
 
-	rows, err := d.Query(rpc.Context, query, args...)
+	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.status.list.execution_error", err)
+		return nil, dberr.NewDBInternalError("postgres.status.create.query_build_error", err)
+	}
+	// temporary object for scanning
+	tempAdd := &_go.Status{}
+	scanArgs := convertToStatusScanArgs(plan, tempAdd)
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
+		return nil, dberr.NewDBInternalError("postgres.status.create.execution_error", err)
+	}
+
+	return tempAdd, nil
+}
+
+func (s *Status) buildUpdateStatusQuery(
+	rpc options.UpdateOptions,
+	input *_go.Status,
+) (sq.SelectBuilder, []StatusScan, error) {
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
+	// Start the UPDATE query
+	updateBuilder := sq.Update("cases.input").
+		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
+		Set("updated_at", rpc.RequestTime()).
+		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Where(sq.Eq{"id": input.Id}).
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
+
+	// Dynamically add fields to the SET clause
+	for _, field := range rpc.GetMask() {
+		switch field {
+		case "name":
+			if input.Name != "" {
+				updateBuilder = updateBuilder.Set("name", input.Name)
+			}
+		case "description":
+			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
+		}
+	}
+
+	// Generate the CTE for the update operation
+	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
+	if err != nil {
+		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.input.update.query_build_error", err)
+	}
+
+	// Use the UPDATE query as a CTE
+	cte := sq.Expr("WITH s AS ("+updateSQL+")", args...)
+
+	// Build select clause and scan plan dynamically using buildStatusSelectColumnsAndPlan
+	selectBuilder, plan, err := buildStatusSelectColumnsAndPlan(sq.Select(), fields)
+	if err != nil {
+		return sq.SelectBuilder{}, nil, err
+	}
+
+	// Combine the CTE with the SELECT query
+	selectBuilder = selectBuilder.PrefixExpr(cte).From("s")
+
+	return selectBuilder, plan, nil
+}
+
+func (s *Status) Update(rpc options.UpdateOptions, input *_go.Status) (*_go.Status, error) {
+	d, dbErr := s.storage.Database()
+	if dbErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.status.input.database_connection_error", dbErr)
+	}
+
+	selectBuilder, plan, err := s.buildUpdateStatusQuery(rpc, input)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.status.input.build_query_error", err)
+	}
+
+	query, args, err := selectBuilder.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.status.input.query_build_error", err)
+	}
+	// temporary object for scanning
+	tempAdd := &_go.Status{}
+	scanArgs := convertToStatusScanArgs(plan, tempAdd)
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
+		return nil, dberr.NewDBInternalError("postgres.status.input.execution_error", err)
+	}
+
+	return tempAdd, nil
+}
+
+func (s *Status) buildListStatusQuery(
+	rpc options.SearchOptions,
+) (sq.SelectBuilder, []StatusScan, error) {
+
+	queryBuilder := sq.Select().
+		From("cases.status AS s").
+		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId()}).
+		PlaceholderFormat(sq.Dollar)
+
+	// Add ID filter if provided
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.GetIDs()})
+	}
+
+	// Add name filter if provided
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
+		substr := util.Substring(name)
+		combinedLike := strings.Join(substr, "%")
+		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
+	}
+
+	// -------- Apply sorting ----------
+	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
+
+	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+
+	// Add select columns and scan plan for requested fields
+	queryBuilder, plan, err := buildStatusSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
+	if err != nil {
+		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.status.search.query_build_error", err)
+	}
+
+	return queryBuilder, plan, nil
+}
+
+func (s *Status) List(rpc options.SearchOptions) (*_go.StatusList, error) {
+	d, dbErr := s.storage.Database()
+	if dbErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.status.list.database_connection_error", dbErr)
+	}
+
+	selectBuilder, plan, err := s.buildListStatusQuery(rpc)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.status.list.build_query_error", err)
+	}
+
+	query, args, err := selectBuilder.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.status.list.query_build_error", err)
+	}
+	query = util2.CompactSQL(query)
+
+	rows, err := d.Query(rpc, query, args...)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.status.list.execution_error", err)
 	}
 	defer rows.Close()
 
-	var lookupList []*_go.Status
-
+	var statuses []*_go.Status
 	lCount := 0
 	next := false
-	// Check if we want to fetch all records
-	//
-	// If the size is -1, we want to fetch all records
 	fetchAll := rpc.GetSize() == -1
 
 	for rows.Next() {
-		// If not fetching all records, check the size limit
 		if !fetchAll && lCount >= int(rpc.GetSize()) {
 			next = true
 			break
 		}
 
-		l := &_go.Status{}
-
-		var (
-			createdBy, updatedBy         _go.Lookup
-			tempUpdatedAt, tempCreatedAt time.Time
-			scanArgs                     []interface{}
-		)
-
-		// Prepare scan arguments based on requested fields
-		for _, field := range rpc.Fields {
-			switch field {
-			case "id":
-				scanArgs = append(scanArgs, &l.Id)
-			case "name":
-				scanArgs = append(scanArgs, &l.Name)
-			case "description":
-				scanArgs = append(scanArgs, scanner.ScanText(&l.Description))
-			case "created_at":
-				scanArgs = append(scanArgs, &tempCreatedAt)
-			case "updated_at":
-				scanArgs = append(scanArgs, &tempUpdatedAt)
-			case "created_by":
-				scanArgs = append(scanArgs, &createdBy.Id, &createdBy.Name)
-			case "updated_by":
-				scanArgs = append(scanArgs, &updatedBy.Id, &updatedBy.Name)
-			}
-		}
+		status := &_go.Status{}
+		scanArgs := convertToStatusScanArgs(plan, status)
 
 		if err := rows.Scan(scanArgs...); err != nil {
-			log.Printf("postgres.cases.status.list Failed to scan row: %v", err)
-			return nil, dberr.NewDBInternalError("postgres.cases.status.list.row_scan_error", err)
+			return nil, dberr.NewDBInternalError("postgres.status.list.row_scan_error", err)
 		}
 
-		if util.ContainsField(rpc.Fields, "created_by") {
-			l.CreatedBy = &createdBy
-		}
-		if util.ContainsField(rpc.Fields, "updated_by") {
-			l.UpdatedBy = &updatedBy
-		}
-
-		if util.ContainsField(rpc.Fields, "created_at") {
-			l.CreatedAt = util.Timestamp(tempCreatedAt)
-		}
-		if util.ContainsField(rpc.Fields, "updated_at") {
-			l.UpdatedAt = util.Timestamp(tempUpdatedAt)
-		}
-
-		lookupList = append(lookupList, l)
+		statuses = append(statuses, status)
 		lCount++
 	}
 
 	return &_go.StatusList{
-		Page:  int32(rpc.Page),
+		Page:  int32(rpc.GetPage()),
 		Next:  next,
-		Items: lookupList,
+		Items: statuses,
 	}, nil
 }
 
-// Delete removes a status from the database. Implements the store.StatusStore interface.
-func (s Status) Delete(rpc *model.DeleteOptions) error {
+func (s *Status) buildDeleteStatusQuery(
+	rpc options.DeleteOptions,
+) (sq.DeleteBuilder, error) {
+	// Ensure IDs are provided
+	if len(rpc.GetIDs()) == 0 {
+		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.status.delete.missing_ids", fmt.Errorf("no IDs provided for deletion"))
+	}
+
+	// Build the delete query
+	deleteBuilder := sq.Delete("cases.status").
+		Where(sq.Eq{"id": rpc.GetIDs()}).
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
+		PlaceholderFormat(sq.Dollar)
+
+	return deleteBuilder, nil
+}
+
+func (s *Status) Delete(rpc options.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return dberr.NewDBInternalError("postgres.cases.status.delete.database_connection_error", dbErr)
+		return dberr.NewDBInternalError("postgres.status.delete.database_connection_error", dbErr)
 	}
 
-	query, args, err := s.buildDeleteStatusQuery(rpc)
+	deleteBuilder, err := s.buildDeleteStatusQuery(rpc)
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.cases.status.delete.query_build_error", err)
+		return dberr.NewDBInternalError("postgres.status.delete.query_build_error", err)
 	}
 
-	res, err := d.Exec(rpc.Context, query, args...)
+	query, args, err := deleteBuilder.ToSql()
 	if err != nil {
-		log.Printf("postgres.cases.status.delete Failed to execute SQL query: %v", err)
-		return dberr.NewDBInternalError("postgres.cases.status.delete.execution_error", err)
+		return dberr.NewDBInternalError("postgres.status.delete.query_to_sql_error", err)
 	}
 
-	affected := res.RowsAffected()
-	if affected == 0 {
-		return dberr.NewDBNoRowsError("postgres.cases.status.delete.no_rows_affected")
+	res, execErr := d.Exec(rpc, query, args...)
+	if execErr != nil {
+		return dberr.NewDBInternalError("postgres.status.delete.execution_error", execErr)
+	}
+
+	if res.RowsAffected() == 0 {
+		return dberr.NewDBNoRowsError("postgres.status.delete.no_rows_affected")
 	}
 
 	return nil
 }
 
-// Update modifies a status in the database. Implements the store.StatusStore interface.
-func (s Status) Update(rpc *model.UpdateOptions, l *_go.Status) (*_go.Status, error) {
-	d, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.status.update.database_connection_error", dbErr)
-	}
-
-	query, args, queryErr := s.buildUpdateStatusQuery(rpc, l)
-
-	if queryErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.status.update.query_build_error", queryErr)
-	}
-
-	var (
-		createdBy, updatedByLookup _go.Lookup
-		createdAt, updatedAt       time.Time
-	)
-
-	err := d.QueryRow(rpc.Context, query, args...).Scan(
-		&l.Id, &l.Name, &createdAt, &updatedAt, &l.Description,
-		&createdBy.Id, &createdBy.Name, &updatedByLookup.Id, &updatedByLookup.Name,
-	)
-	if err != nil {
-		log.Printf("postgres.cases.status.update Failed to execute SQL query: %v", err)
-		return nil, dberr.NewDBInternalError("postgres.cases.status.update.execution_error", err)
-	}
-
-	l.CreatedAt = util.Timestamp(createdAt)
-	l.UpdatedAt = util.Timestamp(updatedAt)
-	l.CreatedBy = &createdBy
-	l.UpdatedBy = &updatedByLookup
-
-	return l, nil
-}
-
-// buildCreateStatusLookupQuery constructs the SQL insert query and returns the query string and arguments.
-func (s Status) buildCreateStatusQuery(rpc *model.CreateOptions, lookup *_go.Status) (string, []interface{}, error) {
-	args := []interface{}{
-		lookup.Name,                     // $1 - name
-		rpc.GetAuthOpts().GetDomainId(), // $2 - dc
-		rpc.Time,                        // $3 - created_at / updated_at
-		lookup.Description,              // $4 - description
-		rpc.GetAuthOpts().GetUserId(),   // $5 - created_by / updated_by
-	}
-	return createStatusQuery, args, nil
-}
-
-func (s Status) buildSearchStatusQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
-	ids := util.FieldsFunc(convertedIds, util.InlineFields)
-
-	queryBuilder := sq.Select().
-		From("cases.status AS g").
-		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId()}).
-		PlaceholderFormat(sq.Dollar)
-
-	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
-	rpc.Fields = append(fields, "id")
-
-	for _, field := range rpc.Fields {
-		switch field {
-		case "id", "name", "created_at", "updated_at", "description":
-			queryBuilder = queryBuilder.Column("g." + field)
-		case "created_by":
-			// Handle nulls using COALESCE for created_by
-			queryBuilder = queryBuilder.
-				Column("COALESCE(created_by.id, 0) AS cbi").
-				Column("COALESCE(created_by.name, '') AS cbn").
-				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
-		case "updated_by":
-			// Handle nulls using COALESCE for updated_by
-			queryBuilder = queryBuilder.
-				Column("COALESCE(updated_by.id, 0) AS ubi").
-				Column("COALESCE(updated_by.name, '') AS ubn").
-				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
-		}
-	}
-
-	if len(ids) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
-	}
-
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
-		substrs := util.Substring(name)
-		combinedLike := strings.Join(substrs, "%")
-		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
-	}
-
-	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
-
-	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
-
-	query, args, err := queryBuilder.ToSql()
-	if err != nil {
-		return "", nil, dberr.NewDBInternalError("postgres.cases.status.query_build.sql_generation_error", err)
-	}
-
-	return store.CompactSQL(query), args, nil
-}
-
-// buildDeleteStatusLookupQuery constructs the SQL delete query and returns the query string and arguments.
-func (s Status) buildDeleteStatusQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
-	ids := util.FieldsFunc(convertedIds, util.InlineFields)
-
-	args := []interface{}{
-		pq.Array(ids),                   // $1 - id
-		rpc.GetAuthOpts().GetDomainId(), // $2 - dc
-	}
-	return deleteStatusQuery, args, nil
-}
-
-func (s Status) buildUpdateStatusQuery(rpc *model.UpdateOptions, l *_go.Status) (string, []interface{}, error) {
-	// Initialize Squirrel builder
-	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-
-	// Create a Squirrel update builder
-	updateBuilder := psql.Update("cases.status").
-		Set("updated_at", rpc.Time).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId())
-
-	// Add the fields to the update query if they are provided
-	for _, field := range rpc.Fields {
-		switch field {
-		case "name":
-			if l.Name != "" {
-				updateBuilder = updateBuilder.Set("name", l.Name)
-			}
-		case "description":
-			// Use NULLIF to store NULL if description is an empty string
-			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", l.Description))
-		}
-	}
-
-	// Add the WHERE clause for id and dc
-	updateBuilder = updateBuilder.Where(sq.Eq{"id": l.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
-
-	// Build the SQL string and the arguments slice
-	sql, args, err := updateBuilder.ToSql()
-	if err != nil {
-		return "", nil, err
-	}
-
-	// Construct the final SQL query with joins for created_by and updated_by
-	query := fmt.Sprintf(`
-WITH upd AS (
-    %s
-    RETURNING id, name, created_at, updated_at, description, created_by, updated_by
-)
-SELECT upd.id,
-       upd.name,
-       upd.created_at,
-       upd.updated_at,
-       COALESCE(upd.description, '')      AS description,  -- Use COALESCE to return '' if description is NULL
-       upd.created_by                     AS created_by_id,
-       COALESCE(c.name::text, c.username, '') AS created_by_name,
-       upd.updated_by                     AS updated_by_id,
-       COALESCE(u.name::text, u.username) AS updated_by_name
-FROM upd
-LEFT JOIN directory.wbt_user u ON u.id = upd.updated_by
-LEFT JOIN directory.wbt_user c ON c.id = upd.created_by;
-    `, sql)
-
-	return store.CompactSQL(query), args, nil
-}
-
-// ---- STATIC SQL QUERIES ----
-var (
-	createStatusQuery = store.CompactSQL(`
-	WITH ins AS (
-		INSERT INTO cases.status (name, dc, created_at, description, created_by, updated_at, updated_by)
-		VALUES ($1, $2, $3, NULLIF($4, ''), $5, $3, $5)  -- Use NULLIF to set NULL if description is ''
-		RETURNING *
-	)
-	SELECT ins.id,
-		   ins.name,
-		   ins.created_at,
-		   COALESCE(ins.description, '')      AS description,  -- Use COALESCE to return '' if description is NULL
-		   ins.created_by                     AS created_by_id,
-		   COALESCE(c.name::text, c.username) AS created_by_name,
-		   ins.updated_at,
-		   ins.updated_by                     AS updated_by_id,
-		   COALESCE(u.name::text, u.username) AS updated_by_name
-	FROM ins
-	LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
-	LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;
-	`)
-
-	deleteStatusQuery = store.CompactSQL(`
-DELETE FROM cases.status
-WHERE id = ANY($1) AND dc = $2
-`)
-)
-
-func NewStatusStore(store store.Store) (store.StatusStore, error) {
+func NewStatusStore(store *Store) (store.StatusStore, error) {
 	if store == nil {
 		return nil, dberr.NewDBError("postgres.new_status.check.bad_arguments",
-			"error creating stuas interface to the status table, main store is nil")
+			"error creating status interface, main store is nil")
 	}
 	return &Status{storage: store}, nil
 }

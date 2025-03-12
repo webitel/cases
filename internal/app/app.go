@@ -33,12 +33,27 @@ const (
 )
 
 var (
-	AppDatabaseError            = errors.NewInternalError("app.process_api.database.perform_query.error", "database error occurred")
-	AppResponseNormalizingError = errors.NewInternalError("app.process_api.response.normalize.error", "error occurred while normalizing response")
-	AppMapParsingError          = errors.NewInternalError("app.process_api.map_parsing.error", "error occurred while parsing map")
-	AppForbiddenError           = errors.NewForbiddenError("app.process_api.response.access.error", "unable access resource")
-	AppInternalError            = errors.NewInternalError("app.process_api.execution.error", "error occurred while processing request")
+	DatabaseError = errors.NewInternalError(
+		"app.process_api.database.perform_query.error",
+		"database error occurred",
+	)
+	ResponseNormalizingError = errors.NewInternalError(
+		"app.process_api.response.normalize.error",
+		"error occurred while normalizing response",
+	)
+	ForbiddenError = errors.NewForbiddenError(
+		"app.process_api.response.access.error",
+		"unable access resource",
+	)
+	InternalError = errors.NewInternalError(
+		"app.process_api.execution.error",
+		"error occurred while processing request",
+	)
 )
+
+func NewBadRequestError(err error) errors.AppError {
+	return errors.NewBadRequestError("app.process_api.validation.error", err.Error())
+}
 
 func getClientIp(ctx context.Context) string {
 	v := ctx.Value("grpc_ctx")
@@ -191,12 +206,21 @@ func (a *App) Stop() error { // Change return type to standard error
 	// close store connection
 	a.Store.Close()
 	// close grpc connections
-	a.storageConn.Close()
-	a.webitelAppConn.Close()
+	err := a.storageConn.Close()
+	if err != nil {
+		return err
+	}
+	err = a.webitelAppConn.Close()
+	if err != nil {
+		return err
+	}
 
 	// ----- Call the shutdown function for OTel ----- //
 	if a.shutdown != nil {
-		a.shutdown(context.Background())
+		err := a.shutdown(context.Background())
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
