@@ -2,14 +2,13 @@ package app
 
 import (
 	"context"
-	"log/slog"
-	"strings"
 
 	"github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/util"
-
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
+	"log/slog"
 )
 
 type SLAService struct {
@@ -36,10 +35,6 @@ var SLAMetadata = model.NewObjectMetadata(
 		{"resolution_time", true},
 	})
 
-const (
-	slaDefaultFields = "id, name, description, calendar, created_by, created_at, reaction_time, resolution_time"
-)
-
 // CreateSLA implements cases.SLAsServer.
 func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest) (*cases.SLA, error) {
 	// Validate required fields
@@ -56,7 +51,10 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.resolution_time.required", "Resolution time is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, SLAMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, SLAMetadata),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -90,12 +88,11 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.delete_sla.id.required", "SLA ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, SLAMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	deleteOpts.IDs = []int64{req.Id}
 
 	// Delete the SLA in the store
 	err = s.app.Store.SLA().Delete(deleteOpts)
@@ -108,18 +105,22 @@ func (s *SLAService) DeleteSLA(ctx context.Context, req *cases.DeleteSLARequest)
 
 // ListSLAs implements cases.SLAsServer.
 func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*cases.SLAList, error) {
-
-	searchOpts, err := model.NewSearchOptions(ctx, req, SLAMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, SLAMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.Filter = make(map[string]any)
-	searchOpts.IDs = req.Id
-
-	if req.Q != "" {
-		searchOpts.Filter["name"] = req.Q
-	}
+	searchOpts.AddFilter("name", req.GetQ())
 
 	res, err := s.app.Store.SLA().List(searchOpts)
 	if err != nil {
@@ -137,9 +138,6 @@ func (s *SLAService) LocateSLA(ctx context.Context, req *cases.LocateSLARequest)
 	}
 
 	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = strings.Split(slaDefaultFields, ", ")
-	}
 
 	// Prepare a list request with necessary parameters
 	listReq := &cases.ListSLARequest{
@@ -171,7 +169,11 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.update_sla.id.required", "SLA ID is required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, SLAMetadata)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, SLAMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError

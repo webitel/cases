@@ -4,17 +4,18 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	cases "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -26,7 +27,7 @@ type SLAConditionStore struct {
 	storage *Store
 }
 
-func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondition, priorities []int64) (*cases.SLACondition, error) {
+func (s *SLAConditionStore) Create(rpc options.CreateOptions, add *cases.SLACondition, priorities []int64) (*cases.SLACondition, error) {
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.db_connection_error", dbErr)
@@ -42,7 +43,7 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 
 	prio := []*cases.Lookup{}
 
-	rows, err := db.Query(rpc.Context, query, args...)
+	rows, err := db.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.execution_error", err)
 	}
@@ -69,7 +70,7 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 	}
 
 	// Prepare the SLACondition object to return
-	t := rpc.Time
+	t := rpc.RequestTime()
 	return &cases.SLACondition{
 		Id:             add.Id,
 		Name:           add.Name,
@@ -85,7 +86,7 @@ func (s *SLAConditionStore) Create(rpc *model.CreateOptions, add *cases.SLACondi
 }
 
 // Delete implements store.SLAConditionStore.
-func (s *SLAConditionStore) Delete(rpc *model.DeleteOptions) error {
+func (s *SLAConditionStore) Delete(rpc options.DeleteOptions) error {
 	// Establish a connection to the database
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -99,7 +100,7 @@ func (s *SLAConditionStore) Delete(rpc *model.DeleteOptions) error {
 	}
 
 	// Execute the delete query
-	res, err := d.Exec(rpc.Context, query, args...)
+	res, err := d.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.sla_condition.delete.execution_error", err)
 	}
@@ -114,7 +115,7 @@ func (s *SLAConditionStore) Delete(rpc *model.DeleteOptions) error {
 }
 
 // List implements store.SLAConditionStore.
-func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionList, error) {
+func (s *SLAConditionStore) List(rpc options.SearchOptions) (*cases.SLAConditionList, error) {
 	// Establish a connection to the database
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -128,7 +129,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 	}
 
 	// Execute the search query
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla_condition.list.execution_error", err)
 	}
@@ -155,7 +156,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 
 		// Build scan arguments dynamically
 		scanArgs := s.buildScanArgs(
-			rpc.Fields, slaCondition, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt, &prioritiesJSON,
+			rpc.GetFields(), slaCondition, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt, &prioritiesJSON,
 		)
 
 		if err := rows.Scan(scanArgs...); err != nil {
@@ -164,7 +165,7 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 
 		// Populate SLACondition fields
 		s.populateSLAConditionFields(
-			rpc.Fields, slaCondition, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt,
+			rpc.GetFields(), slaCondition, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt,
 		)
 
 		// Parse JSON priorities into SLACondition.Priorities
@@ -184,37 +185,37 @@ func (s *SLAConditionStore) List(rpc *model.SearchOptions) (*cases.SLAConditionL
 	}
 
 	return &cases.SLAConditionList{
-		Page:  int32(rpc.Page),
+		Page:  int32(rpc.GetPage()),
 		Next:  next,
 		Items: slaConditionList,
 	}, nil
 }
 
 // Update implements store.SLAConditionStore.
-func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLACondition) (*cases.SLACondition, error) {
+func (s *SLAConditionStore) Update(rpc options.UpdateOptions, l *cases.SLACondition) (*cases.SLACondition, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.database_connection_error", dbErr)
 	}
 
 	// Begin a transaction
-	tx, err := d.Begin(rpc.Context)
+	tx, err := d.Begin(rpc)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.transaction_begin_error", err)
 	}
-	defer tx.Rollback(rpc.Context) // Ensure rollback on error
+	defer tx.Rollback(rpc) // Ensure rollback on error
 
 	txManager := transaction.NewTxManager(tx)
 
 	// Update priorities first if there are any IDs
 
-	for _, fields := range rpc.Fields {
+	for _, fields := range rpc.GetMask() {
 		if fields == "priorities" {
 			priorityQuery, priorityArgs := s.buildUpdatePrioritiesQuery(rpc, l)
 
 			// Execute the query and get the total number of rows affected
 			var totalRowsAffected int
-			err = txManager.QueryRow(rpc.Context, priorityQuery, priorityArgs...).Scan(&totalRowsAffected)
+			err = txManager.QueryRow(rpc, priorityQuery, priorityArgs...).Scan(&totalRowsAffected)
 			if err != nil {
 				return nil, dberr.NewDBInternalError("postgres.sla_condition.update.priorities_execution_error", err)
 			}
@@ -239,7 +240,7 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 	)
 
 	// Execute the update query for sla_condition and fetch priorities JSON
-	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
+	err = txManager.QueryRow(rpc, query, args...).Scan(
 		&l.Id, &l.Name, &createdAt, &updatedAt,
 		&l.ReactionTime, &l.ResolutionTime,
 		&l.SlaId,
@@ -251,7 +252,7 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 	}
 
 	// Commit the transaction
-	if err := tx.Commit(rpc.Context); err != nil {
+	if err := tx.Commit(rpc); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.transaction_commit_error", err)
 	}
 
@@ -274,11 +275,11 @@ func (s *SLAConditionStore) Update(rpc *model.UpdateOptions, l *cases.SLAConditi
 	return l, nil
 }
 
-func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc *model.CreateOptions, sla *cases.SLACondition) (string, []interface{}) {
+func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.CreateOptions, sla *cases.SLACondition) (string, []interface{}) {
 	// Create arguments for the SQL query
 	args := []interface{}{
 		sla.Name,                        // $1
-		rpc.Time,                        // $2
+		rpc.RequestTime(),               // $2
 		rpc.GetAuthOpts().GetUserId(),   // $3
 		sla.ReactionTime,                // $4
 		sla.ResolutionTime,              // $5
@@ -310,7 +311,7 @@ WITH inserted_sla AS (
 
 	// Add placeholders for each priorityId to build the unnest array dynamically
 	// TODO REMOVE %d
-	for i, priorityId := range rpc.Ids {
+	for i, priorityId := range rpc.GetIDs() {
 		if i > 0 {
 			query += ", "
 		}
@@ -339,17 +340,17 @@ FROM inserted_sla
          LEFT JOIN inserted_priorities ON inserted_sla.id = inserted_priorities.sla_condition_id
          LEFT JOIN cases.priority p ON p.id = inserted_priorities.priority_id;`
 
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 // Helper function to build the delete query for SLACondition
-func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc *model.DeleteOptions) (string, []interface{}, error) {
+func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.DeleteOptions) (string, []interface{}, error) {
 	// Create base query for deletion
 	query := deleteSLAConditionQuery
 
 	// Arguments for the query
 	args := []interface{}{
-		rpc.IDs[0],                      // $1 is the SLA Condition ID to delete
+		rpc.GetIDs()[0],                 // $1 is the SLA Condition ID to delete
 		rpc.GetAuthOpts().GetDomainId(), // $2 is the domain context (dc)
 	}
 
@@ -357,23 +358,17 @@ func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc *model.DeleteOption
 }
 
 // buildSearchSLAConditionQuery constructs the SQL search query for SLAConditions.
-func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOptions) (string, []interface{}, error) {
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.SearchOptions) (string, []interface{}, error) {
+	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
-
 	queryBuilder := sq.Select().
 		From("cases.sla_condition AS g").
-		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId(), "g.sla_id": rpc.ParentId}).
+		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId(), "g.sla_id": rpc.GetFilter("sla_id")}).
 		PlaceholderFormat(sq.Dollar)
-
-	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
-
-	//-----ALWAYS INCLUDE ID FIELD-----
-	rpc.Fields = append(fields, "id") // FIXME ------ NEED to pass only if absent
 
 	groupByFields := []string{"g.id"} // Start with the mandatory fields for GROUP BY
 
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		switch field {
 		case "id", "name", "reaction_time", "resolution_time",
 			"sla_id", "created_at", "updated_at":
@@ -413,39 +408,41 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
-	if rpc.ID != 0 {
+	if priorityId := rpc.GetFilter("priority_id"); priorityId != nil {
 		// Join cases.priority_sla_condition only if filtering by priority_id
 		queryBuilder = queryBuilder.
 			LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
-			Where(sq.Eq{"ps.priority_id": rpc.ID})
+			Where(sq.Eq{"ps.priority_id": priorityId})
 	}
 
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substrs := util.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
 	}
 
 	// Adjust sort if calendar is present
-	sortField := rpc.Sort
+	sortField := rpc.GetSort()
 	// Remove any leading "+" or "-" for comparison
 	field := strings.TrimPrefix(strings.TrimPrefix(sortField, "-"), "+")
 
 	if field == "priorities" {
-		// Replace "calendar" with "cal.name" for sorting
-		if strings.HasPrefix(sortField, "-") {
-			rpc.Sort = "-p.name"
+		s := "p.name"
+		desc := strings.HasPrefix(sortField, "-")
+		// Determine sort direction
+		if desc {
+			s += " DESC"
 		} else {
-			// Covers both no prefix and "+" prefix
-			rpc.Sort = "p.name"
+			s += " ASC"
 		}
+		queryBuilder = queryBuilder.OrderBy(s)
+	} else {
+		// -------- Apply sorting ----------
+		queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
 	}
 
-	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
-
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Apply GROUP BY clause
 	queryBuilder = queryBuilder.GroupBy(groupByFields...)
@@ -455,17 +452,17 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc *model.SearchOption
 		return "", nil, dberr.NewDBInternalError("postgres.sla_condition.query_build.sql_generation_error", err)
 	}
 
-	return store.CompactSQL(query), args, nil
+	return util2.CompactSQL(query), args, nil
 }
 
-func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc *model.UpdateOptions, l *cases.SLACondition) (string, []interface{}) {
+func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc options.UpdateOptions, l *cases.SLACondition) (string, []interface{}) {
 	// Prepare arguments for the SQL query
 	args := []interface{}{
 		l.Id,                            // $1: sla_condition_id
 		rpc.GetAuthOpts().GetUserId(),   // $2: created_by and updated_by
 		rpc.GetAuthOpts().GetDomainId(), // $3: dc
-		pq.Array(rpc.IDs),               // $4: ARRAY of priority IDs
-		rpc.Time,                        // $5: timestamp for updated_at
+		pq.Array(rpc.GetIDs()),          // $4: ARRAY of priority IDs
+		rpc.RequestTime(),               // $5: timestamp for updated_at
 	}
 
 	// query that updates or inserts priorities and deletes non-selected ones
@@ -493,15 +490,15 @@ FROM (SELECT sla_condition_id
 }
 
 // Function to build the update query for sla_condition and return priorities JSON
-func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc *model.UpdateOptions, l *cases.SLACondition) (string, []interface{}, error) {
+func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc options.UpdateOptions, l *cases.SLACondition) (string, []interface{}, error) {
 	updateBuilder := sq.Update("cases.sla_condition").
 		PlaceholderFormat(sq.Dollar). // Set placeholder format to Dollar for PostgreSQL
-		Set("updated_at", rpc.Time).
+		Set("updated_at", rpc.RequestTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": l.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the update builder based on provided fields
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			updateBuilder = updateBuilder.Set("name", l.Name)
@@ -621,7 +618,7 @@ func (s *SLAConditionStore) populatePriorities(
 	}
 }
 
-var deleteSLAConditionQuery = store.CompactSQL(
+var deleteSLAConditionQuery = util2.CompactSQL(
 	`DELETE FROM cases.sla_condition
 	 WHERE id = $1 AND dc = $2
 	`)

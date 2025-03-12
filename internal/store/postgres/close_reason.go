@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
@@ -9,7 +11,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -42,27 +43,27 @@ func buildCloseReasonSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(crLeft, "id"))
+			base = base.Column(util2.Ident(crLeft, "id"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return &reason.Id
 			})
 		case "name":
-			base = base.Column(store.Ident(crLeft, "name"))
+			base = base.Column(util2.Ident(crLeft, "name"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return &reason.Name
 			})
 		case "description":
-			base = base.Column(store.Ident(crLeft, "description"))
+			base = base.Column(util2.Ident(crLeft, "description"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return scanner.ScanText(&reason.Description)
 			})
 		case "created_at":
-			base = base.Column(store.Ident(crLeft, "created_at"))
+			base = base.Column(util2.Ident(crLeft, "created_at"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return scanner.ScanTimestamp(&reason.CreatedAt)
 			})
 		case "updated_at":
-			base = base.Column(store.Ident(crLeft, "updated_at"))
+			base = base.Column(util2.Ident(crLeft, "updated_at"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return scanner.ScanTimestamp(&reason.UpdatedAt)
 			})
@@ -81,7 +82,7 @@ func buildCloseReasonSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&reason.CreatedBy)
 			})
 		case "close_reason_id":
-			base = base.Column(store.Ident(crLeft, "close_reason_id"))
+			base = base.Column(util2.Ident(crLeft, "close_reason_id"))
 			plan = append(plan, func(reason *_go.CloseReason) any {
 				return &reason.CloseReasonGroupId
 			})
@@ -93,19 +94,20 @@ func buildCloseReasonSelectColumnsAndPlan(
 }
 
 func (s *CloseReason) buildCreateCloseReasonQuery(
-	rpc *model.CreateOptions,
+	rpc options.CreateOptions,
 	reason *_go.CloseReason,
 ) (sq.SelectBuilder, []CloseReasonScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	insertBuilder := sq.Insert("cases.close_reason").
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by", "close_reason_id").
 		Values(
 			reason.Name,
 			rpc.GetAuthOpts().GetDomainId(),
-			rpc.CurrentTime(),
+			rpc.RequestTime(),
 			sq.Expr("NULLIF(?, '')", reason.Description),
 			rpc.GetAuthOpts().GetUserId(),
-			rpc.CurrentTime(),
+			rpc.RequestTime(),
 			rpc.GetAuthOpts().GetUserId(),
 			reason.CloseReasonGroupId,
 		).
@@ -122,7 +124,7 @@ func (s *CloseReason) buildCreateCloseReasonQuery(
 	cte := sq.Expr("WITH cr AS ("+insertSQL+")", args...)
 
 	// Dynamically build the SELECT query for the resulting row
-	selectBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -133,7 +135,7 @@ func (s *CloseReason) buildCreateCloseReasonQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *CloseReason) Create(rpc *model.CreateOptions, input *_go.CloseReason) (*_go.CloseReason, error) {
+func (s *CloseReason) Create(rpc options.CreateOptions, input *_go.CloseReason) (*_go.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.create.database_connection_error", dbErr)
@@ -151,7 +153,7 @@ func (s *CloseReason) Create(rpc *model.CreateOptions, input *_go.CloseReason) (
 	// temporary object for scanning
 	tempAdd := &_go.CloseReason{}
 	scanArgs := convertToCloseReasonScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.create.execution_error", err)
 	}
 
@@ -159,20 +161,21 @@ func (s *CloseReason) Create(rpc *model.CreateOptions, input *_go.CloseReason) (
 }
 
 func (s *CloseReason) buildUpdateCloseReasonQuery(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	input *_go.CloseReason,
 ) (sq.SelectBuilder, []CloseReasonScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.close_reason").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_at", rpc.RequestTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": input.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the SET clause
-	for _, field := range rpc.Mask {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			if input.Name != "" {
@@ -197,7 +200,7 @@ func (s *CloseReason) buildUpdateCloseReasonQuery(
 	cte := sq.Expr("WITH cr AS ("+updateSQL+")", args...)
 
 	// Build select clause and scan plan dynamically using buildCloseReasonSelectColumnsAndPlan
-	selectBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -208,7 +211,7 @@ func (s *CloseReason) buildUpdateCloseReasonQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *CloseReason) Update(rpc *model.UpdateOptions, input *_go.CloseReason) (*_go.CloseReason, error) {
+func (s *CloseReason) Update(rpc options.UpdateOptions, input *_go.CloseReason) (*_go.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.input.database_connection_error", dbErr)
@@ -226,7 +229,7 @@ func (s *CloseReason) Update(rpc *model.UpdateOptions, input *_go.CloseReason) (
 	// temporary object for scanning
 	tempAdd := &_go.CloseReason{}
 	scanArgs := convertToCloseReasonScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(scanArgs...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.input.execution_error", err)
 	}
 
@@ -234,23 +237,21 @@ func (s *CloseReason) Update(rpc *model.UpdateOptions, input *_go.CloseReason) (
 }
 
 func (s *CloseReason) buildListCloseReasonQuery(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 	closeReasonId int64,
 ) (sq.SelectBuilder, []CloseReasonScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
-
 	queryBuilder := sq.Select().
 		From("cases.close_reason AS cr").
 		Where(sq.Eq{"cr.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	// Add ID filter if provided
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cr.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cr.id": rpc.GetIDs()})
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substr := util.Substring(name)
 		combinedLike := strings.Join(substr, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"cr.name": combinedLike})
@@ -262,13 +263,13 @@ func (s *CloseReason) buildListCloseReasonQuery(
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, closeReasonDefaultSort)
+	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, closeReasonDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
-	queryBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(queryBuilder, rpc.Fields)
+	queryBuilder, plan, err := buildCloseReasonSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 	if err != nil {
 		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.close_reason.search.query_build_error", err)
 	}
@@ -276,7 +277,7 @@ func (s *CloseReason) buildListCloseReasonQuery(
 	return queryBuilder, plan, nil
 }
 
-func (s *CloseReason) List(rpc *model.SearchOptions, closeReasonId int64) (*_go.CloseReasonList, error) {
+func (s *CloseReason) List(rpc options.SearchOptions, closeReasonId int64) (*_go.CloseReasonList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.list.database_connection_error", dbErr)
@@ -291,9 +292,9 @@ func (s *CloseReason) List(rpc *model.SearchOptions, closeReasonId int64) (*_go.
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.list.query_build_error", err)
 	}
-	query = store.CompactSQL(query)
+	query = util2.CompactSQL(query)
 
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.list.execution_error", err)
 	}
@@ -329,23 +330,23 @@ func (s *CloseReason) List(rpc *model.SearchOptions, closeReasonId int64) (*_go.
 }
 
 func (s *CloseReason) buildDeleteCloseReasonQuery(
-	rpc *model.DeleteOptions,
+	rpc options.DeleteOptions,
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
-	if len(rpc.IDs) == 0 {
+	if len(rpc.GetIDs()) == 0 {
 		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.close_reason.delete.missing_ids", fmt.Errorf("no IDs provided for deletion"))
 	}
 
 	// Build the delete query
 	deleteBuilder := sq.Delete("cases.close_reason").
-		Where(sq.Eq{"id": rpc.IDs}).
+		Where(sq.Eq{"id": rpc.GetIDs()}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
 	return deleteBuilder, nil
 }
 
-func (s *CloseReason) Delete(rpc *model.DeleteOptions) error {
+func (s *CloseReason) Delete(rpc options.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.close_reason.delete.database_connection_error", dbErr)
@@ -361,7 +362,7 @@ func (s *CloseReason) Delete(rpc *model.DeleteOptions) error {
 		return dberr.NewDBInternalError("postgres.close_reason.delete.query_to_sql_error", err)
 	}
 
-	res, execErr := d.Exec(rpc.Context, query, args...)
+	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
 		return dberr.NewDBInternalError("postgres.close_reason.delete.execution_error", execErr)
 	}

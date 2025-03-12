@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 	"log"
 	"strings"
 	"time"
@@ -14,7 +16,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -26,17 +27,17 @@ type StatusConditionStore struct {
 	storage *Store
 }
 
-func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s StatusConditionStore) Create(rpc options.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.database_connection_error", err)
 	}
 
-	tx, err := db.BeginTx(rpc.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := db.BeginTx(rpc, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.transaction_begin_error", err)
 	}
-	defer s.handleTx(rpc.Context, tx, &err)
+	defer s.handleTx(rpc, tx, &err)
 
 	query, args, err := s.buildCreateStatusConditionQuery(rpc, add)
 	if err != nil {
@@ -48,7 +49,7 @@ func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCo
 		createdAt, updatedAt time.Time
 	)
 
-	err = tx.QueryRow(rpc.Context, query, args...).Scan(
+	err = tx.QueryRow(rpc, query, args...).Scan(
 		&add.Id, &add.Name, &createdAt, &updatedAt, &add.Description, &add.Initial, &add.Final,
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &add.StatusId,
 	)
@@ -64,7 +65,7 @@ func (s StatusConditionStore) Create(rpc *model.CreateOptions, add *_go.StatusCo
 	return add, nil
 }
 
-func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_go.StatusConditionList, error) {
+func (s StatusConditionStore) List(rpc options.SearchOptions, statusId int64) (*_go.StatusConditionList, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.database_connection_error", err)
@@ -75,7 +76,7 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.query_build_error", err)
 	}
 
-	rows, err := db.Query(rpc.Context, query, args...)
+	rows, err := db.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.execution_error", err)
 	}
@@ -103,27 +104,27 @@ func (s StatusConditionStore) List(rpc *model.SearchOptions, statusId int64) (*_
 			tempCreatedAt, tempUpdatedAt time.Time
 		)
 
-		scanArgs := s.buildScanArgs(rpc.Fields, st, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt)
+		scanArgs := s.buildScanArgs(rpc.GetFields(), st, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt)
 		if err := rows.Scan(scanArgs...); err != nil {
 			return nil, dberr.NewDBInternalError("postgres.status_condition.list.row_scan_error", err)
 		}
 
-		s.populateStatusConditionFields(rpc.Fields, st, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt)
+		s.populateStatusConditionFields(rpc.GetFields(), st, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt)
 		statusList = append(statusList, st)
 		lCount++
 	}
 
 	return &_go.StatusConditionList{
-		Page:  int32(rpc.Page),
+		Page:  int32(rpc.GetPage()),
 		Next:  next,
 		Items: statusList,
 	}, nil
 }
 
-func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) error {
+func (s StatusConditionStore) Delete(rpc options.DeleteOptions, statusId int64) error {
 	domainId := rpc.GetAuthOpts().GetDomainId()
 
-	query, args, err := s.buildDeleteStatusConditionQuery(rpc.ID, domainId, statusId)
+	query, args, err := s.buildDeleteStatusConditionQuery(rpc.GetIDs(), domainId, statusId)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.status_condition.delete.query_build_error", err)
 	}
@@ -133,7 +134,7 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 		return dberr.NewDBInternalError("postgres.status_condition.delete.database_connection_error", err)
 	}
 
-	res, err := db.Exec(rpc.Context, query, args...)
+	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.status_condition.delete.execution_error", err)
 	}
@@ -142,23 +143,22 @@ func (s StatusConditionStore) Delete(rpc *model.DeleteOptions, statusId int64) e
 	if res.RowsAffected() == 0 {
 		return dberr.NewDBNoRowsError("postgres.status_condition.delete.not_found")
 	}
-
 	return nil
 }
 
-func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s StatusConditionStore) Update(rpc options.UpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.database_connection_error", err)
 	}
 
-	tx, err := db.BeginTx(rpc.Context, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	tx, err := db.BeginTx(rpc, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.transaction_begin_error", err)
 	}
-	defer s.handleTx(rpc.Context, tx, &err)
+	defer s.handleTx(rpc, tx, &err)
 
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "initial":
 			if !st.Initial {
@@ -174,7 +174,7 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 		createdAt, updatedAt time.Time
 	)
 
-	err = tx.QueryRow(rpc.Context, query, args...).Scan(
+	err = tx.QueryRow(rpc, query, args...).Scan(
 		&st.Id, &st.Name, &createdAt, &updatedAt, &st.Description, &st.Initial, &st.Final,
 		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &st.StatusId,
 	)
@@ -190,11 +190,11 @@ func (s StatusConditionStore) Update(rpc *model.UpdateOptions, st *_go.StatusCon
 	return st, nil
 }
 
-func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc *model.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
+func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
 	query := createStatusConditionQuery
 	args := []interface{}{
 		status.Name,                     // $1 name
-		rpc.Time,                        // $2 created_at / updated_at
+		rpc.RequestTime(),               // $2 created_at / updated_at
 		status.Description,              // $3 description
 		rpc.GetAuthOpts().GetUserId(),   // $4 created_by / updated_by
 		rpc.GetAuthOpts().GetDomainId(), // $5 dc
@@ -203,16 +203,12 @@ func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc *model.CreateO
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOptions, statusId int64) (string, []interface{}, error) {
+func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.SearchOptions, statusId int64) (string, []interface{}, error) {
 	queryBuilder := sq.Select().
 		From("cases.status_condition AS s").
 		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId(), "s.status_id": statusId}).
 		PlaceholderFormat(sq.Dollar)
-
-	fields := util.FieldsFunc(rpc.Fields, util.InlineFields)
-	rpc.Fields = append(fields, "id")
-
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		switch field {
 		case "id", "name", "initial", "final", "created_at", "updated_at", "description":
 			queryBuilder = queryBuilder.Column("s." + field)
@@ -231,24 +227,24 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 		}
 	}
 
-	convertedIds := util.Int64SliceToStringSlice(rpc.IDs)
+	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 
 	if len(ids) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": ids})
 	}
 
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		substrs := util.Substring(name)
 		combinedLike := strings.Join(substrs, "%")
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, statusConditionDefaultSort)
+	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, statusConditionDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Convert the query to SQL and arguments
 	query, args, err := queryBuilder.ToSql()
@@ -256,26 +252,26 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc *model.SearchOpt
 		return "", nil, dberr.NewDBInternalError("postgres.status_condition.list.query_build_error", err)
 	}
 
-	return store.CompactSQL(query), args, nil
+	return util2.CompactSQL(query), args, nil
 }
 
-func (s StatusConditionStore) buildDeleteStatusConditionQuery(id int64, domainId, statusId int64) (string, []interface{}, error) {
+func (s StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domainId, statusId int64) (string, []interface{}, error) {
 	query := deleteStatusConditionQuery
 
 	args := []interface{}{
-		id,       // $1 id
+		ids,      // $1 id
 		domainId, // $2 dc
 		statusId, // $3 status_id
 	}
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc *model.UpdateOptions, st *_go.StatusCondition) (string, []interface{}) {
+func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.UpdateOptions, st *_go.StatusCondition) (string, []interface{}) {
 	var args []interface{}
 
 	// 1. Squirrel operations: Building the dynamic part of the "upd" query
 	updBuilder := sq.Update("cases.status_condition").
-		Set("updated_at", rpc.Time).
+		Set("updated_at", rpc.RequestTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId())
 
 	// Track whether "initial" or "final" are being updated
@@ -283,7 +279,7 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc *model.UpdateO
 	updateFinal := false
 
 	// Add update-specific fields if provided by the user
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			if st.Name != "" {
@@ -381,7 +377,7 @@ WHERE CASE
 	args = append(args, updArgs...)
 	// fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
 
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 func (s StatusConditionStore) getDBConnection() (*pgxpool.Pool, error) {
@@ -463,7 +459,7 @@ func (s StatusConditionStore) containsField(fields []string, field string) bool 
 
 // ---- STATIC SQL QUERIES ----
 var (
-	createStatusConditionQuery = store.CompactSQL(`
+	createStatusConditionQuery = util2.CompactSQL(`
 WITH existing_status AS (SELECT COUNT(*) AS count FROM cases.status_condition WHERE dc = $5 AND status_id = $6),
      default_values
          AS (SELECT CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS initial_default,
@@ -489,12 +485,12 @@ FROM ins
          LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
          LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;`)
 
-	deleteStatusConditionQuery = store.CompactSQL(`
+	deleteStatusConditionQuery = util2.CompactSQL(`
 		 WITH
 			 to_check AS (
 				 SELECT id, initial, final
 				 FROM cases.status_condition
-				 WHERE id = $1 AND dc = $2 AND status_id = $3
+				 WHERE id = ANY($1) AND dc = $2 AND status_id = $3
 			 ),
 			 remaining_conditions AS (
 				 SELECT

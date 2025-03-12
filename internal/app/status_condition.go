@@ -2,12 +2,12 @@ package app
 
 import (
 	"context"
-	"strings"
-	"time"
-
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
+	"log/slog"
 )
 
 type StatusConditionService struct {
@@ -17,9 +17,20 @@ type StatusConditionService struct {
 }
 
 const (
-	ErrStatusNameReq    = "Status name is required"
-	defaultFieldsStatus = "id, name, description, initial, final"
+	ErrStatusNameReq = "Status name is required"
 )
+
+var StatusConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
+	{Name: "id", Default: true},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
+	{Name: "initial", Default: true},
+	{Name: "final", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
+})
 
 // CreateStatusCondition implements api.StatusConditionsServer.
 func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *_go.CreateStatusConditionRequest) (*_go.StatusCondition, error) {
@@ -28,16 +39,14 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 		return nil, cerror.NewBadRequestError("status_condition.create_status_condition.name.required", ErrStatusNameReq)
 	}
 
-	fields := []string{"id", "lookup_id", "name", "description", "initial", "final", "created_at", "updated_at", "created_by", "updated_by"}
-
-	t := time.Now()
-
 	// Define create options
-	createOpts := model.CreateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, StatusConditionMetadata),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Create a new status user_auth
@@ -48,7 +57,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 	}
 
 	// Create the status in the store
-	st, e := s.app.Store.StatusCondition().Create(&createOpts, status)
+	st, e := s.app.Store.StatusCondition().Create(createOpts, status)
 	if e != nil {
 		return nil, cerror.NewInternalError("status_condition.create_status_condition.store.create.failed", e.Error())
 	}
@@ -58,36 +67,26 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 
 // ListStatusConditions implements api.StatusConditionsServer.
 func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_go.ListStatusConditionRequest) (*_go.StatusConditionList, error) {
-	fields := req.Fields
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsStatus, ", ")
-	}
-
-	// Use default page size and page number if not provided
-	page := req.Page
-	if page == 0 {
-		page = 1
-	}
-
-	t := time.Now()
-	searchOptions := model.SearchOptions{
-		IDs: req.Id,
-		// UserAuthSession: session,
-		Fields:  fields,
-		Context: ctx,
-		Sort:    req.Sort,
-		Page:    int(page),
-		Size:    int(req.Size),
-		Time:    t,
-		Filter:  make(map[string]interface{}),
-		Auth:    model.GetAutherOutOfContext(ctx),
+	searchOptions, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, StatusConditionMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithIDs(req.Id),
+		grpcopts.WithSort(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	if req.Q != "" {
-		searchOptions.Filter["name"] = req.Q
+		searchOptions.AddFilter("name", req.Q)
 	}
 
-	statuses, e := s.app.Store.StatusCondition().List(&searchOptions, req.StatusId)
+	statuses, e := s.app.Store.StatusCondition().List(searchOptions, req.StatusId)
 	if e != nil {
 		return nil, cerror.NewInternalError("status_condition.list_status_conditions.store.list.failed", e.Error())
 	}
@@ -110,36 +109,15 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 		Description: req.Input.Description,
 	}
 
-	fields := []string{"id", "lookup_id"}
-
-	for _, f := range req.XJsonMask {
-		if f == "name" {
-			fields = append(fields, "name")
-			if req.Input.Name == "" {
-				return nil, cerror.NewBadRequestError("status_condition.update_status_condition.name.required", "Status name is required and cannot be empty")
-			}
-		}
-		if f == "description" {
-			fields = append(fields, "description")
-		}
-		if f == "initial" {
-			fields = append(fields, "initial")
-			status.Initial = req.Input.Initial.Value
-		}
-		if f == "final" {
-			fields = append(fields, "final")
-			status.Final = req.Input.Final.Value
-		}
-	}
-
-	t := time.Now()
-
 	// Define update options
-	updateOpts := model.UpdateOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		Fields:  fields,
-		Time:    t,
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, StatusConditionMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Define the current user as the updater
@@ -149,7 +127,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 	status.UpdatedBy = u
 
 	// Update the status in the store
-	st, err := s.app.Store.StatusCondition().Update(&updateOpts, status)
+	st, err := s.app.Store.StatusCondition().Update(updateOpts, status)
 	if err != nil {
 		switch err.(type) {
 		case *cerror.DBCheckViolationError:
@@ -179,17 +157,14 @@ func (s StatusConditionService) DeleteStatusCondition(ctx context.Context, req *
 		return nil, cerror.NewBadRequestError("status_condition.delete_status_condition.id.required", "Status ID is required")
 	}
 
-	t := time.Now()
-	// Define delete options
-	deleteOpts := model.DeleteOptions{
-		Auth:    model.GetAutherOutOfContext(ctx),
-		Context: ctx,
-		ID:      req.Id,
-		Time:    t,
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
 	}
 
 	// Delete the status in the store
-	err := s.app.Store.StatusCondition().Delete(&deleteOpts, req.StatusId)
+	err = s.app.Store.StatusCondition().Delete(deleteOpts, req.StatusId)
 	if err != nil {
 		switch err.(type) {
 		case *cerror.DBNoRowsError:

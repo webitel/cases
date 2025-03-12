@@ -5,13 +5,10 @@ import (
 	api "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
 )
-
-var defaultFieldsPriority = []string{
-	"id", "name", "description", "color",
-}
 
 var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{"id", true},
@@ -44,17 +41,14 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 		Color:       req.Input.Color,
 	}
 
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = defaultFieldsPriority
-	}
-
-	createOpts, err := model.NewCreateOptions(ctx, req, PriorityMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, PriorityMetadata),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	createOpts.Fields = fields
 
 	l, err := p.app.Store.Priority().Create(createOpts, lookup)
 	if err != nil {
@@ -66,18 +60,24 @@ func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 
 // ListPriorities implements api.PrioritiesServer.
 func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPriorityRequest) (*api.PriorityList, error) {
-	searchOptions, err := model.NewSearchOptions(ctx, req, PriorityMetadata)
-	searchOptions.IDs = req.Id
-
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, PriorityMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	if req.Q != "" {
-		searchOptions.Filter["name"] = req.Q
-	}
+	searchOpts.AddFilter("name", req.Q)
 
-	prios, err := p.app.Store.Priority().List(searchOptions, req.NotInSla, req.InSlaCond)
+	prios, err := p.app.Store.Priority().List(searchOpts, req.NotInSla, req.InSlaCond)
 	if err != nil {
 		return nil, cerror.NewInternalError("app.priority.list_priorities.store_list_failed", err.Error())
 	}
@@ -91,37 +91,15 @@ func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 		return nil, cerror.NewBadRequestError("app.priority.update_priority.id_required", "Priority ID is required")
 	}
 
-	mask := []string{}
-
-	for _, f := range req.XJsonMask {
-		switch f {
-		case "name":
-			mask = append(mask, "name")
-			if req.Input.Name == "" {
-				return nil, cerror.NewBadRequestError("app.priority.update_priority.name_required", "Priority name cannot be empty")
-			}
-		case "description":
-			mask = append(mask, "description")
-		case "color":
-			mask = append(mask, "color")
-			if req.Input.Color == "" {
-				return nil, cerror.NewBadRequestError("app.priority.update_priority.color_required", "Color is required")
-			}
-		}
-	}
-
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = defaultFieldsPriority
-	}
-
-	updateOpts, err := model.NewUpdateOptions(ctx, req, PriorityMetadata)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, PriorityMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	updateOpts.Fields = fields
-	updateOpts.Mask = mask
 
 	lookup := &api.Priority{
 		Id:          req.Id,
@@ -144,12 +122,11 @@ func (p *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePri
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("app.priority.delete_priority.id_required", "Priority ID is required")
 	}
-	deleteOpts, err := model.NewDeleteOptions(ctx, PriorityMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	deleteOpts.IDs = []int64{req.Id}
 
 	err = p.app.Store.Priority().Delete(deleteOpts)
 	if err != nil {

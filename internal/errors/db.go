@@ -1,9 +1,8 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
-	"sync"
-
 	"github.com/jackc/pgconn"
 )
 
@@ -42,29 +41,12 @@ type DBUniqueViolationError struct {
 	Value  string
 }
 
-func NewDBUniqueViolationError(id, column, value string) *DBUniqueViolationError {
-	return &DBUniqueViolationError{
-		DBError: *NewDBError(id, fmt.Sprintf("invalid input: entity [%s = %s] already exists", column, value)),
-		Column:  column,
-		Value:   value,
-	}
-}
-
 // DBForeignKeyViolationError indicates a foreign key constraint violation.
 type DBForeignKeyViolationError struct {
 	DBError
 	Column          string
 	Value           string
 	ForeignKeyTable string
-}
-
-func NewDBForeignKeyViolationError(id, column, value, foreignKey string) *DBForeignKeyViolationError {
-	return &DBForeignKeyViolationError{
-		DBError:         *NewDBError(id, "invalid input: violates foreign key constraint"),
-		Column:          column,
-		Value:           value,
-		ForeignKeyTable: foreignKey,
-	}
 }
 
 // DBCheckViolationError indicates a check constraint violation.
@@ -87,21 +69,9 @@ type DBNotNullViolationError struct {
 	Column string
 }
 
-func NewDBNotNullViolationError(id, table, column string) *DBNotNullViolationError {
-	return &DBNotNullViolationError{
-		DBError: *NewDBError(id, fmt.Sprintf("invalid input: violates not null constraint: column [%s.%s] cannot be null", table, column)),
-		Table:   table,
-		Column:  column,
-	}
-}
-
 // DBEntityConflictError indicates a conflict in entity requests.
 type DBEntityConflictError struct {
 	DBError
-}
-
-func NewDBEntityConflictError(id string) *DBEntityConflictError {
-	return &DBEntityConflictError{DBError: *NewDBError(id, "found more than one requested entity")}
 }
 
 // DBConflictError indicates a conflict in the database operation (e.g., version mismatch).
@@ -109,23 +79,9 @@ type DBConflictError struct {
 	DBError
 }
 
-// NewDBConflictError creates a new DBConflictError with the specified ID and message.
-func NewDBConflictError(id, message string) *DBConflictError {
-	return &DBConflictError{
-		DBError: *NewDBError(id, message),
-	}
-}
-
 // DBForbiddenError indicates that the user is forbidden from performing an action.
 type DBForbiddenError struct {
 	DBError
-}
-
-// NewDBForbiddenError creates a new DBForbiddenError with the specified ID and message.
-func NewDBForbiddenError(id, message string) *DBForbiddenError {
-	return &DBForbiddenError{
-		DBError: *NewDBError(id, message),
-	}
 }
 
 // DBInternalError indicates an internal database error.
@@ -146,12 +102,10 @@ func NewDBInternalError(id string, reason error) *DBInternalError {
 	var detailedMessage string
 
 	// Check if the error is a pgconn.PgError to get additional details
-	if pgErr, ok := reason.(*pgconn.PgError); ok {
+	var pgErr *pgconn.PgError
+	if errors.As(reason, &pgErr) {
 		// Format a detailed error message from the PgError fields
 		detailedMessage = fmt.Sprintf("DB Error: %s - %s. %s", pgErr.Message, pgErr.Detail, pgErr.Hint)
-	} else {
-		// If it's not a PgError, use the generic reason's Error() string
-		detailedMessage = reason.Error()
 	}
 
 	return &DBInternalError{
@@ -170,20 +124,4 @@ func NewDBNotFoundError(id, message string) *DBNotFoundError {
 	return &DBNotFoundError{
 		DBError: *NewDBError(id, message),
 	}
-}
-
-// Constraint registration for custom check violations.
-var (
-	checkViolationErrorRegistry = map[string]string{}
-	constraintMu                sync.RWMutex
-)
-
-// RegisterConstraint registers custom database check constraints with a custom message.
-func RegisterConstraint(name, message string) {
-	constraintMu.Lock()
-	defer constraintMu.Unlock()
-	if _, dup := checkViolationErrorRegistry[name]; dup {
-		panic("RegisterConstraint called twice for name " + name)
-	}
-	checkViolationErrorRegistry[name] = message
 }

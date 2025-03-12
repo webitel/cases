@@ -8,10 +8,6 @@ import (
 	goi18n "github.com/nicksnyder/go-i18n/i18n"
 )
 
-func AuthErrorInit(t goi18n.TranslateFunc) {
-	translateFunc = t
-}
-
 type AuthError interface {
 	SetTranslationParams(map[string]any) AuthError
 	GetTranslationParams() map[string]any
@@ -122,27 +118,12 @@ func (err *AuthorizationError) String() string {
 	return err.Status
 }
 
-// Error constructors
-func NewAuthError(id, details string) AuthError {
-	return newAuthError(id, details).SetStatusCode(http.StatusUnauthorized)
-}
-
 func NewUnauthorizedError(id, details string) AuthError {
 	return newAuthError(id, details).SetStatusCode(http.StatusUnauthorized)
 }
 
 func NewPermissionForbiddenError(id, details string) AuthError {
 	return newAuthError(id, details).SetStatusCode(http.StatusForbidden)
-}
-
-// Example: AuthError for invalid token
-func NewInvalidTokenError(id, details string) AuthError {
-	return newAuthError(id, details).SetStatusCode(http.StatusUnauthorized)
-}
-
-// Example: AuthError for expired token
-func NewExpiredTokenError(id, details string) AuthError {
-	return newAuthError(id, details).SetStatusCode(http.StatusUnauthorized)
 }
 
 func newAuthError(id string, details string) AuthError {

@@ -3,6 +3,8 @@ package postgres
 import (
 	"encoding/json"
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 	"strings"
 	"time"
 
@@ -13,7 +15,6 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -22,7 +23,7 @@ type CatalogStore struct {
 }
 
 // Create implements store.CatalogStore.
-func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*cases.Catalog, error) {
+func (s *CatalogStore) Create(rpc options.CreateOptions, add *cases.Catalog) (*cases.Catalog, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -38,7 +39,7 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 		teamLookups, skillLookups        []byte
 	)
 
-	err := db.QueryRow(rpc.Context, query, args...).Scan(
+	err := db.QueryRow(rpc, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Prefix,
 		&add.Code, &add.State,
 		&createdAt, &updatedAt,
@@ -72,14 +73,14 @@ func (s *CatalogStore) Create(rpc *model.CreateOptions, add *cases.Catalog) (*ca
 	return add, nil
 }
 
-func (s *CatalogStore) buildCreateCatalogQuery(rpc *model.CreateOptions, add *cases.Catalog) (string, []interface{}) {
+func (s *CatalogStore) buildCreateCatalogQuery(rpc options.CreateOptions, add *cases.Catalog) (string, []interface{}) {
 	// Define arguments for the query
 	args := []any{
 		add.Name,                        // $1: name (cannot be null)
 		add.Description,                 // $2: description (could be null)
 		add.Prefix,                      // $3: prefix (could be null)
 		add.Code,                        // $4: code (could be null)
-		rpc.Time,                        // $5: created_at, updated_at
+		rpc.RequestTime(),               // $5: created_at, updated_at
 		rpc.GetAuthOpts().GetUserId(),   // $6: created_by, updated_by
 		add.Sla.Id,                      // $7: sla_id (could be null)
 		add.Status.Id,                   // $8: status_id (could be null)
@@ -178,11 +179,11 @@ FROM inserted_catalog
          LEFT JOIN skills_agg ON skills_agg.catalog_id = inserted_catalog.id;
 `
 
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 // Delete implements store.CatalogStore.
-func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
+func (s *CatalogStore) Delete(rpc options.DeleteOptions) error {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -190,7 +191,7 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 	}
 
 	// Ensure that there are IDs to delete
-	if len(rpc.IDs) == 0 {
+	if len(rpc.GetIDs()) == 0 {
 		return dberr.NewDBNoRowsError("postgres.catalog.delete.no_ids_provided")
 	}
 
@@ -198,7 +199,7 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 	query, args := s.buildDeleteCatalogQuery(rpc)
 
 	// Execute the delete query
-	res, err := db.Exec(rpc.Context, query, args...)
+	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.catalog.delete.execution_error", err)
 	}
@@ -212,7 +213,7 @@ func (s *CatalogStore) Delete(rpc *model.DeleteOptions) error {
 }
 
 // Helper method to build the delete query for Catalog
-func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string, []any) {
+func (s *CatalogStore) buildDeleteCatalogQuery(rpc options.DeleteOptions) (string, []any) {
 	// Build the SQL query using the provided IDs in rpc.IDs
 	query := `
 		DELETE FROM cases.service_catalog
@@ -221,16 +222,16 @@ func (s *CatalogStore) buildDeleteCatalogQuery(rpc *model.DeleteOptions) (string
 
 	// Use the array of IDs and domain ID (dc) for the deletion
 	args := []any{
-		pq.Array(rpc.IDs),               // $1: array of catalog IDs to delete
+		pq.Array(rpc.GetIDs()),          // $1: array of catalog IDs to delete
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 // List implements store.CatalogStore.
 func (s *CatalogStore) List(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 	depth int64,
 	subfields []string,
 	hasSubservices bool,
@@ -241,9 +242,6 @@ func (s *CatalogStore) List(
 		return nil, dberr.NewDBInternalError("postgres.catalog.list.database_connection_error", dbErr)
 	}
 
-	// 2. Remove duplicates from Fields
-	rpc.Fields = util.DeduplicateFields(rpc.Fields)
-
 	// 3. Build SQL query
 	query, args, err := s.buildSearchCatalogQuery(rpc, depth, subfields, hasSubservices)
 	if err != nil {
@@ -251,7 +249,7 @@ func (s *CatalogStore) List(
 	}
 
 	// 4. Execute the query
-	rows, err := db.Query(rpc.Context, query, args...)
+	rows, err := db.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.list.query_execution_error", err)
 	}
@@ -277,28 +275,28 @@ func (s *CatalogStore) List(
 		catalog := &cases.Catalog{}
 
 		// Initialize lookups if requested
-		if util.ContainsField(rpc.Fields, "sla") {
+		if util.ContainsField(rpc.GetFields(), "sla") {
 			catalog.Sla = &cases.Lookup{}
 		}
-		if util.ContainsField(rpc.Fields, "status") {
+		if util.ContainsField(rpc.GetFields(), "status") {
 			catalog.Status = &cases.Lookup{}
 		}
-		if util.ContainsField(rpc.Fields, "close_reason_group") {
+		if util.ContainsField(rpc.GetFields(), "close_reason_group") {
 			catalog.CloseReasonGroup = &cases.Lookup{}
 		}
-		if util.ContainsField(rpc.Fields, "teams") {
+		if util.ContainsField(rpc.GetFields(), "teams") {
 			catalog.Teams = []*cases.Lookup{}
 		}
-		if util.ContainsField(rpc.Fields, "skills") {
+		if util.ContainsField(rpc.GetFields(), "skills") {
 			catalog.Skills = []*cases.Lookup{}
 		}
-		if util.ContainsField(rpc.Fields, "services") {
+		if util.ContainsField(rpc.GetFields(), "services") {
 			catalog.Service = []*cases.Service{}
 		}
-		if util.ContainsField(rpc.Fields, "created_by") {
+		if util.ContainsField(rpc.GetFields(), "created_by") {
 			catalog.CreatedBy = &cases.Lookup{}
 		}
-		if util.ContainsField(rpc.Fields, "updated_by") {
+		if util.ContainsField(rpc.GetFields(), "updated_by") {
 			catalog.UpdatedBy = &cases.Lookup{}
 		}
 
@@ -309,7 +307,7 @@ func (s *CatalogStore) List(
 		)
 
 		// Build placeholders
-		scanArgs, err := s.buildCatalogScanArgs(catalog, &createdAt, &updatedAt, &rootID, rpc.Fields, &teamData, &skillData, &servicesData)
+		scanArgs, err := s.buildCatalogScanArgs(catalog, &createdAt, &updatedAt, &rootID, rpc.GetFields(), &teamData, &skillData, &servicesData)
 		if err != nil {
 			return nil, dberr.NewDBInternalError("postgres.catalog.list.scan_args_error", err)
 		}
@@ -322,7 +320,7 @@ func (s *CatalogStore) List(
 		catalog.CreatedAt = util.Timestamp(createdAt)
 		catalog.UpdatedAt = util.Timestamp(updatedAt)
 
-		if util.ContainsField(rpc.Fields, "teams") && teamData != "" {
+		if util.ContainsField(rpc.GetFields(), "teams") && teamData != "" {
 			var parsedTeams []*cases.Lookup
 			if err := json.Unmarshal([]byte(teamData), &parsedTeams); err != nil {
 				return nil, dberr.NewDBInternalError("postgres.catalog.list.teams_parse_error", err)
@@ -332,7 +330,7 @@ func (s *CatalogStore) List(
 			catalog.Teams = []*cases.Lookup{}
 		}
 
-		if util.ContainsField(rpc.Fields, "skills") && skillData != "" {
+		if util.ContainsField(rpc.GetFields(), "skills") && skillData != "" {
 			var parsedSkills []*cases.Lookup
 			if err := json.Unmarshal([]byte(skillData), &parsedSkills); err != nil {
 				return nil, dberr.NewDBInternalError("postgres.catalog.list.skills_parse_error", err)
@@ -343,11 +341,11 @@ func (s *CatalogStore) List(
 		}
 
 		// Handle servicesData: Trim "{}" to ""
-		if util.ContainsField(rpc.Fields, "services") && servicesData == "{}" {
+		if util.ContainsField(rpc.GetFields(), "services") && servicesData == "{}" {
 			servicesData = ""
 		}
 
-		if util.ContainsField(rpc.Fields, "services") && servicesData != "" {
+		if util.ContainsField(rpc.GetFields(), "services") && servicesData != "" {
 			// Parse JSON into a generic map
 			var rawServices []map[string]interface{}
 			if err := json.Unmarshal([]byte(servicesData), &rawServices); err != nil {
@@ -476,7 +474,7 @@ func (s *CatalogStore) List(
 	}
 
 	// 13. Build nested hierarchy if “services” is requested
-	if util.ContainsField(rpc.Fields, "services") {
+	if util.ContainsField(rpc.GetFields(), "services") {
 		// For each top-level catalog, nest subservices
 		for _, cat := range catalogs {
 			nested, err := s.nestServicesByRootID(cat.Id, cat.Service)
@@ -489,7 +487,7 @@ func (s *CatalogStore) List(
 
 	// 14. Return the final result
 	return &cases.CatalogList{
-		Page:  int32(rpc.Page),
+		Page:  int32(rpc.GetPage()),
 		Next:  next,
 		Items: catalogs,
 	}, nil
@@ -596,7 +594,7 @@ func (s *CatalogStore) buildServiceHierarchy(
 }
 
 func (s *CatalogStore) buildSearchCatalogQuery(
-	rpc *model.SearchOptions,
+	rpc options.SearchOptions,
 	depth int64,
 	subfields []string,
 	hasSubservices bool,
@@ -631,14 +629,14 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		"services": false,
 	}
 
-	if name, ok := rpc.Filter["name"].(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
 		selectFlags["search"] = true
 	}
 
 	var selectedFields []string
 
 	// 1) Build the catalog columns from rpc.Fields
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetFields() {
 		if mappedField, ok := fieldMap[field]; ok {
 			cols := strings.Split(mappedField, ", ")
 			selectedFields = append(selectedFields, cols...)
@@ -656,7 +654,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	// 2) Check if the user requested "services" in rpc.Fields.
 	// If so, we build columns from serviceFields
 	// Check if the user requested "services" in rpc.Fields.
-	if util.ContainsField(rpc.Fields, "services") {
+	if util.ContainsField(rpc.GetFields(), "services") {
 		selectFlags["services"] = true
 
 		// Build dynamic JSONB_AGG for services
@@ -674,7 +672,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	params := map[string]interface{}{
 		"dc":     rpc.GetAuthOpts().GetDomainId(),
 		"limit":  rpc.GetSize() + 1,
-		"offset": (rpc.Page - 1) * rpc.Size,
+		"offset": (rpc.GetPage() - 1) * rpc.GetSize(),
 	}
 
 	// Build the base query
@@ -721,7 +719,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	// AND JSONB_ARRAY_LENGTH(services_cte.services) > 0
 
 	// 7) State + ID filters
-	if state, ok := rpc.Filter["state"].(bool); ok {
+	if state, ok := rpc.GetFilter("state").(bool); ok {
 		params["state"] = state
 		queryBuilder = queryBuilder.Where("catalog.state = :state")
 
@@ -736,8 +734,8 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		}
 	}
 
-	teamFilter, teamFilterFound := rpc.Filter["team"].(int64)
-	skillsFilter, skillFilterFound := rpc.Filter["skills"].([]int64)
+	teamFilter, teamFilterFound := rpc.GetFilter("team").(int64)
+	skillsFilter, skillFilterFound := rpc.GetFilter("skills").([]int64)
 	if teamFilterFound || skillFilterFound {
 		or := sq.Or{}
 		if teamFilter > 0 {
@@ -753,8 +751,8 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	}
 
 	// Add condition for rpc.IDs if provided
-	if len(rpc.IDs) > 0 {
-		params["id"] = rpc.IDs[0]
+	if len(rpc.GetIDs()) > 0 {
+		params["id"] = rpc.GetIDs()[0]
 		queryBuilder = queryBuilder.Where("catalog.id = :id")
 	}
 
@@ -775,7 +773,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	}
 
 	if selectFlags["search"] {
-		if name, ok := rpc.Filter["name"].(string); ok {
+		if name, ok := rpc.GetFilter("name").(string); ok {
 			params["name"] = "%" + strings.Join(util.Substring(name), "%") + "%"
 		}
 
@@ -795,7 +793,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		searchCondition = "AND id IN (SELECT target_catalog_id FROM search_catalog)"
 	}
 
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Prefix query
 	prefixQuery := fmt.Sprintf(`
@@ -820,11 +818,11 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 
 	// 10) If we need CTE(s)
 	if selectFlags["teams"] || selectFlags["skills"] || selectFlags["services"] || selectFlags["search"] {
-		prefixQuery := buildCTEs(selectFlags, depth, subfields, rpc.Filter)
+		prefixQuery := buildCTEs(selectFlags, depth, subfields, rpc.GetFilters())
 		queryBuilder = queryBuilder.Prefix(prefixQuery)
 	}
 	// Add GROUP BY for catalog fields
-	groupByFields := buildCatalogGroupByFields(rpc.Fields)
+	groupByFields := buildCatalogGroupByFields(rpc.GetFields())
 
 	if len(groupByFields) != 0 {
 		queryBuilder = queryBuilder.GroupBy(strings.Join(groupByFields, ", "))
@@ -836,12 +834,12 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		return "", nil, dberr.NewDBInternalError("postgres.catalog.query_build_error", err)
 	}
 
-	q, args, err := store.BindNamed(sqlQuery, params)
+	q, args, err := util2.BindNamed(sqlQuery, params)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to bind named parameters: %w", err)
 	}
 
-	return store.CompactSQL(q), args, nil
+	return util2.CompactSQL(q), args, nil
 }
 
 func buildServiceJSONBAgg(subfields []string, searched bool) string {
@@ -922,7 +920,7 @@ COALESCE(
 }
 
 // applySorting applies dynamic sorting based on rpc.Sort and defaults to sorting by name in ascending order.
-func applySorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.SelectBuilder {
+func applySorting(queryBuilder sq.SelectBuilder, rpc options.SearchOptions) sq.SelectBuilder {
 	sortableFields := map[string]string{
 		"name":               "catalog.name",
 		"prefix":             "catalog.prefix",
@@ -936,7 +934,7 @@ func applySorting(queryBuilder sq.SelectBuilder, rpc *model.SearchOptions) sq.Se
 
 	sortApplied := false
 
-	sortField := rpc.Sort
+	sortField := rpc.GetSort()
 	sortDirection := "ASC"
 	if len(sortField) > 0 {
 		switch sortField[0] {
@@ -1364,7 +1362,7 @@ WHERE parent.level < CASE WHEN `)
 }
 
 // Update implements store.CatalogStore.
-func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (*cases.Catalog, error) {
+func (s *CatalogStore) Update(rpc options.UpdateOptions, lookup *cases.Catalog) (*cases.Catalog, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -1372,19 +1370,19 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 	}
 
 	// Start a transaction using the TxManager
-	tx, err := db.Begin(rpc.Context)
+	tx, err := db.Begin(rpc)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.update.transaction_start_error", err)
 	}
 	txManager := transaction.NewTxManager(tx) // Create a new TxManager instance
-	defer txManager.Rollback(rpc.Context)     // Ensure rollback on error
+	defer txManager.Rollback(rpc)             // Ensure rollback on error
 
 	// Check if rpc.Fields contains team_ids or skill_ids
 	updateTeams := false
 	updateSkills := false
 
 	// Check if the fields exist in rpc.Fields
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "teams":
 			updateTeams = true
@@ -1426,13 +1424,13 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 			teamIDs,  // Pass empty slice if no team IDs are provided
 			skillIDs, // Pass empty slice if no skill IDs are provided
 			rpc.GetAuthOpts().GetUserId(),
-			rpc.Time,
+			rpc.RequestTime(),
 			rpc.GetAuthOpts().GetDomainId(),
 		)
 
 		// Execute the teams and skills update query and check for affected rows
 		var affectedRows int
-		err = txManager.QueryRow(rpc.Context, query, args...).Scan(&affectedRows)
+		err = txManager.QueryRow(rpc, query, args...).Scan(&affectedRows)
 		if err != nil {
 			return nil, dberr.NewDBInternalError("postgres.catalog.update.teams_skills_update_error", err)
 		}
@@ -1455,7 +1453,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 		teamLookups, skillLookups        []byte
 	)
 
-	err = txManager.QueryRow(rpc.Context, query, args...).Scan(
+	err = txManager.QueryRow(rpc, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &createdAt,
 		&lookup.Sla.Id, &lookup.Sla.Name,
 		&lookup.Status.Id, &lookup.Status.Name,
@@ -1470,7 +1468,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 	}
 
 	// Commit the transaction
-	if err := txManager.Commit(rpc.Context); err != nil {
+	if err := txManager.Commit(rpc); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.update.transaction_commit_error", err)
 	}
 
@@ -1493,7 +1491,7 @@ func (s *CatalogStore) Update(rpc *model.UpdateOptions, lookup *cases.Catalog) (
 }
 
 func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	catalogID int64,
 	teamIDs,
 	skillIDs []int64,
@@ -1516,7 +1514,7 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 	placeholderIndex := 5 // Start placeholder index after the initial args
 
 	// Check if "teams" is in rpc.Fields, even if teamIDs is empty
-	if util.FieldExists("teams", rpc.Fields) {
+	if util.FieldExists("teams", rpc.GetMask()) {
 		query += `
  updated_teams AS (
     INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, updated_at, dc)
@@ -1540,7 +1538,7 @@ func (s *CatalogStore) buildUpdateTeamsAndSkillsQuery(
 	}
 
 	// Check if "skills" is in rpc.Fields, even if skillIDs are empty
-	if util.FieldExists("skills", rpc.Fields) {
+	if util.FieldExists("skills", rpc.GetMask()) {
 		if cteAdded {
 			query += `,` // Only add a comma if there is already a CTE defined (for teams)
 		}
@@ -1572,11 +1570,11 @@ SELECT COUNT(*)
 FROM (
     ` + func() string {
 		var result string
-		if util.FieldExists("teams", rpc.Fields) {
+		if util.FieldExists("teams", rpc.GetMask()) {
 			result += `SELECT catalog_id FROM updated_teams UNION ALL SELECT catalog_id FROM deleted_teams`
 		}
-		if util.FieldExists("skills", rpc.Fields) {
-			if util.FieldExists("teams", rpc.Fields) {
+		if util.FieldExists("skills", rpc.GetMask()) {
+			if util.FieldExists("teams", rpc.GetMask()) {
 				result += ` UNION ALL `
 			}
 			result += `SELECT catalog_id FROM updated_skills UNION ALL SELECT catalog_id FROM deleted_skills`
@@ -1586,11 +1584,11 @@ FROM (
 ) AS total_affected;`
 
 	// Return the constructed query and arguments
-	return store.CompactSQL(query), args
+	return util2.CompactSQL(query), args
 }
 
 func (s *CatalogStore) buildUpdateCatalogQuery(
-	rpc *model.UpdateOptions,
+	rpc options.UpdateOptions,
 	lookup *cases.Catalog,
 ) (string, []interface{}, error) {
 	// Start the WITH clause to check if root_id is NULL
@@ -1610,12 +1608,12 @@ WITH root_check AS (
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.Time).
+		Set("updated_at", rpc.RequestTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": lookup.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically set fields based on user update preferences
-	for _, field := range rpc.Fields {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", lookup.Name)
@@ -1695,7 +1693,7 @@ GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name,
 	`, checkRoot, updateSQL)
 
 	// Return the final combined query and arguments
-	return store.CompactSQL(query), args, nil
+	return util2.CompactSQL(query), args, nil
 }
 
 func NewCatalogStore(store *Store) (store.CatalogStore, error) {

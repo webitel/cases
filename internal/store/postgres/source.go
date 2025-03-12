@@ -2,13 +2,15 @@ package postgres
 
 import (
 	"fmt"
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
+	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -39,22 +41,24 @@ func buildSourceSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(store.Ident(sourceLeft, "id"))
-			plan = append(plan, func(s *_go.Source) any { return &s.Id })
+			base = base.Column(util2.Ident(sourceLeft, "id"))
+			plan = append(plan, func(s *_go.Source) any { return scanner.ScanInt64(&s.Id) })
 		case "name":
-			base = base.Column(store.Ident(sourceLeft, "name"))
-			plan = append(plan, func(s *_go.Source) any { return &s.Name })
+			base = base.Column(util2.Ident(sourceLeft, "name"))
+			plan = append(plan, func(s *_go.Source) any { return scanner.ScanText(&s.Name) })
 		case "description":
-			base = base.Column(store.Ident(sourceLeft, "description"))
+			base = base.Column(util2.Ident(sourceLeft, "description"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanText(&s.Description) })
 		case "type":
-			base = base.Column(store.Ident(sourceLeft, "type"))
-			plan = append(plan, func(s *_go.Source) any { return scanner.ScanSourceType(&s.Type) })
+			base = base.Column(util2.Ident(sourceLeft, "type"))
+			plan = append(plan, func(s *_go.Source) any {
+				return &scanner.SourceTypeScanner{SourceType: &s.Type}
+			})
 		case "created_at":
-			base = base.Column(store.Ident(sourceLeft, "created_at"))
+			base = base.Column(util2.Ident(sourceLeft, "created_at"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanTimestamp(&s.CreatedAt) })
 		case "updated_at":
-			base = base.Column(store.Ident(sourceLeft, "updated_at"))
+			base = base.Column(util2.Ident(sourceLeft, "updated_at"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanTimestamp(&s.UpdatedAt) })
 		case "created_by":
 			base = base.Column(fmt.Sprintf(
@@ -73,18 +77,41 @@ func buildSourceSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func (s *Source) buildCreateSourceQuery(rpc *model.CreateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+// StringToType converts a string into the corresponding Type enum value.
+//
+// Types are specified ONLY for Source dictionary and are ENUMS in API.
+func stringToType(typeStr string) (_go.SourceType, error) {
+	switch strings.ToUpper(typeStr) {
+	case "CALL":
+		return _go.SourceType_CALL, nil
+	case "CHAT":
+		return _go.SourceType_CHAT, nil
+	case "SOCIAL_MEDIA":
+		return _go.SourceType_SOCIAL_MEDIA, nil
+	case "EMAIL":
+		return _go.SourceType_EMAIL, nil
+	case "API":
+		return _go.SourceType_API, nil
+	case "MANUAL":
+		return _go.SourceType_MANUAL, nil
+	default:
+		return _go.SourceType_TYPE_UNSPECIFIED, fmt.Errorf("invalid type value: %s", typeStr)
+	}
+}
+
+func (s *Source) buildCreateSourceQuery(rpc options.CreateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	insertBuilder := sq.Insert("cases.source").
 		Columns("name", "dc", "created_at", "description", "type", "created_by", "updated_at", "updated_by").
 		Values(
 			source.Name,
 			rpc.GetAuthOpts().GetDomainId(),
-			rpc.CurrentTime(),
+			rpc.RequestTime(),
 			sq.Expr("NULLIF(?, '')", source.Description),
 			source.Type.String(),
 			rpc.GetAuthOpts().GetUserId(),
-			rpc.CurrentTime(),
+			rpc.RequestTime(),
 			rpc.GetAuthOpts().GetUserId(),
 		).
 		PlaceholderFormat(sq.Dollar).
@@ -96,7 +123,7 @@ func (s *Source) buildCreateSourceQuery(rpc *model.CreateOptions, source *_go.So
 	}
 
 	cte := sq.Expr("WITH s AS ("+insertSQL+")", args...)
-	selectBuilder, plan, err := buildSourceSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildSourceSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -104,7 +131,7 @@ func (s *Source) buildCreateSourceQuery(rpc *model.CreateOptions, source *_go.So
 	return selectBuilder.PrefixExpr(cte).From(sourceLeft), plan, nil
 }
 
-func (s *Source) Create(rpc *model.CreateOptions, source *_go.Source) (*_go.Source, error) {
+func (s *Source) Create(rpc options.CreateOptions, source *_go.Source) (*_go.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.create.database_connection_error", dbErr)
@@ -121,23 +148,24 @@ func (s *Source) Create(rpc *model.CreateOptions, source *_go.Source) (*_go.Sour
 	}
 
 	temp := &_go.Source{}
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(convertToSourceScanArgs(plan, temp)...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(convertToSourceScanArgs(plan, temp)...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.create.execution_error", err)
 	}
 
 	return temp, nil
 }
 
-func (s *Source) buildUpdateSourceQuery(rpc *model.UpdateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+func (s *Source) buildUpdateSourceQuery(rpc options.UpdateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
+	fields := rpc.GetFields()
+	fields = util.EnsureIdField(rpc.GetFields())
 	updateBuilder := sq.Update("cases.source").
 		PlaceholderFormat(sq.Dollar).
-		Set("updated_at", rpc.CurrentTime()).
+		Set("updated_at", rpc.RequestTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
 		Where(sq.Eq{"id": source.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
-	for _, field := range rpc.Mask {
+	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
 			if source.Name != "" {
@@ -158,7 +186,7 @@ func (s *Source) buildUpdateSourceQuery(rpc *model.UpdateOptions, source *_go.So
 	}
 
 	cte := sq.Expr("WITH s AS ("+updateSQL+")", args...)
-	selectBuilder, plan, err := buildSourceSelectColumnsAndPlan(sq.Select(), rpc.Fields)
+	selectBuilder, plan, err := buildSourceSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
 		return sq.SelectBuilder{}, nil, err
 	}
@@ -166,7 +194,7 @@ func (s *Source) buildUpdateSourceQuery(rpc *model.UpdateOptions, source *_go.So
 	return selectBuilder.PrefixExpr(cte).From(sourceLeft), plan, nil
 }
 
-func (s *Source) Update(rpc *model.UpdateOptions, source *_go.Source) (*_go.Source, error) {
+func (s *Source) Update(rpc options.UpdateOptions, source *_go.Source) (*_go.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.update.database_connection_error", dbErr)
@@ -183,29 +211,28 @@ func (s *Source) Update(rpc *model.UpdateOptions, source *_go.Source) (*_go.Sour
 	}
 
 	temp := &_go.Source{}
-	if err := d.QueryRow(rpc.Context, query, args...).Scan(convertToSourceScanArgs(plan, temp)...); err != nil {
+	if err := d.QueryRow(rpc, query, args...).Scan(convertToSourceScanArgs(plan, temp)...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.update.execution_error", err)
 	}
 
 	return temp, nil
 }
 
-func (s *Source) buildListSourceQuery(rpc *model.SearchOptions) (sq.SelectBuilder, []SourceScan, error) {
-	rpc.Fields = util.EnsureIdField(rpc.Fields)
+func (s *Source) buildListSourceQuery(rpc options.SearchOptions) (sq.SelectBuilder, []SourceScan, error) {
 	queryBuilder := sq.Select().
 		From("cases.source AS s").
 		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	if len(rpc.IDs) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.IDs})
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.GetIDs()})
 	}
 
-	if name, ok := rpc.Filter["name"].(string); ok && name != "" {
+	if name, ok := rpc.GetFilter("name").(string); ok && name != "" {
 		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": "%" + name + "%"})
 	}
 
-	if types, ok := rpc.Filter["type"].([]_go.SourceType); ok && len(types) > 0 {
+	if types, ok := rpc.GetFilter("type").([]_go.SourceType); ok && len(types) > 0 {
 		var typeStrings []string
 		for _, t := range types {
 			typeStrings = append(typeStrings, t.String())
@@ -213,13 +240,13 @@ func (s *Source) buildListSourceQuery(rpc *model.SearchOptions) (sq.SelectBuilde
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.type": typeStrings})
 	}
 
-	queryBuilder = store.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)
-	queryBuilder = store.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)
+	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
-	return buildSourceSelectColumnsAndPlan(queryBuilder, rpc.Fields)
+	return buildSourceSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 }
 
-func (s *Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
+func (s *Source) List(rpc options.SearchOptions) (*_go.SourceList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.list.database_connection_error", dbErr)
@@ -235,7 +262,7 @@ func (s *Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 		return nil, dberr.NewDBInternalError("postgres.source.list.query_build_error", err)
 	}
 
-	rows, err := d.Query(rpc.Context, query, args...)
+	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.list.execution_error", err)
 	}
@@ -268,18 +295,18 @@ func (s *Source) List(rpc *model.SearchOptions) (*_go.SourceList, error) {
 	}, nil
 }
 
-func (s *Source) buildDeleteSourceQuery(rpc *model.DeleteOptions) (sq.DeleteBuilder, error) {
-	if len(rpc.IDs) == 0 {
+func (s *Source) buildDeleteSourceQuery(rpc options.DeleteOptions) (sq.DeleteBuilder, error) {
+	if len(rpc.GetIDs()) == 0 {
 		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.source.delete.missing_ids", fmt.Errorf("no IDs provided"))
 	}
 
 	return sq.Delete("cases.source").
-		Where(sq.Eq{"id": rpc.IDs}).
+		Where(sq.Eq{"id": rpc.GetIDs()}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar), nil
 }
 
-func (s *Source) Delete(rpc *model.DeleteOptions) error {
+func (s *Source) Delete(rpc options.DeleteOptions) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.source.delete.database_connection_error", dbErr)
@@ -295,7 +322,7 @@ func (s *Source) Delete(rpc *model.DeleteOptions) error {
 		return dberr.NewDBInternalError("postgres.source.delete.query_build_error", err)
 	}
 
-	res, err := d.Exec(rpc.Context, query, args...)
+	res, err := d.Exec(rpc, query, args...)
 	if err != nil {
 		return dberr.NewDBInternalError("postgres.source.delete.execution_error", err)
 	}

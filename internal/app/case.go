@@ -5,21 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"log/slog"
-	"strconv"
-	"strings"
-
-	wlogger "github.com/webitel/logger/pkg/client/v2"
-
-	"google.golang.org/grpc/metadata"
-
 	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
+	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/etag"
+	"google.golang.org/grpc/metadata"
+	"log/slog"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -76,43 +74,38 @@ type CaseService struct {
 }
 
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
-	searchOpts, err := model.NewSearchOptions(ctx, req, CaseMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFilters(req),
+		grpcopts.WithFields(req, CaseMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			util.EnsureIdField,
+		),
+		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetIds()...),
+		grpcopts.WithSort(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
-	ids, err := util.ParseIds(req.GetIds(), etag.EtagCase)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, cerror.NewBadRequestError("app.case.search_cases.parse_ids.invalid", err.Error())
-	}
-	for _, filterString := range req.GetFilters() {
-		str := strings.Split(filterString, "=")
-		if len(str) != 2 {
-			continue
-		}
-		column := str[0]
-		value := strings.TrimSpace(str[1])
-		if column != "" {
-			searchOpts.Filter[column] = value
-		}
-	}
 	if req.GetContactId() != "" {
 		contactId, err := strconv.ParseInt(req.GetContactId(), 10, 64)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			contactId = 0
 		}
-		searchOpts.Filter["contact"] = contactId
+		searchOpts.AddFilter("contact", contactId)
 	}
-	searchOpts.IDs = ids
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, DatabaseError
 	}
-	err = c.NormalizeResponseCases(list, req, nil)
+	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, ResponseNormalizingError
@@ -122,18 +115,16 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 }
 
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
-	searchOpts, err := model.NewLocateOptions(ctx, req, CaseMetadata)
+	searchOpts, err := grpcopts.NewLocateOptions(
+		ctx,
+		grpcopts.WithFields(req, CaseMetadata),
+		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetEtag()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
-	id, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_qin.invalid", err.Error())
-	}
-	searchOpts.IDs = id
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		return nil, err
@@ -141,7 +132,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if len(list.Items) == 0 {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.not_found", "entity not found")
 	}
-	err = c.NormalizeResponseCases(list, req, nil)
+	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, ResponseNormalizingError
@@ -228,23 +219,24 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Links:            links,
 		Related:          related,
 	}
-	// Type assert CaseMetadata to *ObjectMetadata before passing to CopyWithAllFieldsSetToDefault
-	caseMD, ok := CaseMetadata.(*model.ObjectMetadata)
-	if !ok {
-		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
-	}
-	fullMD := caseMD.CopyWithAllFieldsSetToDefault()
 
-	createOpts, err := model.NewCreateOptions(ctx, req, fullMD)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(
+			req,
+			CaseMetadata.CopyWithAllFieldsSetToDefault(),
+			func(fields []string) []string {
+				for i, v := range fields {
+					if v == "related" {
+						fields = append(fields[:i], fields[i+1:]...)
+					}
+				}
+				return fields
+			}),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
-	}
-
-	for i, v := range createOpts.Fields {
-		if v == "related" {
-			createOpts.Fields = append(createOpts.Fields[:i], createOpts.Fields[i+1:]...)
-		}
 	}
 
 	logAttributes := slog.Group(
@@ -324,24 +316,26 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		slog.ErrorContext(ctx, err.Error())
 		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
 	}
-	// Type assert CaseMetadata to *ObjectMetadata before passing to CopyWithAllFieldsSetToDefault
-	caseMD, ok := CaseMetadata.(*model.ObjectMetadata)
-	if !ok {
-		log.Fatal("CaseMetadata is not of type *ObjectMetadata")
-	}
-	fullMD := caseMD.CopyWithAllFieldsSetToDefault()
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, fullMD)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(
+			req,
+			CaseMetadata.CopyWithAllFieldsSetToDefault(),
+			func(fields []string) []string {
+				for i, v := range fields {
+					if v == "related" {
+						fields = append(fields[:i], fields[i+1:]...)
+					}
+				}
+				return fields
+			}),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
 	updateOpts.Etags = []*etag.Tid{&tag}
-	for i, v := range updateOpts.Fields {
-		if v == "related" {
-			updateOpts.Fields = append(updateOpts.Fields[:i], updateOpts.Fields[i+1:]...)
-		}
-	}
 
 	logAttributes := slog.Group(
 		"context",
@@ -676,18 +670,15 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	if req.Etag == "" {
 		return nil, cerror.NewBadRequestError("app.case.delete_case.etag_required", "Etag is required")
 	}
-
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseMetadata)
+	tag, err := etag.EtagOrId(etag.EtagCase, req.Etag)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.case.delete.invalid_etag", "Invalid case etag")
+	}
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-
-	tag, err := etag.EtagOrId(etag.EtagCase, req.Etag)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case.delete_case.invalid_etag", "Invalid etag")
-	}
-	deleteOpts.IDs = []int64{tag.GetOid()}
 	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
 	err = c.app.Store.Case().Delete(deleteOpts)
@@ -815,7 +806,7 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 }
 
 // NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.
-func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) error {
+func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts shared.Fielder) error {
 	var err error
 	fields := mainOpts.GetFields()
 	if len(fields) == 0 {
@@ -867,7 +858,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 }
 
 // NormalizeResponseCase validates and normalizes the response cases.Case to the front-end side.
-func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) error {
+func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts shared.Fielder) error {
 	fields := opts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()

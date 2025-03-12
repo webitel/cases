@@ -7,9 +7,10 @@ import (
 
 	"github.com/webitel/cases/auth"
 
-	cases "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 )
@@ -35,31 +36,34 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 	if req.GetEtag() == "" {
 		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.id_required", "ID is required")
 	}
-
-	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetEtag())
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.invalid_id", "Invalid ID")
-	}
 	caseTid, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.invalid_primary_id", "Invalid ID")
 	}
-	searchOpts, err := model.NewLocateOptions(ctx, req, RelatedCaseMetadata)
+	searchOpts, err := grpcopts.NewLocateOptions(
+		ctx,
+		grpcopts.WithFields(req, CaseCommentMetadata,
+			util.DeduplicateFields,
+			func(in []string) []string {
+				return util.EnsureFields(in, "created_at", "id")
+			},
+		),
+		grpcopts.WithIDsAsEtags(etag.EtagRelatedCase, req.GetEtag()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.IDs = []int64{tag.GetOid()}
-	searchOpts.ParentId = caseTid.GetOid()
+	searchOpts.AddFilter("case_id", caseTid.GetOid())
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
 		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("case_id", searchOpts.ParentId),
+		slog.Int64("case_id", caseTid.GetOid()),
 	)
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
-		access, err := r.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, searchOpts.ParentId)
+		access, err := r.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, caseTid.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -93,11 +97,6 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		return nil, cerror.NewBadRequestError("app.related_case.create_related_case.primary_case_id_required", "Primary case id required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, RelatedCaseMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
-	}
 	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
@@ -113,8 +112,17 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 			"Invalid relatedCase etag",
 		)
 	}
-	createOpts.ParentID = primaryCaseTag.GetOid()
-	createOpts.ChildID = relatedCaseTag.GetOid()
+
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, RelatedCaseMetadata),
+		grpcopts.WithCreateParentID(primaryCaseTag.GetOid()),
+		grpcopts.WithCreateChildID(relatedCaseTag.GetOid()),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
+	}
 
 	logAttributes := slog.Group(
 		"context",
@@ -176,11 +184,6 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		return nil, cerror.NewBadRequestError("app.related_case.update_related_case.id_required", "ID required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, RelatedCaseMetadata)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, InternalError
-	}
 	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetEtag())
 	if err != nil {
 		return nil, cerror.NewBadRequestError(
@@ -188,7 +191,16 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 			"Invalid ID",
 		)
 	}
-	updateOpts.Etags = []*etag.Tid{&tag}
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, RelatedCaseMetadata),
+		grpcopts.WithUpdateEtag(&tag),
+		grpcopts.WithUpdateMasker(req),
+	)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return nil, InternalError
+	}
 
 	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetPrimaryCase().GetId())))
 	if err != nil {
@@ -275,12 +287,11 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.invalid_etag", "Invalid etag")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, RelatedCaseMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	deleteOpts.ID = tag.GetOid()
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()),
@@ -316,22 +327,28 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 	if req.GetPrimaryCaseEtag() == "" {
 		return nil, cerror.NewBadRequestError("app.related_case.list_related_case.id_required", "ID required")
 	}
-	tag, err := etag.EtagOrId(etag.EtagCase, req.PrimaryCaseEtag)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.related_case.list_related_cases.invalid_etag", "Invalid etag")
-	}
-
-	ids, err := util.ParseIds(req.Ids, etag.EtagRelatedCase)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.related_case.list_related_cases.invalid_ids", "Invalid ids format")
-	}
-	searchOpts, err := model.NewSearchOptions(ctx, req, RelatedCaseMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, RelatedCaseMetadata,
+			util.DeduplicateFields,
+			func(in []string) []string {
+				return util.EnsureFields(in, "created_at", "id")
+			},
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDsAsEtags(etag.EtagRelatedCase, req.GetIds()...),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.ParentId = tag.GetOid()
-	searchOpts.IDs = ids
+	tag, err := etag.EtagOrId(etag.EtagCase, req.PrimaryCaseEtag)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("app.related_case.list_related_cases.invalid_etag", "Invalid etag")
+	}
+	searchOpts.AddFilter("case_id", tag.GetOid())
 
 	output, err := r.app.Store.RelatedCase().List(searchOpts)
 	if err != nil {

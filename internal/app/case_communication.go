@@ -4,6 +4,7 @@ import (
 	"context"
 	defErr "errors"
 	"fmt"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"log/slog"
 
 	"github.com/webitel/cases/api/cases"
@@ -28,20 +29,30 @@ type CaseCommunicationService struct {
 }
 
 func (c *CaseCommunicationService) ListCommunications(ctx context.Context, request *cases.ListCommunicationsRequest) (*cases.ListCommunicationsResponse, error) {
-	tag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
-	if err != nil {
-		return nil, errors.NewBadRequestError("app.case_communication.list_communication.invalid_etag", "Invalid case etag")
-	}
-	searchOpts, err := model.NewSearchOptions(ctx, request, CaseCommunicationMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(request),
+		grpcopts.WithPagination(request),
+		grpcopts.WithFields(request, CaseCommunicationMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+		),
+		grpcopts.WithSort(request),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.ParentId = tag.GetOid()
+
+	tag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
+	if err != nil {
+		return nil, errors.NewBadRequestError("app.case_communication.list_communication.invalid_etag", "Invalid case etag")
+	}
+	searchOpts.AddFilter("case_id", tag.GetOid())
 	logAttributes := slog.Group("context", slog.Int64("case_id", tag.GetOid()), slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 
 	if searchOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
-		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, searchOpts.ParentId)
+		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, tag.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
 			return nil, ForbiddenError
@@ -74,12 +85,15 @@ func (c *CaseCommunicationService) LinkCommunication(ctx context.Context, reques
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.link_communication.invalid_etag", "Invalid case etag")
 	}
-	createOpts, err := model.NewCreateOptions(ctx, request, CaseCommunicationMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(request, CaseCommunicationMetadata),
+		grpcopts.WithCreateParentID(tag.GetOid()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	createOpts.ParentID = tag.GetOid()
 	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", createOpts.ParentID))
 	accessMode := auth.Edit
 	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommunicationMetadata.GetParentScopeName(), accessMode) {
@@ -123,7 +137,7 @@ func (c *CaseCommunicationService) UnlinkCommunication(ctx context.Context, requ
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_communication.unlink_communication.invalid_etag", "Invalid case etag")
 	}
-	deleteOpts, err := model.NewDeleteOptions(ctx, CaseCommunicationMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError

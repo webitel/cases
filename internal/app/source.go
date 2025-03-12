@@ -2,17 +2,12 @@ package app
 
 import (
 	"context"
-	"strings"
-
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
-)
-
-const (
-	defaultFieldsSource = "id, name, description, type, created_by"
 )
 
 type SourceService struct {
@@ -45,7 +40,10 @@ func (s *SourceService) CreateSource(
 		return nil, cerror.NewBadRequestError("source_service.create_source.type.required", "Source type is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, SourceMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, SourceMetadata),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -71,22 +69,23 @@ func (s *SourceService) ListSources(
 	ctx context.Context,
 	req *_go.ListSourceRequest,
 ) (*_go.SourceList, error) {
-
-	searchOpts, err := model.NewSearchOptions(ctx, req, SourceMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, SourceMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.IDs = req.Id
-	searchOpts.Filter = make(map[string]any)
-
-	if req.Q != "" {
-		searchOpts.Filter["name"] = req.Q
-	}
-
-	if len(req.Type) > 0 {
-		searchOpts.Filter["type"] = req.Type
-	}
+	searchOpts.AddFilter("name", req.Q)
+	searchOpts.AddFilter("type", req.Type)
 
 	res, err := s.app.Store.Source().List(searchOpts)
 	if err != nil {
@@ -106,7 +105,11 @@ func (s *SourceService) UpdateSource(
 		return nil, cerror.NewBadRequestError("source_service.update_source.id.required", "Source ID is required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, SourceMetadata)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, SourceMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -138,7 +141,7 @@ func (s *SourceService) DeleteSource(
 		return nil, cerror.NewBadRequestError("source_service.delete_source.id.required", "Source ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, SourceMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -163,11 +166,6 @@ func (s *SourceService) LocateSource(
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("source_service.locate_source.id.required", "Source ID is required")
-	}
-
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsSource, ", ")
 	}
 
 	// Prepare a list request with necessary parameters

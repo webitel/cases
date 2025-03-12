@@ -5,6 +5,7 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
 	"strings"
@@ -38,7 +39,10 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 		return nil, cerror.NewBadRequestError("status.create_status.input.name.required", ErrLookupNameReq)
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, StatusMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, SourceMetadata),
+	)
 
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
@@ -61,18 +65,22 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 
 // ListStatuses implements api.StatusesServer.
 func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
-
-	searchOpts, err := model.NewSearchOptions(ctx, req, StatusMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, StatusMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.Filter = make(map[string]any)
-	searchOpts.IDs = req.Id
-
-	if req.Q != "" {
-		searchOpts.Filter["name"] = req.Q
-	}
+	searchOpts.AddFilter("name", req.Q)
 
 	res, err := s.app.Store.Status().List(searchOpts)
 	if err != nil {
@@ -89,7 +97,11 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 		return nil, cerror.NewBadRequestError("status.update_status.input.id.required", "Lookup ID is required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, StatusMetadata)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, SourceMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -118,12 +130,11 @@ func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRe
 		return nil, cerror.NewBadRequestError("status.delete_status.lookup.id.required", "Lookup ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, StatusMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	deleteOpts.IDs = []int64{req.Id}
 
 	// Delete the lookup in the store
 	err = s.app.Store.Status().Delete(deleteOpts)

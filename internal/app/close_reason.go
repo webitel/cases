@@ -5,9 +5,9 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"log/slog"
-	"strings"
 )
 
 type CloseReasonService struct {
@@ -27,10 +27,6 @@ var CloseReasonMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*
 	{"close_reason_id", false},
 })
 
-const (
-	defaultFieldsCloseReason = "id, name, description, created_by"
-)
-
 // CreateCloseReason implements api.CloseReasonsServer.
 func (s *CloseReasonService) CreateCloseReason(
 	ctx context.Context,
@@ -41,7 +37,10 @@ func (s *CloseReasonService) CreateCloseReason(
 		return nil, cerror.NewBadRequestError("close_reason_service.create_close_reason.name.required", "Close reason name is required")
 	}
 
-	createOpts, err := model.NewCreateOptions(ctx, req, CloseReasonMetadata)
+	createOpts, err := grpcopts.NewCreateOptions(
+		ctx,
+		grpcopts.WithCreateFields(req, CloseReasonMetadata),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -68,17 +67,21 @@ func (s *CloseReasonService) ListCloseReasons(
 	req *_go.ListCloseReasonRequest,
 ) (*_go.CloseReasonList, error) {
 
-	searchOpts, err := model.NewSearchOptions(ctx, req, CloseReasonMetadata)
+	searchOpts, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(req),
+		grpcopts.WithPagination(req),
+		grpcopts.WithFields(req, CloseReasonMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+		grpcopts.WithSort(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-	searchOpts.IDs = req.Id
-	searchOpts.Filter = make(map[string]any)
-
-	if req.Q != "" {
-		searchOpts.Filter["name"] = req.Q
-	}
+	searchOpts.AddFilter("name", req.Q)
 
 	res, err := s.app.Store.CloseReason().List(searchOpts, req.CloseReasonGroupId)
 	if err != nil {
@@ -98,7 +101,11 @@ func (s *CloseReasonService) UpdateCloseReason(
 		return nil, cerror.NewBadRequestError("close_reason_service.update_close_reason.id.required", "Close reason ID is required")
 	}
 
-	updateOpts, err := model.NewUpdateOptions(ctx, req, CloseReasonMetadata)
+	updateOpts, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, CloseReasonMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
@@ -131,13 +138,11 @@ func (s *CloseReasonService) DeleteCloseReason(
 		return nil, cerror.NewBadRequestError("close_reason_service.delete_close_reason.id.required", "Close reason ID is required")
 	}
 
-	deleteOpts, err := model.NewDeleteOptions(ctx, CloseReasonMetadata)
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
 		return nil, InternalError
 	}
-
-	deleteOpts.IDs = []int64{req.Id}
 
 	// Delete the close reason in the store
 	err = s.app.Store.CloseReason().Delete(deleteOpts)
@@ -156,11 +161,6 @@ func (s *CloseReasonService) LocateCloseReason(
 	// Validate required fields
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("close_reason_service.locate_close_reason.id.required", "Close reason ID is required")
-	}
-
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = strings.Split(defaultFieldsCloseReason, ", ")
 	}
 
 	// Prepare a list request with necessary parameters
