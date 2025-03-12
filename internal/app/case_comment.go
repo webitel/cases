@@ -233,7 +233,10 @@ func (c *CaseCommentService) PublishComment(
 
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
-		grpcopts.WithCreateFields(req, CaseCommentMetadata),
+		grpcopts.WithCreateFields(req, CaseCommentMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			util.EnsureIdField),
 	)
 	if err != nil {
 		return nil, NewBadRequestError(err)

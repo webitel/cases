@@ -111,7 +111,10 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
-		grpcopts.WithCreateFields(req, CaseLinkMetadata),
+		grpcopts.WithCreateFields(req, CaseLinkMetadata,
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
+			util.EnsureIdField),
 		grpcopts.WithCreateParentID(caseTid.GetOid()),
 	)
 	if err != nil {
