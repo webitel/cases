@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/options/defaults"
 	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
@@ -273,7 +274,7 @@ func buildFilesSelectAsSubquery(fields []string, caseAlias string) (sq.SelectBui
 		From("storage.files " + alias).
 		Where(fmt.Sprintf("%s = %s::text", store.Ident(alias, "uuid"), store.Ident(caseAlias, "id"))).
 		Where(fmt.Sprintf("%s = '%s'", store.Ident(alias, "channel"), channel))
-	base = store.ApplyPaging(1, options.DefaultSearchSize, base)
+	base = store.ApplyPaging(1, defaults.DefaultSearchSize, base)
 
 	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, fields)
 	if dbErr != nil {

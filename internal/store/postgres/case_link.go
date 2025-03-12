@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/options/defaults"
 	"net/url"
 
 	"github.com/Masterminds/squirrel"
@@ -387,7 +388,7 @@ func buildLinkSelectAsSubquery(fields []string, caseAlias string) (updatedBase s
 	if dbErr != nil {
 		return base, nil, dbErr
 	}
-	base = store.ApplyPaging(1, options.DefaultSearchSize, base)
+	base = store.ApplyPaging(1, defaults.DefaultSearchSize, base)
 
 	return base, plan, nil
 }

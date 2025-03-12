@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/options/defaults"
 
 	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
@@ -576,7 +577,7 @@ func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlia
 	if dbErr != nil {
 		return base, nil, dbErr
 	}
-	base = store.ApplyPaging(1, options.DefaultSearchSize, base)
+	base = store.ApplyPaging(1, defaults.DefaultSearchSize, base)
 	return base, plan, nil
 }
 

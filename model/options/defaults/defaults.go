@@ -1,4 +1,4 @@
-package options
+package defaults
 
 const (
 	DefaultSearchSize = 16
