@@ -8,12 +8,6 @@ import (
 	goi18n "github.com/nicksnyder/go-i18n/i18n"
 )
 
-var translateFunc goi18n.TranslateFunc = nil
-
-func AppErrorInit(t goi18n.TranslateFunc) {
-	translateFunc = t
-}
-
 type AppError interface {
 	SetTranslationParams(map[string]any) AppError
 	GetTranslationParams() map[string]any
