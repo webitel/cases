@@ -3,26 +3,31 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/auth"
+	"log/slog"
+	"strconv"
+	"strings"
+	"time"
+
+	wlogger "github.com/webitel/logger/pkg/client/v2"
+
+	"google.golang.org/grpc/metadata"
+
+	cases "github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
-	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/etag"
-	"google.golang.org/grpc/metadata"
-	"log/slog"
-	"strconv"
-	"strings"
 )
 
 const (
-	dynamicGroup = "dynamic"
-	caseObjScope = model.ScopeCases
+	dynamicGroup      = "dynamic"
+	caseObjScope      = model.ScopeCases
+	defaultLogTimeout = 5 * time.Second
 )
 
 var (
@@ -278,26 +283,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, ResponseNormalizingError
 	}
 
-	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleIds, res)
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
-	}
-
-	logMessage, err := wlogger.NewCreateMessage(
-		createOpts.GetAuthOpts().GetUserId(),
-		getClientIp(ctx),
-		res.Id, res,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	logErr := c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), logMessage)
-	if logErr != nil {
-		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
-	}
-
-	err = c.app.watcher.OnEvent(EventTypeCreate, NewWatcherData(res, createOpts.GetAuthOpts().GetDomainId()))
+	err = c.app.watcherManager.Notify(model.ScopeCases, EventTypeCreate, NewCaseWatcherData(createOpts.GetAuthOpts(), res, id, roleIds))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s, ", err.Error()), logAttributes)
 	}
@@ -404,26 +390,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, ResponseNormalizingError
 	}
 
-	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, res)
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
-	}
-
-	log, err := wlogger.NewCreateMessage(
-		updateOpts.GetAuthOpts().GetUserId(),
-		getClientIp(ctx),
-		res.Id,
-		res,
-	)
-	if err != nil {
-		return nil, err
-	}
-	logErr := c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), log)
-	if logErr != nil {
-		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
-	}
-
-	err = c.app.watcher.OnEvent(EventTypeUpdate, NewWatcherData(res, updateOpts.GetAuthOpts().GetDomainId()))
+	err = c.app.watcherManager.Notify(model.ScopeCases, EventTypeUpdate, NewCaseWatcherData(updateOpts.GetAuthOpts(), upd, id, roleIds))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case update: %s, ", err.Error()), logAttributes)
 	}
@@ -701,11 +668,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		Ver:  tag.GetVer(),
 		Etag: req.Etag,
 	}
-	ftsErr := c.SendFtsDeleteEvent(tag.GetOid(), deleteOpts.GetAuthOpts().GetDomainId())
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
-	}
-	err = c.app.watcher.OnEvent(EventTypeDelete, NewWatcherData(deleteCase, deleteOpts.GetAuthOpts().GetDomainId()))
+	err = c.app.watcherManager.Notify(model.ScopeCases, EventTypeDelete, NewCaseWatcherData(deleteOpts.GetAuthOpts(), deleteCase, tag.GetOid(), nil))
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case deletion: %s, ", err.Error()), logAttributes)
 	}
@@ -716,6 +679,35 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewBadRequestError("app.case.new_case_service.check_args.app", "unable to init case service, app is nil")
 	}
+
+	watcher := NewDefaultWatcher()
+	// TODO: triggers
+	//caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher)
+	//if err != nil {
+	//	return nil, cerror.NewInternalError("app.case.new_case_service.start.error", err.Error())
+	//}
+	//watcher.Attach(EventTypeCreate, caseObserver)
+	//watcher.Attach(EventTypeUpdate, caseObserver)
+	//watcher.Attach(EventTypeDelete, caseObserver)
+
+	obs, err := NewLoggerObserver(app.wtelLogger, caseObjScope, defaultLogTimeout)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
+	}
+	watcher.Attach(EventTypeCreate, obs)
+	watcher.Attach(EventTypeUpdate, obs)
+	watcher.Attach(EventTypeDelete, obs)
+
+	ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseObjScope, formCaseFtsModel)
+	if err != nil {
+		return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
+	}
+	watcher.Attach(EventTypeCreate, ftsObserver)
+	watcher.Attach(EventTypeUpdate, ftsObserver)
+	watcher.Attach(EventTypeDelete, ftsObserver)
+
+	app.watcherManager.AddWatcher(caseObjScope, watcher)
+
 	return &CaseService{app: app, logger: app.wtelLogger.GetObjectedLogger(CaseMetadata.GetMainScopeName())}, nil
 }
 
@@ -900,10 +892,14 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts shared.Fielder)
 	return nil
 }
 
-func (c *CaseService) formFtsModel(roleIds []int64, item *cases.Case) (*model.FtsCase, error) {
+func formCaseFtsModel(item *cases.Case, params map[string]any) (*model.FtsCase, error) {
+	roles, ok := params["role_ids"].([]int64)
+	if !ok {
+		return nil, fmt.Errorf("role ids required for FTS model")
+	}
 	m := &model.FtsCase{
 		Description: item.GetDescription(),
-		RoleIds:     roleIds,
+		RoleIds:     roles,
 		Subject:     item.GetSubject(),
 		ContactInfo: item.GetContactInfo(),
 		CreatedAt:   item.GetCreatedAt(),
@@ -919,41 +915,26 @@ func (c *CaseService) formFtsModel(roleIds []int64, item *cases.Case) (*model.Ft
 	return m, nil
 }
 
-func (c *CaseService) SendFtsCreateEvent(id int64, domainId int64, roleIds []int64, item *cases.Case) error {
-	if domainId == 0 {
-		return errors.New("domain id required")
-	}
-	if id == 0 {
-		return errors.New("id required")
-	}
-	m, err := c.formFtsModel(roleIds, item)
-	if err != nil {
-		return err
-	}
-	m.RoleIds = roleIds
-	return c.app.ftsClient.Create(domainId, model.ScopeCases, id, m)
+type CaseWatcherData struct {
+	case_      *cases.Case
+	CaseString string `json:"case"`
+	DomainId   int64  `json:"domain_id"`
+	Args       map[string]any
 }
 
-func (c *CaseService) SendFtsUpdateEvent(id int64, domainId int64, roleIds []int64, item *cases.Case) error {
-	if domainId == 0 {
-		return errors.New("domain id required")
-	}
-	if id == 0 {
-		return errors.New("id required")
-	}
-	m, err := c.formFtsModel(roleIds, item)
-	if err != nil {
-		return err
-	}
-	return c.app.ftsClient.Update(domainId, model.ScopeCases, id, m)
+func NewCaseWatcherData(session auth.Auther, case_ *cases.Case, caseId int64, roleIds []int64) *CaseWatcherData {
+	return &CaseWatcherData{case_: case_, Args: map[string]any{"session": session, "obj": case_, "id": caseId, "role_ids": roleIds}}
 }
 
-func (c *CaseService) SendFtsDeleteEvent(id int64, domainId int64) error {
-	if domainId == 0 {
-		return errors.New("domain id required")
+func (wd *CaseWatcherData) Marshal() ([]byte, error) {
+	caseBytes, err := json.Marshal(wd.case_)
+	if err != nil {
+		return nil, err
 	}
-	if id == 0 {
-		return errors.New("id required")
-	}
-	return c.app.ftsClient.Delete(domainId, model.ScopeCases, id)
+	wd.CaseString = string(caseBytes)
+	return json.Marshal(wd)
+}
+
+func (wd *CaseWatcherData) GetArgs() map[string]any {
+	return wd.Args
 }
