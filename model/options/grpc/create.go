@@ -44,14 +44,14 @@ func WithCreateIDs(ids []int64) CreateOption {
 
 func WithCreateParentID(id int64) CreateOption {
 	return func(o *CreateOptions) error {
-		o.ChildID = id
+		o.ParentID = id
 		return nil
 	}
 }
 
 func WithCreateChildID(id int64) CreateOption {
 	return func(o *CreateOptions) error {
-		o.ParentID = id
+		o.ChildID = id
 		return nil
 	}
 }
