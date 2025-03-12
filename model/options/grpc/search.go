@@ -226,10 +226,10 @@ func NewLocateOptions(ctx context.Context, opts ...SearchOption) (*SearchOptions
 	if err != nil {
 		return nil, err
 	}
-	if len(opts) == 0 {
+	if len(locate.IDs) == 0 {
 		return nil, errors.New("locate options require id to locate")
 	}
-	if len(opts) > 1 {
+	if len(locate.IDs) > 1 {
 		return nil, errors.New("locate options require only one id")
 	}
 
