@@ -33,7 +33,7 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 		ctx,
 		grpcopts.WithSearch(request),
 		grpcopts.WithPagination(request),
-		grpcopts.WithFields(request, CaseMetadata,
+		grpcopts.WithFields(request, CaseTimelineMetadata,
 			util.DeduplicateFields,
 			func(in []string) []string {
 				var requestedType []string
