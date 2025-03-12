@@ -319,7 +319,7 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 	return &CaseLinkService{app: app}, nil
 }
 
-func NormalizeResponseLink(res *cases.CaseLink, opts model.Fielder) error {
+func NormalizeResponseLink(res *cases.CaseLink, opts grpcopts.Fielder) error {
 	var err error
 	hasEtag, hasId, hasVer := util.FindEtagFields(opts.GetFields())
 	if hasEtag {

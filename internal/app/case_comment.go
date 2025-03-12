@@ -287,7 +287,7 @@ func (c *CaseCommentService) PublishComment(
 	return comment, nil
 }
 
-func NormalizeCommentsResponse(res interface{}, opts model.Fielder) error {
+func NormalizeCommentsResponse(res interface{}, opts grpcopts.Fielder) error {
 	requestedFields := opts.GetFields()
 	if len(requestedFields) == 0 {
 		requestedFields = CaseCommentMetadata.GetDefaultFields()

@@ -12,7 +12,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 )
 
 const (
@@ -388,7 +387,7 @@ func buildLinkSelectAsSubquery(fields []string, caseAlias string) (updatedBase s
 	if dbErr != nil {
 		return base, nil, dbErr
 	}
-	base = store.ApplyPaging(1, model.DefaultSearchSize, base)
+	base = store.ApplyPaging(1, options.DefaultSearchSize, base)
 
 	return base, plan, nil
 }

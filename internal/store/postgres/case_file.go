@@ -11,7 +11,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 )
 
 type CaseFileStore struct {
@@ -274,7 +273,7 @@ func buildFilesSelectAsSubquery(fields []string, caseAlias string) (sq.SelectBui
 		From("storage.files " + alias).
 		Where(fmt.Sprintf("%s = %s::text", store.Ident(alias, "uuid"), store.Ident(caseAlias, "id"))).
 		Where(fmt.Sprintf("%s = '%s'", store.Ident(alias, "channel"), channel))
-	base = store.ApplyPaging(1, model.DefaultSearchSize, base)
+	base = store.ApplyPaging(1, options.DefaultSearchSize, base)
 
 	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, fields)
 	if dbErr != nil {

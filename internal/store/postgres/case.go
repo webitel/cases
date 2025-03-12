@@ -1840,7 +1840,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 						return nil
 					}
 					res := &_go.CaseCommentList{}
-					res.Items, res.Next = store.ResolvePaging(model.DefaultSearchSize, items)
+					res.Items, res.Next = store.ResolvePaging(options.DefaultSearchSize, items)
 					res.Page = 1
 					value.Comments = res
 					return nil
@@ -1861,7 +1861,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 						return nil
 					}
 					res := &_go.CaseLinkList{}
-					res.Items, res.Next = store.ResolvePaging(model.DefaultSearchSize, items)
+					res.Items, res.Next = store.ResolvePaging(options.DefaultSearchSize, items)
 					res.Page = 1
 					value.Links = res
 					return nil
@@ -1888,7 +1888,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 						return nil
 					}
 					res := &_go.CaseFileList{Items: items}
-					res.Items, res.Next = store.ResolvePaging(model.DefaultSearchSize, items)
+					res.Items, res.Next = store.ResolvePaging(options.DefaultSearchSize, items)
 					res.Page = 1
 					value.Files = res
 					return nil

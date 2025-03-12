@@ -2,16 +2,14 @@ package app
 
 import (
 	"context"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
-	"github.com/webitel/cases/util"
-	"log/slog"
-
-	"github.com/webitel/cases/auth"
-
 	"github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	"log/slog"
 )
 
 type CaseFileService struct {

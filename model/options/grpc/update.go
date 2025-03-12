@@ -6,6 +6,7 @@ import (
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/model/options"
+	util2 "github.com/webitel/cases/model/options/grpc/util"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 	"time"
@@ -125,7 +126,7 @@ func NewUpdateOptions(ctx context.Context, opts ...UpdateOption) (*UpdateOptions
 	}
 
 	// Deduplicate and trim mask prefixes
-	updateOpts.Mask = DeduplicateMaskPrefixes(updateOpts.Mask)
+	updateOpts.Mask = util2.DeduplicateMaskPrefixes(updateOpts.Mask)
 
 	return updateOpts, nil
 }

@@ -104,7 +104,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, DatabaseError
 	}
-	err = c.NormalizeResponseCases(list, req, nil)
+	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, ResponseNormalizingError
@@ -131,7 +131,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if len(list.Items) == 0 {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.not_found", "entity not found")
 	}
-	err = c.NormalizeResponseCases(list, req, nil)
+	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, ResponseNormalizingError
@@ -805,7 +805,7 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 }
 
 // NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.
-func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model.Fielder, subOpts map[string]model.Fielder) error {
+func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts grpcopts.Fielder) error {
 	var err error
 	fields := mainOpts.GetFields()
 	if len(fields) == 0 {
@@ -857,7 +857,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts model
 }
 
 // NormalizeResponseCase validates and normalizes the response cases.Case to the front-end side.
-func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts model.Fielder) error {
+func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts grpcopts.Fielder) error {
 	fields := opts.GetFields()
 	if len(fields) == 0 {
 		fields = CaseMetadata.GetDefaultFields()

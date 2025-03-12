@@ -576,7 +576,7 @@ func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlia
 	if dbErr != nil {
 		return base, nil, dbErr
 	}
-	base = store.ApplyPaging(1, model.DefaultSearchSize, base)
+	base = store.ApplyPaging(1, options.DefaultSearchSize, base)
 	return base, plan, nil
 }
 
