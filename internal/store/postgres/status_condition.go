@@ -217,13 +217,13 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.SearchOp
 			queryBuilder = queryBuilder.
 				Column("COALESCE(created_by.id, 0) AS cbi").
 				Column("COALESCE(created_by.name, '') AS cbn").
-				LeftJoin("directory.wbt_auth AS created_by ON g.created_by = created_by.id")
+				LeftJoin("directory.wbt_auth AS created_by ON s.created_by = created_by.id")
 		case "updated_by":
 			// Handle nulls using COALESCE for updated_by
 			queryBuilder = queryBuilder.
 				Column("COALESCE(updated_by.id, 0) AS ubi").
 				Column("COALESCE(updated_by.name, '') AS ubn").
-				LeftJoin("directory.wbt_auth AS updated_by ON g.updated_by = updated_by.id")
+				LeftJoin("directory.wbt_auth AS updated_by ON s.updated_by = updated_by.id")
 		}
 	}
 

@@ -14,7 +14,7 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
-	cases "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
