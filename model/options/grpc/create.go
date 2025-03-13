@@ -27,7 +27,6 @@ func WithCreateFields(
 			))
 		}
 		o.Fields, o.UnknownFields = util.SplitKnownAndUnknownFields(o.Fields, md.GetAllFields())
-
 		for _, f := range fieldsModifiers {
 			o.Fields = f(o.Fields)
 		}

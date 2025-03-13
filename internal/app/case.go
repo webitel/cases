@@ -310,6 +310,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		grpcopts.WithUpdateFields(
 			req,
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
+			util.DeduplicateFields,
+			util.ParseFieldsForEtag,
 			func(fields []string) []string {
 				for i, v := range fields {
 					if v == "related" {
@@ -318,11 +320,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 				}
 				return fields
 			}),
+		grpcopts.WithUpdateEtag(&tag),
 	)
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	updateOpts.Etags = []*etag.Tid{&tag}
 
 	logAttributes := slog.Group(
 		"context",

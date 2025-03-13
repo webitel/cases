@@ -35,6 +35,7 @@ func WithFields(fielder shared.Fielder, md model.ObjectMetadatter, fieldModifier
 	return func(options *SearchOptions) error {
 		if requestedFields := fielder.GetFields(); len(requestedFields) == 0 {
 			options.Fields = md.GetDefaultFields()
+
 		} else {
 			options.Fields = requestedFields
 		}
