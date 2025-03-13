@@ -321,6 +321,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 				return fields
 			}),
 		grpcopts.WithUpdateEtag(&tag),
+		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
 		return nil, NewBadRequestError(err)
