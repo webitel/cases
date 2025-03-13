@@ -137,13 +137,13 @@ type StatusStore interface {
 
 type StatusConditionStore interface {
 	// Create a new status сondition
-	Create(ctx options.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error)
+	Create(ctx options.CreateOptions, input *_go.StatusCondition) (*_go.StatusCondition, error)
 	// List status сondition
 	List(ctx options.SearchOptions, statusId int64) (*_go.StatusConditionList, error)
 	// Delete status сondition
 	Delete(ctx options.DeleteOptions, statusId int64) error
 	// Update status сondition
-	Update(ctx options.UpdateOptions, status *_go.StatusCondition) (*_go.StatusCondition, error)
+	Update(ctx options.UpdateOptions, input *_go.StatusCondition) (*_go.StatusCondition, error)
 }
 
 type CloseReasonGroupStore interface {

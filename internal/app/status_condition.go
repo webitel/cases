@@ -98,14 +98,6 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 		return nil, cerror.NewBadRequestError("status_condition.update_status_condition.id.required", "Status ID is required")
 	}
 
-	// Update status user_auth
-	status := &_go.StatusCondition{
-		Id:          req.Id,
-		StatusId:    req.StatusId,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-	}
-
 	// Define update options
 	updateOpts, err := grpcopts.NewUpdateOptions(
 		ctx,
@@ -116,14 +108,23 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 		return nil, NewBadRequestError(err)
 	}
 
-	// Define the current user as the updater
-	u := &_go.Lookup{
-		Id: updateOpts.GetAuthOpts().GetUserId(),
+	// Update input user_auth
+	input := &_go.StatusCondition{
+		Id:          req.Id,
+		StatusId:    req.StatusId,
+		Name:        req.Input.Name,
+		Description: req.Input.Description,
 	}
-	status.UpdatedBy = u
 
-	// Update the status in the store
-	st, err := s.app.Store.StatusCondition().Update(updateOpts, status)
+	if req.Input.Initial != nil {
+		input.Initial = req.Input.Initial.Value
+	}
+	if req.Input.Final != nil {
+		input.Final = req.Input.Final.Value
+	}
+
+	// Update the input in the store
+	st, err := s.app.Store.StatusCondition().Update(updateOpts, input)
 	if err != nil {
 		switch err.(type) {
 		case *cerror.DBCheckViolationError:

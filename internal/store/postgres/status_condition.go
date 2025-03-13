@@ -27,7 +27,7 @@ type StatusConditionStore struct {
 	storage *Store
 }
 
-func (s StatusConditionStore) Create(rpc options.CreateOptions, add *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s StatusConditionStore) Create(rpc options.CreateOptions, input *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.database_connection_error", err)
@@ -39,7 +39,7 @@ func (s StatusConditionStore) Create(rpc options.CreateOptions, add *_go.StatusC
 	}
 	defer s.handleTx(rpc, tx, &err)
 
-	query, args, err := s.buildCreateStatusConditionQuery(rpc, add)
+	query, args, err := s.buildCreateStatusConditionQuery(rpc, input)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.query_build_error", err)
 	}
@@ -50,19 +50,19 @@ func (s StatusConditionStore) Create(rpc options.CreateOptions, add *_go.StatusC
 	)
 
 	err = tx.QueryRow(rpc, query, args...).Scan(
-		&add.Id, &add.Name, &createdAt, &updatedAt, &add.Description, &add.Initial, &add.Final,
-		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &add.StatusId,
+		&input.Id, &input.Name, &createdAt, &updatedAt, &input.Description, &input.Initial, &input.Final,
+		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &input.StatusId,
 	)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.execution_error", err)
 	}
 
-	add.CreatedAt = util.Timestamp(createdAt)
-	add.UpdatedAt = util.Timestamp(updatedAt)
-	add.CreatedBy = &createdBy
-	add.UpdatedBy = &updatedBy
+	input.CreatedAt = util.Timestamp(createdAt)
+	input.UpdatedAt = util.Timestamp(updatedAt)
+	input.CreatedBy = &createdBy
+	input.UpdatedBy = &updatedBy
 
-	return add, nil
+	return input, nil
 }
 
 func (s StatusConditionStore) List(rpc options.SearchOptions, statusId int64) (*_go.StatusConditionList, error) {
@@ -146,7 +146,7 @@ func (s StatusConditionStore) Delete(rpc options.DeleteOptions, statusId int64) 
 	return nil
 }
 
-func (s StatusConditionStore) Update(rpc options.UpdateOptions, st *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s StatusConditionStore) Update(rpc options.UpdateOptions, input *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.database_connection_error", err)
@@ -161,13 +161,13 @@ func (s StatusConditionStore) Update(rpc options.UpdateOptions, st *_go.StatusCo
 	for _, field := range rpc.GetMask() {
 		switch field {
 		case "initial":
-			if !st.Initial {
+			if !input.Initial {
 				return nil, dberr.NewDBCheckViolationError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
 			}
 		}
 	}
 
-	query, args := s.buildUpdateStatusConditionQuery(rpc, st)
+	query, args := s.buildUpdateStatusConditionQuery(rpc, input)
 
 	var (
 		createdBy, updatedBy _go.Lookup
@@ -175,30 +175,30 @@ func (s StatusConditionStore) Update(rpc options.UpdateOptions, st *_go.StatusCo
 	)
 
 	err = tx.QueryRow(rpc, query, args...).Scan(
-		&st.Id, &st.Name, &createdAt, &updatedAt, &st.Description, &st.Initial, &st.Final,
-		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &st.StatusId,
+		&input.Id, &input.Name, &createdAt, &updatedAt, &input.Description, &input.Initial, &input.Final,
+		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &input.StatusId,
 	)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.execution_error", err)
 	}
 
-	st.CreatedAt = util.Timestamp(createdAt)
-	st.UpdatedAt = util.Timestamp(updatedAt)
-	st.CreatedBy = &createdBy
-	st.UpdatedBy = &updatedBy
+	input.CreatedAt = util.Timestamp(createdAt)
+	input.UpdatedAt = util.Timestamp(updatedAt)
+	input.CreatedBy = &createdBy
+	input.UpdatedBy = &updatedBy
 
-	return st, nil
+	return input, nil
 }
 
-func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.CreateOptions, status *_go.StatusCondition) (string, []interface{}, error) {
+func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.CreateOptions, input *_go.StatusCondition) (string, []interface{}, error) {
 	query := createStatusConditionQuery
 	args := []interface{}{
-		status.Name,                     // $1 name
+		input.Name,                      // $1 name
 		rpc.RequestTime(),               // $2 created_at / updated_at
-		status.Description,              // $3 description
+		input.Description,               // $3 description
 		rpc.GetAuthOpts().GetUserId(),   // $4 created_by / updated_by
 		rpc.GetAuthOpts().GetDomainId(), // $5 dc
-		status.StatusId,                 // $6 status_id
+		input.StatusId,                  // $6 status_id
 	}
 	return query, args, nil
 }
@@ -266,7 +266,7 @@ func (s StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domai
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.UpdateOptions, st *_go.StatusCondition) (string, []interface{}) {
+func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.UpdateOptions, input *_go.StatusCondition) (string, []interface{}) {
 	var args []interface{}
 
 	// 1. Squirrel operations: Building the dynamic part of the "upd" query
@@ -282,24 +282,24 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Update
 	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
-			if st.Name != "" {
-				updBuilder = updBuilder.Set("name", st.Name)
+			if input.Name != "" {
+				updBuilder = updBuilder.Set("name", input.Name)
 			}
 		case "description":
 			// Set description to NULL if it's an empty string
-			updBuilder = updBuilder.Set("description", sq.Expr("NULLIF(?, '')", st.Description))
+			updBuilder = updBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
 		case "initial":
-			updBuilder = updBuilder.Set("initial", st.Initial)
+			updBuilder = updBuilder.Set("initial", input.Initial)
 			updateInitial = true
 		case "final":
-			updBuilder = updBuilder.Set("final", st.Final)
+			updBuilder = updBuilder.Set("final", input.Final)
 			updateFinal = true
 		}
 	}
 
 	// Build the dynamic part of the "upd" query using squirrel
 	updSql, updArgs, err := updBuilder.
-		Where(sq.Eq{"id": st.Id}).
+		Where(sq.Eq{"id": input.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
 		Suffix("RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id").
 		ToSql()
@@ -365,12 +365,12 @@ WHERE CASE
 	// 3. Adding all arguments
 	args = append(args,
 		rpc.GetAuthOpts().GetDomainId(), // $1
-		st.StatusId,                     // $2
-		st.Id,                           // $3
+		input.StatusId,                  // $2
+		input.Id,                        // $3
 		updateInitial,                   // $4
 		updateFinal,                     // $5
-		st.Final,                        // $6
-		st.Initial,                      // $7
+		input.Final,                     // $6
+		input.Initial,                   // $7
 	)
 
 	// Append the dynamic query arguments
@@ -404,20 +404,20 @@ func (s StatusConditionStore) handleTx(rpc context.Context, tx pgx.Tx, err *erro
 	}
 }
 
-func (s StatusConditionStore) buildScanArgs(fields []string, st *_go.StatusCondition, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt *time.Time) []interface{} {
+func (s StatusConditionStore) buildScanArgs(fields []string, input *_go.StatusCondition, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt *time.Time) []interface{} {
 	var scanArgs []interface{}
 	for _, field := range fields {
 		switch field {
 		case "id":
-			scanArgs = append(scanArgs, &st.Id)
+			scanArgs = append(scanArgs, &input.Id)
 		case "name":
-			scanArgs = append(scanArgs, &st.Name)
+			scanArgs = append(scanArgs, &input.Name)
 		case "description":
-			scanArgs = append(scanArgs, scanner.ScanText(&st.Description))
+			scanArgs = append(scanArgs, scanner.ScanText(&input.Description))
 		case "initial":
-			scanArgs = append(scanArgs, &st.Initial)
+			scanArgs = append(scanArgs, &input.Initial)
 		case "final":
-			scanArgs = append(scanArgs, &st.Final)
+			scanArgs = append(scanArgs, &input.Final)
 		case "created_at":
 			scanArgs = append(scanArgs, tempCreatedAt)
 		case "updated_at":
@@ -427,7 +427,7 @@ func (s StatusConditionStore) buildScanArgs(fields []string, st *_go.StatusCondi
 		case "updated_by":
 			scanArgs = append(scanArgs, &updatedBy.Id, &updatedBy.Name)
 		case "status_id":
-			scanArgs = append(scanArgs, &st.Id)
+			scanArgs = append(scanArgs, &input.Id)
 		}
 	}
 	return scanArgs
