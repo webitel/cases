@@ -183,6 +183,10 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		return nil, cerror.NewBadRequestError("sla_service.update_sla.id.required", "SLA ID is required")
 	}
 
+	if req.Input == nil {
+		return nil, cerror.NewInternalError("sla_service.update_sla.input.required", "SLA input is required")
+	}
+
 	fields := []string{"id"}
 
 	// Map XJsonMask fields to the corresponding SLA fields
