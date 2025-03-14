@@ -249,7 +249,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"contact_info":        input.GetContactInfo(),
 		"user":                rpc.GetAuthOpts().GetUserId(),
 		"dc":                  rpc.GetAuthOpts().GetDomainId(),
-		"slaID":               slaID,
+		"sla":                 slaID,
 		"sla_condition":       slaConditionID,
 		"status":              input.Status.GetId(),
 		"status_condition":    input.StatusCondition.GetId(),
@@ -300,7 +300,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				id, name, dc, created_at, created_by, updated_at, updated_by,
 				priority, source, status, contact_group, close_reason_group,
 				subject, planned_reaction_at, planned_resolve_at, reporter, impacted,
-				service, description, assignee, slaID, sla_condition_id, status_condition, contact_info,
+				service, description, assignee, sla, sla_condition_id, status_condition, contact_info,
 				close_result, close_reason
 			) VALUES (
 				(SELECT id FROM id_cte),
@@ -308,7 +308,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:dc, :date, :user, :date, :user,
 				:priority, :source, :status, :contact_group, :close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
-				:service, :description, :assignee, :slaID, :sla_condition,
+				:service, :description, :assignee, :sla, :sla_condition,
 				:status_condition, :contact_info, :close_result, :close_reason
 			)
 			RETURNING *
