@@ -204,9 +204,9 @@ FROM deepest_service ds
 
 func (c *CaseStore) buildCreateCaseSqlizer(
 	rpc options.CreateOptions,
-	caseItem *_go.Case,
-	sla int,
-	slaCondition int,
+	input *_go.Case,
+	slaID int,
+	slaConditionID int,
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	// Parameters for the main case and nested JSON arrays
 	var (
@@ -214,7 +214,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		closeResult, description                         *string
 	)
 
-	if cl := caseItem.GetClose(); cl != nil && cl.GetCloseReason() != nil && cl.GetCloseReason().GetId() > 0 {
+	if cl := input.GetClose(); cl != nil && cl.GetCloseReason() != nil && cl.GetCloseReason().GetId() > 0 {
 		if reason := cl.GetCloseReason(); reason != nil && reason.GetId() > 0 {
 			closeReason = &reason.Id
 		}
@@ -224,44 +224,45 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		}
 
 	}
-	if rep := caseItem.GetReporter(); rep != nil && rep.GetId() > 0 {
+	if rep := input.GetReporter(); rep != nil && rep.GetId() > 0 {
 		reporter = &rep.Id
 	}
 
-	if ass := caseItem.GetAssignee(); ass != nil && ass.GetId() > 0 {
+	if ass := input.GetAssignee(); ass != nil && ass.GetId() > 0 {
 		assignee = &ass.Id
 	}
 
-	if imp := caseItem.GetImpacted(); imp != nil && imp.GetId() > 0 {
+	if imp := input.GetImpacted(); imp != nil && imp.GetId() > 0 {
 		impacted = &imp.Id
 	}
 
-	if grp := caseItem.Group; grp != nil && grp.GetId() > 0 {
+	if grp := input.Group; grp != nil && grp.GetId() > 0 {
 		group = &grp.Id
 	}
 
-	if desc := caseItem.Description; desc != "" {
+	if desc := input.Description; desc != "" {
 		description = &desc
 	}
 	params := map[string]any{
 		// Case-level parameters
 		"date":                rpc.RequestTime(),
-		"contact_info":        caseItem.GetContactInfo(),
+		"contact_info":        input.GetContactInfo(),
 		"user":                rpc.GetAuthOpts().GetUserId(),
 		"dc":                  rpc.GetAuthOpts().GetDomainId(),
-		"sla":                 sla,
-		"sla_condition":       slaCondition,
-		"status":              caseItem.Status.GetId(),
-		"service":             caseItem.Service.GetId(),
-		"priority":            caseItem.Priority.GetId(),
-		"source":              caseItem.Source.GetId(),
+		"sla":                 slaID,
+		"sla_condition":       slaConditionID,
+		"status":              input.Status.GetId(),
+		"status_condition":    input.StatusCondition.GetId(),
+		"service":             input.Service.GetId(),
+		"priority":            input.Priority.GetId(),
+		"source":              input.Source.GetId(),
 		"contact_group":       group,
-		"close_reason_group":  caseItem.CloseReasonGroup.GetId(),
+		"close_reason_group":  input.CloseReasonGroup.GetId(),
 		"close_result":        closeResult,
 		"close_reason":        closeReason,
-		"subject":             caseItem.Subject,
-		"planned_reaction_at": util.LocalTime(caseItem.PlannedReactionAt),
-		"planned_resolve_at":  util.LocalTime(caseItem.PlannedResolveAt),
+		"subject":             input.Subject,
+		"planned_reaction_at": util.LocalTime(input.PlannedReactionAt),
+		"planned_resolve_at":  util.LocalTime(input.PlannedResolveAt),
 		"reporter":            reporter,
 		"impacted":            impacted,
 		"description":         description,
@@ -270,17 +271,9 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		//------ CASE One-to-Many ( 1 : n ) Attributes ----//
 		//-------------------------------------------------//
 		// Links and related cases as JSON arrays
-		"links":   extractLinksJSON(caseItem.Links),
-		"related": extractRelatedJSON(caseItem.Related),
+		"links":   extractLinksJSON(input.Links),
+		"related": extractRelatedJSON(input.Related),
 	}
-
-	// Define CTEs for the main case
-	statusConditionCTE := `
-		status_condition_cte AS (
-			SELECT sc.id AS status_condition_id
-			FROM cases.status_condition sc
-			WHERE sc.status_id = :status AND sc.initial = true
-		)`
 
 	prefixCTE := `
 	    service_cte AS(
@@ -301,7 +294,6 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	// Consolidated query for inserting the case, links, and related cases
 	query := `
 	WITH
-		` + statusConditionCTE + `,
 		` + prefixCTE + `,
 		` + caseLeft + ` AS (
 			INSERT INTO cases.case (
@@ -317,7 +309,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:priority, :source, :status, :contact_group, :close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee, :sla, :sla_condition,
-				(SELECT status_condition_id FROM status_condition_cte), :contact_info, :close_result, :close_reason
+				:status_condition, :contact_info, :close_result, :close_reason
 			)
 			RETURNING *
 		),
