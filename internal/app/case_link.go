@@ -48,7 +48,7 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 
 	searchOpts, err := grpcopts.NewLocateOptions(
 		ctx,
-		grpcopts.WithFields(req, CaseCommentMetadata,
+		grpcopts.WithFields(req, CaseLinkMetadata,
 			util.DeduplicateFields,
 			util.EnsureIdField,
 			util.ParseFieldsForEtag,
@@ -261,7 +261,7 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		ctx,
 		grpcopts.WithSearch(req),
 		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, CaseMetadata,
+		grpcopts.WithFields(req, CaseLinkMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
