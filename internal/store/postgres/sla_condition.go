@@ -415,9 +415,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.SearchOptio
 	}
 
 	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		substrs := util.Substring(name)
-		combinedLike := strings.Join(substrs, "%")
-		queryBuilder = queryBuilder.Where(sq.ILike{"g.name": combinedLike})
+		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "g.name")
 	}
 
 	// Adjust sort if calendar is present

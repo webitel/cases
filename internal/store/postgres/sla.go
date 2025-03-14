@@ -2,15 +2,13 @@ package postgres
 
 import (
 	"fmt"
-	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
-	"strings"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/util"
 )
 
@@ -290,9 +288,7 @@ func (s *SLAStore) buildListSLAQuery(
 
 	// Add name filter if provided
 	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		substr := util.Substring(name)
-		combinedLike := strings.Join(substr, "%")
-		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
+		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
 	}
 
 	// -------- Apply sorting ----------

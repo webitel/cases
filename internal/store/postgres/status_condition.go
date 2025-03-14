@@ -235,9 +235,7 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.SearchOp
 	}
 
 	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		substrs := util.Substring(name)
-		combinedLike := strings.Join(substrs, "%")
-		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": combinedLike})
+		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
 	}
 
 	// -------- Apply sorting ----------

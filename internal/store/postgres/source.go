@@ -229,7 +229,7 @@ func (s *Source) buildListSourceQuery(rpc options.SearchOptions) (sq.SelectBuild
 	}
 
 	if name, ok := rpc.GetFilter("name").(string); ok && name != "" {
-		queryBuilder = queryBuilder.Where(sq.ILike{"s.name": "%" + name + "%"})
+		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
 	}
 
 	if types, ok := rpc.GetFilter("type").([]_go.SourceType); ok && len(types) > 0 {

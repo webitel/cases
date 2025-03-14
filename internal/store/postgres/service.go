@@ -4,7 +4,6 @@ import (
 	"fmt"
 	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgtype"
@@ -354,8 +353,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.SearchOptions) (strin
 	}
 
 	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		substr := util.Substring(name)
-		queryBuilder = queryBuilder.Where(sq.ILike{"service.name": "%" + strings.Join(substr, "%") + "%"})
+		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "service.name")
 	}
 
 	if state := rpc.GetFilter("state"); state != nil {
