@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+
 	"github.com/webitel/cases/model/options"
 
 	"github.com/webitel/cases/auth"
@@ -9,6 +10,8 @@ import (
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
+
+	custom "github.com/webitel/custom/store"
 )
 
 // Store is an interface that defines all the methods and properties that a store should implement in Cases service
@@ -42,6 +45,9 @@ type Store interface {
 	// ------------ Catalog and Service Stores ------------ //
 	Catalog() CatalogStore
 	Service() ServiceStore
+
+	// ------------ Custom Store ------------ //
+	Custom() custom.Catalog
 
 	// ------------ Database Management ------------ //
 	Open() *dberr.DBError  // Return custom DB error

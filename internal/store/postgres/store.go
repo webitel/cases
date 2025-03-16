@@ -9,6 +9,8 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	otelpgx "github.com/webitel/webitel-go-kit/tracing/pgx"
+
+	custom "github.com/webitel/custom/store"
 )
 
 // Store is the struct implementing the Store interface.
@@ -34,6 +36,10 @@ type Store struct {
 	serviceStore          store.ServiceStore
 	config                *conf.DatabaseConfig
 	conn                  *pgxpool.Pool
+
+	// region: [custom] fields ..
+	customStore custom.Catalog
+	// endregion: [custom] fields ..
 }
 
 // New creates a new Store instance.

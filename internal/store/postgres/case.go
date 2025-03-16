@@ -2,15 +2,19 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
-	"github.com/webitel/cases/model/options/defaults"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
+
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/options/defaults"
+	common "github.com/webitel/cases/model/options/grpc"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
@@ -24,6 +28,9 @@ import (
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
+
+	customrel "github.com/webitel/custom/reflect"
+	custompgx "github.com/webitel/custom/store/postgres"
 )
 
 type CaseStore struct {
@@ -336,6 +343,51 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		)
 	`
 
+	// region: [custom] fields ..
+	var custom *customCtx
+	if data := input.GetCustom(); len(data.GetFields()) > 0 {
+		custom = c.custom(rpc)
+		if custom == nil || custom.refer == nil {
+			// No [custom] extensions/cases -BUT- case.Custom data specified !
+			err := fmt.Errorf("custom: no specification")
+			return sq.SelectBuilder{}, nil, err
+		}
+		// PREPARE Statement !..
+		oid := sq.Expr("(SELECT id FROM " + caseLeft + ")")
+		insertQ, args, err := custom.refer.Update(
+			oid, data, false, // [!]partial
+		)
+		if err != nil {
+			return sq.SelectBuilder{}, nil, dberr.NewDBInternalError(
+				"postgres.custom.prepare.error", err,
+			)
+		}
+		if insertQ != nil {
+			insertQ, _, err := insertQ.ToSql()
+			if err != nil {
+				return sq.SelectBuilder{}, nil, dberr.NewDBInternalError(
+					"postgres.custom.prepare.error", err,
+				)
+			}
+			cte := "x" // alias
+			query += ", " + cte + " AS (" + insertQ + ")"
+			for name, value := range args {
+				params[name] = value
+			}
+			custom.table = cte
+			// Return INSERT[ed] data record ! normalized
+			custom.fields = make([]string, 0, len(data.Fields))
+			maps.Keys(data.Fields)(func(name string) bool {
+				// [NOTE]: MAY be unknown field name !
+				custom.fields = append(custom.fields, name)
+				return true
+			})
+		} // else { // No INSERT to perform ! }
+	}
+	// sanitize: no source output !
+	input.Custom = nil
+	// endregion: [custom] fields ..
+
 	// **Bind named query and parameters**
 	// **This binds the named parameters in the query to the provided params map, converting it into a positional query with arguments.**
 	// **Example:**
@@ -349,8 +401,17 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 
 	// Construct SELECT query to return case data
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		rpc.GetAuthOpts(),
-		rpc.GetFields(),
+		withSearchOptions(rpc, func(search *common.SearchOptions) (_ error) {
+			if custom != nil {
+				// Output query custom fields ..
+				search.UnknownFields = append(
+					search.UnknownFields, custom.fields..., // customFieldName,
+				)
+				// Chain prepared query context
+				search.Filters[customCtxState] = custom
+			}
+			return
+		}),
 		sq.Select().PrefixExpr(
 			sq.Expr(
 				boundQuery,
@@ -888,7 +949,7 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 
 func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
-	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts.GetAuthOpts(), opts.GetFields(), base)
+	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
 	if search := opts.GetSearch(); search != "" {
 		searchTerm, operator := util2.ParseSearchTerm(search)
 		searchNumber := util2.PrepareSearchNumber(search)
@@ -1206,7 +1267,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 ) (sq.Sqlizer, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included
 	fields := rpc.GetFields()
-	fields = util.EnsureIdAndVerField(rpc.GetFields())
+	fields = util.EnsureIdAndVerField(fields)
 	var err error
 
 	// Initialize the update query
@@ -1226,6 +1287,15 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	}
 	// Increment version
 	updateBuilder = updateBuilder.Set("ver", sq.Expr("ver + 1"))
+
+	// region: [custom] fields ..
+	var custom struct {
+		customCtx
+		update sq.Sqlizer
+		params custompgx.Parameters
+		output []common.SearchOption
+	}
+	// endregion: [custom] fields ..
 
 	// Handle nested fields using switch-case on req.Mask
 	for _, field := range rpc.GetMask() {
@@ -1304,12 +1374,101 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 				updateBuilder = updateBuilder.Set("rating", upd.Rate.Rating)
 				updateBuilder = updateBuilder.Set("rating_comment", sq.Expr("NULLIF(?, '')", upd.Rate.RatingComment))
 			}
+		// region: [custom] fields ..
+		case "custom": // customFieldName
+			{
+				// [NOTE]: PATCH {"custom":null} !
+				// get has [custom] extension defined !?
+				if e := c.custom(rpc); e != nil {
+					custom.customCtx = (*e) // shallowcopy
+				}
+				// record changes for update ..
+				data := upd.GetCustom()
+				// sanitize: no source for output !
+				upd.Custom = nil
+				// extension querier available ?
+				if custom.refer == nil {
+					// NO [custom] extension descriptor !
+					if data != nil {
+						err = fmt.Errorf("custom: no specification")
+						return nil, nil, err
+					}
+					// no extension & data provided
+					continue // ok ; next field ..
+				}
+				// PREPARE Statement !..
+				// oid := rpc.GetEtags()[0].GetOid()
+				oid := sq.Expr("(SELECT id FROM " + caseLeft + ")")
+				const partial = true // [FIXME]: !
+				updateQ, params, re := custom.refer.Update(
+					oid, data, partial,
+				)
+				if err = re; err != nil {
+					// failed to prepare UPDATE statement
+					return nil, nil, err
+				}
+				if updateQ == nil {
+					// No UPDATE to perform !
+					continue // ok ; next field ..
+				}
+				custom.update = updateQ
+				custom.params = params
+
+				// tblname := strings.Split(custom.refer.Table(), ".")
+				// ctename := tblname[len(tblname)-1]
+				custom.table = "x" // ctename
+
+				custom.fields = make([]string, 0, len(data.Fields))
+				maps.Keys(data.Fields)(func(name string) bool {
+					// [NOTE]: MAY be unknown field name !
+					custom.fields = append(custom.fields, name)
+					return true
+				})
+			}
+			// endregion: [custom] fields ..
 		}
 	}
 
+	WITH := sq.Select().PrefixExpr(
+		sq.Expr(("WITH " + caseLeft + " AS (?)"),
+			updateBuilder.Suffix("RETURNING *"),
+		),
+	) //.PlaceholderFormat(sq.Dollar)
+
+	if custom.update != nil {
+		// [RE]Bind (inject) :named paramenters !
+		_, args, _ := WITH.Column("_").ToSql()
+		query, _, _ := custom.update.ToSql()
+		query, args, re := custompgx.BindNamedOffset(
+			query, custom.params, len(args), // offset,
+		)
+		if err = re; err != nil {
+			return nil, nil, err
+		}
+		//
+		custom.update = sq.Expr(
+			query, args...,
+		)
+		// WITH custom (..UPDATE..)
+		WITH = WITH.PrefixExpr(sq.Expr(
+			(", " + custom.table + " AS (?)"),
+			custom.update,
+		))
+		// Return UPDATE[d] field(s) ...
+		custom.output = append(custom.output,
+			func(search *common.SearchOptions) (_ error) {
+				search.UnknownFields = append(
+					search.UnknownFields, custom.fields..., // customFieldName,
+				)
+				search.Filters[customCtxState] = &custom.customCtx
+				return
+			},
+		)
+	}
+
 	// Define SELECT query for returning updated fields
-	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(rpc.GetAuthOpts(), fields,
-		sq.Select().PrefixExpr(sq.Expr("WITH "+caseLeft+" AS (?)", updateBuilder.Suffix("RETURNING *"))),
+	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
+		withSearchOptions(rpc, custom.output...), WITH,
 	)
 	if err != nil {
 		return nil, nil, dberr.NewDBError("postgres.case.update.select_query_build_error", err.Error())
@@ -1384,13 +1543,18 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 }
 
 // session required to get some columns
-func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []string,
-	base sq.SelectBuilder,
-) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
+func (c *CaseStore) buildCaseSelectColumnsAndPlan(
+	req options.SearchOptions, base sq.SelectBuilder,
+) (
+	sq.SelectBuilder, []func(caseItem *_go.Case) any, error,
+) {
 	var (
 		plan       []func(caseItem *_go.Case) any
 		tableAlias string
 		err        error
+
+		fields = req.GetFields()
+		auther = req.GetAuthOpts()
 	)
 
 	for _, field := range fields {
@@ -1912,7 +2076,56 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(auther auth.Auther, fields []s
 		default:
 			return sq.SelectBuilder{}, nil, fmt.Errorf("unknown field: %s", field)
 		}
+	}
 
+	if unknown := req.GetUnknownFields(); len(unknown) > 0 {
+		// custom [extensions/cases] configuration ?!
+		custom := c.custom(req)
+		// found & available ?
+		if custom != nil && custom.refer != nil {
+			// [TODO]: grab known fields for single request
+			var (
+				// known {nested..} fields query
+				nested = make([]string, 0, len(unknown))
+				field  customrel.FieldDescriptor
+				ok     bool // e.g.: ?fields=custom{*}
+			)
+			for _, name := range unknown {
+				switch name {
+				case customFieldName, "*", "+":
+					{
+						// common field name ; ALL {nested..}
+						ok = true
+						continue
+					}
+				}
+				field = custom.typof.Fields().ByName(name)
+				if field == nil {
+					// case.custom{%name}; no such field !
+					continue
+				}
+				nested = append(nested, field.Name())
+			}
+			// ?fields=custom{..} requested ?
+			if ok || len(nested) > 0 {
+				// custom.table AS alias
+				base, custom.table = custom.refer.Join(
+					base, tableAlias, custom.table, "",
+				)
+				var scan func(custompgx.RecordExtendable) sql.Scanner
+				base, scan, err = custom.refer.Columns(
+					base, custom.table, nested...,
+				)
+				if err != nil {
+					// failed to build query columns
+					return sq.SelectBuilder{}, nil, err
+				}
+				plan = append(plan, func(row *_go.Case) any {
+					return scan(custompgx.ProtoExtendable(row))
+				})
+			}
+		}
+		// continue
 	}
 
 	if len(plan) == 0 {

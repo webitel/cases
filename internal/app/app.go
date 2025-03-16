@@ -3,10 +3,11 @@ package app
 import (
 	"context"
 	"fmt"
-	ftspublisher "github.com/webitel/cases/fts_client"
-	ftsclient "github.com/webitel/webitel-go-kit/fts_client"
 	"log/slog"
 	"strings"
+
+	ftspublisher "github.com/webitel/cases/fts_client"
+	ftsclient "github.com/webitel/webitel-go-kit/fts_client"
 
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	"github.com/webitel/cases/auth"
@@ -194,6 +195,8 @@ func (a *App) Start() error { // Change return type to standard error
 	if err != nil {
 		return err
 	}
+
+	a.initCustom()
 
 	// * run grpc server
 	go a.server.Start()

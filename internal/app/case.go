@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/webitel/cases/auth"
 	"log/slog"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/webitel/cases/auth"
 
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 
@@ -224,6 +225,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Service:          req.Input.Service,
 		Links:            links,
 		Related:          related,
+		Custom:           req.Input.GetCustom(),
 	}
 
 	createOpts, err := grpcopts.NewCreateOptions(
@@ -360,6 +362,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Close:            req.Input.Close,
 		Rate:             req.Input.Rate,
 		Service:          req.Input.GetService(),
+		Custom:           req.Input.GetCustom(),
 	}
 
 	res, err := c.app.Store.Case().Update(updateOpts, upd)
@@ -760,6 +763,10 @@ func (c *CaseService) ValidateUpdateInput(
 			if input.Service.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.service_required", "Service is required")
 			}
+			// default:
+			// 	if jpath, ok := strings.CutPrefix(field, "custom"); ok {
+
+			// 	}
 		}
 	}
 
