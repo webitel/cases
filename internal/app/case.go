@@ -219,6 +219,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Impacted:         req.Input.Impacted,
 		Group:            &cases.ExtendedLookup{Id: req.Input.Group.GetId()},
 		Status:           req.Input.Status,
+		StatusCondition:  &cases.StatusCondition{Id: req.Input.StatusCondition.Id},
 		Close:            (*cases.CloseInfo)(req.Input.GetClose()),
 		CloseReasonGroup: req.Input.GetCloseReasonGroup(),
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
