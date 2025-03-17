@@ -285,10 +285,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-
-	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleIds, res)
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	if c.app.config.UseFullTextSearch {
+		ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleIds, res)
+		if ftsErr != nil {
+			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+		}
 	}
 
 	logMessage, err := wlogger.NewCreateMessage(
@@ -410,10 +411,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-
-	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, res)
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	if c.app.config.UseFullTextSearch {
+		ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, res)
+		if ftsErr != nil {
+			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+		}
 	}
 
 	log, err := wlogger.NewCreateMessage(
@@ -712,9 +714,11 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		Ver:  tag.GetVer(),
 		Etag: req.Etag,
 	}
-	ftsErr := c.SendFtsDeleteEvent(tag.GetOid(), deleteOpts.GetAuthOpts().GetDomainId())
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	if c.app.config.UseFullTextSearch {
+		ftsErr := c.SendFtsDeleteEvent(tag.GetOid(), deleteOpts.GetAuthOpts().GetDomainId())
+		if ftsErr != nil {
+			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+		}
 	}
 	err = c.app.watcher.OnEvent(EventTypeDelete, NewWatcherData(deleteCase, deleteOpts.GetAuthOpts().GetDomainId()))
 	if err != nil {

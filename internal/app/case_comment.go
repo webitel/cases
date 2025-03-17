@@ -122,9 +122,11 @@ func (c *CaseCommentService) UpdateComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-	ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, parentId, updatedComment)
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	if c.app.config.UseFullTextSearch {
+		ftsErr := c.SendFtsUpdateEvent(id, updateOpts.GetAuthOpts().GetDomainId(), roleIds, parentId, updatedComment)
+		if ftsErr != nil {
+			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+		}
 	}
 
 	return updatedComment, nil
@@ -155,10 +157,11 @@ func (c *CaseCommentService) DeleteComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppDatabaseError
 	}
-
-	ftsErr := c.SendFtsDeleteEvent(tag.GetOid(), deleteOpts.GetAuthOpts().GetDomainId())
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	if c.app.config.UseFullTextSearch {
+		ftsErr := c.SendFtsDeleteEvent(tag.GetOid(), deleteOpts.GetAuthOpts().GetDomainId())
+		if ftsErr != nil {
+			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+		}
 	}
 	return nil, nil
 }
@@ -258,9 +261,11 @@ func (c *CaseCommentService) PublishComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, AppResponseNormalizingError
 	}
-	ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleId, parentId, comment)
-	if ftsErr != nil {
-		slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+	if c.app.config.UseFullTextSearch {
+		ftsErr := c.SendFtsCreateEvent(id, createOpts.GetAuthOpts().GetDomainId(), roleId, parentId, comment)
+		if ftsErr != nil {
+			slog.ErrorContext(ctx, ftsErr.Error(), logAttributes)
+		}
 	}
 	return comment, nil
 }

@@ -10,11 +10,12 @@ import (
 )
 
 type AppConfig struct {
-	File     string          `json:"-"`
-	Rabbit   *RabbitConfig   `json:"rabbit,omitempty"`
-	Database *DatabaseConfig `json:"database,omitempty"`
-	Consul   *ConsulConfig   `json:"consul,omitempty"`
-	Watcher  *WatcherConfig  `json:"watcher,omitempty"`
+	File              string          `json:"-"`
+	Rabbit            *RabbitConfig   `json:"rabbit,omitempty"`
+	Database          *DatabaseConfig `json:"database,omitempty"`
+	Consul            *ConsulConfig   `json:"consul,omitempty"`
+	Watcher           *WatcherConfig  `json:"watcher,omitempty"`
+	UseFullTextSearch bool            `json:"use_full_text_search,omitempty"`
 }
 
 type RabbitConfig struct {
@@ -59,6 +60,7 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	flag.StringVar(&watcher.AMQPUser, "amqp_user", "", "AMQP user for publishing messages")
 	flag.StringVar(&watcher.QueuesMessagesTTL, "watcher_messages_ttl", "", "Watcher queues messages TTL in milliseconds")
 	flag.BoolVar(&watcher.Enabled, "watch_enabled", true, "Watcher enabled")
+	flag.BoolVar(&appConfig.UseFullTextSearch, "use_full_text_search", false, "Full Text Search events feature control")
 
 	// add possibility to load config from file
 	flag.StringVar(&appConfig.File, "config_file", "", "Configuration file in JSON format")
@@ -116,6 +118,10 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 
 	if env := os.Getenv("WATCHER_ENABLED"); env != "" {
 		watcher.Enabled = env == "1" || env == "true"
+	}
+
+	if env := os.Getenv("FTS_ENABLED"); env != "" {
+		appConfig.UseFullTextSearch = env == "1" || env == "true"
 	}
 
 	if watcher.AMQPUser == "" {
