@@ -418,7 +418,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		}
 	}
 
-	log, err := wlogger.NewCreateMessage(
+	log, err := wlogger.NewUpdateMessage(
 		updateOpts.GetAuthOpts().GetUserId(),
 		getClientIp(ctx),
 		res.Id,
