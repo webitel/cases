@@ -10,6 +10,8 @@ import (
 const (
 	ComparisonILike  = "ilike"
 	ComparisonRegexp = "~"
+	SortAsc          = "ASC"
+	SortDesc         = "DESC"
 )
 
 // Ident returns a string that represents a qualified identifier.
@@ -126,25 +128,25 @@ func ApplyDefaultSorting(opts grpcopts.Sorter, base squirrel.SelectBuilder, defa
 	return base
 }
 
-func GetSortingOperator(opts grpcopts.Sorter) (field, direction string) {
-	if s := opts.GetSort(); len(s) != 0 {
+func GetSortingOperator(sort string) (field, direction string) {
+	if len(sort) != 0 {
 
 		// Check for + or - prefix
-		desc := strings.HasPrefix(s, "-")
-		asc := strings.HasPrefix(s, "+")
+		desc := strings.HasPrefix(sort, "-")
+		asc := strings.HasPrefix(sort, "+")
 
 		// Trim prefix if it exists
 		if desc || asc {
-			s = strings.TrimPrefix(s, string(s[0]))
+			sort = strings.TrimPrefix(sort, string(sort[0]))
 		}
 		var dir string
 		// Determine sort direction
 		if desc {
-			dir += " DESC"
+			dir = SortDesc
 		} else {
-			dir += " ASC"
+			dir = SortAsc
 		}
-		return s, dir
+		return sort, dir
 
 	}
 
