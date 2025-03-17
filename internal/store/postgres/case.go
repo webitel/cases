@@ -220,16 +220,11 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		assignee, closeReason, reporter, group, impacted *int64
 		closeResult, description                         *string
 	)
-
-	if cl := input.GetClose(); cl != nil && cl.GetCloseReason() != nil && cl.GetCloseReason().GetId() > 0 {
-		if reason := cl.GetCloseReason(); reason != nil && reason.GetId() > 0 {
-			closeReason = &reason.Id
-		}
-
-		if result := cl.GetCloseResult(); result != "" {
-			closeResult = &result
-		}
-
+	if cr := input.GetCloseReason(); cr != nil && cr.GetId() != 0 {
+		closeReason = &cr.Id
+	}
+	if input.GetCloseResult() != "" {
+		closeResult = &input.CloseResult
 	}
 	if rep := input.GetReporter(); rep != nil && rep.GetId() > 0 {
 		reporter = &rep.Id
@@ -1360,20 +1355,24 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			} else {
 				updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
 			}
-		case "close":
-			if upd.Close != nil && upd.Close.CloseReason != nil {
+		case "close_reason":
+			if upd.GetCloseReason() != nil {
 				var closeReason *int64
-				if reas := upd.Close.CloseReason.GetId(); reas > 0 {
+				if reas := upd.CloseReason.GetId(); reas > 0 {
 					closeReason = &reas
 				}
 				updateBuilder = updateBuilder.Set("close_reason", closeReason)
-				updateBuilder = updateBuilder.Set("close_result", upd.Close.GetCloseResult())
 			}
-		case "rate":
-			if upd.Rate != nil {
-				updateBuilder = updateBuilder.Set("rating", upd.Rate.Rating)
-				updateBuilder = updateBuilder.Set("rating_comment", sq.Expr("NULLIF(?, '')", upd.Rate.RatingComment))
+		case "close_result":
+			var closeResult *string
+			if res := upd.GetCloseResult(); res != "" {
+				closeResult = &upd.CloseResult
 			}
+			updateBuilder = updateBuilder.Set("close_result", closeResult)
+		case "rating":
+			updateBuilder = updateBuilder.Set("rating", upd.Rating)
+		case "rating_comment":
+			updateBuilder = updateBuilder.Set("rating_comment", sq.Expr("NULLIF(?, '')", upd.RatingComment))
 		// region: [custom] fields ..
 		case "custom": // customFieldName
 			{
@@ -1727,63 +1726,56 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Author)
 			})
-		case "close":
+		case "close_result":
 			base = base.Column(util2.Ident(caseLeft, "close_result"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				if caseItem.Close == nil {
-					caseItem.Close = &_go.CloseInfo{}
-				}
-				return scanner.ScanText(&caseItem.Close.CloseResult)
+				return scanner.ScanText(&caseItem.CloseResult)
 			})
+		case "close_reason":
 			base = base.Column(fmt.Sprintf(
 				"ROW(%s.id, %[1]s.name)::text AS close_reason", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				if caseItem.Close == nil {
-					caseItem.Close = &_go.CloseInfo{}
-				}
-				return scanner.ScanRowLookup(&caseItem.Close.CloseReason)
+				return scanner.ScanRowLookup(&caseItem.CloseReason)
 			})
-		case "rate":
+		case "rating":
 			base = base.Column(util2.Ident(caseLeft, "rating"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				if caseItem.Rate == nil {
-					caseItem.Rate = &_go.RateInfo{}
-				}
-				return scanner.ScanInt64(&caseItem.Rate.Rating)
+				return scanner.ScanInt64(&caseItem.Rating)
 			})
+		case "rating_comment":
 			base = base.Column(util2.Ident(caseLeft, "rating_comment"))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				if caseItem.Rate == nil {
-					caseItem.Rate = &_go.RateInfo{}
-				}
-				return scanner.ScanText(&caseItem.Rate.RatingComment)
+				return scanner.ScanText(&caseItem.RatingComment)
 			})
-		case "timing":
+		case "resolved_at":
 			base = base.
-				Column(fmt.Sprintf("COALESCE(%s.resolved_at, '1970-01-01 00:00:00') AS resolved_at", caseLeft)).
-				Column(fmt.Sprintf("COALESCE(%s.reacted_at, '1970-01-01 00:00:00') AS reacted_at", caseLeft)).
+				Column(util2.Ident(caseLeft, "resolved_at"))
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanTimestamp(&caseItem.ResolvedAt)
+			})
+		case "reacted_at":
+			base = base.
+				Column(util2.Ident(caseLeft, "reacted_at"))
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanTimestamp(&caseItem.ReactedAt)
+			})
+		case "difference_in_reaction":
+			base = base.
 				Column(fmt.Sprintf(
 					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.reacted_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_reaction",
 					caseLeft,
-				)).
+				))
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanTimestamp(&caseItem.DifferenceInReaction)
+			})
+		case "difference_in_resolve":
+			base = base.
 				Column(fmt.Sprintf(
 					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.resolved_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_resolve",
 					caseLeft,
 				))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				if caseItem.Timing == nil {
-					caseItem.Timing = &_go.TimingInfo{}
-				}
-				return scanner.ScanTimestamp(&caseItem.Timing.ResolvedAt)
-			})
-			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanTimestamp(&caseItem.Timing.ReactedAt)
-			})
-			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanInt64(&caseItem.Timing.DifferenceInReaction)
-			})
-			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanInt64(&caseItem.Timing.DifferenceInResolve)
+				return scanner.ScanTimestamp(&caseItem.DifferenceInResolve)
 			})
 		case "sla":
 			base = base.Column(fmt.Sprintf(
