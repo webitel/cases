@@ -91,6 +91,22 @@ func AddVersionAndIdByEtag(fields []string) {
 	}
 }
 
+func RemoveElements(arr []string, elementsToRemove ...string) []string {
+	elementSet := make(map[string]bool)
+	for _, elem := range elementsToRemove {
+		elementSet[elem] = true
+	}
+
+	filteredArr := []string{}
+	for _, item := range arr {
+		if !elementSet[item] {
+			filteredArr = append(filteredArr, item)
+		}
+	}
+
+	return filteredArr
+}
+
 // ParseFieldsForEtag searches for id, ver fields and adds missing
 // to provide full functionality of etag (do not changes fields, returns fully new slice)
 func ParseFieldsForEtag(fields []string) []string {

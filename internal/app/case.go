@@ -57,8 +57,10 @@ var (
 		{Name: "status", Default: true},
 		{Name: "close_reason_group", Default: true},
 		{Name: "group", Default: true},
-		{Name: "close", Default: true},
-		{Name: "rate", Default: true},
+		{Name: "close_reason", Default: true},
+		{Name: "close_result", Default: true},
+		{Name: "rating", Default: true},
+		{Name: "rating_comment", Default: true},
 		{Name: "sla_condition", Default: true},
 		{Name: "service", Default: true},
 		{Name: "status_condition", Default: true},
@@ -67,7 +69,10 @@ var (
 		{Name: "links", Default: false},
 		{Name: "files", Default: false},
 		{Name: "related", Default: false},
-		{Name: "timing", Default: true},
+		{Name: "resolved_at", Default: true},
+		{Name: "reacted_at", Default: true},
+		{Name: "difference_in_reaction", Default: true},
+		{Name: "difference_in_resolve", Default: true},
 		{Name: "contact_info", Default: true},
 		{Name: "role_ids", Default: false},
 	}, CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata)
@@ -220,9 +225,12 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Group:            &cases.ExtendedLookup{Id: req.Input.Group.GetId()},
 		Status:           req.Input.Status,
 		StatusCondition:  &cases.StatusCondition{Id: req.Input.StatusCondition.Id},
-		Close:            (*cases.CloseInfo)(req.Input.GetClose()),
+		CloseReason:      req.Input.GetCloseReason(),
+		CloseResult:      req.Input.GetCloseResult(),
 		CloseReasonGroup: req.Input.GetCloseReasonGroup(),
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
+		Rating:           req.Input.Rating,
+		RatingComment:    req.Input.RatingComment,
 		Service:          req.Input.Service,
 		Links:            links,
 		Related:          related,
@@ -360,8 +368,10 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Group:            &cases.ExtendedLookup{Id: req.Input.Group.GetId()},
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
 		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
-		Close:            req.Input.Close,
-		Rate:             req.Input.Rate,
+		CloseReason:      req.Input.GetCloseReason(),
+		CloseResult:      req.Input.GetCloseResult(),
+		Rating:           req.Input.GetRating(),
+		RatingComment:    req.Input.GetRatingComment(),
 		Service:          req.Input.GetService(),
 		Custom:           req.Input.GetCustom(),
 	}
@@ -728,14 +738,6 @@ func (c *CaseService) ValidateUpdateInput(
 		return cerror.NewBadRequestError("app.case.update_case.etag_required", "Etag is required")
 	}
 
-	// Ensure nested structures are initialized
-	if input.Rate == nil {
-		input.Rate = &cases.RateInfo{}
-	}
-	if input.Close == nil {
-		input.Close = &cases.CloseInfo{}
-	}
-
 	// Iterate over xJsonMask and validate corresponding fields
 	// Validating fields passed for updating
 	for _, field := range xJsonMask {
@@ -748,8 +750,8 @@ func (c *CaseService) ValidateUpdateInput(
 			if input.Status.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
 			}
-		case "close.close_reason":
-			if input.Close.GetCloseReason().GetId() == 0 {
+		case "close_reason":
+			if closeReason := input.GetCloseReason(); closeReason != nil && closeReason.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
 			}
 		case "priority":
@@ -911,19 +913,13 @@ func formCaseFtsModel(item *cases.Case, params map[string]any) (*model.FtsCase, 
 		return nil, fmt.Errorf("role ids required for FTS model")
 	}
 	m := &model.FtsCase{
-		Description: item.GetDescription(),
-		RoleIds:     roles,
-		Subject:     item.GetSubject(),
-		ContactInfo: item.GetContactInfo(),
-		CreatedAt:   item.GetCreatedAt(),
-	}
-
-	if rate := item.GetRate(); rate != nil {
-		m.RatingComment = rate.GetRatingComment()
-	}
-
-	if cl := item.GetClose(); cl != nil {
-		m.CloseResult = cl.GetCloseResult()
+		Description:   item.GetDescription(),
+		RoleIds:       roles,
+		Subject:       item.GetSubject(),
+		ContactInfo:   item.GetContactInfo(),
+		CreatedAt:     item.GetCreatedAt(),
+		RatingComment: item.GetRatingComment(),
+		CloseResult:   item.GetCloseResult(),
 	}
 	return m, nil
 }
