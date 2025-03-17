@@ -37,7 +37,7 @@ func WithFields(fielder shared.Fielder, md model.ObjectMetadatter, fieldModifier
 			options.Fields = md.GetDefaultFields()
 
 		} else {
-			options.Fields = requestedFields
+			options.Fields = util.FieldsFunc(requestedFields, util.InlineFields)
 		}
 		for _, modifier := range fieldModifiers {
 			options.Fields = modifier(options.Fields)
@@ -83,6 +83,13 @@ func WithSearch(searcher Searcher) SearchOption {
 		if s := searcher.GetQ(); s != "" {
 			options.Search = searcher.GetQ()
 		}
+		return nil
+	}
+}
+
+func WithSearchAsParam(query string) SearchOption {
+	return func(options *SearchOptions) error {
+		options.Search = query
 		return nil
 	}
 }

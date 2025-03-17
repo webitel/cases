@@ -37,7 +37,6 @@ var CatalogMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*mode
 	{Name: "updated_at", Default: false},
 	{Name: "updated_by", Default: false},
 	{Name: "services", Default: true},
-	{Name: "searched", Default: true},
 })
 
 const (
@@ -133,11 +132,7 @@ func (s *CatalogService) ListCatalogs(
 	ctx context.Context,
 	req *cases.ListCatalogRequest,
 ) (*cases.CatalogList, error) {
-	if req.Query != "" {
-		req.Fields = append(req.Fields, "searched")
-	}
-	searchOptions, err := grpcopts.NewSearchOptions(
-		ctx,
+	opts := []grpcopts.SearchOption{
 		grpcopts.WithPagination(req),
 		grpcopts.WithFields(req, CatalogMetadata,
 			util.DeduplicateFields,
@@ -147,7 +142,17 @@ func (s *CatalogService) ListCatalogs(
 		),
 		grpcopts.WithIDs(req.Id),
 		grpcopts.WithSort(req),
-	)
+	}
+
+	// Conditionally add search if query is not empty
+	if req.Query != "" {
+		opts = append(opts, grpcopts.WithSearchAsParam(req.Query))
+		opts = append(opts, func(options *grpcopts.SearchOptions) error {
+			options.Fields = util.EnsureFields(options.Fields, "searched")
+			return nil
+		})
+	}
+	searchOptions, err := grpcopts.NewSearchOptions(ctx, opts...)
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
@@ -202,7 +207,7 @@ func (s *CatalogService) ListCatalogs(
 	catalogs, e := s.app.Store.Catalog().List(
 		searchOptions,
 		req.Depth,
-		req.SubFields,
+		util.FieldsFunc(req.SubFields, util.InlineFields),
 		req.HasSubservices,
 	)
 	if e != nil {
