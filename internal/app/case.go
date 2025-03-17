@@ -229,6 +229,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		CloseResult:      req.Input.GetCloseResult(),
 		CloseReasonGroup: req.Input.GetCloseReasonGroup(),
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
+		Rating:           req.Input.Rating,
+		RatingComment:    req.Input.RatingComment,
 		Service:          req.Input.Service,
 		Links:            links,
 		Related:          related,

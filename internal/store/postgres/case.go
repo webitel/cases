@@ -262,6 +262,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"close_reason_group":  input.CloseReasonGroup.GetId(),
 		"close_result":        closeResult,
 		"close_reason":        closeReason,
+		"rating":              input.Rating,
+		"rating_comment":      input.RatingComment,
 		"subject":             input.Subject,
 		"planned_reaction_at": util.LocalTime(input.PlannedReactionAt),
 		"planned_resolve_at":  util.LocalTime(input.PlannedResolveAt),
@@ -303,7 +305,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				priority, source, status, contact_group, close_reason_group,
 				subject, planned_reaction_at, planned_resolve_at, reporter, impacted,
 				service, description, assignee, sla, sla_condition_id, status_condition, contact_info,
-				close_result, close_reason
+				close_result, close_reason, rating, rating_comment
 			) VALUES (
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
@@ -311,7 +313,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:priority, :source, :status, :contact_group, :close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee, :sla, :sla_condition,
-				:status_condition, :contact_info, :close_result, :close_reason
+				:status_condition, :contact_info, :close_result, :close_reason, NULLIF(:rating, 0), NULLIF(:rating_comment, '')
 			)
 			RETURNING *
 		),
