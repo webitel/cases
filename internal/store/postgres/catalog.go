@@ -746,7 +746,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 			or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.skill_catalog WHERE skill_id = ANY(:skills))", skillsFilter))
 			params["skills"] = skillsFilter
 		}
-		or = append(or, sq.Expr("(NOT EXISTS(SELECT catalog_id FROM cases.team_catalog WHERE catalog.catalog_id = catalog.id) AND NOT EXISTS(SELECT catalog_id FROM cases.team_catalog WHERE catalog.catalog_id = catalog.id))"))
+		or = append(or, sq.Expr("(NOT EXISTS(SELECT catalog_id FROM cases.team_catalog WHERE catalog.catalog_id = catalog.id) AND NOT EXISTS(SELECT catalog_id FROM cases.skill_catalog WHERE catalog.catalog_id = catalog.id))"))
 		queryBuilder = queryBuilder.Where(or)
 	}
 
