@@ -795,10 +795,6 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 		return cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
 	}
 
-	if input.Impacted.GetId() == 0 {
-		return cerror.NewBadRequestError("app.case.create_case.impacted_required", "Impacted contact is required")
-	}
-
 	// Validate additional optional fields if needed
 	if input.Priority.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_priority", "Invalid priority specified")
