@@ -1356,7 +1356,11 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		case "contact_info":
 			updateBuilder = updateBuilder.Set("contact_info", upd.GetContactInfo())
 		case "impacted":
-			updateBuilder = updateBuilder.Set("impacted", upd.Impacted.GetId())
+			var impacted *int64
+			if imp := upd.GetImpacted(); imp != nil {
+				impacted = &imp.Id
+			}
+			updateBuilder = updateBuilder.Set("impacted", impacted)
 		case "group":
 			if upd.Group.GetId() == 0 {
 				updateBuilder = updateBuilder.Set("contact_group", nil)
