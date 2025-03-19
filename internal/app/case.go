@@ -729,9 +729,9 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 		watcher.Attach(EventTypeCreate, mq)
 		watcher.Attach(EventTypeUpdate, mq)
 		watcher.Attach(EventTypeDelete, mq)
-
-		app.watcherManager.AddWatcher(caseObjScope, watcher)
 	}
+
+	app.watcherManager.AddWatcher(caseObjScope, watcher)
 
 	return &CaseService{app: app, logger: app.wtelLogger.GetObjectedLogger(CaseMetadata.GetMainScopeName())}, nil
 }
