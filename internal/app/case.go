@@ -700,14 +700,6 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 	}
 
 	watcher := NewDefaultWatcher()
-	// TODO: triggers
-	//caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher)
-	//if err != nil {
-	//	return nil, cerror.NewInternalError("app.case.new_case_service.start.error", err.Error())
-	//}
-	//watcher.Attach(EventTypeCreate, caseObserver)
-	//watcher.Attach(EventTypeUpdate, caseObserver)
-	//watcher.Attach(EventTypeDelete, caseObserver)
 
 	obs, err := NewLoggerObserver(app.wtelLogger, caseObjScope, defaultLogTimeout)
 	if err != nil {
@@ -719,13 +711,27 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 
 	ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseObjScope, formCaseFtsModel)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
+		return nil, cerror.NewInternalError("app.case.new_case_service.create_fts_observer.app", err.Error())
 	}
 	watcher.Attach(EventTypeCreate, ftsObserver)
 	watcher.Attach(EventTypeUpdate, ftsObserver)
 	watcher.Attach(EventTypeDelete, ftsObserver)
 
-	app.watcherManager.AddWatcher(caseObjScope, watcher)
+	if app.config.Watcher.Enabled {
+		mq, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher, formCaseAMQPModel, slog.With(
+			slog.Group("context"),
+			slog.String("scope", "watcher"),
+		))
+
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_service.create_mq_observer.app", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, mq)
+		watcher.Attach(EventTypeUpdate, mq)
+		watcher.Attach(EventTypeDelete, mq)
+
+		app.watcherManager.AddWatcher(caseObjScope, watcher)
+	}
 
 	return &CaseService{app: app, logger: app.wtelLogger.GetObjectedLogger(CaseMetadata.GetMainScopeName())}, nil
 }
@@ -916,6 +922,18 @@ func formCaseFtsModel(item *cases.Case, params map[string]any) (*model.FtsCase, 
 		CreatedAt:     item.GetCreatedAt(),
 		RatingComment: item.GetRatingComment(),
 		CloseResult:   item.GetCloseResult(),
+	}
+	return m, nil
+}
+
+func formCaseAMQPModel(item *cases.Case, params map[string]any) (*model.CaseAMQPMessage, error) {
+	auth, ok := params["session"].(auth.Auther)
+	if !ok {
+		return nil, fmt.Errorf("could not get session auth")
+	}
+	m := &model.CaseAMQPMessage{
+		Case:     item,
+		DomainId: auth.GetDomainId(),
 	}
 	return m, nil
 }

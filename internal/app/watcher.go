@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/webitel/cases/auth"
@@ -71,8 +72,7 @@ func NewDefaultWatcherManager(state bool) *DefaultWatcherManager {
 }
 
 func (d *DefaultWatcherManager) AddWatcher(clusterId string, watcher Watcher) {
-	slice := d.clusters[clusterId]
-	slice = append(slice, watcher)
+	d.clusters[clusterId] = append(d.clusters[clusterId], watcher)
 }
 
 func (d *DefaultWatcherManager) RemoveCluster(clusterId string) {
@@ -178,61 +178,59 @@ type AMQPBroker interface {
 	QueueBind(exchangeName string, queueName string, routingKey string, noWait bool, args map[string]any) cerr.AppError
 	Publish(exchange string, routingKey string, body []byte, userId string, t time.Time) cerr.AppError
 }
-type CaseAMQPObserver struct {
+
+type CaseAMQPObserver[T any, V any] struct {
 	id         string
 	amqpBroker AMQPBroker
 	config     *model.WatcherConfig
 	logger     *slog.Logger
+	converter  func(T, map[string]any) (V, error)
 }
 
-func NewCaseAMQPObserver(amqpBroker AMQPBroker, config *model.WatcherConfig, log *slog.Logger) (*CaseAMQPObserver, error) {
-
-	// TODO :: refactor: use package constant
-	queueMessagesTTL := func(o *rabbit.QueueDeclareOptions) {
-		if o == nil {
-			return
-		}
-		o.Args = map[string]any{
-			"x-message-ttl": config.QueuesMessagesTTL,
-		}
-	}
-
-	// declare queue
-	if _, err := amqpBroker.QueueDeclare(config.QueueName, rabbit.QueueEnableDurable, queueMessagesTTL); err != nil {
-		return nil, fmt.Errorf("could not create create queue %s: %w", config.QueueName, err)
-	}
-
+func NewCaseAMQPObserver[T any, V any](amqpBroker AMQPBroker, config *model.WatcherConfig, conv func(T, map[string]any) (V, error), log *slog.Logger) (*CaseAMQPObserver[T, V], error) {
 	// declare exchange
-	if err := amqpBroker.ExchangeDeclare(config.ExchangeName, "topic", rabbit.ExchangeEnableDurable); err != nil {
-		return nil, fmt.Errorf("could not create direct exchange %s: %w", config.ExchangeName, err)
+	opts := []rabbit.ExchangeDeclareOption{rabbit.ExchangeEnableDurable, rabbit.ExchangeEnableNoWait}
+
+	if err := amqpBroker.ExchangeDeclare(config.ExchangeName, rabbit.ExchangeTypeTopic, opts...); err != nil {
+		return nil, fmt.Errorf("could not create topic exchange %s: %w", config.ExchangeName, err)
 	}
 
-	// bind queue
-	err := amqpBroker.QueueBind(config.ExchangeName, config.QueueName, config.TopicName, false, nil)
-	if err != nil {
-		return nil, fmt.Errorf("could not bind create create_queue: %w", err)
-	}
-
-	amqpObserver := &CaseAMQPObserver{
+	amqpObserver := &CaseAMQPObserver[T, V]{
 		amqpBroker: amqpBroker,
 		config:     config,
 		id:         "Case AMQP Watcher",
 		logger:     log,
+		converter:  conv,
 	}
 	return amqpObserver, nil
 }
 
-func (cao *CaseAMQPObserver) GetId() string {
+func (cao *CaseAMQPObserver[T, V]) GetId() string {
 	return cao.id
 }
 
-func (cao *CaseAMQPObserver) Update(et EventType, data []byte, args map[string]any) error {
+func (cao *CaseAMQPObserver[T, V]) Update(et EventType, _ []byte, args map[string]any) error {
+	obj, ok := args["obj"].(T)
+	if !ok {
+		return fmt.Errorf("could not convert to %d", obj)
+	}
+
+	message, err := cao.converter(obj, args)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
 	routingKey := cao.getRoutingKeyByEventType(et)
-	cao.logger.Debug(fmt.Sprintf("Trying to piublish message %s to %s", string(data), routingKey))
-	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, cao.config.AMQPUser, time.Now())
+	cao.logger.Debug(fmt.Sprintf("Trying to piublish message to %s", routingKey))
+	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, "", time.Now())
 }
 
-func (cao *CaseAMQPObserver) getRoutingKeyByEventType(eventType EventType) string {
+func (cao *CaseAMQPObserver[T, V]) getRoutingKeyByEventType(eventType EventType) string {
 	return strings.Replace(cao.config.TopicName, "*", string(eventType), 1)
 }
 

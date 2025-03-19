@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
-	"strconv"
-
 	cerr "github.com/webitel/cases/internal/errors"
+	"os"
 )
 
 type AppConfig struct {
@@ -27,12 +25,9 @@ type DatabaseConfig struct {
 }
 
 type WatcherConfig struct {
-	ExchangeName      string `json:"exchange" flag:"watcher_exchange || watcher exchange"`
-	QueueName         string `json:"queue" flag:"watcher_queue || watcher queue"`
-	TopicName         string `json:"topic" flag:"watcher_topic || watcher topic"`
-	AMQPUser          string `json:"amqp_user" flag:"amqp_user || AMQP user"`
-	QueuesMessagesTTL int    `json:"queues_messages_ttl" flag:"watcher_messages_ttl || Watcher queues messages TTL in milliseconds"`
-	Enabled           bool   `json:"enabled" flag:"watch_enabled || watch_enabled"`
+	ExchangeName string `json:"exchange" flag:"watcher_exchange || watcher exchange"`
+	TopicName    string `json:"topic" flag:"watcher_topic || watcher topic"`
+	Enabled      bool   `json:"enabled" flag:"watch_enabled || watch_enabled"`
 }
 
 type ConsulConfig struct {
@@ -53,10 +48,7 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	rabbitURL := flag.String("amqp", "", "AMQP connection URL")
 	watcher := new(WatcherConfig)
 	flag.StringVar(&watcher.ExchangeName, "watcher_exchange", "", "Exchange name")
-	flag.StringVar(&watcher.QueueName, "watcher_queue", "", "Queue name")
 	flag.StringVar(&watcher.TopicName, "watcher_topic", "", "Queue name")
-	flag.StringVar(&watcher.AMQPUser, "amqp_user", "", "AMQP user for publishing messages")
-	flag.IntVar(&watcher.QueuesMessagesTTL, "watcher_messages_ttl", 0, "Watcher queues messages TTL in milliseconds")
 	flag.BoolVar(&watcher.Enabled, "watch_enabled", true, "Watcher enabled")
 
 	// add possibility to load config from file
@@ -82,23 +74,15 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	}
 
 	if watcher.ExchangeName == "" {
-		value := "watcher_exchange"
+		value := "cases"
 		if env := os.Getenv("WATCHER_EXCHANGE_NAME"); env != "" {
 			value = env
 		}
 		watcher.ExchangeName = value
 	}
 
-	if watcher.QueueName == "" {
-		value := "watcher_queue"
-		if env := os.Getenv("WATCHER_QUEUE_NAME"); env != "" {
-			value = env
-		}
-		watcher.QueueName = value
-	}
-
 	if watcher.TopicName == "" {
-		value := "trigger_case.*"
+		value := "*"
 		if env := os.Getenv("WATCHER_TOPIC_NAME"); env != "" {
 			value = env
 		}
@@ -107,22 +91,6 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 
 	if env := os.Getenv("WATCHER_ENABLED"); env != "" {
 		watcher.Enabled = env == "1" || env == "true"
-	}
-
-	if watcher.AMQPUser == "" {
-		value := "webitel"
-		if env := os.Getenv("WATCHER_AMQP_USER"); env != "" {
-			value = env
-		}
-		watcher.AMQPUser = value
-	}
-
-	if watcher.QueuesMessagesTTL == 0 {
-		value := 10000
-		if env := os.Getenv("WATCHER_MESSAGES_TTL"); env != "" {
-			value, _ = strconv.Atoi(env)
-		}
-		watcher.QueuesMessagesTTL = value
 	}
 
 	// Set the configuration struct fields
