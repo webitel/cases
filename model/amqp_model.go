@@ -5,6 +5,6 @@ import (
 )
 
 type CaseAMQPMessage struct {
-	DomainId int64
-	Case     *cases.Case
+	DomainId int64       `json:"domain_id"`
+	Case     *cases.Case `json:"case"`
 }
