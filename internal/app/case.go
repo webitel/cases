@@ -719,8 +719,8 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 
 	if app.config.Watcher.Enabled {
 		mq, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher, formCaseAMQPModel, slog.With(
-			slog.Group("context"),
-			slog.String("scope", "watcher"),
+			slog.Group("context",
+				slog.String("scope", "watcher")),
 		))
 
 		if err != nil {
