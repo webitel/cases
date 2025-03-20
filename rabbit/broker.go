@@ -81,7 +81,7 @@ var stopHandler = func(l *RabbitBroker) {
 				if reconnectErr != nil {
 					reconnectAttempts++
 					slog.Error(fmtBrokerLog(reconnectErr.Error()), slog.Int("attempt", reconnectAttempts))
-					// time.Sleep(time.Second * 10)
+					time.Sleep(time.Second * 5)
 				} else {
 					continueReconnection = false
 				}
