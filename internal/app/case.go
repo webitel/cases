@@ -700,30 +700,41 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 	}
 
 	watcher := NewDefaultWatcher()
-	// TODO: triggers
-	//caseObserver, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher)
-	//if err != nil {
-	//	return nil, cerror.NewInternalError("app.case.new_case_service.start.error", err.Error())
-	//}
-	//watcher.Attach(EventTypeCreate, caseObserver)
-	//watcher.Attach(EventTypeUpdate, caseObserver)
-	//watcher.Attach(EventTypeDelete, caseObserver)
 
-	obs, err := NewLoggerObserver(app.wtelLogger, caseObjScope, defaultLogTimeout)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
-	}
-	watcher.Attach(EventTypeCreate, obs)
-	watcher.Attach(EventTypeUpdate, obs)
-	watcher.Attach(EventTypeDelete, obs)
+	if app.config.LoggerWatcher.Enabled {
 
-	ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseObjScope, formCaseFtsModel)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
+		obs, err := NewLoggerObserver(app.wtelLogger, caseObjScope, defaultLogTimeout)
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, obs)
+		watcher.Attach(EventTypeUpdate, obs)
+		watcher.Attach(EventTypeDelete, obs)
 	}
-	watcher.Attach(EventTypeCreate, ftsObserver)
-	watcher.Attach(EventTypeUpdate, ftsObserver)
-	watcher.Attach(EventTypeDelete, ftsObserver)
+
+	if app.config.FtsWatcher.Enabled {
+		ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseObjScope, formCaseFtsModel)
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_service.create_fts_observer.app", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, ftsObserver)
+		watcher.Attach(EventTypeUpdate, ftsObserver)
+		watcher.Attach(EventTypeDelete, ftsObserver)
+	}
+
+	if app.config.TriggerWatcher.Enabled {
+		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseTriggerModel, slog.With(
+			slog.Group("context",
+				slog.String("scope", "watcher")),
+		))
+
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_service.create_mq_observer.app", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, mq)
+		watcher.Attach(EventTypeUpdate, mq)
+		watcher.Attach(EventTypeDelete, mq)
+	}
 
 	app.watcherManager.AddWatcher(caseObjScope, watcher)
 
@@ -920,6 +931,13 @@ func formCaseFtsModel(item *cases.Case, params map[string]any) (*model.FtsCase, 
 	return m, nil
 }
 
+func formCaseTriggerModel(item *cases.Case) (*model.CaseAMQPMessage, error) {
+	m := &model.CaseAMQPMessage{
+		Case: item,
+	}
+	return m, nil
+}
+
 type CaseWatcherData struct {
 	case_      *cases.Case
 	CaseString string `json:"case"`
@@ -929,15 +947,6 @@ type CaseWatcherData struct {
 
 func NewCaseWatcherData(session auth.Auther, case_ *cases.Case, caseId int64, roleIds []int64) *CaseWatcherData {
 	return &CaseWatcherData{case_: case_, Args: map[string]any{"session": session, "obj": case_, "id": caseId, "role_ids": roleIds}}
-}
-
-func (wd *CaseWatcherData) Marshal() ([]byte, error) {
-	caseBytes, err := json.Marshal(wd.case_)
-	if err != nil {
-		return nil, err
-	}
-	wd.CaseString = string(caseBytes)
-	return json.Marshal(wd)
 }
 
 func (wd *CaseWatcherData) GetArgs() map[string]any {

@@ -1,5 +1,9 @@
 package rabbit
 
+const (
+	ExchangeTypeTopic = "topic"
+)
+
 type ExchangeDeclareOptions struct {
 	Args       map[string]any
 	Durable    bool

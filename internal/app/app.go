@@ -119,7 +119,7 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	}
 
 	// register watchers
-	watcherManager := NewDefaultWatcherManager(app.config.Watcher.Enabled)
+	watcherManager := NewDefaultWatcherManager(config.WatchersEnabled)
 	app.watcherManager = watcherManager
 	//
 

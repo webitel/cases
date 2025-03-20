@@ -352,14 +352,15 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 		return nil, cerror.NewInternalError("app.case_comment.new_case_comment_service.app_required", "Unable to initialize service, app is nil")
 	}
 	watcher := NewDefaultWatcher()
-	ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseCommentsObjScope, formCommentsFtsModel)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_observer.app", err.Error())
+	if app.config.FtsWatcher.Enabled {
+		ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseCommentsObjScope, formCommentsFtsModel)
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_observer.app", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, ftsObserver)
+		watcher.Attach(EventTypeUpdate, ftsObserver)
+		watcher.Attach(EventTypeDelete, ftsObserver)
 	}
-	watcher.Attach(EventTypeCreate, ftsObserver)
-	watcher.Attach(EventTypeUpdate, ftsObserver)
-	watcher.Attach(EventTypeDelete, ftsObserver)
-
 	app.watcherManager.AddWatcher(caseCommentsObjScope, watcher)
 	return &CaseCommentService{app: app}, nil
 }
