@@ -27,12 +27,11 @@ const (
 var ErrUnknownType = errors.New("unknown type")
 
 type WatchMarshaller interface {
-	Marshal() ([]byte, error)
 	GetArgs() map[string]any
 }
 
 type Observer interface {
-	Update(EventType, []byte, map[string]any) error
+	Update(EventType, map[string]any) error
 	GetId() string
 }
 
@@ -136,12 +135,9 @@ func (dw *DefaultWatcher) Detach(et EventType, o Observer) {
 }
 
 func (dw *DefaultWatcher) Notify(et EventType, entity WatchMarshaller) error {
-	data, err := entity.Marshal()
-	if err != nil {
-		return err
-	}
+	var err error
 	for _, o := range dw.observers[et] {
-		err = o.Update(et, data, entity.GetArgs())
+		err = o.Update(et, entity.GetArgs())
 		if err != nil {
 			slog.Error(fmt.Sprintf("observer %s: %s", o.GetId(), err.Error()))
 		}
@@ -209,7 +205,7 @@ func (cao *CaseAMQPObserver[T, V]) GetId() string {
 	return cao.id
 }
 
-func (cao *CaseAMQPObserver[T, V]) Update(et EventType, _ []byte, args map[string]any) error {
+func (cao *CaseAMQPObserver[T, V]) Update(et EventType, args map[string]any) error {
 	obj, ok := args["obj"].(T)
 	if !ok {
 		return fmt.Errorf("could not convert to %d", obj)
@@ -252,7 +248,7 @@ func (l *LoggerObserver) GetId() string {
 	return l.id
 }
 
-func (l *LoggerObserver) Update(et EventType, data []byte, args map[string]any) error {
+func (l *LoggerObserver) Update(et EventType, args map[string]any) error {
 	auth, ok := args["session"].(auth.Auther)
 	if !ok {
 		return fmt.Errorf("could not get session auth")
@@ -301,7 +297,7 @@ func (l *FullTextSearchObserver[T, V]) GetId() string {
 	return l.id
 }
 
-func (l *FullTextSearchObserver[T, V]) Update(et EventType, _ []byte, args map[string]any) error {
+func (l *FullTextSearchObserver[T, V]) Update(et EventType, args map[string]any) error {
 	auth, ok := args["session"].(auth.Auther)
 	if !ok {
 		return fmt.Errorf("could not get session auth")

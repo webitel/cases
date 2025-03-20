@@ -949,15 +949,6 @@ func NewCaseWatcherData(session auth.Auther, case_ *cases.Case, caseId int64, ro
 	return &CaseWatcherData{case_: case_, Args: map[string]any{"session": session, "obj": case_, "id": caseId, "role_ids": roleIds}}
 }
 
-func (wd *CaseWatcherData) Marshal() ([]byte, error) {
-	caseBytes, err := json.Marshal(wd.case_)
-	if err != nil {
-		return nil, err
-	}
-	wd.CaseString = string(caseBytes)
-	return json.Marshal(wd)
-}
-
 func (wd *CaseWatcherData) GetArgs() map[string]any {
 	return wd.Args
 }
