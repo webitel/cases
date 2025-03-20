@@ -701,24 +701,29 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 
 	watcher := NewDefaultWatcher()
 
-	obs, err := NewLoggerObserver(app.wtelLogger, caseObjScope, defaultLogTimeout)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
-	}
-	watcher.Attach(EventTypeCreate, obs)
-	watcher.Attach(EventTypeUpdate, obs)
-	watcher.Attach(EventTypeDelete, obs)
+	if app.config.LoggerWatcher.Enabled {
 
-	ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseObjScope, formCaseFtsModel)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.case.new_case_service.create_fts_observer.app", err.Error())
+		obs, err := NewLoggerObserver(app.wtelLogger, caseObjScope, defaultLogTimeout)
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, obs)
+		watcher.Attach(EventTypeUpdate, obs)
+		watcher.Attach(EventTypeDelete, obs)
 	}
-	watcher.Attach(EventTypeCreate, ftsObserver)
-	watcher.Attach(EventTypeUpdate, ftsObserver)
-	watcher.Attach(EventTypeDelete, ftsObserver)
 
-	if app.config.Watcher.Enabled {
-		mq, err := NewCaseAMQPObserver(app.rabbit, app.config.Watcher, formCaseAMQPModel, slog.With(
+	if app.config.FtsWatcher.Enabled {
+		ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseObjScope, formCaseFtsModel)
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_service.create_fts_observer.app", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, ftsObserver)
+		watcher.Attach(EventTypeUpdate, ftsObserver)
+		watcher.Attach(EventTypeDelete, ftsObserver)
+	}
+
+	if app.config.TriggerWatcher.Enabled {
+		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseTriggerModel, slog.With(
 			slog.Group("context",
 				slog.String("scope", "watcher")),
 		))
@@ -926,7 +931,7 @@ func formCaseFtsModel(item *cases.Case, params map[string]any) (*model.FtsCase, 
 	return m, nil
 }
 
-func formCaseAMQPModel(item *cases.Case) (*model.CaseAMQPMessage, error) {
+func formCaseTriggerModel(item *cases.Case) (*model.CaseAMQPMessage, error) {
 	m := &model.CaseAMQPMessage{
 		Case: item,
 	}

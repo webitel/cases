@@ -175,15 +175,15 @@ type AMQPBroker interface {
 	Publish(exchange string, routingKey string, body []byte, userId string, t time.Time) cerr.AppError
 }
 
-type CaseAMQPObserver[T any, V any] struct {
+type TriggerObserver[T any, V any] struct {
 	id         string
 	amqpBroker AMQPBroker
-	config     *model.WatcherConfig
+	config     *model.TriggerWatcherConfig
 	logger     *slog.Logger
 	converter  func(T) (V, error)
 }
 
-func NewCaseAMQPObserver[T any, V any](amqpBroker AMQPBroker, config *model.WatcherConfig, conv func(T) (V, error), log *slog.Logger) (*CaseAMQPObserver[T, V], error) {
+func NewTriggerObserver[T any, V any](amqpBroker AMQPBroker, config *model.TriggerWatcherConfig, conv func(T) (V, error), log *slog.Logger) (*TriggerObserver[T, V], error) {
 	// declare exchange
 	opts := []rabbit.ExchangeDeclareOption{rabbit.ExchangeEnableDurable, rabbit.ExchangeEnableNoWait}
 
@@ -191,21 +191,21 @@ func NewCaseAMQPObserver[T any, V any](amqpBroker AMQPBroker, config *model.Watc
 		return nil, fmt.Errorf("could not create topic exchange %s: %w", config.ExchangeName, err)
 	}
 
-	amqpObserver := &CaseAMQPObserver[T, V]{
+	amqpObserver := &TriggerObserver[T, V]{
 		amqpBroker: amqpBroker,
 		config:     config,
-		id:         "Case AMQP Watcher",
+		id:         "Trigger Watcher",
 		logger:     log,
 		converter:  conv,
 	}
 	return amqpObserver, nil
 }
 
-func (cao *CaseAMQPObserver[T, V]) GetId() string {
+func (cao *TriggerObserver[T, V]) GetId() string {
 	return cao.id
 }
 
-func (cao *CaseAMQPObserver[T, V]) Update(et EventType, args map[string]any) error {
+func (cao *TriggerObserver[T, V]) Update(et EventType, args map[string]any) error {
 	obj, ok := args["obj"].(T)
 	if !ok {
 		return fmt.Errorf("could not convert to %d", obj)
@@ -227,11 +227,11 @@ func (cao *CaseAMQPObserver[T, V]) Update(et EventType, args map[string]any) err
 	}
 
 	routingKey := cao.getRoutingKeyByEventType(et, session.GetDomainId())
-	cao.logger.Debug(fmt.Sprintf("Trying to piublish message to %s", routingKey))
+	cao.logger.Debug(fmt.Sprintf("Trying to publish message to %s", routingKey))
 	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, "", time.Now())
 }
 
-func (cao *CaseAMQPObserver[T, V]) getRoutingKeyByEventType(eventType EventType, domainId int64) string {
+func (cao *TriggerObserver[T, V]) getRoutingKeyByEventType(eventType EventType, domainId int64) string {
 	return fmt.Sprintf("%s.%d", strings.Replace(cao.config.TopicName, "*", string(eventType), 1), domainId)
 }
 
