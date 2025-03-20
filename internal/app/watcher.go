@@ -180,10 +180,10 @@ type CaseAMQPObserver[T any, V any] struct {
 	amqpBroker AMQPBroker
 	config     *model.WatcherConfig
 	logger     *slog.Logger
-	converter  func(T, map[string]any) (V, error)
+	converter  func(T) (V, error)
 }
 
-func NewCaseAMQPObserver[T any, V any](amqpBroker AMQPBroker, config *model.WatcherConfig, conv func(T, map[string]any) (V, error), log *slog.Logger) (*CaseAMQPObserver[T, V], error) {
+func NewCaseAMQPObserver[T any, V any](amqpBroker AMQPBroker, config *model.WatcherConfig, conv func(T) (V, error), log *slog.Logger) (*CaseAMQPObserver[T, V], error) {
 	// declare exchange
 	opts := []rabbit.ExchangeDeclareOption{rabbit.ExchangeEnableDurable, rabbit.ExchangeEnableNoWait}
 
@@ -211,7 +211,12 @@ func (cao *CaseAMQPObserver[T, V]) Update(et EventType, args map[string]any) err
 		return fmt.Errorf("could not convert to %d", obj)
 	}
 
-	message, err := cao.converter(obj, args)
+	session, ok := args["session"].(auth.Auther)
+	if !ok {
+		return fmt.Errorf("could not convert to session")
+	}
+
+	message, err := cao.converter(obj)
 	if err != nil {
 		return err
 	}
@@ -221,13 +226,13 @@ func (cao *CaseAMQPObserver[T, V]) Update(et EventType, args map[string]any) err
 		return err
 	}
 
-	routingKey := cao.getRoutingKeyByEventType(et)
+	routingKey := cao.getRoutingKeyByEventType(et, session.GetDomainId())
 	cao.logger.Debug(fmt.Sprintf("Trying to piublish message to %s", routingKey))
 	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, "", time.Now())
 }
 
-func (cao *CaseAMQPObserver[T, V]) getRoutingKeyByEventType(eventType EventType) string {
-	return strings.Replace(cao.config.TopicName, "*", string(eventType), 1)
+func (cao *CaseAMQPObserver[T, V]) getRoutingKeyByEventType(eventType EventType, domainId int64) string {
+	return fmt.Sprintf("%s.%d", strings.Replace(cao.config.TopicName, "*", string(eventType), 1), domainId)
 }
 
 type LoggerObserver struct {

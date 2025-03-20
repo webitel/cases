@@ -926,14 +926,9 @@ func formCaseFtsModel(item *cases.Case, params map[string]any) (*model.FtsCase, 
 	return m, nil
 }
 
-func formCaseAMQPModel(item *cases.Case, params map[string]any) (*model.CaseAMQPMessage, error) {
-	auth, ok := params["session"].(auth.Auther)
-	if !ok {
-		return nil, fmt.Errorf("could not get session auth")
-	}
+func formCaseAMQPModel(item *cases.Case) (*model.CaseAMQPMessage, error) {
 	m := &model.CaseAMQPMessage{
-		Case:     item,
-		DomainId: auth.GetDomainId(),
+		Case: item,
 	}
 	return m, nil
 }
