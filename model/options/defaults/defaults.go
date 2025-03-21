@@ -1,5 +1,5 @@
 package defaults
 
 const (
-	DefaultSearchSize = 16
+	DefaultSearchSize = 10
 )

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/model/options/defaults"
 	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
@@ -171,7 +172,7 @@ func (s *SearchOptions) GetPage() int {
 
 func (s *SearchOptions) GetSize() int {
 	if s == nil {
-		return DefaultSearchSize
+		return defaults.DefaultSearchSize
 	}
 	switch {
 	case s.Size < 0:
@@ -180,7 +181,7 @@ func (s *SearchOptions) GetSize() int {
 		// CHECK for too big values !
 		return s.Size
 	case s.Size == 0:
-		return DefaultSearchSize
+		return defaults.DefaultSearchSize
 	}
 	panic("unreachable code")
 }
@@ -243,8 +244,3 @@ func NewLocateOptions(ctx context.Context, opts ...SearchOption) (*SearchOptions
 
 	return locate, nil
 }
-
-// DeafaultSearchSize is a constant integer == 10.
-const (
-	DefaultSearchSize = 10
-)
