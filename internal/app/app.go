@@ -159,7 +159,7 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	}
 
 	// --------- Full Text Search Client ---------
-	app.ftsClient, err = ftspublisher.NewDefaultClient(app.rabbit.GetChannel())
+	app.ftsClient, err = ftspublisher.NewDefaultClient(app.rabbit)
 	if err != nil {
 		return nil, err
 	}
