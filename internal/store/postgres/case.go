@@ -1374,6 +1374,8 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 					closeReason = &reas
 				}
 				updateBuilder = updateBuilder.Set("close_reason", closeReason)
+			} else {
+				updateBuilder = updateBuilder.Set("close_reason", nil)
 			}
 		case "close_result":
 			var closeResult *string
