@@ -761,10 +761,10 @@ func (c *CaseService) ValidateUpdateInput(
 			if input.Status.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
 			}
-		case "close_reason":
-			if closeReason := input.GetCloseReason(); closeReason != nil && closeReason.GetId() == 0 {
-				return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
-			}
+		//case "close_reason":
+		//	if closeReason := input.GetCloseReason(); closeReason != nil && closeReason.GetId() == 0 {
+		//		return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
+		//	}
 		case "priority":
 			if input.Priority.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.priority_required", "Priority is required")
