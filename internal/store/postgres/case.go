@@ -295,10 +295,24 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			SELECT nextval('cases.case_id'::regclass) AS id
 		)`
 
+	statusConditionCTE := ""
+	useStatusConditionRef := ":status_condition" // default
+
+	if input.GetStatusCondition().GetId() == 0 {
+		statusConditionCTE = `
+		status_condition_cte AS (
+			SELECT sc.id AS status_condition_id
+			FROM cases.status_condition sc
+			WHERE sc.status_id = :status AND sc.initial = true
+		),`
+		useStatusConditionRef = "(SELECT status_condition_id FROM status_condition_cte)"
+	}
+
 	// Consolidated query for inserting the case, links, and related cases
 	query := `
 	WITH
 		` + prefixCTE + `,
+        ` + statusConditionCTE + `
 		` + caseLeft + ` AS (
 			INSERT INTO cases.case (
 				id, name, dc, created_at, created_by, updated_at, updated_by,
@@ -313,7 +327,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:priority, :source, :status, :contact_group, :close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee, :sla, :sla_condition,
-				:status_condition, :contact_info, :close_result, :close_reason, NULLIF(:rating, 0), NULLIF(:rating_comment, '')
+				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason, NULLIF(:rating, 0), NULLIF(:rating_comment, '')
 			)
 			RETURNING *
 		),
