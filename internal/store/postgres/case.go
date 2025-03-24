@@ -1052,7 +1052,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 					final = true
 				}
 			}
-			base = base.Where(fmt.Sprintf("EXISTS(SELECT id FROM cases.status_condition WHERE id = %s AND final = ?)", store.Ident(caseLeft, "status_condition")), final)
+			base = base.Where(fmt.Sprintf("EXISTS(SELECT id FROM cases.status_condition WHERE id = %s AND final = ?)", storeutils.Ident(caseLeft, "status_condition")), final)
 		case "author":
 			switch typedValue := value.(type) {
 			case string:
