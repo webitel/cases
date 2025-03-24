@@ -214,6 +214,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	//     * During SLA resolution:
 	//         - If a condition matches the given priority, the corresponding SLA condition is selected and applied.
 	// -----------------------------------------------------------------------------
+
+	var statusCondition *cases.StatusCondition
+	if req.Input.StatusCondition != nil {
+		statusCondition = &cases.StatusCondition{Id: req.Input.StatusCondition.Id}
+	}
 	res := &cases.Case{
 		Subject:          req.Input.Subject,
 		Description:      req.Input.Description,
@@ -224,7 +229,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Impacted:         req.Input.Impacted,
 		Group:            &cases.ExtendedLookup{Id: req.Input.Group.GetId()},
 		Status:           req.Input.Status,
-		StatusCondition:  &cases.StatusCondition{Id: req.Input.StatusCondition.Id},
+		StatusCondition:  statusCondition,
 		CloseReason:      req.Input.GetCloseReason(),
 		CloseResult:      req.Input.GetCloseResult(),
 		CloseReasonGroup: req.Input.GetCloseReasonGroup(),
