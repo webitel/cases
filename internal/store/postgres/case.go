@@ -1168,14 +1168,8 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 		tableAlias = caseLeft
 	}
 	switch field {
-	case "id", "ver", "created_at", "updated_at", "name", "subject", "description", "planned_reaction_at", "planned_resolve_at", "reacted_at", "resolved_at", "contact_info", "close_result", "rating_comment":
+	case "id", "ver", "created_at", "updated_at", "name", "subject", "description", "planned_reaction_at", "planned_resolve_at", "reacted_at", "resolved_at", "contact_info", "close_result", "rating_comment", "rating":
 		base = base.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, field), direction))
-	case "rating":
-		nulls := "NULLS FIRST"
-		if direction == storeutils.SortDesc {
-			nulls = "NULLS LAST"
-		}
-		base = base.OrderBy(fmt.Sprintf("%s %s %s", storeutils.Ident(tableAlias, field), direction, nulls))
 	case "created_by", "updated_by", "source", "close_reason_group", "close_reason", "sla", "status_condition", "status", "priority", "service", "group":
 		base = base.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
 	case "author", "assignee", "reporter", "impacted":
