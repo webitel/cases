@@ -790,28 +790,12 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 	if input.Subject == "" {
 		return cerror.NewBadRequestError("app.case.create_case.subject_required", "Case subject is required")
 	}
-
-	if input.Status.GetId() == 0 {
-		return cerror.NewBadRequestError("app.case.create_case.status_required", "Case status is required")
-	}
-
-	if input.GetCloseReasonGroup().GetId() == 0 {
-		return cerror.NewBadRequestError("app.case.create_case.close_reason_required", "Case close reason is required")
-	}
-
 	if input.Source.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
 	}
-
-	if input.Impacted.GetId() == 0 {
-		return cerror.NewBadRequestError("app.case.create_case.impacted_required", "Impacted contact is required")
-	}
-
-	// Validate additional optional fields if needed
 	if input.Priority.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_priority", "Invalid priority specified")
 	}
-
 	if input.Service.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_service", "Invalid service specified")
 	}
