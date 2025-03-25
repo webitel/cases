@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/model/options/grpc/shared"
-	"log/slog"
-
 	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
+	deferr "github.com/webitel/cases/internal/errors/defaults"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	"log/slog"
 )
 
 const caseCommentsObjScope = model.ScopeCaseComments
@@ -74,13 +74,13 @@ func (c *CaseCommentService) LocateComment(
 	if len(commentList.Items) == 0 {
 		return nil, cerror.NewNotFoundError("app.case_comment.locate_comment.not_found", "Comment not found")
 	} else if len(commentList.Items) > 1 {
-		return nil, InternalError
+		return nil, deferr.InternalError
 	}
 
 	err = NormalizeCommentsResponse(commentList.Items[0], req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 
 	return commentList.Items[0], nil
@@ -132,7 +132,7 @@ func (c *CaseCommentService) UpdateComment(
 	err = NormalizeCommentsResponse(updatedComment, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeUpdate, NewCaseCommentWatcherData(updateOpts.GetAuthOpts(), updatedComment, id, parentId, roleIds))
 	if err != nil {
@@ -162,7 +162,7 @@ func (c *CaseCommentService) DeleteComment(
 	err = c.app.Store.CaseComment().Delete(deleteOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 
 	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeDelete, NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, tag.GetOid(), 0, nil))
@@ -209,13 +209,13 @@ func (c *CaseCommentService) ListComments(
 	comments, err := c.app.Store.CaseComment().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 
 	err = NormalizeCommentsResponse(comments, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 
 	return comments, nil
@@ -252,23 +252,23 @@ func (c *CaseCommentService) PublishComment(
 	accessMode := auth.Read
 	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommentMetadata.GetParentScopeName(), accessMode) {
 		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-		return nil, ForbiddenError
+		return nil, deferr.ForbiddenError
 	}
 	if createOpts.GetAuthOpts().IsRbacCheckRequired(CaseCommentMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 	comment, err := c.app.Store.CaseComment().Publish(createOpts, &cases.CaseComment{Text: req.Input.Text})
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 
 	id := comment.GetId()
@@ -278,7 +278,7 @@ func (c *CaseCommentService) PublishComment(
 	err = NormalizeCommentsResponse(comment, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeCreate, NewCaseCommentWatcherData(createOpts.GetAuthOpts(), comment, id, parentId, roleId))
 	if err != nil {

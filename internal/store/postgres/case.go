@@ -6,15 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"maps"
 	"strconv"
 	"strings"
 	"time"
-
-	storeutils "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
-	"github.com/webitel/cases/model/options/defaults"
-	common "github.com/webitel/cases/model/options/grpc"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
@@ -26,7 +22,12 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
+	dbutil "github.com/webitel/cases/internal/store/util"
+	storeutils "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/model/options/defaults"
+	common "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 
 	customrel "github.com/webitel/custom/reflect"
@@ -75,30 +76,54 @@ func (c *CaseStore) Create(
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", err)
 	}
-	defer tx.Rollback(rpc)
+	defer func(tx pgx.Tx, ctx context.Context) {
+		err := tx.Rollback(ctx)
+		if err != nil {
+			log.Println("postgres.case.create.transaction_error", err)
+		}
+	}(tx, rpc)
 	txManager := transaction.NewTxManager(tx)
 
-	// Scan SLA details
-	// Sla_id
-	// reaction_at & resolve_at in [milli]seconds
-	slaID, slaConditionID, reactionAt, resolveAt, calendarID, err := c.ScanSla(
+	// scan service related defaults
+	serviceDefs, err := c.ScanServiceDefs(
 		rpc,
 		txManager,
 		add.Service.GetId(),
 		add.Priority.GetId(),
 	)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.create.scan_sla_error", err)
+		return nil, err
+	}
+
+	if serviceDefs.StatusID == 0 {
+		return nil, dberr.NewDBBadRequestError("postgres.case.create.missing.params", "StatusID")
+	}
+
+	if serviceDefs.CloseReasonGroupID == 0 {
+		return nil, dberr.NewDBBadRequestError("postgres.case.create.missing.params", "CloseReasonGroupID")
 	}
 
 	// Calculate planned times within the transaction
-	err = c.calculatePlannedReactionAndResolutionTime(nil, rpc, calendarID, reactionAt, resolveAt, txManager, add)
+	err = c.calculateTimings(
+		nil,
+		rpc,
+		serviceDefs.CalendarID,
+		serviceDefs.ReactionTime,
+		serviceDefs.ResolutionTime,
+		txManager,
+		add,
+	)
+
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.calculate_planned_times_error", err)
 	}
 
 	// Build the query
-	selectBuilder, plan, err := c.buildCreateCaseSqlizer(rpc, add, slaID, slaConditionID)
+	selectBuilder, plan, err := c.buildCreateCaseSqlizer(
+		rpc,
+		add,
+		serviceDefs,
+	)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.build_query_error", err)
 	}
@@ -138,128 +163,143 @@ func (c *CaseStore) Create(
 	return add, nil
 }
 
-// ScanSla fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
-func (c *CaseStore) ScanSla(
+type ServiceRelatedDefs struct {
+	SLAID              int
+	SLAConditionID     int
+	ReactionTime       int
+	ResolutionTime     int
+	CalendarID         int
+	StatusID           int
+	CloseReasonGroupID int
+}
+
+// ScanServiceDefs fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
+func (c *CaseStore) ScanServiceDefs(
 	ctx context.Context,
 	txManager *transaction.TxManager,
 	serviceID int64,
 	priorityID int64,
-) (
-	slaID,
-	slaConditionID,
-	reactionTime,
-	resolutionTime,
-	calendarID int,
-	err error,
-) {
-	// var slaId, reactionTime, resolutionTime, calendarId, slaConditionId int
+) (*ServiceRelatedDefs, error) {
+	var res ServiceRelatedDefs
 
-	err = txManager.QueryRow(ctx, `
+	err := txManager.QueryRow(ctx, `
 WITH RECURSIVE
-    service_hierarchy AS (SELECT id,
-                                 root_id,
-                                 sla_id,
-                                 ARRAY [id] AS path -- Track the path to determine specificity
-                          FROM cases.service_catalog
-                          WHERE id = $1
+    service_hierarchy AS (
+        SELECT id,
+               root_id,
+               sla_id,
+               status_id,
+               close_reason_group_id,
+               ARRAY[id] AS path
+        FROM cases.service_catalog
+        WHERE id = $1
 
-                          UNION ALL
+        UNION ALL
 
-                          SELECT sc.id,
-                                 sc.root_id,
-                                 COALESCE(sc.sla_id, sh.sla_id) AS sla_id,
-                                 sh.path || sc.id -- Append the current service ID to the path
-                          FROM cases.service_catalog sc
-                                   INNER JOIN service_hierarchy sh ON sc.id = sh.root_id),
-    deepest_service AS (SELECT id,
-                               sla_id,
-                               path
-                        FROM service_hierarchy
-                        WHERE sla_id IS NOT NULL
-                        ORDER BY array_length(path, 1) ASC -- Prefer the shortest path (most specific service)
-                        LIMIT 1),
-    priority_condition AS (SELECT sc.id AS sla_condition_id,
-                                  sc.reaction_time,
-                                  sc.resolution_time
-                           FROM cases.sla_condition sc
-                                    INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
-                                    INNER JOIN cases.sla sla ON sc.sla_id = sla.id
-                                    INNER JOIN deepest_service ds ON sla.id = ds.sla_id
-                           WHERE psc.priority_id = $2
-                           LIMIT 1)
+        SELECT sc.id,
+               sc.root_id,
+               COALESCE(sc.sla_id, sh.sla_id),
+               COALESCE(sc.status_id, sh.status_id),
+               COALESCE(sc.close_reason_group_id, sh.close_reason_group_id),
+               sh.path || sc.id
+        FROM cases.service_catalog sc
+        INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
+    ),
+    deepest_service AS (
+        SELECT id,
+               sla_id,
+               status_id,
+               close_reason_group_id,
+               path
+        FROM service_hierarchy
+        WHERE sla_id IS NOT NULL
+          AND status_id IS NOT NULL
+          AND close_reason_group_id IS NOT NULL
+        ORDER BY array_length(path, 1) ASC
+        LIMIT 1
+    ),
+    priority_condition AS (
+        SELECT sc.id AS sla_condition_id,
+               sc.reaction_time,
+               sc.resolution_time
+        FROM cases.sla_condition sc
+        INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+        INNER JOIN cases.sla sla ON sc.sla_id = sla.id
+        INNER JOIN deepest_service ds ON sla.id = ds.sla_id
+        WHERE psc.priority_id = $2
+        LIMIT 1
+    )
 SELECT ds.sla_id,
-       COALESCE(pc.reaction_time, sla.reaction_time)     AS reaction_time,
-       COALESCE(pc.resolution_time, sla.resolution_time) AS resolution_time,
+       COALESCE(pc.reaction_time, sla.reaction_time),
+       COALESCE(pc.resolution_time, sla.resolution_time),
        sla.calendar_id,
-       pc.sla_condition_id
+       pc.sla_condition_id,
+       ds.status_id,
+       ds.close_reason_group_id
 FROM deepest_service ds
-         LEFT JOIN priority_condition pc ON true
-         LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
-	`, serviceID, priorityID).Scan(
-		scanner.ScanInt(&slaID),
-		scanner.ScanInt(&reactionTime),
-		scanner.ScanInt(&resolutionTime),
-		scanner.ScanInt(&calendarID),
-		scanner.ScanInt(&slaConditionID),
+LEFT JOIN priority_condition pc ON true
+LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
+`, serviceID, priorityID).Scan(
+		scanner.ScanInt(&res.SLAID),
+		scanner.ScanInt(&res.ReactionTime),
+		scanner.ScanInt(&res.ResolutionTime),
+		scanner.ScanInt(&res.CalendarID),
+		scanner.ScanInt(&res.SLAConditionID),
+		scanner.ScanInt(&res.StatusID),
+		scanner.ScanInt(&res.CloseReasonGroupID),
 	)
 	if err != nil {
-		return 0, 0, 0, 0, 0, dberr.NewDBInternalError("failed to scan SLA: %w", err)
+		return nil, dberr.NewDBInternalError("failed to scan SLA: %w", err)
 	}
 
-	return slaID, slaConditionID, reactionTime, resolutionTime, calendarID, nil
+	return &res, nil
 }
 
 func (c *CaseStore) buildCreateCaseSqlizer(
 	rpc options.CreateOptions,
 	input *_go.Case,
-	slaID int,
-	slaConditionID int,
-) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
-	// Parameters for the main case and nested JSON arrays
-	var (
-		assignee, closeReason, reporter, group, impacted *int64
-		closeResult, description                         *string
-	)
-	if cr := input.GetCloseReason(); cr != nil && cr.GetId() != 0 {
-		closeReason = &cr.Id
-	}
-	if input.GetCloseResult() != "" {
-		closeResult = &input.CloseResult
-	}
-	if rep := input.GetReporter(); rep != nil && rep.GetId() > 0 {
-		reporter = &rep.Id
+	serviceDefs *ServiceRelatedDefs,
+) (
+	sq.SelectBuilder,
+	[]func(caseItem *_go.Case) any,
+	error,
+) {
+
+	// Extract optional fields via helper utils
+	assignee := dbutil.IDPtr(input.GetAssignee())
+	closeReason := dbutil.IDPtr(input.GetCloseReason())
+	reporter := dbutil.IDPtr(input.GetReporter())
+	impacted := dbutil.IDPtr(input.GetImpacted())
+	group := dbutil.IDPtr(input.Group)
+	description := dbutil.StringPtr(input.Description)
+	closeResult := dbutil.StringPtr(input.GetCloseResult())
+
+	// Set fallback defaults for status and close reason group
+	defStatusID := input.Status.GetId()
+	if defStatusID == 0 {
+		defStatusID = int64(serviceDefs.StatusID)
 	}
 
-	if ass := input.GetAssignee(); ass != nil && ass.GetId() > 0 {
-		assignee = &ass.Id
+	defCloseReasonGroupID := input.CloseReasonGroup.GetId()
+	if defCloseReasonGroupID == 0 {
+		defCloseReasonGroupID = int64(serviceDefs.CloseReasonGroupID)
 	}
 
-	if imp := input.GetImpacted(); imp != nil && imp.GetId() > 0 {
-		impacted = &imp.Id
-	}
-
-	if grp := input.Group; grp != nil && grp.GetId() > 0 {
-		group = &grp.Id
-	}
-
-	if desc := input.Description; desc != "" {
-		description = &desc
-	}
 	params := map[string]any{
 		// Case-level parameters
 		"date":                rpc.RequestTime(),
 		"contact_info":        input.GetContactInfo(),
 		"user":                rpc.GetAuthOpts().GetUserId(),
 		"dc":                  rpc.GetAuthOpts().GetDomainId(),
-		"sla":                 slaID,
-		"sla_condition":       slaConditionID,
-		"status":              input.Status.GetId(),
+		"sla":                 serviceDefs.SLAID,
+		"sla_condition":       serviceDefs.SLAConditionID,
+		"status":              defStatusID,
 		"status_condition":    input.StatusCondition.GetId(),
 		"service":             input.Service.GetId(),
 		"priority":            input.Priority.GetId(),
 		"source":              input.Source.GetId(),
 		"contact_group":       group,
-		"close_reason_group":  input.CloseReasonGroup.GetId(),
+		"close_reason_group":  defCloseReasonGroupID,
 		"close_result":        closeResult,
 		"close_reason":        closeReason,
 		"rating":              input.Rating,
@@ -327,7 +367,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:priority, :source, :status, :contact_group, :close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee, :sla, :sla_condition,
-				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason, NULLIF(:rating, 0), NULLIF(:rating_comment, '')
+				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason, 
+                NULLIF(:rating, 0), NULLIF(:rating_comment, '')
 			)
 			RETURNING *
 		),
@@ -470,34 +511,6 @@ func extractRelatedJSON(related *_go.RelatedCaseList) []byte {
 	return jsonData
 }
 
-// ConvertRelationType validates the cases.RelationType and returns its integer representation.
-func ConvertRelationType(relationType _go.RelationType) (int, error) {
-	switch relationType {
-	case _go.RelationType_RELATION_TYPE_UNSPECIFIED:
-		return 0, nil
-	case _go.RelationType_DUPLICATES:
-		return 1, nil
-	case _go.RelationType_IS_DUPLICATED_BY:
-		return 2, nil
-	case _go.RelationType_BLOCKS:
-		return 3, nil
-	case _go.RelationType_IS_BLOCKED_BY:
-		return 4, nil
-	case _go.RelationType_CAUSES:
-		return 5, nil
-	case _go.RelationType_IS_CAUSED_BY:
-		return 6, nil
-	case _go.RelationType_IS_CHILD_OF:
-		return 7, nil
-	case _go.RelationType_IS_PARENT_OF:
-		return 8, nil
-	case _go.RelationType_RELATES_TO:
-		return 9, nil
-	default:
-		return -1, fmt.Errorf("invalid relation type: %v", relationType)
-	}
-}
-
 type CalendarSlot struct {
 	Day            int
 	StartTimeOfDay int
@@ -522,15 +535,15 @@ type MergedSlot struct {
 	Disabled       bool      // Is the slot disabled
 }
 
-type TimingOptions interface {
+type TimingOpts interface {
 	RequestTime() time.Time
 	GetAuthOpts() auth.Auther
 	context.Context
 }
 
-func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
+func (c *CaseStore) calculateTimings(
 	caseID *int64,
-	rpc TimingOptions,
+	rpc TimingOpts,
 	calendarID int,
 	reactionTime int,
 	resolutionTime int,
@@ -597,7 +610,7 @@ func (c *CaseStore) calculatePlannedReactionAndResolutionTime(
 }
 
 // fetchCalendarSlots retrieves working hours for a calendar
-func fetchCalendarSlots(rpc TimingOptions, txManager *transaction.TxManager, calendarID int) ([]CalendarSlot, error) {
+func fetchCalendarSlots(rpc TimingOpts, txManager *transaction.TxManager, calendarID int) ([]CalendarSlot, error) {
 	rows, err := txManager.Query(rpc, `
 		SELECT day, start_time_of_day, end_time_of_day, disabled
 		FROM flow.calendar cl,
@@ -633,7 +646,7 @@ func fetchCalendarSlots(rpc TimingOptions, txManager *transaction.TxManager, cal
 }
 
 // fetchExceptionSlots retrieves exceptions for specific days (overrides)
-func fetchExceptionSlots(rpc TimingOptions, txManager *transaction.TxManager, calendarID int) ([]ExceptionSlot, error) {
+func fetchExceptionSlots(rpc TimingOpts, txManager *transaction.TxManager, calendarID int) ([]ExceptionSlot, error) {
 	rows, err := txManager.Query(rpc, `
 		SELECT
 			to_timestamp(x.date / 1000) AS date,
@@ -668,7 +681,7 @@ func mergeCalendarAndExceptions(calendar []CalendarSlot, exceptions []ExceptionS
 	// Convert calendar slots to merged slots
 	for _, cal := range calendar {
 		// Adjust weekday to start from Sunday as 0, Monday as 1, etc.
-		adjustedDay := (cal.Day % 7) // Adjust to make sure it's in [0, 6] range
+		adjustedDay := cal.Day % 7 // Adjust to make sure it's in [0, 6] range
 		mergedSlots = append(mergedSlots, MergedSlot{
 			Day:            adjustedDay,
 			Date:           time.Time{}, // Calendar slots don't have a specific date
@@ -944,11 +957,11 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	if err != nil {
 		return false, err
 	}
-	sql, args, defErr := q.ToSql()
+	query, args, defErr := q.ToSql()
 	if defErr != nil {
 		return false, defErr
 	}
-	res, defErr := db.Exec(ctx, sql, args...)
+	res, defErr := db.Exec(ctx, query, args...)
 	if defErr != nil {
 		return false, defErr
 	}
@@ -1197,12 +1210,17 @@ func (c *CaseStore) Update(
 	if txErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", txErr)
 	}
-	defer tx.Rollback(rpc)
+	defer func(tx pgx.Tx, ctx context.Context) {
+		err := tx.Rollback(ctx)
+		if err != nil {
+			log.Printf("postgres.case.update.rollback_error: %v\n", err)
+		}
+	}(tx, rpc)
 	txManager := transaction.NewTxManager(tx)
 
 	// * if user change Service -- SLA ; SLA Condition ; Planned Reaction / Resolve at ; Calendar could be changed
 	if util.ContainsField(rpc.GetMask(), "service") {
-		slaID, slaConditionID, reactionAt, resolveAt, calendarID, err := c.ScanSla(
+		serviceDefs, err := c.ScanServiceDefs(
 			rpc,
 			txManager,
 			upd.Service.GetId(),
@@ -1215,12 +1233,12 @@ func (c *CaseStore) Update(
 		oid := rpc.GetEtags()[0].GetOid()
 
 		// Calculate planned times within the transaction
-		err = c.calculatePlannedReactionAndResolutionTime(
+		err = c.calculateTimings(
 			&oid,
 			rpc,
-			calendarID,
-			reactionAt,
-			resolveAt,
+			serviceDefs.CalendarID,
+			serviceDefs.ReactionTime,
+			serviceDefs.ResolutionTime,
 			txManager,
 			upd,
 		)
@@ -1232,11 +1250,11 @@ func (c *CaseStore) Update(
 		if upd.Sla == nil {
 			upd.Sla = &_go.Lookup{}
 		}
-		upd.Sla.Id = int64(slaID)
+		upd.Sla.Id = int64(serviceDefs.SLAID)
 		if upd.SlaCondition == nil {
 			upd.SlaCondition = &_go.Lookup{}
 		}
-		upd.SlaCondition.Id = int64(slaConditionID)
+		upd.SlaCondition.Id = int64(serviceDefs.SLAConditionID)
 	}
 
 	// Build the SQL query and scan plan
@@ -1410,7 +1428,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 				// [NOTE]: PATCH {"custom":null} !
 				// get has [custom] extension defined !?
 				if e := c.custom(rpc); e != nil {
-					custom.customCtx = (*e) // shallowcopy
+					custom.customCtx = *e // shallowcopy
 				}
 				// record changes for update ..
 				data := upd.GetCustom()
@@ -1460,7 +1478,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	}
 
 	WITH := sq.Select().PrefixExpr(
-		sq.Expr(("WITH " + caseLeft + " AS (?)"),
+		sq.Expr("WITH "+caseLeft+" AS (?)",
 			updateBuilder.Suffix("RETURNING *"),
 		),
 	) //.PlaceholderFormat(sq.Dollar)
@@ -1481,7 +1499,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		)
 		// WITH custom (..UPDATE..)
 		WITH = WITH.PrefixExpr(sq.Expr(
-			(", " + custom.table + " AS (?)"),
+			", "+custom.table+" AS (?)",
 			custom.update,
 		))
 		// Return UPDATE[d] field(s) ...
@@ -2207,8 +2225,8 @@ func (c *CaseStore) GetRolesById(
 	//// Establish database connection
 	//query := "(SELECT ARRAY_AGG(DISTINCT subject) rbac_r FROM cases.case_acl WHERE object = ? AND access & ? = ?)"
 	query := sq.Select("ARRAY_AGG(DISTINCT subject)").From("cases.case_acl").Where("object = ?", caseId).Where("access & ? = ?", uint8(access), uint8(access)).PlaceholderFormat(sq.Dollar)
-	sql, args, _ := query.ToSql()
-	row := db.QueryRow(ctx, sql, args...)
+	q, args, _ := query.ToSql()
+	row := db.QueryRow(ctx, q, args...)
 
 	var res []int64
 	defErr := row.Scan(&res)
