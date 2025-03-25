@@ -108,7 +108,7 @@ func RemoveElements(arr []string, elementsToRemove ...string) []string {
 }
 
 // ParseFieldsForEtag searches for id, ver fields and adds missing
-// to provide full functionality of etag (do not changes fields, returns fully new slice)
+// to provide full functionality of etag (do not change fields, returns fully new slice)
 func ParseFieldsForEtag(fields []string) []string {
 	var (
 		res                    []string

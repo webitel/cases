@@ -90,6 +90,26 @@ type DBInternalError struct {
 	DBError
 }
 
+// DBBadRequestError indicates a bad request due to invalid or missing input.
+type DBBadRequestError struct {
+	DBError
+	MissingParam string
+}
+
+// NewDBBadRequestError creates a new DBBadRequestError with the specified ID and missing fields.
+func NewDBBadRequestError(id string, param string) *DBBadRequestError {
+	message := fmt.Sprintf("missing or invalid required params: %v", param)
+	return &DBBadRequestError{
+		DBError:      *NewDBError(id, message),
+		MissingParam: param,
+	}
+}
+
+// Error implements the error interface for DBBadRequestError.
+func (e *DBBadRequestError) Error() string {
+	return fmt.Sprintf("DBBadRequestError [%s]: %s (MissingParam: %v)", e.ID, e.Message, e.MissingParam)
+}
+
 // Error implements the error interface for DBInternalError.
 func (d *DBInternalError) Error() string {
 	if d.Reason != nil {
