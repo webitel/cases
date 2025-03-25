@@ -226,6 +226,17 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	input *_go.Case,
 	serviceDefs *ServiceRelatedDefs,
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
+
+	var (
+		rating        *int64
+		ratingComment *string
+	)
+
+	if input.Rate != nil {
+		rating = &input.Rate.Rating
+		ratingComment = store.StringPtr(input.Rate.RatingComment)
+	}
+
 	// Extract optional fields via helper utils
 	assignee := store.IDPtr(input.GetAssignee())
 	closeReason := store.IDPtr(input.Close.GetCloseReason())
@@ -263,8 +274,8 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"close_reason_group":  defCloseReasonGroupID,
 		"close_result":        closeResult,
 		"close_reason":        closeReason,
-		"rating":              input.Rate.Rating,
-		"rating_comment":      input.Rate.RatingComment,
+		"rating":              rating,
+		"rating_comment":      ratingComment,
 		"subject":             input.Subject,
 		"planned_reaction_at": util.LocalTime(input.PlannedReactionAt),
 		"planned_resolve_at":  util.LocalTime(input.PlannedResolveAt),
