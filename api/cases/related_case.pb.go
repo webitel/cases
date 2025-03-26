@@ -385,7 +385,9 @@ type InputRelatedCase struct {
 	// Primary case details.
 	PrimaryCase *Lookup `protobuf:"bytes,2,opt,name=primary_case,json=primaryCase,proto3" json:"primary_case,omitempty"`
 	// Related case details.
-	RelatedCase   *Lookup `protobuf:"bytes,3,opt,name=related_case,json=relatedCase,proto3" json:"related_case,omitempty"`
+	RelatedCase *Lookup `protobuf:"bytes,3,opt,name=related_case,json=relatedCase,proto3" json:"related_case,omitempty"`
+	// Optional creator / updater ID. Use this to explicitly set the case creator / updater instead of deriving it from the auth token.
+	UserID        *Lookup `protobuf:"bytes,20,opt,name=userID,proto3" json:"userID,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -437,6 +439,13 @@ func (x *InputRelatedCase) GetPrimaryCase() *Lookup {
 func (x *InputRelatedCase) GetRelatedCase() *Lookup {
 	if x != nil {
 		return x.RelatedCase
+	}
+	return nil
+}
+
+func (x *InputRelatedCase) GetUserID() *Lookup {
+	if x != nil {
+		return x.UserID
 	}
 	return nil
 }
@@ -511,7 +520,9 @@ type CreateInputRelatedCase struct {
 	// Related case details.
 	RelatedCase *Lookup `protobuf:"bytes,2,opt,name=related_case,json=relatedCase,proto3" json:"related_case,omitempty"`
 	// Relation type between the cases.
-	RelationType  RelationType `protobuf:"varint,3,opt,name=relation_type,json=relationType,proto3,enum=webitel.cases.RelationType" json:"relation_type,omitempty"`
+	RelationType RelationType `protobuf:"varint,3,opt,name=relation_type,json=relationType,proto3,enum=webitel.cases.RelationType" json:"relation_type,omitempty"`
+	// Optional creator / updater ID. Use this to explicitly set the case creator / updater instead of deriving it from the auth token.
+	UserID        *Lookup `protobuf:"bytes,20,opt,name=userID,proto3" json:"userID,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -558,6 +569,13 @@ func (x *CreateInputRelatedCase) GetRelationType() RelationType {
 		return x.RelationType
 	}
 	return RelationType_RELATION_TYPE_UNSPECIFIED
+}
+
+func (x *CreateInputRelatedCase) GetUserID() *Lookup {
+	if x != nil {
+		return x.UserID
+	}
+	return nil
 }
 
 // Request to create a related case.
@@ -873,19 +891,21 @@ const file_related_case_proto_rawDesc = "" +
 	"\x0fRelatedCaseList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x03R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x12.\n" +
-	"\x04data\x18\x03 \x03(\v2\x1a.webitel.cases.RelatedCaseR\x04data\"\xbc\x01\n" +
+	"\x04data\x18\x03 \x03(\v2\x1a.webitel.cases.RelatedCaseR\x04data\"\xe5\x01\n" +
 	"\x10InputRelatedCase\x12@\n" +
 	"\rrelation_type\x18\x01 \x01(\x0e2\x1b.webitel.cases.RelationTypeR\frelationType\x122\n" +
 	"\fprimary_case\x18\x02 \x01(\v2\x0f.general.LookupR\vprimaryCase\x122\n" +
-	"\frelated_case\x18\x03 \x01(\v2\x0f.general.LookupR\vrelatedCase\"\x80\x01\n" +
+	"\frelated_case\x18\x03 \x01(\v2\x0f.general.LookupR\vrelatedCase\x12'\n" +
+	"\x06userID\x18\x14 \x01(\v2\x0f.general.LookupR\x06userID\"\x80\x01\n" +
 	"\x18LocateRelatedCaseRequest\x12\x12\n" +
 	"\x04etag\x18\x01 \x01(\tR\x04etag\x12\x16\n" +
 	"\x06fields\x18\x02 \x03(\tR\x06fields\x12*\n" +
 	"\x11primary_case_etag\x18\x03 \x01(\tR\x0fprimaryCaseEtag:\f\x92A\t\n" +
-	"\a\xd2\x01\x04etag\"\x8e\x01\n" +
+	"\a\xd2\x01\x04etag\"\xb7\x01\n" +
 	"\x16CreateInputRelatedCase\x122\n" +
 	"\frelated_case\x18\x02 \x01(\v2\x0f.general.LookupR\vrelatedCase\x12@\n" +
-	"\rrelation_type\x18\x03 \x01(\x0e2\x1b.webitel.cases.RelationTypeR\frelationType\"\xb6\x01\n" +
+	"\rrelation_type\x18\x03 \x01(\x0e2\x1b.webitel.cases.RelationTypeR\frelationType\x12'\n" +
+	"\x06userID\x18\x14 \x01(\v2\x0f.general.LookupR\x06userID\"\xb6\x01\n" +
 	"\x18CreateRelatedCaseRequest\x12*\n" +
 	"\x11primary_case_etag\x18\x01 \x01(\tR\x0fprimaryCaseEtag\x12;\n" +
 	"\x05input\x18\x02 \x01(\v2%.webitel.cases.CreateInputRelatedCaseR\x05input\x12\x16\n" +
@@ -970,25 +990,27 @@ var file_related_case_proto_depIdxs = []int32{
 	0,  // 6: webitel.cases.InputRelatedCase.relation_type:type_name -> webitel.cases.RelationType
 	11, // 7: webitel.cases.InputRelatedCase.primary_case:type_name -> general.Lookup
 	11, // 8: webitel.cases.InputRelatedCase.related_case:type_name -> general.Lookup
-	11, // 9: webitel.cases.CreateInputRelatedCase.related_case:type_name -> general.Lookup
-	0,  // 10: webitel.cases.CreateInputRelatedCase.relation_type:type_name -> webitel.cases.RelationType
-	6,  // 11: webitel.cases.CreateRelatedCaseRequest.input:type_name -> webitel.cases.CreateInputRelatedCase
-	4,  // 12: webitel.cases.UpdateRelatedCaseRequest.input:type_name -> webitel.cases.InputRelatedCase
-	5,  // 13: webitel.cases.RelatedCases.LocateRelatedCase:input_type -> webitel.cases.LocateRelatedCaseRequest
-	7,  // 14: webitel.cases.RelatedCases.CreateRelatedCase:input_type -> webitel.cases.CreateRelatedCaseRequest
-	8,  // 15: webitel.cases.RelatedCases.UpdateRelatedCase:input_type -> webitel.cases.UpdateRelatedCaseRequest
-	9,  // 16: webitel.cases.RelatedCases.DeleteRelatedCase:input_type -> webitel.cases.DeleteRelatedCaseRequest
-	10, // 17: webitel.cases.RelatedCases.ListRelatedCases:input_type -> webitel.cases.ListRelatedCasesRequest
-	2,  // 18: webitel.cases.RelatedCases.LocateRelatedCase:output_type -> webitel.cases.RelatedCase
-	2,  // 19: webitel.cases.RelatedCases.CreateRelatedCase:output_type -> webitel.cases.RelatedCase
-	2,  // 20: webitel.cases.RelatedCases.UpdateRelatedCase:output_type -> webitel.cases.RelatedCase
-	2,  // 21: webitel.cases.RelatedCases.DeleteRelatedCase:output_type -> webitel.cases.RelatedCase
-	3,  // 22: webitel.cases.RelatedCases.ListRelatedCases:output_type -> webitel.cases.RelatedCaseList
-	18, // [18:23] is the sub-list for method output_type
-	13, // [13:18] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	11, // 9: webitel.cases.InputRelatedCase.userID:type_name -> general.Lookup
+	11, // 10: webitel.cases.CreateInputRelatedCase.related_case:type_name -> general.Lookup
+	0,  // 11: webitel.cases.CreateInputRelatedCase.relation_type:type_name -> webitel.cases.RelationType
+	11, // 12: webitel.cases.CreateInputRelatedCase.userID:type_name -> general.Lookup
+	6,  // 13: webitel.cases.CreateRelatedCaseRequest.input:type_name -> webitel.cases.CreateInputRelatedCase
+	4,  // 14: webitel.cases.UpdateRelatedCaseRequest.input:type_name -> webitel.cases.InputRelatedCase
+	5,  // 15: webitel.cases.RelatedCases.LocateRelatedCase:input_type -> webitel.cases.LocateRelatedCaseRequest
+	7,  // 16: webitel.cases.RelatedCases.CreateRelatedCase:input_type -> webitel.cases.CreateRelatedCaseRequest
+	8,  // 17: webitel.cases.RelatedCases.UpdateRelatedCase:input_type -> webitel.cases.UpdateRelatedCaseRequest
+	9,  // 18: webitel.cases.RelatedCases.DeleteRelatedCase:input_type -> webitel.cases.DeleteRelatedCaseRequest
+	10, // 19: webitel.cases.RelatedCases.ListRelatedCases:input_type -> webitel.cases.ListRelatedCasesRequest
+	2,  // 20: webitel.cases.RelatedCases.LocateRelatedCase:output_type -> webitel.cases.RelatedCase
+	2,  // 21: webitel.cases.RelatedCases.CreateRelatedCase:output_type -> webitel.cases.RelatedCase
+	2,  // 22: webitel.cases.RelatedCases.UpdateRelatedCase:output_type -> webitel.cases.RelatedCase
+	2,  // 23: webitel.cases.RelatedCases.DeleteRelatedCase:output_type -> webitel.cases.RelatedCase
+	3,  // 24: webitel.cases.RelatedCases.ListRelatedCases:output_type -> webitel.cases.RelatedCaseList
+	20, // [20:25] is the sub-list for method output_type
+	15, // [15:20] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_related_case_proto_init() }

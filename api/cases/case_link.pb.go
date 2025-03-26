@@ -142,10 +142,12 @@ func (x *CaseLink) GetUrl() string {
 }
 
 type InputCaseLink struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Etag          string                 `protobuf:"bytes,1,opt,name=etag,proto3" json:"etag,omitempty"`
-	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Etag  string                 `protobuf:"bytes,1,opt,name=etag,proto3" json:"etag,omitempty"`
+	Url   string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Name  string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	// Optional creator / updater ID. Use this to explicitly set the case creator / updater instead of deriving it from the auth token.
+	UserID        *Lookup `protobuf:"bytes,20,opt,name=userID,proto3" json:"userID,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -199,6 +201,13 @@ func (x *InputCaseLink) GetName() string {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *InputCaseLink) GetUserID() *Lookup {
+	if x != nil {
+		return x.UserID
+	}
+	return nil
 }
 
 type CaseLinkList struct {
@@ -612,11 +621,12 @@ const file_case_link_proto_rawDesc = "" +
 	"updated_at\x18\a \x01(\x03R\tupdatedAt\x12'\n" +
 	"\x06author\x18\b \x01(\v2\x0f.general.LookupR\x06author\x12\x12\n" +
 	"\x04name\x18\t \x01(\tR\x04name\x12\x10\n" +
-	"\x03url\x18\v \x01(\tR\x03url\"I\n" +
+	"\x03url\x18\v \x01(\tR\x03url\"r\n" +
 	"\rInputCaseLink\x12\x12\n" +
 	"\x04etag\x18\x01 \x01(\tR\x04etag\x12\x10\n" +
 	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\"e\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12'\n" +
+	"\x06userID\x18\x14 \x01(\v2\x0f.general.LookupR\x06userID\"e\n" +
 	"\fCaseLinkList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x03R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x12-\n" +
@@ -685,24 +695,25 @@ var file_case_link_proto_depIdxs = []int32{
 	8,  // 0: webitel.cases.CaseLink.created_by:type_name -> general.Lookup
 	8,  // 1: webitel.cases.CaseLink.updated_by:type_name -> general.Lookup
 	8,  // 2: webitel.cases.CaseLink.author:type_name -> general.Lookup
-	0,  // 3: webitel.cases.CaseLinkList.items:type_name -> webitel.cases.CaseLink
-	1,  // 4: webitel.cases.UpdateLinkRequest.input:type_name -> webitel.cases.InputCaseLink
-	1,  // 5: webitel.cases.CreateLinkRequest.input:type_name -> webitel.cases.InputCaseLink
-	3,  // 6: webitel.cases.CaseLinks.LocateLink:input_type -> webitel.cases.LocateLinkRequest
-	7,  // 7: webitel.cases.CaseLinks.CreateLink:input_type -> webitel.cases.CreateLinkRequest
-	4,  // 8: webitel.cases.CaseLinks.UpdateLink:input_type -> webitel.cases.UpdateLinkRequest
-	5,  // 9: webitel.cases.CaseLinks.DeleteLink:input_type -> webitel.cases.DeleteLinkRequest
-	6,  // 10: webitel.cases.CaseLinks.ListLinks:input_type -> webitel.cases.ListLinksRequest
-	0,  // 11: webitel.cases.CaseLinks.LocateLink:output_type -> webitel.cases.CaseLink
-	0,  // 12: webitel.cases.CaseLinks.CreateLink:output_type -> webitel.cases.CaseLink
-	0,  // 13: webitel.cases.CaseLinks.UpdateLink:output_type -> webitel.cases.CaseLink
-	0,  // 14: webitel.cases.CaseLinks.DeleteLink:output_type -> webitel.cases.CaseLink
-	2,  // 15: webitel.cases.CaseLinks.ListLinks:output_type -> webitel.cases.CaseLinkList
-	11, // [11:16] is the sub-list for method output_type
-	6,  // [6:11] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	8,  // 3: webitel.cases.InputCaseLink.userID:type_name -> general.Lookup
+	0,  // 4: webitel.cases.CaseLinkList.items:type_name -> webitel.cases.CaseLink
+	1,  // 5: webitel.cases.UpdateLinkRequest.input:type_name -> webitel.cases.InputCaseLink
+	1,  // 6: webitel.cases.CreateLinkRequest.input:type_name -> webitel.cases.InputCaseLink
+	3,  // 7: webitel.cases.CaseLinks.LocateLink:input_type -> webitel.cases.LocateLinkRequest
+	7,  // 8: webitel.cases.CaseLinks.CreateLink:input_type -> webitel.cases.CreateLinkRequest
+	4,  // 9: webitel.cases.CaseLinks.UpdateLink:input_type -> webitel.cases.UpdateLinkRequest
+	5,  // 10: webitel.cases.CaseLinks.DeleteLink:input_type -> webitel.cases.DeleteLinkRequest
+	6,  // 11: webitel.cases.CaseLinks.ListLinks:input_type -> webitel.cases.ListLinksRequest
+	0,  // 12: webitel.cases.CaseLinks.LocateLink:output_type -> webitel.cases.CaseLink
+	0,  // 13: webitel.cases.CaseLinks.CreateLink:output_type -> webitel.cases.CaseLink
+	0,  // 14: webitel.cases.CaseLinks.UpdateLink:output_type -> webitel.cases.CaseLink
+	0,  // 15: webitel.cases.CaseLinks.DeleteLink:output_type -> webitel.cases.CaseLink
+	2,  // 16: webitel.cases.CaseLinks.ListLinks:output_type -> webitel.cases.CaseLinkList
+	12, // [12:17] is the sub-list for method output_type
+	7,  // [7:12] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_case_link_proto_init() }

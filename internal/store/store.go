@@ -114,11 +114,11 @@ type CaseFileStore interface {
 
 type RelatedCaseStore interface {
 	// Create relation
-	Create(rpc options.CreateOptions, relation *_go.RelationType) (*_go.RelatedCase, error)
+	Create(rpc options.CreateOptions, relation *_go.RelationType, userID int64) (*_go.RelatedCase, error)
 	// List related cases
 	List(rpc options.SearchOptions) (*_go.RelatedCaseList, error)
 	// Update relation
-	Update(req options.UpdateOptions, upd *_go.InputRelatedCase) (*_go.RelatedCase, error)
+	Update(req options.UpdateOptions, upd *_go.InputRelatedCase, userID int64) (*_go.RelatedCase, error)
 	// Delete relation
 	Delete(req options.DeleteOptions) error
 }

@@ -113,13 +113,15 @@ func (c *CaseCommentService) UpdateComment(
 
 	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("id", tag.GetOid()))
 
-	comment := &cases.CaseComment{
-		Id:   tag.GetOid(),
-		Text: req.Input.Text,
-		Ver:  tag.GetVer(),
+	input := &cases.CaseComment{
+		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
+		UpdatedBy: req.Input.GetUserID(),
+		Id:        tag.GetOid(),
+		Text:      req.Input.Text,
+		Ver:       tag.GetVer(),
 	}
 
-	updatedComment, err := c.app.Store.CaseComment().Update(updateOpts, comment)
+	updatedComment, err := c.app.Store.CaseComment().Update(updateOpts, input)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, cerror.NewInternalError("app.case_comment.update_comment.store_update_failed", "database error")
@@ -127,7 +129,7 @@ func (c *CaseCommentService) UpdateComment(
 
 	id := updatedComment.GetId()
 	roleIds := updatedComment.GetRoleIds()
-	parentId := comment.GetCaseId()
+	parentId := input.GetCaseId()
 
 	err = NormalizeCommentsResponse(updatedComment, req)
 	if err != nil {
@@ -136,7 +138,7 @@ func (c *CaseCommentService) UpdateComment(
 	}
 	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeUpdate, NewCaseCommentWatcherData(updateOpts.GetAuthOpts(), updatedComment, id, parentId, roleIds))
 	if err != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment update: %s, ", err.Error()), logAttributes)
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify input update: %s, ", err.Error()), logAttributes)
 	}
 
 	return updatedComment, nil
@@ -265,7 +267,14 @@ func (c *CaseCommentService) PublishComment(
 			return nil, deferr.ForbiddenError
 		}
 	}
-	comment, err := c.app.Store.CaseComment().Publish(createOpts, &cases.CaseComment{Text: req.Input.Text})
+	comment, err := c.app.Store.CaseComment().Publish(
+		createOpts,
+		&cases.CaseComment{
+			// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
+			CreatedBy: req.Input.GetUserID(),
+			Text:      req.Input.Text,
+		},
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, deferr.DatabaseError

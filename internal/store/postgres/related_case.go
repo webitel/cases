@@ -33,6 +33,7 @@ const (
 func (r *RelatedCaseStore) Create(
 	rpc options.CreateOptions,
 	relation *cases.RelationType,
+	userID int64,
 ) (*cases.RelatedCase, error) {
 	// Establish database connection
 	d, err := r.storage.Database()
@@ -41,7 +42,7 @@ func (r *RelatedCaseStore) Create(
 	}
 
 	// Build SQLizer
-	queryBuilder, plan, err := r.buildCreateRelatedCaseSqlizer(rpc, relation)
+	queryBuilder, plan, err := r.buildCreateRelatedCaseSqlizer(rpc, relation, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +70,13 @@ func (r *RelatedCaseStore) Create(
 func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 	rpc options.CreateOptions,
 	relation *cases.RelationType,
+	inputUserID int64,
 ) (sq.Sqlizer, []func(*cases.RelatedCase) any, *dberr.DBError) {
+
+	userID := rpc.GetAuthOpts().GetUserId()
+	if createdBy := inputUserID; createdBy != 0 {
+		userID = createdBy
+	}
 	// Insert query
 	insertBuilder := sq.
 		Insert("cases.related_case").
@@ -80,9 +87,9 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 			rpc.GetChildID(),                // related_case_id
 			relation,                        // relation_type
 			rpc.RequestTime(),               // created_at
-			rpc.GetAuthOpts().GetUserId(),   // created_by
+			userID,                          // created_by
 			rpc.RequestTime(),               // updated_at
-			rpc.GetAuthOpts().GetUserId(),   // updated_by
+			userID,                          // updated_by
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -303,6 +310,7 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 func (r *RelatedCaseStore) Update(
 	rpc options.UpdateOptions,
 	input *cases.InputRelatedCase,
+	userID int64,
 ) (*cases.RelatedCase, error) {
 	// Get database connection
 	d, err := r.storage.Database()
@@ -311,7 +319,7 @@ func (r *RelatedCaseStore) Update(
 	}
 
 	// Build update SQLizer
-	queryBuilder, plan, err := r.buildUpdateRelatedCaseSqlizer(rpc, input)
+	queryBuilder, plan, err := r.buildUpdateRelatedCaseSqlizer(rpc, input, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -341,17 +349,25 @@ func (r *RelatedCaseStore) Update(
 func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
 	rpc options.UpdateOptions,
 	input *cases.InputRelatedCase,
+	inputUserID int64,
 ) (sq.Sqlizer, []func(*cases.RelatedCase) any, *dberr.DBError) {
 	// Ensure "id" and "ver" are included
 	fields := rpc.GetFields()
 	fields = util.EnsureIdAndVerField(rpc.GetFields())
+
+	userID := rpc.GetAuthOpts().GetUserId()
+	if util.ContainsField(rpc.GetMask(), "userID") {
+		if updatedBy := inputUserID; updatedBy != 0 {
+			userID = updatedBy
+		}
+	}
 
 	// Start building the update query
 	updateBuilder := sq.Update("cases.related_case").
 		PlaceholderFormat(sq.Dollar).
 		Set("relation_type", input.RelationType).
 		Set("updated_at", rpc.RequestTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Set("updated_by", userID).
 		Set("ver", sq.Expr("ver + 1")).
 		Where(sq.Eq{
 			"id":  rpc.GetEtags()[0].GetOid(),

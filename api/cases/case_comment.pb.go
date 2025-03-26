@@ -249,7 +249,9 @@ type InputCaseComment struct {
 	// Identifier for the comment.
 	Etag string `protobuf:"bytes,1,opt,name=etag,proto3" json:"etag,omitempty"`
 	// Content of the comment.
-	Text          string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Text string `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	// Optional creator / updater ID. Use this to explicitly set the case creator / updater instead of deriving it from the auth token.
+	UserID        *Lookup `protobuf:"bytes,20,opt,name=userID,proto3" json:"userID,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -296,6 +298,13 @@ func (x *InputCaseComment) GetText() string {
 		return x.Text
 	}
 	return ""
+}
+
+func (x *InputCaseComment) GetUserID() *Lookup {
+	if x != nil {
+		return x.UserID
+	}
+	return nil
 }
 
 // Request to locate a comment based on its etag.
@@ -672,10 +681,11 @@ const file_case_comment_proto_rawDesc = "" +
 	"\x0fCaseCommentList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x03R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x120\n" +
-	"\x05items\x18\x03 \x03(\v2\x1a.webitel.cases.CaseCommentR\x05items\"Z\n" +
+	"\x05items\x18\x03 \x03(\v2\x1a.webitel.cases.CaseCommentR\x05items\"\x83\x01\n" +
 	"\x10InputCaseComment\x12\x12\n" +
 	"\x04etag\x18\x01 \x01(\tR\x04etag\x12\x12\n" +
-	"\x04text\x18\x02 \x01(\tR\x04text:\x1e\x92A\x1b2\x19{\"text\":\"My new comment\"}\"B\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12'\n" +
+	"\x06userID\x18\x14 \x01(\v2\x0f.general.LookupR\x06userID:\x1e\x92A\x1b2\x19{\"text\":\"My new comment\"}\"B\n" +
 	"\x14LocateCommentRequest\x12\x12\n" +
 	"\x04etag\x18\x01 \x01(\tR\x04etag\x12\x16\n" +
 	"\x06fields\x18\x02 \x03(\tR\x06fields\"\xa0\x01\n" +
@@ -736,23 +746,24 @@ var file_case_comment_proto_depIdxs = []int32{
 	8,  // 1: webitel.cases.CaseComment.updated_by:type_name -> general.Lookup
 	8,  // 2: webitel.cases.CaseComment.author:type_name -> general.Lookup
 	0,  // 3: webitel.cases.CaseCommentList.items:type_name -> webitel.cases.CaseComment
-	2,  // 4: webitel.cases.UpdateCommentRequest.input:type_name -> webitel.cases.InputCaseComment
-	2,  // 5: webitel.cases.PublishCommentRequest.input:type_name -> webitel.cases.InputCaseComment
-	3,  // 6: webitel.cases.CaseComments.LocateComment:input_type -> webitel.cases.LocateCommentRequest
-	4,  // 7: webitel.cases.CaseComments.UpdateComment:input_type -> webitel.cases.UpdateCommentRequest
-	5,  // 8: webitel.cases.CaseComments.DeleteComment:input_type -> webitel.cases.DeleteCommentRequest
-	6,  // 9: webitel.cases.CaseComments.ListComments:input_type -> webitel.cases.ListCommentsRequest
-	7,  // 10: webitel.cases.CaseComments.PublishComment:input_type -> webitel.cases.PublishCommentRequest
-	0,  // 11: webitel.cases.CaseComments.LocateComment:output_type -> webitel.cases.CaseComment
-	0,  // 12: webitel.cases.CaseComments.UpdateComment:output_type -> webitel.cases.CaseComment
-	0,  // 13: webitel.cases.CaseComments.DeleteComment:output_type -> webitel.cases.CaseComment
-	1,  // 14: webitel.cases.CaseComments.ListComments:output_type -> webitel.cases.CaseCommentList
-	0,  // 15: webitel.cases.CaseComments.PublishComment:output_type -> webitel.cases.CaseComment
-	11, // [11:16] is the sub-list for method output_type
-	6,  // [6:11] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	8,  // 4: webitel.cases.InputCaseComment.userID:type_name -> general.Lookup
+	2,  // 5: webitel.cases.UpdateCommentRequest.input:type_name -> webitel.cases.InputCaseComment
+	2,  // 6: webitel.cases.PublishCommentRequest.input:type_name -> webitel.cases.InputCaseComment
+	3,  // 7: webitel.cases.CaseComments.LocateComment:input_type -> webitel.cases.LocateCommentRequest
+	4,  // 8: webitel.cases.CaseComments.UpdateComment:input_type -> webitel.cases.UpdateCommentRequest
+	5,  // 9: webitel.cases.CaseComments.DeleteComment:input_type -> webitel.cases.DeleteCommentRequest
+	6,  // 10: webitel.cases.CaseComments.ListComments:input_type -> webitel.cases.ListCommentsRequest
+	7,  // 11: webitel.cases.CaseComments.PublishComment:input_type -> webitel.cases.PublishCommentRequest
+	0,  // 12: webitel.cases.CaseComments.LocateComment:output_type -> webitel.cases.CaseComment
+	0,  // 13: webitel.cases.CaseComments.UpdateComment:output_type -> webitel.cases.CaseComment
+	0,  // 14: webitel.cases.CaseComments.DeleteComment:output_type -> webitel.cases.CaseComment
+	1,  // 15: webitel.cases.CaseComments.ListComments:output_type -> webitel.cases.CaseCommentList
+	0,  // 16: webitel.cases.CaseComments.PublishComment:output_type -> webitel.cases.CaseComment
+	12, // [12:17] is the sub-list for method output_type
+	7,  // [7:12] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_case_comment_proto_init() }
