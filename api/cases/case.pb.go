@@ -202,6 +202,8 @@ type InputCreateCase struct {
 	StatusCondition  *Lookup                       `protobuf:"bytes,17,opt,name=status_condition,json=statusCondition,proto3" json:"status_condition,omitempty"`
 	Links            []*InputCaseLink              `protobuf:"bytes,18,rep,name=links,proto3" json:"links,omitempty"`     // List of links attached to the case.
 	Related          []*CreateCaseRelatedCaseInput `protobuf:"bytes,19,rep,name=related,proto3" json:"related,omitempty"` // List of related cases.
+	// Optional creator / updater ID. Use this to explicitly set the case creator / updater instead of deriving it from the auth token.
+	UserID *Lookup `protobuf:"bytes,20,opt,name=userID,proto3" json:"userID,omitempty"`
 	// Custom data extension fields ..
 	Custom        *structpb.Struct `protobuf:"bytes,100,opt,name=custom,proto3" json:"custom,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -367,6 +369,13 @@ func (x *InputCreateCase) GetLinks() []*InputCaseLink {
 func (x *InputCreateCase) GetRelated() []*CreateCaseRelatedCaseInput {
 	if x != nil {
 		return x.Related
+	}
+	return nil
+}
+
+func (x *InputCreateCase) GetUserID() *Lookup {
+	if x != nil {
+		return x.UserID
 	}
 	return nil
 }
@@ -1335,6 +1344,8 @@ type InputCase struct {
 	Rating          int64                  `protobuf:"varint,15,opt,name=rating,proto3" json:"rating,omitempty"`
 	RatingComment   string                 `protobuf:"bytes,16,opt,name=rating_comment,json=ratingComment,proto3" json:"rating_comment,omitempty"`
 	StatusCondition *StatusCondition       `protobuf:"bytes,17,opt,name=status_condition,json=statusCondition,proto3" json:"status_condition,omitempty"`
+	// Optional creator / updater ID. Use this to explicitly set the case creator / updater instead of deriving it from the auth token.
+	UserID *Lookup `protobuf:"bytes,20,opt,name=userID,proto3" json:"userID,omitempty"`
 	// Custom data extension fields ..
 	Custom        *structpb.Struct `protobuf:"bytes,100,opt,name=custom,proto3" json:"custom,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1490,6 +1501,13 @@ func (x *InputCase) GetStatusCondition() *StatusCondition {
 	return nil
 }
 
+func (x *InputCase) GetUserID() *Lookup {
+	if x != nil {
+		return x.UserID
+	}
+	return nil
+}
+
 func (x *InputCase) GetCustom() *structpb.Struct {
 	if x != nil {
 		return x.Custom
@@ -1515,7 +1533,7 @@ const file_case_proto_rawDesc = "" +
 	"contact_id\x18\b \x01(\tR\tcontactId\"?\n" +
 	"\x11LocateCaseRequest\x12\x12\n" +
 	"\x04etag\x18\x01 \x01(\tR\x04etag\x12\x16\n" +
-	"\x06fields\x18\x02 \x03(\tR\x06fields\"\x83\a\n" +
+	"\x06fields\x18\x02 \x03(\tR\x06fields\"\xac\a\n" +
 	"\x0fInputCreateCase\x12\x18\n" +
 	"\asubject\x18\x01 \x01(\tR\asubject\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12!\n" +
@@ -1536,7 +1554,8 @@ const file_case_proto_rawDesc = "" +
 	"\x0erating_comment\x18\x10 \x01(\tR\rratingComment\x12:\n" +
 	"\x10status_condition\x18\x11 \x01(\v2\x0f.general.LookupR\x0fstatusCondition\x122\n" +
 	"\x05links\x18\x12 \x03(\v2\x1c.webitel.cases.InputCaseLinkR\x05links\x12C\n" +
-	"\arelated\x18\x13 \x03(\v2).webitel.cases.CreateCaseRelatedCaseInputR\arelated\x12/\n" +
+	"\arelated\x18\x13 \x03(\v2).webitel.cases.CreateCaseRelatedCaseInputR\arelated\x12'\n" +
+	"\x06userID\x18\x14 \x01(\v2\x0f.general.LookupR\x06userID\x12/\n" +
 	"\x06custom\x18d \x01(\v2\x17.google.protobuf.StructR\x06custom\"m\n" +
 	"\x14CreateCaseCloseInput\x12!\n" +
 	"\fclose_result\x18\x01 \x01(\tR\vcloseResult\x122\n" +
@@ -1625,7 +1644,7 @@ const file_case_proto_rawDesc = "" +
 	"\n" +
 	"reacted_at\x18\x02 \x01(\x03R\treactedAt\x124\n" +
 	"\x16difference_in_reaction\x18\x03 \x01(\x03R\x14differenceInReaction\x122\n" +
-	"\x15difference_in_resolve\x18\x04 \x01(\x03R\x13differenceInResolve\"\xe8\x05\n" +
+	"\x15difference_in_resolve\x18\x04 \x01(\x03R\x13differenceInResolve\"\x91\x06\n" +
 	"\tInputCase\x12\x12\n" +
 	"\x04etag\x18\x01 \x01(\tR\x04etag\x12\x18\n" +
 	"\asubject\x18\x02 \x01(\tR\asubject\x12 \n" +
@@ -1644,7 +1663,8 @@ const file_case_proto_rawDesc = "" +
 	"\fclose_result\x18\x0e \x01(\tR\vcloseResult\x12\x16\n" +
 	"\x06rating\x18\x0f \x01(\x03R\x06rating\x12%\n" +
 	"\x0erating_comment\x18\x10 \x01(\tR\rratingComment\x12I\n" +
-	"\x10status_condition\x18\x11 \x01(\v2\x1e.webitel.cases.StatusConditionR\x0fstatusCondition\x12/\n" +
+	"\x10status_condition\x18\x11 \x01(\v2\x1e.webitel.cases.StatusConditionR\x0fstatusCondition\x12'\n" +
+	"\x06userID\x18\x14 \x01(\v2\x0f.general.LookupR\x06userID\x12/\n" +
 	"\x06custom\x18d \x01(\v2\x17.google.protobuf.StructR\x06custom2\xbd\x04\n" +
 	"\x05Cases\x12}\n" +
 	"\vSearchCases\x12!.webitel.cases.SearchCasesRequest\x1a\x17.webitel.cases.CaseList\"2\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02(Z\x1e\x12\x1c/contacts/{contact_id}/cases\x12\x06/cases\x12^\n" +
@@ -1714,61 +1734,63 @@ var file_case_proto_depIdxs = []int32{
 	15, // 10: webitel.cases.InputCreateCase.status_condition:type_name -> general.Lookup
 	16, // 11: webitel.cases.InputCreateCase.links:type_name -> webitel.cases.InputCaseLink
 	4,  // 12: webitel.cases.InputCreateCase.related:type_name -> webitel.cases.CreateCaseRelatedCaseInput
-	17, // 13: webitel.cases.InputCreateCase.custom:type_name -> google.protobuf.Struct
-	15, // 14: webitel.cases.CreateCaseCloseInput.close_reason:type_name -> general.Lookup
-	18, // 15: webitel.cases.CreateCaseRelatedCaseInput.relation_type:type_name -> webitel.cases.RelationType
-	2,  // 16: webitel.cases.CreateCaseRequest.input:type_name -> webitel.cases.InputCreateCase
-	14, // 17: webitel.cases.UpdateCaseRequest.input:type_name -> webitel.cases.InputCase
-	9,  // 18: webitel.cases.CaseList.items:type_name -> webitel.cases.Case
-	15, // 19: webitel.cases.Case.created_by:type_name -> general.Lookup
-	15, // 20: webitel.cases.Case.updated_by:type_name -> general.Lookup
-	15, // 21: webitel.cases.Case.status:type_name -> general.Lookup
-	15, // 22: webitel.cases.Case.close_reason_group:type_name -> general.Lookup
-	15, // 23: webitel.cases.Case.author:type_name -> general.Lookup
-	15, // 24: webitel.cases.Case.assignee:type_name -> general.Lookup
-	15, // 25: webitel.cases.Case.reporter:type_name -> general.Lookup
-	15, // 26: webitel.cases.Case.impacted:type_name -> general.Lookup
-	19, // 27: webitel.cases.Case.group:type_name -> general.ExtendedLookup
-	20, // 28: webitel.cases.Case.priority:type_name -> webitel.cases.Priority
-	11, // 29: webitel.cases.Case.source:type_name -> webitel.cases.SourceTypeLookup
-	21, // 30: webitel.cases.Case.status_condition:type_name -> webitel.cases.StatusCondition
-	15, // 31: webitel.cases.Case.close_reason:type_name -> general.Lookup
-	15, // 32: webitel.cases.Case.sla_condition:type_name -> general.Lookup
-	15, // 33: webitel.cases.Case.service:type_name -> general.Lookup
-	22, // 34: webitel.cases.Case.comments:type_name -> webitel.cases.CaseCommentList
-	23, // 35: webitel.cases.Case.related:type_name -> webitel.cases.RelatedCaseList
-	24, // 36: webitel.cases.Case.links:type_name -> webitel.cases.CaseLinkList
-	25, // 37: webitel.cases.Case.files:type_name -> webitel.cases.CaseFileList
-	15, // 38: webitel.cases.Case.sla:type_name -> general.Lookup
-	17, // 39: webitel.cases.Case.custom:type_name -> google.protobuf.Struct
-	15, // 40: webitel.cases.CloseInfo.close_reason:type_name -> general.Lookup
-	26, // 41: webitel.cases.SourceTypeLookup.type:type_name -> webitel.cases.SourceType
-	15, // 42: webitel.cases.InputCase.assignee:type_name -> general.Lookup
-	15, // 43: webitel.cases.InputCase.reporter:type_name -> general.Lookup
-	15, // 44: webitel.cases.InputCase.impacted:type_name -> general.Lookup
-	15, // 45: webitel.cases.InputCase.group:type_name -> general.Lookup
-	15, // 46: webitel.cases.InputCase.status:type_name -> general.Lookup
-	15, // 47: webitel.cases.InputCase.priority:type_name -> general.Lookup
-	15, // 48: webitel.cases.InputCase.source:type_name -> general.Lookup
-	15, // 49: webitel.cases.InputCase.service:type_name -> general.Lookup
-	15, // 50: webitel.cases.InputCase.close_reason:type_name -> general.Lookup
-	21, // 51: webitel.cases.InputCase.status_condition:type_name -> webitel.cases.StatusCondition
-	17, // 52: webitel.cases.InputCase.custom:type_name -> google.protobuf.Struct
-	0,  // 53: webitel.cases.Cases.SearchCases:input_type -> webitel.cases.SearchCasesRequest
-	1,  // 54: webitel.cases.Cases.LocateCase:input_type -> webitel.cases.LocateCaseRequest
-	5,  // 55: webitel.cases.Cases.CreateCase:input_type -> webitel.cases.CreateCaseRequest
-	6,  // 56: webitel.cases.Cases.UpdateCase:input_type -> webitel.cases.UpdateCaseRequest
-	7,  // 57: webitel.cases.Cases.DeleteCase:input_type -> webitel.cases.DeleteCaseRequest
-	8,  // 58: webitel.cases.Cases.SearchCases:output_type -> webitel.cases.CaseList
-	9,  // 59: webitel.cases.Cases.LocateCase:output_type -> webitel.cases.Case
-	9,  // 60: webitel.cases.Cases.CreateCase:output_type -> webitel.cases.Case
-	9,  // 61: webitel.cases.Cases.UpdateCase:output_type -> webitel.cases.Case
-	9,  // 62: webitel.cases.Cases.DeleteCase:output_type -> webitel.cases.Case
-	58, // [58:63] is the sub-list for method output_type
-	53, // [53:58] is the sub-list for method input_type
-	53, // [53:53] is the sub-list for extension type_name
-	53, // [53:53] is the sub-list for extension extendee
-	0,  // [0:53] is the sub-list for field type_name
+	15, // 13: webitel.cases.InputCreateCase.userID:type_name -> general.Lookup
+	17, // 14: webitel.cases.InputCreateCase.custom:type_name -> google.protobuf.Struct
+	15, // 15: webitel.cases.CreateCaseCloseInput.close_reason:type_name -> general.Lookup
+	18, // 16: webitel.cases.CreateCaseRelatedCaseInput.relation_type:type_name -> webitel.cases.RelationType
+	2,  // 17: webitel.cases.CreateCaseRequest.input:type_name -> webitel.cases.InputCreateCase
+	14, // 18: webitel.cases.UpdateCaseRequest.input:type_name -> webitel.cases.InputCase
+	9,  // 19: webitel.cases.CaseList.items:type_name -> webitel.cases.Case
+	15, // 20: webitel.cases.Case.created_by:type_name -> general.Lookup
+	15, // 21: webitel.cases.Case.updated_by:type_name -> general.Lookup
+	15, // 22: webitel.cases.Case.status:type_name -> general.Lookup
+	15, // 23: webitel.cases.Case.close_reason_group:type_name -> general.Lookup
+	15, // 24: webitel.cases.Case.author:type_name -> general.Lookup
+	15, // 25: webitel.cases.Case.assignee:type_name -> general.Lookup
+	15, // 26: webitel.cases.Case.reporter:type_name -> general.Lookup
+	15, // 27: webitel.cases.Case.impacted:type_name -> general.Lookup
+	19, // 28: webitel.cases.Case.group:type_name -> general.ExtendedLookup
+	20, // 29: webitel.cases.Case.priority:type_name -> webitel.cases.Priority
+	11, // 30: webitel.cases.Case.source:type_name -> webitel.cases.SourceTypeLookup
+	21, // 31: webitel.cases.Case.status_condition:type_name -> webitel.cases.StatusCondition
+	15, // 32: webitel.cases.Case.close_reason:type_name -> general.Lookup
+	15, // 33: webitel.cases.Case.sla_condition:type_name -> general.Lookup
+	15, // 34: webitel.cases.Case.service:type_name -> general.Lookup
+	22, // 35: webitel.cases.Case.comments:type_name -> webitel.cases.CaseCommentList
+	23, // 36: webitel.cases.Case.related:type_name -> webitel.cases.RelatedCaseList
+	24, // 37: webitel.cases.Case.links:type_name -> webitel.cases.CaseLinkList
+	25, // 38: webitel.cases.Case.files:type_name -> webitel.cases.CaseFileList
+	15, // 39: webitel.cases.Case.sla:type_name -> general.Lookup
+	17, // 40: webitel.cases.Case.custom:type_name -> google.protobuf.Struct
+	15, // 41: webitel.cases.CloseInfo.close_reason:type_name -> general.Lookup
+	26, // 42: webitel.cases.SourceTypeLookup.type:type_name -> webitel.cases.SourceType
+	15, // 43: webitel.cases.InputCase.assignee:type_name -> general.Lookup
+	15, // 44: webitel.cases.InputCase.reporter:type_name -> general.Lookup
+	15, // 45: webitel.cases.InputCase.impacted:type_name -> general.Lookup
+	15, // 46: webitel.cases.InputCase.group:type_name -> general.Lookup
+	15, // 47: webitel.cases.InputCase.status:type_name -> general.Lookup
+	15, // 48: webitel.cases.InputCase.priority:type_name -> general.Lookup
+	15, // 49: webitel.cases.InputCase.source:type_name -> general.Lookup
+	15, // 50: webitel.cases.InputCase.service:type_name -> general.Lookup
+	15, // 51: webitel.cases.InputCase.close_reason:type_name -> general.Lookup
+	21, // 52: webitel.cases.InputCase.status_condition:type_name -> webitel.cases.StatusCondition
+	15, // 53: webitel.cases.InputCase.userID:type_name -> general.Lookup
+	17, // 54: webitel.cases.InputCase.custom:type_name -> google.protobuf.Struct
+	0,  // 55: webitel.cases.Cases.SearchCases:input_type -> webitel.cases.SearchCasesRequest
+	1,  // 56: webitel.cases.Cases.LocateCase:input_type -> webitel.cases.LocateCaseRequest
+	5,  // 57: webitel.cases.Cases.CreateCase:input_type -> webitel.cases.CreateCaseRequest
+	6,  // 58: webitel.cases.Cases.UpdateCase:input_type -> webitel.cases.UpdateCaseRequest
+	7,  // 59: webitel.cases.Cases.DeleteCase:input_type -> webitel.cases.DeleteCaseRequest
+	8,  // 60: webitel.cases.Cases.SearchCases:output_type -> webitel.cases.CaseList
+	9,  // 61: webitel.cases.Cases.LocateCase:output_type -> webitel.cases.Case
+	9,  // 62: webitel.cases.Cases.CreateCase:output_type -> webitel.cases.Case
+	9,  // 63: webitel.cases.Cases.UpdateCase:output_type -> webitel.cases.Case
+	9,  // 64: webitel.cases.Cases.DeleteCase:output_type -> webitel.cases.Case
+	60, // [60:65] is the sub-list for method output_type
+	55, // [55:60] is the sub-list for method input_type
+	55, // [55:55] is the sub-list for extension type_name
+	55, // [55:55] is the sub-list for extension extendee
+	0,  // [0:55] is the sub-list for field type_name
 }
 
 func init() { file_case_proto_init() }

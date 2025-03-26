@@ -18,7 +18,7 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/model"
-	util "github.com/webitel/cases/util"
+	"github.com/webitel/cases/util"
 )
 
 type CaseCommentStore struct {
@@ -87,6 +87,12 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 	fields := rpc.GetFields()
 	fields = util.EnsureIdAndVerField(rpc.GetFields())
 	var err error
+
+	userID := rpc.GetAuthOpts().GetUserId()
+	if createdBy := input.GetUserID(); createdBy != nil && createdBy.Id != 0 {
+		userID = createdBy.Id
+	}
+
 	// Build the insert query with a RETURNING clause
 	insertBuilder := sq.
 		Insert("cases.case_comment").
@@ -95,9 +101,9 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 			rpc.GetAuthOpts().GetDomainId(), // dc
 			rpc.GetParentID(),               // case_id
 			rpc.RequestTime(),               // created_at (and updated_at)
-			rpc.GetAuthOpts().GetUserId(),   // created_by (and updated_by)
+			userID,                          // created_by (and updated_by)
 			rpc.RequestTime(),               // updated_at
-			rpc.GetAuthOpts().GetUserId(),   // updated_by
+			userID,                          // updated_by
 			input.Text,                      // comment text
 		).
 		PlaceholderFormat(sq.Dollar).
@@ -310,7 +316,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 
 func (c *CaseCommentStore) Update(
 	rpc options.UpdateOptions,
-	upd *_go.CaseComment,
+	input *_go.CaseComment,
 ) (*_go.CaseComment, error) {
 	// Get the database connection
 	d, dbErr := c.storage.Database()
@@ -322,11 +328,13 @@ func (c *CaseCommentStore) Update(
 	queryBuilder, plan, err := c.BuildUpdateCaseCommentSqlizer(
 		rpc,
 		struct {
-			Text string
-			Id   int64
+			Text   string
+			Id     int64
+			UserID int64
 		}{
-			Text: upd.Text,
-			Id:   upd.Id,
+			Text:   input.Text,
+			Id:     input.Id,
+			UserID: input.UpdatedBy.GetId(),
 		})
 	if err != nil {
 		return nil, err
@@ -338,7 +346,7 @@ func (c *CaseCommentStore) Update(
 	}
 
 	// Convert plan to scanArgs
-	scanArgs := convertToScanArgs(plan, upd)
+	scanArgs := convertToScanArgs(plan, input)
 
 	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -349,16 +357,16 @@ func (c *CaseCommentStore) Update(
 	}
 	for _, field := range rpc.GetFields() {
 		if field == "role_ids" {
-			roles, defErr := c.GetRolesById(rpc, upd.GetId(), auth.Read)
+			roles, defErr := c.GetRolesById(rpc, input.GetId(), auth.Read)
 			if defErr != nil {
 				return nil, defErr
 			}
-			upd.RoleIds = roles
+			input.RoleIds = roles
 			break
 		}
 	}
 
-	return upd, nil
+	return input, nil
 }
 
 func (c *CaseCommentStore) GetRolesById(
@@ -389,8 +397,9 @@ func (c *CaseCommentStore) GetRolesById(
 func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 	rpc options.UpdateOptions,
 	input struct {
-		Text string
-		Id   int64
+		Text   string
+		Id     int64
+		UserID int64
 	},
 ) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
 	var defErr error
@@ -398,11 +407,18 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 	fields := rpc.GetFields()
 	fields = util.EnsureIdAndVerField(rpc.GetFields())
 
+	userID := rpc.GetAuthOpts().GetUserId()
+	if util.ContainsField(rpc.GetMask(), "userID") {
+		if updatedBy := input.UserID; updatedBy != 0 {
+			userID = updatedBy
+		}
+	}
+
 	// Begin the update statement for `cases.case_comment`
 	updateBuilder := sq.Update("cases.case_comment").
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.RequestTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Set("updated_by", userID).
 		Set("ver", sq.Expr("ver + 1")). // Increment version
 		// input.Etag == input.ID
 		Where(sq.Eq{

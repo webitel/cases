@@ -240,6 +240,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		statusCondition = &cases.StatusCondition{Id: req.Input.StatusCondition.Id}
 	}
 	res := &cases.Case{
+		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
+		CreatedBy:        req.Input.GetUserID(),
 		Subject:          req.Input.Subject,
 		Description:      req.Input.Description,
 		ContactInfo:      req.Input.ContactInfo,
@@ -395,6 +397,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		))
 
 	upd := &cases.Case{
+		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
+		UpdatedBy:        req.Input.GetUserID(),
 		Id:               tag.GetOid(),
 		Ver:              tag.GetVer(),
 		Subject:          req.Input.GetSubject(),

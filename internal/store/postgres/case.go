@@ -285,11 +285,19 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		defCloseReasonGroupID = int64(serviceDefs.CloseReasonGroupID)
 	}
 
+	// Default user from token
+	userID := rpc.GetAuthOpts().GetUserId()
+
+	// Override if input.CreatedBy is explicitly provided
+	if createdBy := input.GetCreatedBy(); createdBy != nil && createdBy.Id != 0 {
+		userID = createdBy.Id
+	}
+
 	params := map[string]any{
 		// Case-level parameters
 		"date":                rpc.RequestTime(),
 		"contact_info":        input.GetContactInfo(),
-		"user":                rpc.GetAuthOpts().GetUserId(),
+		"user":                userID,
 		"dc":                  rpc.GetAuthOpts().GetDomainId(),
 		"sla":                 serviceDefs.SLAID,
 		"sla_condition":       serviceDefs.SLAConditionID,
@@ -1301,18 +1309,25 @@ func (c *CaseStore) Update(
 
 func (c *CaseStore) buildUpdateCaseSqlizer(
 	rpc options.UpdateOptions,
-	upd *_go.Case,
+	input *_go.Case,
 ) (sq.Sqlizer, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included
 	fields := rpc.GetFields()
 	fields = util.EnsureIdAndVerField(fields)
 	var err error
 
+	userID := rpc.GetAuthOpts().GetUserId()
+	if util.ContainsField(rpc.GetMask(), "userID") {
+		if updatedBy := input.GetUpdatedBy(); updatedBy != nil && updatedBy.Id != 0 {
+			userID = updatedBy.Id
+		}
+	}
+
 	// Initialize the update query
 	updateBuilder := sq.Update(c.mainTable).
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.RequestTime()).
-		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
+		Set("updated_by", userID).
 		Where(sq.Eq{
 			"id":  rpc.GetEtags()[0].GetOid(),
 			"ver": rpc.GetEtags()[0].GetVer(),
@@ -1339,17 +1354,17 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	for _, field := range rpc.GetMask() {
 		switch field {
 		case "subject":
-			updateBuilder = updateBuilder.Set("subject", upd.GetSubject())
+			updateBuilder = updateBuilder.Set("subject", input.GetSubject())
 		case "description":
-			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", upd.Description))
+			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
 		case "priority":
-			updateBuilder = updateBuilder.Set("priority", upd.Priority.GetId())
+			updateBuilder = updateBuilder.Set("priority", input.Priority.GetId())
 		case "source":
-			updateBuilder = updateBuilder.Set("source", upd.Source.GetId())
+			updateBuilder = updateBuilder.Set("source", input.Source.GetId())
 		case "status":
-			updateBuilder = updateBuilder.Set("status", upd.Status.GetId())
+			updateBuilder = updateBuilder.Set("status", input.Status.GetId())
 		case "status_condition":
-			updateBuilder = updateBuilder.Set("status_condition", upd.StatusCondition.GetId())
+			updateBuilder = updateBuilder.Set("status_condition", input.StatusCondition.GetId())
 		case "service":
 			prefixCTE := `
 			WITH service_cte AS (
@@ -1366,46 +1381,46 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			)
 			SELECT prefix FROM prefix_cte`
 
-			updateBuilder = updateBuilder.Set("service", upd.Service.GetId())
+			updateBuilder = updateBuilder.Set("service", input.Service.GetId())
 
 			// Update SLA, SLA condition, and planned times
-			updateBuilder = updateBuilder.Set("sla", upd.Sla.GetId())
-			updateBuilder = updateBuilder.Set("sla_condition_id", upd.SlaCondition.GetId())
-			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(upd.GetPlannedResolveAt()))
-			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(upd.GetPlannedReactionAt()))
+			updateBuilder = updateBuilder.Set("sla", input.Sla.GetId())
+			updateBuilder = updateBuilder.Set("sla_condition_id", input.SlaCondition.GetId())
+			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(input.GetPlannedResolveAt()))
+			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(input.GetPlannedReactionAt()))
 
 			caseIDString := strconv.FormatInt(rpc.GetEtags()[0].GetOid(), 10)
 
 			updateBuilder = updateBuilder.Set("name",
 				sq.Expr("CONCAT(("+prefixCTE+"), '_', CAST(? AS TEXT))",
-					upd.Service.GetId(), caseIDString))
+					input.Service.GetId(), caseIDString))
 
 		case "assignee":
-			if upd.Assignee.GetId() == 0 {
+			if input.Assignee.GetId() == 0 {
 				updateBuilder = updateBuilder.Set("assignee", nil)
 			} else {
-				updateBuilder = updateBuilder.Set("assignee", upd.Assignee.GetId())
+				updateBuilder = updateBuilder.Set("assignee", input.Assignee.GetId())
 			}
 		case "reporter":
-			updateBuilder = updateBuilder.Set("reporter", upd.Reporter.GetId())
+			updateBuilder = updateBuilder.Set("reporter", input.Reporter.GetId())
 		case "contact_info":
-			updateBuilder = updateBuilder.Set("contact_info", upd.GetContactInfo())
+			updateBuilder = updateBuilder.Set("contact_info", input.GetContactInfo())
 		case "impacted":
 			var impacted *int64
-			if imp := upd.GetImpacted().GetId(); imp != 0 {
+			if imp := input.GetImpacted().GetId(); imp != 0 {
 				impacted = &imp
 			}
 			updateBuilder = updateBuilder.Set("impacted", impacted)
 		case "group":
-			if upd.Group.GetId() == 0 {
+			if input.Group.GetId() == 0 {
 				updateBuilder = updateBuilder.Set("contact_group", nil)
 			} else {
-				updateBuilder = updateBuilder.Set("contact_group", upd.Group.GetId())
+				updateBuilder = updateBuilder.Set("contact_group", input.Group.GetId())
 			}
 		case "close_reason":
-			if upd.GetCloseReason() != nil {
+			if input.GetCloseReason() != nil {
 				var closeReason *int64
-				if reas := upd.CloseReason.GetId(); reas > 0 {
+				if reas := input.CloseReason.GetId(); reas > 0 {
 					closeReason = &reas
 				}
 				updateBuilder = updateBuilder.Set("close_reason", closeReason)
@@ -1414,14 +1429,14 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			}
 		case "close_result":
 			var closeResult *string
-			if res := upd.GetCloseResult(); res != "" {
-				closeResult = &upd.CloseResult
+			if res := input.GetCloseResult(); res != "" {
+				closeResult = &input.CloseResult
 			}
 			updateBuilder = updateBuilder.Set("close_result", closeResult)
 		case "rating":
-			updateBuilder = updateBuilder.Set("rating", upd.Rating)
+			updateBuilder = updateBuilder.Set("rating", input.Rating)
 		case "rating_comment":
-			updateBuilder = updateBuilder.Set("rating_comment", sq.Expr("NULLIF(?, '')", upd.RatingComment))
+			updateBuilder = updateBuilder.Set("rating_comment", sq.Expr("NULLIF(?, '')", input.RatingComment))
 		// region: [custom] fields ..
 		case "custom": // customFieldName
 			{
@@ -1431,9 +1446,9 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 					custom.customCtx = *e // shallowcopy
 				}
 				// record changes for update ..
-				data := upd.GetCustom()
+				data := input.GetCustom()
 				// sanitize: no source for output !
-				upd.Custom = nil
+				input.Custom = nil
 				// extension querier available ?
 				if custom.refer == nil {
 					// NO [custom] extension descriptor !

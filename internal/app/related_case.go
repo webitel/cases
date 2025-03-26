@@ -156,7 +156,12 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		}
 	}
 
-	relatedCase, err := r.app.Store.RelatedCase().Create(createOpts, &req.GetInput().RelationType)
+	relatedCase, err := r.app.Store.RelatedCase().Create(
+		createOpts,
+		&req.GetInput().RelationType,
+		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
+		req.Input.GetUserID().GetId(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +268,12 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		}
 	}
 
-	output, err := r.app.Store.RelatedCase().Update(updateOpts, input)
+	output, err := r.app.Store.RelatedCase().Update(
+		updateOpts,
+		input,
+		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
+		req.Input.GetUserID().GetId(),
+	)
 	if err != nil {
 		return nil, err
 	}
