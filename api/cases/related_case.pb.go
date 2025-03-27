@@ -718,9 +718,11 @@ func (x *UpdateRelatedCaseRequest) GetXJsonMask() []string {
 type DeleteRelatedCaseRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Identifier of the related case to delete.
-	Etag          string `protobuf:"bytes,1,opt,name=etag,proto3" json:"etag,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Etag string `protobuf:"bytes,1,opt,name=etag,proto3" json:"etag,omitempty"`
+	// Etag or ID of the primary case
+	PrimaryCaseEtag string `protobuf:"bytes,2,opt,name=primary_case_etag,json=primaryCaseEtag,proto3" json:"primary_case_etag,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DeleteRelatedCaseRequest) Reset() {
@@ -756,6 +758,13 @@ func (*DeleteRelatedCaseRequest) Descriptor() ([]byte, []int) {
 func (x *DeleteRelatedCaseRequest) GetEtag() string {
 	if x != nil {
 		return x.Etag
+	}
+	return ""
+}
+
+func (x *DeleteRelatedCaseRequest) GetPrimaryCaseEtag() string {
+	if x != nil {
+		return x.PrimaryCaseEtag
 	}
 	return ""
 }
@@ -916,9 +925,10 @@ const file_related_case_proto_rawDesc = "" +
 	"\x05input\x18\x02 \x01(\v2\x1f.webitel.cases.InputRelatedCaseR\x05input\x12\x16\n" +
 	"\x06fields\x18\x03 \x03(\tR\x06fields\x129\n" +
 	"\vx_json_mask\x18\x04 \x03(\tB\x19\x92A\a@\x01\x8a\x01\x02^$\xfa\xd2\xe4\x93\x02\t\x12\aPREVIEWR\txJsonMask:\f\x92A\t\n" +
-	"\a\xd2\x01\x04etag\"<\n" +
+	"\a\xd2\x01\x04etag\"h\n" +
 	"\x18DeleteRelatedCaseRequest\x12\x12\n" +
-	"\x04etag\x18\x01 \x01(\tR\x04etag:\f\x92A\t\n" +
+	"\x04etag\x18\x01 \x01(\tR\x04etag\x12*\n" +
+	"\x11primary_case_etag\x18\x02 \x01(\tR\x0fprimaryCaseEtag:\f\x92A\t\n" +
 	"\a\xd2\x01\x04etag\"\xd4\x01\n" +
 	"\x17ListRelatedCasesRequest\x12*\n" +
 	"\x11primary_case_etag\x18\x01 \x01(\tR\x0fprimaryCaseEtag\x12\x12\n" +
@@ -943,12 +953,12 @@ const file_related_case_proto_rawDesc = "" +
 	"\vIS_CHILD_OF\x10\a\x12\x10\n" +
 	"\fIS_PARENT_OF\x10\b\x12\x0e\n" +
 	"\n" +
-	"RELATES_TO\x10\t2\xdd\a\n" +
+	"RELATES_TO\x10\t2\xf1\a\n" +
 	"\fRelatedCases\x12\xba\x01\n" +
 	"\x11LocateRelatedCase\x12'.webitel.cases.LocateRelatedCaseRequest\x1a\x1a.webitel.cases.RelatedCase\"`\x92A(\x12&Retrieve a specific related case by ID\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02+\x12)/cases/{primary_case_etag}/related/{etag}\x12\xad\x01\n" +
 	"\x11CreateRelatedCase\x12'.webitel.cases.CreateRelatedCaseRequest\x1a\x1a.webitel.cases.RelatedCase\"S\x92A\x1b\x12\x19Create a new related case\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02+:\x05input\"\"/cases/{primary_case_etag}/related\x12\xf7\x01\n" +
-	"\x11UpdateRelatedCase\x12'.webitel.cases.UpdateRelatedCaseRequest\x1a\x1a.webitel.cases.RelatedCase\"\x9c\x01\x92A!\x12\x1fUpdate an existing related case\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02n:\x05inputZ6:\x05input2-/cases/{input.primary_case.id}/related/{etag}\x1a-/cases/{input.primary_case.id}/related/{etag}\x12\x9e\x01\n" +
-	"\x11DeleteRelatedCase\x12'.webitel.cases.DeleteRelatedCaseRequest\x1a\x1a.webitel.cases.RelatedCase\"D\x92A \x12\x1eDelete a specific related case\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02\x17*\x15/cases/related/{etag}\x12\xb9\x01\n" +
+	"\x11UpdateRelatedCase\x12'.webitel.cases.UpdateRelatedCaseRequest\x1a\x1a.webitel.cases.RelatedCase\"\x9c\x01\x92A!\x12\x1fUpdate an existing related case\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02n:\x05inputZ6:\x05input2-/cases/{input.primary_case.id}/related/{etag}\x1a-/cases/{input.primary_case.id}/related/{etag}\x12\xb2\x01\n" +
+	"\x11DeleteRelatedCase\x12'.webitel.cases.DeleteRelatedCaseRequest\x1a\x1a.webitel.cases.RelatedCase\"X\x92A \x12\x1eDelete a specific related case\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02+*)/cases/{primary_case_etag}/related/{etag}\x12\xb9\x01\n" +
 	"\x10ListRelatedCases\x12&.webitel.cases.ListRelatedCasesRequest\x1a\x1e.webitel.cases.RelatedCaseList\"]\x92A,\x12*List all related cases for a specific case\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02$\x12\"/cases/{primary_case_etag}/related\x1a\t\x8a\xb5\x18\x05casesB\xa4\x01\n" +
 	"\x11com.webitel.casesB\x10RelatedCaseProtoP\x01Z(github.com/webitel/cases/api/cases;cases\xa2\x02\x03WCX\xaa\x02\rWebitel.Cases\xca\x02\rWebitel\\Cases\xe2\x02\x19Webitel\\Cases\\GPBMetadata\xea\x02\x0eWebitel::Casesb\x06proto3"
 

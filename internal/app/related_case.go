@@ -290,13 +290,10 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 	if req.GetEtag() == "" {
 		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.id_required", "ID required")
 	}
-
-	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetEtag())
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.invalid_etag", "Invalid etag")
+	if req.GetPrimaryCaseEtag() == "" {
+		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.primary_id_required", "Primary case ID required")
 	}
-
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteIDsAsEtags(etag.EtagRelatedCase, req.GetEtag()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetPrimaryCaseEtag()))
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
@@ -307,20 +304,19 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		slog.Int64("parent_id", deleteOpts.ParentID),
 	)
 
-	// TODO: rbac check on main case
-	//accessMode := auth.Edit
-	//if deleteOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
-	//	access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), accessMode, deleteOpts.ParentID)
-	//	if err != nil {
-	//		slog.ErrorContext(ctx, err.Error(), logAttributes)
-	//		return nil, AppForbiddenError
-	//	}
-	//	if !access {
-	//		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-	//		return nil, AppForbiddenError
-	//	}
-	//
-	//}
+	accessMode := auth.Edit
+	if deleteOpts.GetAuthOpts().IsRbacCheckRequired(RelatedCaseMetadata.GetParentScopeName(), accessMode) {
+		access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), accessMode, deleteOpts.GetParentID())
+		if err != nil {
+			slog.ErrorContext(ctx, err.Error(), logAttributes)
+			return nil, deferr.ForbiddenError
+		}
+		if !access {
+			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
+			return nil, deferr.ForbiddenError
+		}
+
+	}
 
 	err = r.app.Store.RelatedCase().Delete(deleteOpts)
 	if err != nil {

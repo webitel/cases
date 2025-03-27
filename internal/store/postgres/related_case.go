@@ -150,13 +150,13 @@ func (r *RelatedCaseStore) Delete(
 
 func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc options.DeleteOptions) (string, []interface{}, *dberr.DBError) {
 	query := deleteRelatedCaseQuery
-	args := []interface{}{rpc.GetIDs(), rpc.GetAuthOpts().GetDomainId()}
+	args := []interface{}{rpc.GetIDs(), rpc.GetAuthOpts().GetDomainId(), rpc.GetParentID()}
 	return query, args, nil
 }
 
 var deleteRelatedCaseQuery = util2.CompactSQL(`
 	DELETE FROM cases.related_case
-	WHERE id = ANY($1) AND dc = $2
+	WHERE id = ANY($1) AND dc = $2 AND (primary_case_id = $3 OR related_case_id = $3)
 `)
 
 // List implements store.RelatedCaseStore for fetching related cases.
