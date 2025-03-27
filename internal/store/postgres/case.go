@@ -1073,7 +1073,12 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 					final = true
 				}
 			}
-			base = base.Where(fmt.Sprintf("EXISTS(SELECT id FROM cases.status_condition WHERE id = %s AND final = ?)", storeutils.Ident(caseLeft, "status_condition")), final)
+			base = base.Where(
+				fmt.Sprintf("EXISTS(SELECT id FROM cases.status_condition WHERE id = %s AND final = ?)",
+					storeutils.Ident(caseLeft, "status_condition"),
+				),
+				final,
+			)
 		case "author":
 			switch typedValue := value.(type) {
 			case string:
@@ -1101,6 +1106,52 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
 				if isNull {
 					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
+				}
+				base = base.Where(expr)
+			}
+		case "communication_id":
+			switch typedValue := value.(type) {
+			case string:
+				values := strings.Split(typedValue, ",")
+				var (
+					valuesInt []int64
+					isNull    bool
+					expr      sq.Or
+				)
+				for _, s := range values {
+					if s == "" {
+						continue
+					}
+					if s == "null" {
+						isNull = true
+						continue
+					}
+					converted, err := strconv.ParseInt(s, 10, 64)
+					if err != nil {
+						return base, nil, dberr.NewDBInternalError(
+							"postgres.case.build_list_case_sqlizer.convert_to_int_array.error",
+							err,
+						)
+					}
+					valuesInt = append(valuesInt, converted)
+				}
+
+				if len(valuesInt) > 0 {
+					expr = append(expr, sq.Expr(
+						fmt.Sprintf(`EXISTS (
+					SELECT 1 FROM cases.case_communication cc
+					WHERE cc.case_id = %s AND cc.id = ANY(?::bigint[])
+				)`, storeutils.Ident(caseLeft, "id")),
+						valuesInt,
+					))
+				}
+				if isNull {
+					expr = append(expr, sq.Expr(
+						fmt.Sprintf(`NOT EXISTS (
+					SELECT 1 FROM cases.case_communication cc
+					WHERE cc.case_id = %s
+				)`, storeutils.Ident(caseLeft, "id")),
+					))
 				}
 				base = base.Where(expr)
 			}
