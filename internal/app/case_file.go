@@ -5,6 +5,7 @@ import (
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
+	deferr "github.com/webitel/cases/internal/errors/defaults"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
@@ -59,17 +60,17 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tag.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 	files, err := c.app.Store.CaseFile().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 	return files, nil
 }
@@ -104,11 +105,11 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 		)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (DELETE) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 
@@ -123,7 +124,7 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 			)
 		default:
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, DatabaseError
+			return nil, deferr.DatabaseError
 		}
 	}
 

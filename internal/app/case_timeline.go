@@ -5,6 +5,7 @@ import (
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/errors"
+	deferr "github.com/webitel/cases/internal/errors/defaults"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
@@ -67,17 +68,17 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tid.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 	res, err := c.app.Store.CaseTimeline().Get(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 	return res, nil
 
@@ -100,17 +101,17 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tid.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 	eventTypeCounters, err := c.app.Store.CaseTimeline().GetCounter(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 	if len(eventTypeCounters) == 0 {
 		return nil, nil

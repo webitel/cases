@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -13,16 +14,16 @@ import (
 
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 
-	"google.golang.org/grpc/metadata"
-
 	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	cerror "github.com/webitel/cases/internal/errors"
+	deferr "github.com/webitel/cases/internal/errors/defaults"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	"google.golang.org/grpc/metadata"
 )
 
 const (
@@ -101,7 +102,17 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
+	logAttributes := slog.Group(
+		"context",
+		slog.Int64(
+			"user_id",
+			searchOpts.GetAuthOpts().GetUserId(),
+		),
+		slog.Int64(
+			"domain_id",
+			searchOpts.GetAuthOpts().GetDomainId(),
+		),
+	)
 	if req.GetContactId() != "" {
 		contactId, err := strconv.ParseInt(req.GetContactId(), 10, 64)
 		if err != nil {
@@ -113,12 +124,12 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 
 	return list, nil
@@ -136,7 +147,16 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
+	logAttributes := slog.Group(
+		"context",
+		slog.Int64(
+			"user_id",
+			searchOpts.GetAuthOpts().GetUserId(),
+		),
+		slog.Int64(
+			"domain_id", searchOpts.GetAuthOpts().GetDomainId(),
+		),
+	)
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		return nil, err
@@ -147,7 +167,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 	return list.Items[0], nil
 }
@@ -220,6 +240,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		statusCondition = &cases.StatusCondition{Id: req.Input.StatusCondition.Id}
 	}
 	res := &cases.Case{
+		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
+		CreatedBy:        req.Input.GetUserID(),
 		Subject:          req.Input.Subject,
 		Description:      req.Input.Description,
 		ContactInfo:      req.Input.ContactInfo,
@@ -274,21 +296,28 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 
 	res, err = c.app.Store.Case().Create(createOpts, res)
 	if err != nil {
+		var DBBadRequestError *cerror.DBBadRequestError
+		if errors.As(err, &DBBadRequestError) {
+			return nil, cerror.NewBadRequestError(
+				"app.case.create_case.param_required",
+				err.Error(),
+			)
+		}
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
-	etag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
+	et, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
 	if err != nil {
 		return nil, err
 	}
-	res.Etag = etag
+	res.Etag = et
 
 	// save before normalize
 	roleIds := res.GetRoleIds()
 	id := res.GetId()
 
 	//* Handle dynamic group update if applicable
-	res, err = c.handleDynamicGroupUpdate(ctx, res)
+	res, err = c.handleDynamicGroup(ctx, res)
 	if err != nil {
 		return nil, err
 	}
@@ -298,10 +327,19 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	err = c.NormalizeResponseCase(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 
-	err = c.app.watcherManager.Notify(model.ScopeCases, EventTypeCreate, NewCaseWatcherData(createOpts.GetAuthOpts(), res, id, roleIds))
+	err = c.app.watcherManager.Notify(
+		model.ScopeCases,
+		EventTypeCreate,
+		NewCaseWatcherData(
+			createOpts.GetAuthOpts(),
+			res,
+			id,
+			roleIds,
+		),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s, ", err.Error()), logAttributes)
 	}
@@ -318,7 +356,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	tag, err := etag.EtagOrId(etag.EtagCase, req.Input.Etag)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
+		return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid et")
 	}
 
 	updateOpts, err := grpcopts.NewUpdateOptions(
@@ -359,6 +397,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		))
 
 	upd := &cases.Case{
+		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
+		UpdatedBy:        req.Input.GetUserID(),
 		Id:               tag.GetOid(),
 		Ver:              tag.GetVer(),
 		Subject:          req.Input.GetSubject(),
@@ -383,22 +423,23 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	res, err := c.app.Store.Case().Update(updateOpts, upd)
 	if err != nil {
-		switch err.(type) {
-		case *cerror.DBNoRowsError:
-			return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid etag")
+		var DBNoRowsError *cerror.DBNoRowsError
+		switch {
+		case errors.As(err, &DBNoRowsError):
+			return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid et")
 		}
 		slog.ErrorContext(ctx, err.Error())
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 
-	etag, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
+	et, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
 	if err != nil {
 		return nil, err
 	}
-	res.Etag = etag
+	res.Etag = et
 
 	// *Handle dynamic group update if applicable
-	res, err = c.handleDynamicGroupUpdate(ctx, res)
+	res, err = c.handleDynamicGroup(ctx, res)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +452,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	err = c.NormalizeResponseCase(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 
 	err = c.app.watcherManager.Notify(model.ScopeCases, EventTypeUpdate, NewCaseWatcherData(updateOpts.GetAuthOpts(), upd, id, roleIds))
@@ -422,8 +463,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	return res, nil
 }
 
-// handleDynamicGroupUpdate checks if a dynamic group is needed and updates the case accordingly.
-func (c *CaseService) handleDynamicGroupUpdate(
+// handleDynamicGroup checks if a dynamic group is needed and updates the case accordingly.
+func (c *CaseService) handleDynamicGroup(
 	ctx context.Context,
 	input *cases.Case,
 ) (*cases.Case, error) {
@@ -451,7 +492,7 @@ func (c *CaseService) handleDynamicGroupUpdate(
 		}
 
 		// Resolve dynamic group and update the case
-		input, err = c.resolveDynamicContactGroup(ctx, input, res)
+		input, err = c.resolveDynamicGroup(ctx, input, res)
 		if err != nil {
 			return nil, err
 		}
@@ -461,7 +502,7 @@ func (c *CaseService) handleDynamicGroupUpdate(
 	return input, nil
 }
 
-func (c *CaseService) resolveDynamicContactGroup(
+func (c *CaseService) resolveDynamicGroup(
 	ctx context.Context,
 	inputCase *cases.Case,
 	inputGroup *webitelgo.LocateGroupResponse,
@@ -473,26 +514,26 @@ func (c *CaseService) resolveDynamicContactGroup(
 		return nil, err
 	}
 
-	etag, ok := caseMap["case.etag"].(string)
+	et, ok := caseMap["case.et"].(string)
 	if !ok {
-		return nil, ForbiddenError
+		return nil, deferr.ForbiddenError
 	}
 
 	// Iterate over all dynamic conditions in the group…
 	for _, condition := range inputGroup.Group.Conditions {
 		// Evaluate the condition against the case map
-		if evaluateComplexCondition(caseMap, condition.Expression) {
+		if evaluateDynamicCondition(caseMap, condition.Expression) {
 
 			groupID, err := strconv.Atoi(condition.Group.GetId())
 			if err != nil {
-				return nil, ResponseNormalizingError
+				return nil, deferr.ResponseNormalizingError
 			}
 
 			var assigneeID int
 			if condition.Assignee != nil {
 				assigneeID, err = strconv.Atoi(condition.Assignee.GetId())
 				if err != nil {
-					return nil, ResponseNormalizingError
+					return nil, deferr.ResponseNormalizingError
 				}
 			} else {
 				assigneeID = 0
@@ -504,7 +545,7 @@ func (c *CaseService) resolveDynamicContactGroup(
 				Input: &cases.InputCase{
 					Group:    &cases.Lookup{Id: int64(groupID)},
 					Assignee: &cases.Lookup{Id: int64(assigneeID)},
-					Etag:     etag,
+					Etag:     et,
 				},
 			}
 
@@ -519,14 +560,14 @@ func (c *CaseService) resolveDynamicContactGroup(
 
 	groupID, err := strconv.Atoi(inputGroup.Group.DefaultGroup.GetId())
 	if err != nil {
-		return nil, fmt.Errorf("app.case.resolveDynamicContactGroup: failed to convert group ID to integer: %w", err)
+		return nil, fmt.Errorf("app.case.resolveDynamicGroup: failed to convert group ID to integer: %w", err)
 	}
 
 	req := &cases.UpdateCaseRequest{
 		XJsonMask: groupXJsonMask,
 		Input: &cases.InputCase{
 			Group: &cases.Lookup{Id: int64(groupID)},
-			Etag:  etag,
+			Etag:  et,
 		},
 	}
 	// Final update if a default group was assigned
@@ -538,7 +579,8 @@ func (c *CaseService) resolveDynamicContactGroup(
 	return updCase, nil
 }
 
-// Converts a Case object to map[string]interface{} with "case." prefixed keys and lowercase values (except case.etag)
+// Converts a Case object to map[string]interface{} with "case." prefixed keys and lowercase values (except case.etag).
+// Helper method for dynamic contact group resolving.
 func caseToMap(caseObj interface{}) (map[string]interface{}, error) {
 	caseJSON, err := json.Marshal(caseObj)
 	if err != nil {
@@ -558,7 +600,8 @@ func caseToMap(caseObj interface{}) (map[string]interface{}, error) {
 	return prefixedMap, nil
 }
 
-// Recursively adds prefixed keys for nested maps (all keys and values converted to lowercase except case.etag)
+// Recursively adds prefixed keys for nested maps (all keys and values converted to lowercase except case.etag).
+// Helper method for dynamic contact group resolving.
 func addPrefixedKeys(dest map[string]any, source map[string]any, prefix string) {
 	for key, value := range source {
 		fullKey := strings.ToLower(prefix + "." + key)
@@ -580,8 +623,9 @@ func addPrefixedKeys(dest map[string]any, source map[string]any, prefix string) 
 	}
 }
 
-// Evaluates complex condition strings with support for AND (&&) and OR (||) operators using bitwise operations
-func evaluateComplexCondition(caseMap map[string]any, condition string) bool {
+// Evaluates complex condition strings with support for AND (&&) and OR (||) operators using bitwise operations.
+// Helper method for dynamic contact group resolving.
+func evaluateDynamicCondition(caseMap map[string]any, condition string) bool {
 	// Convert condition to lowercase to ensure case-insensitive matching
 	condition = strings.ToLower(condition)
 
@@ -607,7 +651,8 @@ func evaluateComplexCondition(caseMap map[string]any, condition string) bool {
 	return false
 }
 
-// Evaluates a single condition string, e.g., "case.assignee.name == 'John Wick'"
+// Evaluates a single condition string, e.g., "case.assignee.name == 'John Wick'".
+// Helper method for dynamic contact group resolving.
 func evaluateSingleCondition(caseMap map[string]any, condition string) bool {
 	// Convert condition to lowercase
 	condition = strings.ToLower(condition)
@@ -643,7 +688,8 @@ func evaluateSingleCondition(caseMap map[string]any, condition string) bool {
 	}
 }
 
-// Resolves a field path (e.g., "case.assignee.name") to its value in the map
+// Resolves a field path (e.g., "case.assignee.name") to its value in the map.
+// Helper method for dynamic contact group resolving.
 func resolveFieldPath(data map[string]interface{}, path string) interface{} {
 	// Convert path to lowercase to match map keys
 	path = strings.ToLower(path)
@@ -668,16 +714,30 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
+	logAttributes := slog.Group(
+		"context",
+		slog.Int64(
+			"user_id",
+			deleteOpts.GetAuthOpts().GetUserId(),
+		),
+		slog.Int64(
+			"domain_id",
+			deleteOpts.GetAuthOpts().GetDomainId(),
+		),
+		slog.Int64(
+			"case_id",
+			tag.GetOid()),
+	)
 
 	err = c.app.Store.Case().Delete(deleteOpts)
 	if err != nil {
-		switch err.(type) {
-		case *cerror.DBNoRowsError:
+		var DBNoRowsError *cerror.DBNoRowsError
+		switch {
+		case errors.As(err, &DBNoRowsError):
 			return nil, cerror.NewBadRequestError("app.case.delete.invalid_etag", "Invalid etag or insufficient rights")
 		}
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 	log, err := wlogger.NewDeleteMessage(deleteOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), tag.GetOid())
 	if err != nil {
@@ -692,7 +752,16 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		Ver:  tag.GetVer(),
 		Etag: req.Etag,
 	}
-	err = c.app.watcherManager.Notify(model.ScopeCases, EventTypeDelete, NewCaseWatcherData(deleteOpts.GetAuthOpts(), deleteCase, tag.GetOid(), nil))
+	err = c.app.watcherManager.Notify(
+		model.ScopeCases,
+		EventTypeDelete,
+		NewCaseWatcherData(
+			deleteOpts.GetAuthOpts(),
+			deleteCase,
+			tag.GetOid(),
+			nil,
+		),
+	)
 	if err != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case deletion: %s, ", err.Error()), logAttributes)
 	}
@@ -701,7 +770,10 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 
 func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 	if app == nil {
-		return nil, cerror.NewBadRequestError("app.case.new_case_service.check_args.app", "unable to init case service, app is nil")
+		return nil, cerror.NewBadRequestError(
+			"app.case.new_case_service.check_args.app",
+			"unable to init case service, app is nil",
+		)
 	}
 
 	watcher := NewDefaultWatcher()
@@ -798,24 +870,12 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 	if input.Subject == "" {
 		return cerror.NewBadRequestError("app.case.create_case.subject_required", "Case subject is required")
 	}
-
-	if input.Status.GetId() == 0 {
-		return cerror.NewBadRequestError("app.case.create_case.status_required", "Case status is required")
-	}
-
-	if input.GetCloseReasonGroup().GetId() == 0 {
-		return cerror.NewBadRequestError("app.case.create_case.close_reason_required", "Case close reason is required")
-	}
-
 	if input.Source.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
 	}
-
-	// Validate additional optional fields if needed
 	if input.Priority.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_priority", "Invalid priority specified")
 	}
-
 	if input.Service.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_service", "Invalid service specified")
 	}
@@ -863,7 +923,15 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts share
 		}
 		if item.Related != nil {
 			for _, related := range item.Related.Data {
-				err = util.NormalizeEtags(etag.EtagRelatedCase, true, false, false, &related.Etag, &related.Id, &related.Ver)
+				err = util.NormalizeEtags(
+					etag.EtagRelatedCase,
+					true,
+					false,
+					false,
+					&related.Etag,
+					&related.Id,
+					&related.Ver,
+				)
 				if err != nil {
 					return err
 				}
@@ -901,7 +969,15 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts shared.Fielder)
 	}
 	if re.Links != nil {
 		for _, link := range re.Links.Items {
-			err = util.NormalizeEtags(etag.EtagCaseLink, true, false, false, &link.Etag, &link.Id, &link.Ver)
+			err = util.NormalizeEtags(
+				etag.EtagCaseLink,
+				true,
+				false,
+				false,
+				&link.Etag,
+				&link.Id,
+				&link.Ver,
+			)
 			if err != nil {
 				return err
 			}
@@ -909,7 +985,15 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts shared.Fielder)
 	}
 	if re.Related != nil {
 		for _, related := range re.Related.Data {
-			err = util.NormalizeEtags(etag.EtagRelatedCase, true, false, false, &related.Etag, &related.Id, &related.Ver)
+			err = util.NormalizeEtags(
+				etag.EtagRelatedCase,
+				true,
+				false,
+				false,
+				&related.Etag,
+				&related.Id,
+				&related.Ver,
+			)
 			if err != nil {
 				return err
 			}

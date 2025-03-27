@@ -5,6 +5,7 @@ import (
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
+	deferr "github.com/webitel/cases/internal/errors/defaults"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/model/options/grpc/shared"
@@ -71,17 +72,17 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, caseEtg.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 	links, err := c.app.Store.CaseLink().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 	if len(links.Items) == 0 {
 		return nil, cerror.NewNotFoundError("app.case_link.locate.check_items.error", "not found")
@@ -91,7 +92,7 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 	err = NormalizeResponseLink(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 	return res, nil
 }
@@ -132,23 +133,23 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 	res, dbErr := c.app.Store.CaseLink().Create(createOpts, req.Input)
 	if dbErr != nil {
 		slog.ErrorContext(ctx, dbErr.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 
 	err = NormalizeResponseLink(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 	return res, nil
 }
@@ -190,11 +191,11 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		access, err := c.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), auth.Edit, updateOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 	updated, err := c.app.Store.CaseLink().Update(updateOpts, req.Input)
@@ -205,7 +206,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 	err = NormalizeResponseLink(updated, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 
 	return updated, nil
@@ -235,17 +236,17 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 		access, err := c.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), auth.Edit, deleteOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 	err = c.app.Store.CaseLink().Delete(deleteOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 
 	return nil, nil
@@ -288,24 +289,24 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, etg.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 
 	links, err := c.app.Store.CaseLink().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 
 	err = NormalizeResponseLinks(links, req.GetFields())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 	//Return the located comment
 	return links, nil

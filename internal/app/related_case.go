@@ -2,17 +2,16 @@ package app
 
 import (
 	"context"
-	"log/slog"
-	"strconv"
-
-	"github.com/webitel/cases/auth"
-
 	"github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
+	deferr "github.com/webitel/cases/internal/errors/defaults"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	"log/slog"
+	"strconv"
 )
 
 type RelatedCaseService struct {
@@ -65,11 +64,11 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 		access, err := r.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, caseTid.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 
@@ -137,11 +136,11 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), primaryAccessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !primaryAccess {
 			slog.ErrorContext(ctx, "user doesn't have required access to the primary case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 	secondaryAccessMode := auth.Read
@@ -149,15 +148,20 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), secondaryAccessMode, createOpts.ChildID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !secondaryAccess {
 			slog.ErrorContext(ctx, "user doesn't have required access to the secondary case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 
-	relatedCase, err := r.app.Store.RelatedCase().Create(createOpts, &req.GetInput().RelationType)
+	relatedCase, err := r.app.Store.RelatedCase().Create(
+		createOpts,
+		&req.GetInput().RelationType,
+		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
+		req.Input.GetUserID().GetId(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -165,17 +169,17 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 	relatedCase.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, relatedCase.GetId(), relatedCase.Ver)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 	relatedCase.RelatedCase.Etag, err = etag.EncodeEtag(etag.EtagCase, relatedCase.RelatedCase.GetId(), relatedCase.Ver)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 	relatedCase.PrimaryCase.Etag, err = etag.EncodeEtag(etag.EtagCase, relatedCase.PrimaryCase.GetId(), relatedCase.Ver)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 	return relatedCase, nil
 }
@@ -244,11 +248,11 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), primaryAccessMode, primaryId)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !primaryAccess {
 			slog.ErrorContext(ctx, "user doesn't have required access to the primary case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 	secondaryAccessMode := auth.Read
@@ -256,15 +260,20 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), secondaryAccessMode, relatedId)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 		if !secondaryAccess {
 			slog.ErrorContext(ctx, "user doesn't have required access to the secondary case", logAttributes)
-			return nil, ForbiddenError
+			return nil, deferr.ForbiddenError
 		}
 	}
 
-	output, err := r.app.Store.RelatedCase().Update(updateOpts, input)
+	output, err := r.app.Store.RelatedCase().Update(
+		updateOpts,
+		input,
+		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
+		req.Input.GetUserID().GetId(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +281,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 	output.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, output.GetId(), output.GetVer())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, ResponseNormalizingError
+		return nil, deferr.ResponseNormalizingError
 	}
 	return output, nil
 }
@@ -316,7 +325,7 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 	err = r.app.Store.RelatedCase().Delete(deleteOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, DatabaseError
+		return nil, deferr.DatabaseError
 	}
 
 	return nil, nil
