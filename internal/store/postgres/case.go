@@ -1114,9 +1114,9 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 			case string:
 				values := strings.Split(typedValue, ",")
 				var (
-					valuesInt []int64
-					isNull    bool
-					expr      sq.Or
+					communicationUUIDs []string
+					isNull             bool
+					expr               sq.Or
 				)
 				for _, s := range values {
 					if s == "" {
@@ -1126,25 +1126,19 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 						isNull = true
 						continue
 					}
-					converted, err := strconv.ParseInt(s, 10, 64)
-					if err != nil {
-						return base, nil, dberr.NewDBInternalError(
-							"postgres.case.build_list_case_sqlizer.convert_to_int_array.error",
-							err,
-						)
-					}
-					valuesInt = append(valuesInt, converted)
+					communicationUUIDs = append(communicationUUIDs, s)
 				}
 
-				if len(valuesInt) > 0 {
+				if len(communicationUUIDs) > 0 {
 					expr = append(expr, sq.Expr(
 						fmt.Sprintf(`EXISTS (
 					SELECT 1 FROM cases.case_communication cc
-					WHERE cc.case_id = %s AND cc.id = ANY(?::bigint[])
+					WHERE cc.case_id = %s AND cc.communication_id = ANY(?::text[])
 				)`, storeutils.Ident(caseLeft, "id")),
-						valuesInt,
+						communicationUUIDs,
 					))
 				}
+
 				if isNull {
 					expr = append(expr, sq.Expr(
 						fmt.Sprintf(`NOT EXISTS (
@@ -1153,7 +1147,10 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 				)`, storeutils.Ident(caseLeft, "id")),
 					))
 				}
-				base = base.Where(expr)
+
+				if len(expr) > 0 {
+					base = base.Where(expr)
+				}
 			}
 		case "rating.from":
 			cutted, _ := strings.CutSuffix(column, ".from")
