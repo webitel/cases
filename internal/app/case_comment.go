@@ -136,9 +136,9 @@ func (c *CaseCommentService) UpdateComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, deferr.ResponseNormalizingError
 	}
-	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeUpdate, NewCaseCommentWatcherData(updateOpts.GetAuthOpts(), updatedComment, id, parentId, roleIds))
-	if err != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify input update: %s, ", err.Error()), logAttributes)
+
+	if notifyErr := c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeUpdate, NewCaseCommentWatcherData(updateOpts.GetAuthOpts(), updatedComment, id, parentId, roleIds)); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify input update: %s, ", notifyErr.Error()), logAttributes)
 	}
 
 	return updatedComment, nil
@@ -167,9 +167,8 @@ func (c *CaseCommentService) DeleteComment(
 		return nil, deferr.DatabaseError
 	}
 
-	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeDelete, NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, tag.GetOid(), 0, nil))
-	if err != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment delete: %s, ", err.Error()), logAttributes)
+	if notifyErr := c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeDelete, NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, tag.GetOid(), 0, nil)); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment delete: %s, ", notifyErr.Error()), logAttributes)
 	}
 	return nil, nil
 }
@@ -289,9 +288,8 @@ func (c *CaseCommentService) PublishComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, deferr.ResponseNormalizingError
 	}
-	err = c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeCreate, NewCaseCommentWatcherData(createOpts.GetAuthOpts(), comment, id, parentId, roleId))
-	if err != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment create: %s, ", err.Error()), logAttributes)
+	if notifyErr := c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeCreate, NewCaseCommentWatcherData(createOpts.GetAuthOpts(), comment, id, parentId, roleId)); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment create: %s, ", notifyErr.Error()), logAttributes)
 	}
 	return comment, nil
 }

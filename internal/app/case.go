@@ -330,7 +330,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, deferr.ResponseNormalizingError
 	}
 
-	err = c.app.watcherManager.Notify(
+	if notifyErr := c.app.watcherManager.Notify(
 		model.ScopeCases,
 		EventTypeCreate,
 		NewCaseWatcherData(
@@ -339,9 +339,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			id,
 			roleIds,
 		),
-	)
-	if err != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s, ", err.Error()), logAttributes)
+	); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s, ", notifyErr.Error()), logAttributes)
 	}
 	return res, nil
 }
@@ -455,9 +454,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, deferr.ResponseNormalizingError
 	}
 
-	err = c.app.watcherManager.Notify(model.ScopeCases, EventTypeUpdate, NewCaseWatcherData(updateOpts.GetAuthOpts(), upd, id, roleIds))
-	if err != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case update: %s, ", err.Error()), logAttributes)
+	if notifyErr := c.app.watcherManager.Notify(model.ScopeCases, EventTypeUpdate, NewCaseWatcherData(updateOpts.GetAuthOpts(), upd, id, roleIds)); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case update: %s, ", notifyErr.Error()), logAttributes)
 	}
 
 	return res, nil
@@ -739,20 +737,13 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, deferr.DatabaseError
 	}
-	log, err := wlogger.NewDeleteMessage(deleteOpts.GetAuthOpts().GetUserId(), getClientIp(ctx), tag.GetOid())
-	if err != nil {
-		return nil, err
-	}
-	logErr := c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), log)
-	if logErr != nil {
-		slog.ErrorContext(ctx, logErr.Error(), logAttributes)
-	}
 	deleteCase := &cases.Case{
 		Id:   tag.GetOid(),
 		Ver:  tag.GetVer(),
 		Etag: req.Etag,
 	}
-	err = c.app.watcherManager.Notify(
+
+	if notifyErr := c.app.watcherManager.Notify(
 		model.ScopeCases,
 		EventTypeDelete,
 		NewCaseWatcherData(
@@ -761,9 +752,8 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 			tag.GetOid(),
 			nil,
 		),
-	)
-	if err != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case deletion: %s, ", err.Error()), logAttributes)
+	); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case deletion: %s, ", notifyErr.Error()), logAttributes)
 	}
 	return nil, nil
 }

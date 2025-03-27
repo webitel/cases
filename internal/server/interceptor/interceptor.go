@@ -65,6 +65,9 @@ func AuthUnaryServerInterceptor(authManager user_auth.AuthManager) grpc.UnarySer
 
 // logAndReturnGRPCError logs the error and converts it to a gRPC error response.
 func logAndReturnGRPCError(ctx context.Context, err error, info *grpc.UnaryServerInfo) error {
+	if err == nil {
+		return nil
+	}
 	slog.WarnContext(ctx, fmt.Sprintf("method %s, error: %v", info.FullMethod, err.Error()))
 	span := trace.SpanFromContext(ctx) // OpenTelemetry tracing
 	span.RecordError(err)
