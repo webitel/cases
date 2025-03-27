@@ -833,8 +833,8 @@ FROM call_center.cc_email e
 WHERE e.id = ANY(SELECT communication_id::bigint FROM cases.case_communication WHERE case_id = ? AND communication_type =?)`
 
 	ChatsCTE = `SELECT conv.id::text,
-       conv.closed_at,
        conv.created_at,
+       conv.closed_at,
        round(extract(EPOCH FROM (conv.closed_at - conv.created_at))) as duration,
        participants.data                                                     participants,
        gateway.data                                                          gateway,
