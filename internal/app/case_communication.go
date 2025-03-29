@@ -28,7 +28,10 @@ type CaseCommunicationService struct {
 	cases.UnimplementedCaseCommunicationsServer
 }
 
-func (c *CaseCommunicationService) ListCommunications(ctx context.Context, request *cases.ListCommunicationsRequest) (*cases.ListCommunicationsResponse, error) {
+func (c *CaseCommunicationService) ListCommunications(
+	ctx context.Context,
+	request *cases.ListCommunicationsRequest,
+) (*cases.ListCommunicationsResponse, error) {
 	searchOpts, err := grpcopts.NewSearchOptions(
 		ctx,
 		grpcopts.WithSearch(request),
@@ -45,7 +48,10 @@ func (c *CaseCommunicationService) ListCommunications(ctx context.Context, reque
 
 	tag, err := etag.EtagOrId(etag.EtagCase, request.GetCaseEtag())
 	if err != nil {
-		return nil, errors.NewBadRequestError("app.case_communication.list_communication.invalid_etag", "Invalid case etag")
+		return nil, errors.NewBadRequestError(
+			"app.case_communication.list_communication.invalid_etag",
+			"Invalid case etag",
+		)
 	}
 	searchOpts.AddFilter("case_id", tag.GetOid())
 	logAttributes := slog.Group("context", slog.Int64("case_id", tag.GetOid()), slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
@@ -196,18 +202,8 @@ func ValidateCaseCommunicationsCreate(input ...*cases.InputCaseCommunication) er
 		if communication.CommunicationId == "" {
 			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication can't be empty", i))
 		}
-		if communication.CommunicationType <= 0 {
-			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication type can't be empty", i))
-		}
-		var typeFound bool
-		for _, i := range cases.CaseCommunicationsTypes_value {
-			if i == int32(communication.CommunicationType) {
-				typeFound = true
-				break
-			}
-		}
-		if !typeFound {
-			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication type not allowed", i))
+		if communication.Communication.GetId() == 0 {
+			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication id can't be empty", i))
 		}
 	}
 	if errorsSlice != nil {
