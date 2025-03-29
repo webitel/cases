@@ -232,8 +232,9 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 		var channel string
 		err := tx.QueryRow(
 			options,
-			`SELECT channel FROM call_center.cc_communication WHERE id = $1`,
+			`SELECT channel FROM call_center.cc_communication WHERE id = $1 AND dc = $2`,
 			communication.CommunicationId,
+			options.GetAuthOpts().GetDomainId(),
 		).Scan(&channel)
 		if err != nil {
 			return nil, nil, dberr.NewDBError("postgres.case_communication.resolve_channel", err.Error())
