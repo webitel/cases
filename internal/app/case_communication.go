@@ -202,7 +202,7 @@ func ValidateCaseCommunicationsCreate(input ...*cases.InputCaseCommunication) er
 		if communication.CommunicationId == "" {
 			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication can't be empty", i))
 		}
-		if communication.Communication.GetId() == 0 {
+		if communication.CommunicationType.GetId() == 0 {
 			errorsSlice = append(errorsSlice, fmt.Errorf("input[%d]: communication id can't be empty", i))
 		}
 	}
