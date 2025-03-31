@@ -863,9 +863,6 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 	if input.Source.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
 	}
-	if input.Priority.GetId() == 0 {
-		return cerror.NewBadRequestError("app.case.create_case.invalid_priority", "Invalid priority specified")
-	}
 	if input.Service.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_service", "Invalid service specified")
 	}

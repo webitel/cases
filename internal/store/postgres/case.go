@@ -327,6 +327,14 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"related": extractRelatedJSON(input.Related),
 	}
 
+	priorityCTE := `
+	priority_cte AS (
+		SELECT COALESCE(NULLIF(:priority, 0), id) AS priority_id
+		FROM cases.priority
+		ORDER BY id
+		LIMIT 1
+	),`
+
 	prefixCTE := `
 	    service_cte AS(
 		SELECT catalog_id
@@ -360,6 +368,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	query := `
 	WITH
 		` + prefixCTE + `,
+        ` + priorityCTE + `,
         ` + statusConditionCTE + `
 		` + caseLeft + ` AS (
 			INSERT INTO cases.case (
@@ -372,7 +381,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
 				:dc, :date, :user, :date, :user,
-				:priority, :source, :status, :contact_group, :close_reason_group,
+				(SELECT priority_id FROM priority_cte), :source, :status, :contact_group, :close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee, :sla, :sla_condition,
 				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason, 
