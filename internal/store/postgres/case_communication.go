@@ -356,7 +356,7 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(
 				),
 			)
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
-				return scanner.ScanRowLookup(&comm.Communication)
+				return scanner.ScanRowLookup(&comm.CommunicationType)
 			})
 		case "communication_id":
 			base = base.Column(util.Ident(left, "communication_id"))
