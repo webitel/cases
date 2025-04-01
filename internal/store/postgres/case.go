@@ -333,7 +333,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		FROM cases.priority
 		ORDER BY id
 		LIMIT 1
-	),`
+	)`
 
 	prefixCTE := `
 	    service_cte AS(
