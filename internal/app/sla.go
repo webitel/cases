@@ -23,8 +23,8 @@ var SLAMetadata = model.NewObjectMetadata(
 		{"id", true},
 		{"created_by", true},
 		{"created_at", true},
-		{"updated_by", false},
-		{"updated_at", false},
+		{"updated_by", true},
+		{"updated_at", true},
 		{"name", true},
 		{"description", true},
 		{"valid_from", true},
@@ -43,10 +43,10 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 	if req.Input.Calendar.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.calendar_id.required", "Calendar ID is required")
 	}
-	if req.Input.ReactionTime == 0 {
+	if req.Input.ReactionTime == nil {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.reaction_time.required", "Reaction time is required")
 	}
-	if req.Input.ResolutionTime == 0 {
+	if req.Input.ResolutionTime == nil {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.resolution_time.required", "Resolution time is required")
 	}
 
