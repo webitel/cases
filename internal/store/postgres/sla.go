@@ -12,6 +12,8 @@ import (
 	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/util"
+	"regexp"
+	"strconv"
 	"time"
 )
 
@@ -76,15 +78,31 @@ func (s *SLAStore) buildSLASelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&sla.Calendar)
 			})
 		case "reaction_time":
-			base = base.Column(util2.Ident(slaLeft, "reaction_time"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return &sla.ReactionTimeMillis
-			})
+			base = base.
+				Column(util2.Ident(slaLeft, "reaction_time")).
+				Column(util2.Ident(slaLeft, "reaction_duration"))
+
+			plan = append(plan,
+				func(sla *cases.SLA) any {
+					return &sla.ReactionTimeMillis
+				},
+				func(sla *cases.SLA) any {
+					return scanner.ScanTimingsString(&sla.ReactionTime)
+				})
+
 		case "resolution_time":
-			base = base.Column(util2.Ident(slaLeft, "resolution_time"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return &sla.ResolutionTimeMillis
-			})
+			base = base.
+				Column(util2.Ident(slaLeft, "resolution_time")).
+				Column(util2.Ident(slaLeft, "resolution_duration"))
+
+			plan = append(plan,
+				func(sla *cases.SLA) any {
+					return &sla.ResolutionTimeMillis
+				},
+				func(sla *cases.SLA) any {
+					return scanner.ScanTimingsString(&sla.ResolutionTime)
+				})
+
 		case "created_at":
 			base = base.Column(util2.Ident(slaLeft, "created_at"))
 			plan = append(plan, func(sla *cases.SLA) any {
@@ -128,6 +146,7 @@ func (s *SLAStore) buildCreateSLAQuery(
 			"description", "created_by", "updated_at",
 			"updated_by", "valid_from", "valid_to",
 			"calendar_id", "reaction_time", "resolution_time",
+			"reaction_duration", "resolution_duration",
 		).
 		Values(
 			sla.Name,
@@ -142,6 +161,8 @@ func (s *SLAStore) buildCreateSLAQuery(
 			sla.Calendar.Id,
 			reactionTimeMillis,
 			resolutionTimeMillis,
+			FormatTimings(sla.ReactionTime),
+			FormatTimings(sla.ResolutionTime),
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *") // RETURNING all columns for use in the next SELECT
@@ -233,41 +254,46 @@ func (s *SLAStore) Create(rpc options.CreateOptions, input *cases.SLA) (*cases.S
 		return nil, dberr.NewDBInternalError("postgres.sla.create.execution_error", err)
 	}
 
-	if err := s.hydrateTimings(rpc, txManager, input); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.hydrate_timings_error", err)
-	}
-
 	return input, nil
 }
 
-func (s *SLAStore) hydrateTimings(rpc TimingOpts, tx *transaction.TxManager, sla *cases.SLA) error {
-	if sla.ReactionTimeMillis > 0 {
-		t, err := s.ConvertMillisToTimings(
-			rpc,
-			tx,
-			int(sla.Calendar.GetId()),
-			sla.ReactionTimeMillis,
-			time.UnixMilli(sla.UpdatedAt),
-		)
-		if err != nil {
-			return err
-		}
-		sla.ReactionTime = t
+func FormatTimings(t *cases.Timings) string {
+	if t == nil {
+		return ""
 	}
-	if sla.ResolutionTimeMillis > 0 {
-		t, err := s.ConvertMillisToTimings(
-			rpc,
-			tx,
-			int(sla.Calendar.GetId()),
-			sla.ResolutionTimeMillis,
-			time.UnixMilli(sla.UpdatedAt),
-		)
-		if err != nil {
-			return err
-		}
-		sla.ResolutionTime = t
+	str := ""
+	if t.Dd > 0 {
+		str += fmt.Sprintf("%dd", t.Dd)
 	}
-	return nil
+	if t.Hh > 0 {
+		str += fmt.Sprintf("%dh", t.Hh)
+	}
+	if t.Mm > 0 {
+		str += fmt.Sprintf("%dm", t.Mm)
+	}
+	return str
+}
+
+var re = regexp.MustCompile(`(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?`)
+
+func ParseTimings(s string) *cases.Timings {
+	if s == "" {
+		return &cases.Timings{}
+	}
+	matches := re.FindStringSubmatch(s)
+	t := &cases.Timings{}
+	if len(matches) == 4 {
+		if matches[1] != "" {
+			t.Dd, _ = strconv.ParseInt(matches[1], 10, 64)
+		}
+		if matches[2] != "" {
+			t.Hh, _ = strconv.ParseInt(matches[2], 10, 64)
+		}
+		if matches[3] != "" {
+			t.Mm, _ = strconv.ParseInt(matches[3], 10, 64)
+		}
+	}
+	return t
 }
 
 func (s *SLAStore) getCalendarConfig(
@@ -319,9 +345,7 @@ func (s *SLAStore) CalculateCalendarMillis(
 	current := now
 	remainingDays := int(t.Dd)
 	totalWorkingMinutes := 0
-	isFirstDay := true
 
-	// Step 1: Walk calendar and accumulate working minutes for Dd working days
 	for remainingDays > 0 {
 		dayMatched := false
 
@@ -336,32 +360,26 @@ func (s *SLAStore) CalculateCalendarMillis(
 				continue
 			}
 
-			// Calculate slot start/end in UTC based on offset
+			// Compute slot range
 			slotStart := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, current.Location()).
 				Add(time.Minute * time.Duration(slot.StartTimeOfDay-int(offset.Minutes())))
 			slotEnd := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, current.Location()).
 				Add(time.Minute * time.Duration(slot.EndTimeOfDay-int(offset.Minutes())))
 
-			if isFirstDay && now.After(slotEnd) {
-
+			// Skip expired slots on the first day
+			if current.Year() == now.Year() && current.YearDay() == now.YearDay() && slotEnd.Before(now) {
 				continue
 			}
 
-			var from time.Time
-			if isFirstDay {
-				from = now
-			} else {
-				from = time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, current.Location())
-			}
-
-			start := maxTime(from, slotStart)
+			// If this is the first day and now is within slot → don't trim start
+			// because Dd means "full calendar working day"
+			start := slotStart
 			end := slotEnd
 
 			if end.After(start) {
 				diff := int(end.Sub(start).Minutes())
 				totalWorkingMinutes += diff
 				dayMatched = true
-
 			}
 		}
 
@@ -369,7 +387,6 @@ func (s *SLAStore) CalculateCalendarMillis(
 			remainingDays--
 		}
 
-		isFirstDay = false
 		current = current.AddDate(0, 0, 1)
 	}
 
@@ -378,140 +395,6 @@ func (s *SLAStore) CalculateCalendarMillis(
 	totalWorkingMinutes += added
 
 	return int64(totalWorkingMinutes) * 60_000, nil
-}
-
-func (s *SLAStore) ConvertMillisToTimings(
-	rpc TimingOpts,
-	txManager *transaction.TxManager,
-	calendarID int,
-	durationMillis int64,
-	start time.Time,
-) (*_go.Timings, error) {
-	if durationMillis <= 0 {
-		return &_go.Timings{}, nil
-	}
-
-	merged, offset, err := s.getCalendarConfig(rpc, txManager, calendarID)
-	if err != nil {
-		return nil, err
-	}
-
-	remaining := time.Duration(durationMillis) * time.Millisecond
-	current := start
-	timings := &_go.Timings{}
-
-	for remaining > 0 {
-		validSlots := filterValidSlotsForDate(merged, current)
-
-		dayConsumed := time.Duration(0)
-
-		for _, slot := range validSlots {
-			slotStart := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, current.Location()).
-				Add(time.Minute * time.Duration(slot.StartTimeOfDay-int(offset.Minutes())))
-			slotEnd := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, current.Location()).
-				Add(time.Minute * time.Duration(slot.EndTimeOfDay-int(offset.Minutes())))
-
-			effectiveStart := slotStart
-			if current.Year() == start.Year() && current.YearDay() == start.YearDay() {
-				effectiveStart = maxTime(start, slotStart)
-			}
-
-			if effectiveStart.After(slotEnd) {
-				continue
-			}
-
-			available := slotEnd.Sub(effectiveStart)
-			if available <= 0 {
-				continue
-			}
-
-			toConsume := minDuration(available, remaining)
-
-			dayConsumed += toConsume
-			remaining -= toConsume
-
-			if remaining <= 0 {
-				break
-			}
-		}
-
-		if remaining == 0 && dayConsumed > 0 {
-			// We used a partial day
-			mins := int64(dayConsumed.Minutes())
-			timings.Hh += mins / 60
-			timings.Mm += mins % 60
-			break
-		}
-
-		if dayConsumed > 0 {
-			fullDayMinutes := getTotalWorkingMinutesPerDay(merged, current, offset)
-			if int64(dayConsumed.Minutes()) == fullDayMinutes {
-				timings.Dd++
-			} else {
-				// This can happen in rare edge cases (partial slot)
-				mins := int64(dayConsumed.Minutes())
-				timings.Hh += mins / 60
-				timings.Mm += mins % 60
-				break
-			}
-		}
-
-		current = current.AddDate(0, 0, 1)
-	}
-
-	return timings, nil
-}
-
-func getTotalWorkingMinutesPerDay(slots []MergedSlot, date time.Time, offset time.Duration) int64 {
-	total := int64(0)
-	for _, slot := range filterValidSlotsForDate(slots, date) {
-		start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).
-			Add(time.Minute * time.Duration(slot.StartTimeOfDay-int(offset.Minutes())))
-		end := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location()).
-			Add(time.Minute * time.Duration(slot.EndTimeOfDay-int(offset.Minutes())))
-		if end.After(start) {
-			total += int64(end.Sub(start).Minutes())
-		}
-	}
-	return total
-}
-
-func minDuration(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func filterValidSlotsForDate(slots []MergedSlot, date time.Time) []MergedSlot {
-	var valid []MergedSlot
-	for _, slot := range slots {
-		if slot.Disabled {
-			continue
-		}
-		if !slot.Date.IsZero() && !isSameDate(slot.Date, date) {
-			continue
-		}
-		if slot.Date.IsZero() && int(date.Weekday()) != slot.Day {
-			continue
-		}
-		valid = append(valid, slot)
-	}
-	return valid
-}
-
-func maxTime(a, b time.Time) time.Time {
-	if a.After(b) {
-		return a
-	}
-	return b
-}
-
-func minTime(a, b time.Time) time.Time {
-	if a.Before(b) {
-		return a
-	}
-	return b
 }
 
 func (s *SLAStore) buildUpdateSLAQuery(
@@ -549,9 +432,13 @@ func (s *SLAStore) buildUpdateSLAQuery(
 				updateBuilder = updateBuilder.Set("calendar_id", sla.Calendar.Id)
 			}
 		case "reaction_time":
-			updateBuilder = updateBuilder.Set("reaction_time", reactionTimeMillis)
+			updateBuilder = updateBuilder.
+				Set("reaction_time", reactionTimeMillis).
+				Set("reaction_duration", FormatTimings(sla.ReactionTime))
 		case "resolution_time":
-			updateBuilder = updateBuilder.Set("resolution_time", resolutionTimeMillis)
+			updateBuilder = updateBuilder.
+				Set("resolution_time", resolutionTimeMillis).
+				Set("resolution_duration", FormatTimings(sla.ResolutionTime))
 		}
 	}
 
@@ -646,10 +533,6 @@ func (s *SLAStore) Update(rpc options.UpdateOptions, input *cases.SLA) (*cases.S
 		return nil, dberr.NewDBInternalError("postgres.sla.input.execution_error", err)
 	}
 
-	if err := s.hydrateTimings(rpc, txManager, input); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.update.hydrate_timings_error", err)
-	}
-
 	return input, nil
 }
 
@@ -739,13 +622,6 @@ func (s *SLAStore) List(rpc options.SearchOptions) (*cases.SLAList, error) {
 		}
 	}
 	rows.Close()
-
-	// Now that rows are closed, we can safely hydrate
-	for _, sla := range slas {
-		if err := s.hydrateTimings(rpc, txManager, sla); err != nil {
-			return nil, dberr.NewDBInternalError("postgres.sla.list.timings_convert_error", err)
-		}
-	}
 
 	_ = txManager.Commit(rpc)
 

@@ -1,48 +1,56 @@
 package scanner
 
 import (
-	"fmt"
-	_go "github.com/webitel/cases/api/cases"
+	"github.com/jackc/pgtype"
+	"github.com/webitel/cases/api/cases"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
-func ScanMillisToTimings(
-	ptr *int64,
-	convert func() (*_go.Timings, error),
-	assign func(*_go.Timings),
-) any {
-	return &timingsScanner{
-		ptr:     ptr,
-		convert: convert,
-		assign:  assign,
-	}
-}
+func ScanTimingsString(out **cases.Timings) any {
+	return ScanFunc(func(src any) error {
+		if src == nil {
+			*out = &cases.Timings{}
+			return nil
+		}
 
-type timingsScanner struct {
-	ptr     *int64
-	convert func() (*_go.Timings, error)
-	assign  func(*_go.Timings)
-}
+		t := pgtype.Text{}
+		if err := t.Scan(src); err != nil {
+			*out = &cases.Timings{}
+			return err
+		}
 
-func (s *timingsScanner) Scan(src any) error {
-	switch v := src.(type) {
-	case int64:
-		*s.ptr = v
-	case int32:
-		*s.ptr = int64(v)
-	case nil:
-		*s.ptr = 0
-	default:
-		return fmt.Errorf("unsupported src type for millis: %T", src)
-	}
+		if t.Status == pgtype.Present {
+			*out = parseTimings(t.String)
+		} else {
+			*out = &cases.Timings{}
+		}
 
-	if s.ptr == nil || *s.ptr <= 0 {
 		return nil
+	})
+}
+
+var timingRegexp = regexp.MustCompile(`(?i)(\d+d)?(\d+h)?(\d+m)?`)
+
+func parseTimings(s string) *cases.Timings {
+	t := &cases.Timings{}
+	if s == "" {
+		return t
 	}
 
-	t, err := s.convert()
-	if err != nil {
-		return err
+	matches := timingRegexp.FindStringSubmatch(s)
+	for _, match := range matches[1:] {
+		if match == "" {
+			continue
+		}
+		if strings.HasSuffix(match, "d") {
+			t.Dd, _ = strconv.ParseInt(strings.TrimSuffix(match, "d"), 10, 64)
+		} else if strings.HasSuffix(match, "h") {
+			t.Hh, _ = strconv.ParseInt(strings.TrimSuffix(match, "h"), 10, 64)
+		} else if strings.HasSuffix(match, "m") {
+			t.Mm, _ = strconv.ParseInt(strings.TrimSuffix(match, "m"), 10, 64)
+		}
 	}
-	s.assign(t)
-	return nil
+	return t
 }

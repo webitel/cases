@@ -1,6 +1,14 @@
 alter table cases.sla
-    alter column reaction_time type bigint using reaction_time::bigint;
+    add reaction_time bigint default 0 not null;
 
 alter table cases.sla
-    alter column resolution_time type bigint using resolution_time::bigint;
+    add resolution_time bigint default 0 not null;
+
+alter table cases.sla
+    add reaction_duration text not null;
+
+alter table cases.sla
+    add resolution_duration text not null;
+
+
 
