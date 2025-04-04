@@ -255,16 +255,18 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 ) (sq.Sqlizer, func(*_go.CaseComment) []any, error) {
 	var defErr error
 
-	parentId, ok := rpc.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
-		return nil, nil, errors.New("case id required")
-	}
 	// Begin building the base query
 	queryBuilder := sq.Select().
 		From("cases.case_comment AS cc").
 		Where(sq.Eq{"cc.dc": rpc.GetAuthOpts().GetDomainId()}).
-		Where(sq.Eq{"cc.case_id": parentId}).
 		PlaceholderFormat(sq.Dollar)
+	parentId, ok := rpc.GetFilter("case_id").(int64)
+	if ok && parentId != 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": parentId})
+	}
+	if len(rpc.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where("cc.id = ANY(?)", rpc.GetIDs())
+	}
 
 	queryBuilder, defErr = addCaseCommentRbacCondition(rpc.GetAuthOpts(), auth.Read, queryBuilder, "cc.id")
 	if defErr != nil {
