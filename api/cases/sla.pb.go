@@ -40,9 +40,9 @@ type SLA struct {
 	// Calendar ID from the "Calendars" dictionary - required
 	Calendar *Lookup `protobuf:"bytes,6,opt,name=calendar,proto3" json:"calendar,omitempty"`
 	// Reaction time - required
-	ReactionTime *Timings `protobuf:"bytes,7,opt,name=reaction_time,json=reactionTime,proto3" json:"reaction_time,omitempty"`
+	ReactionTime int64 `protobuf:"varint,7,opt,name=reaction_time,json=reactionTime,proto3" json:"reaction_time,omitempty"`
 	// Resolution time - required
-	ResolutionTime *Timings `protobuf:"bytes,8,opt,name=resolution_time,json=resolutionTime,proto3" json:"resolution_time,omitempty"`
+	ResolutionTime int64 `protobuf:"varint,8,opt,name=resolution_time,json=resolutionTime,proto3" json:"resolution_time,omitempty"`
 	// CreatedAt timestamp of the SLA
 	CreatedAt int64 `protobuf:"varint,20,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// UpdatedAt timestamp of the SLA
@@ -50,11 +50,9 @@ type SLA struct {
 	// CreatedBy user of the SLA
 	CreatedBy *Lookup `protobuf:"bytes,22,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
 	// UpdatedBy user of the SLA
-	UpdatedBy            *Lookup `protobuf:"bytes,23,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
-	ReactionTimeMillis   int64   `protobuf:"varint,50,opt,name=reaction_time_millis,json=reactionTimeMillis,proto3" json:"reaction_time_millis,omitempty"`
-	ResolutionTimeMillis int64   `protobuf:"varint,51,opt,name=resolution_time_millis,json=resolutionTimeMillis,proto3" json:"resolution_time_millis,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	UpdatedBy     *Lookup `protobuf:"bytes,23,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SLA) Reset() {
@@ -129,18 +127,18 @@ func (x *SLA) GetCalendar() *Lookup {
 	return nil
 }
 
-func (x *SLA) GetReactionTime() *Timings {
+func (x *SLA) GetReactionTime() int64 {
 	if x != nil {
 		return x.ReactionTime
 	}
-	return nil
+	return 0
 }
 
-func (x *SLA) GetResolutionTime() *Timings {
+func (x *SLA) GetResolutionTime() int64 {
 	if x != nil {
 		return x.ResolutionTime
 	}
-	return nil
+	return 0
 }
 
 func (x *SLA) GetCreatedAt() int64 {
@@ -171,80 +169,6 @@ func (x *SLA) GetUpdatedBy() *Lookup {
 	return nil
 }
 
-func (x *SLA) GetReactionTimeMillis() int64 {
-	if x != nil {
-		return x.ReactionTimeMillis
-	}
-	return 0
-}
-
-func (x *SLA) GetResolutionTimeMillis() int64 {
-	if x != nil {
-		return x.ResolutionTimeMillis
-	}
-	return 0
-}
-
-type Timings struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Dd            int64                  `protobuf:"varint,1,opt,name=dd,proto3" json:"dd,omitempty"`
-	Hh            int64                  `protobuf:"varint,2,opt,name=hh,proto3" json:"hh,omitempty"`
-	Mm            int64                  `protobuf:"varint,3,opt,name=mm,proto3" json:"mm,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Timings) Reset() {
-	*x = Timings{}
-	mi := &file_sla_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Timings) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Timings) ProtoMessage() {}
-
-func (x *Timings) ProtoReflect() protoreflect.Message {
-	mi := &file_sla_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Timings.ProtoReflect.Descriptor instead.
-func (*Timings) Descriptor() ([]byte, []int) {
-	return file_sla_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *Timings) GetDd() int64 {
-	if x != nil {
-		return x.Dd
-	}
-	return 0
-}
-
-func (x *Timings) GetHh() int64 {
-	if x != nil {
-		return x.Hh
-	}
-	return 0
-}
-
-func (x *Timings) GetMm() int64 {
-	if x != nil {
-		return x.Mm
-	}
-	return 0
-}
-
 // InputSLA message for inputting SLA data
 type InputSLA struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -258,16 +182,16 @@ type InputSLA struct {
 	// Calendar ID from the "Calendars" dictionary
 	Calendar *Lookup `protobuf:"bytes,6,opt,name=calendar,proto3" json:"calendar,omitempty"`
 	// Reaction time
-	ReactionTime *Timings `protobuf:"bytes,7,opt,name=reaction_time,json=reactionTime,proto3" json:"reaction_time,omitempty"`
+	ReactionTime int64 `protobuf:"varint,7,opt,name=reaction_time,json=reactionTime,proto3" json:"reaction_time,omitempty"`
 	// Resolution time
-	ResolutionTime *Timings `protobuf:"bytes,8,opt,name=resolution_time,json=resolutionTime,proto3" json:"resolution_time,omitempty"`
+	ResolutionTime int64 `protobuf:"varint,8,opt,name=resolution_time,json=resolutionTime,proto3" json:"resolution_time,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *InputSLA) Reset() {
 	*x = InputSLA{}
-	mi := &file_sla_proto_msgTypes[2]
+	mi := &file_sla_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -279,7 +203,7 @@ func (x *InputSLA) String() string {
 func (*InputSLA) ProtoMessage() {}
 
 func (x *InputSLA) ProtoReflect() protoreflect.Message {
-	mi := &file_sla_proto_msgTypes[2]
+	mi := &file_sla_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -292,7 +216,7 @@ func (x *InputSLA) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InputSLA.ProtoReflect.Descriptor instead.
 func (*InputSLA) Descriptor() ([]byte, []int) {
-	return file_sla_proto_rawDescGZIP(), []int{2}
+	return file_sla_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *InputSLA) GetName() string {
@@ -330,18 +254,18 @@ func (x *InputSLA) GetCalendar() *Lookup {
 	return nil
 }
 
-func (x *InputSLA) GetReactionTime() *Timings {
+func (x *InputSLA) GetReactionTime() int64 {
 	if x != nil {
 		return x.ReactionTime
 	}
-	return nil
+	return 0
 }
 
-func (x *InputSLA) GetResolutionTime() *Timings {
+func (x *InputSLA) GetResolutionTime() int64 {
 	if x != nil {
 		return x.ResolutionTime
 	}
-	return nil
+	return 0
 }
 
 // SLAList message contains a list of SLA items with pagination
@@ -356,7 +280,7 @@ type SLAList struct {
 
 func (x *SLAList) Reset() {
 	*x = SLAList{}
-	mi := &file_sla_proto_msgTypes[3]
+	mi := &file_sla_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -368,7 +292,7 @@ func (x *SLAList) String() string {
 func (*SLAList) ProtoMessage() {}
 
 func (x *SLAList) ProtoReflect() protoreflect.Message {
-	mi := &file_sla_proto_msgTypes[3]
+	mi := &file_sla_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -381,7 +305,7 @@ func (x *SLAList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SLAList.ProtoReflect.Descriptor instead.
 func (*SLAList) Descriptor() ([]byte, []int) {
-	return file_sla_proto_rawDescGZIP(), []int{3}
+	return file_sla_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SLAList) GetPage() int32 {
@@ -417,7 +341,7 @@ type CreateSLARequest struct {
 
 func (x *CreateSLARequest) Reset() {
 	*x = CreateSLARequest{}
-	mi := &file_sla_proto_msgTypes[4]
+	mi := &file_sla_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -429,7 +353,7 @@ func (x *CreateSLARequest) String() string {
 func (*CreateSLARequest) ProtoMessage() {}
 
 func (x *CreateSLARequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sla_proto_msgTypes[4]
+	mi := &file_sla_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -442,7 +366,7 @@ func (x *CreateSLARequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSLARequest.ProtoReflect.Descriptor instead.
 func (*CreateSLARequest) Descriptor() ([]byte, []int) {
-	return file_sla_proto_rawDescGZIP(), []int{4}
+	return file_sla_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *CreateSLARequest) GetInput() *InputSLA {
@@ -475,7 +399,7 @@ type UpdateSLARequest struct {
 
 func (x *UpdateSLARequest) Reset() {
 	*x = UpdateSLARequest{}
-	mi := &file_sla_proto_msgTypes[5]
+	mi := &file_sla_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -487,7 +411,7 @@ func (x *UpdateSLARequest) String() string {
 func (*UpdateSLARequest) ProtoMessage() {}
 
 func (x *UpdateSLARequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sla_proto_msgTypes[5]
+	mi := &file_sla_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -500,7 +424,7 @@ func (x *UpdateSLARequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSLARequest.ProtoReflect.Descriptor instead.
 func (*UpdateSLARequest) Descriptor() ([]byte, []int) {
-	return file_sla_proto_rawDescGZIP(), []int{5}
+	return file_sla_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *UpdateSLARequest) GetId() int64 {
@@ -541,7 +465,7 @@ type DeleteSLARequest struct {
 
 func (x *DeleteSLARequest) Reset() {
 	*x = DeleteSLARequest{}
-	mi := &file_sla_proto_msgTypes[6]
+	mi := &file_sla_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -553,7 +477,7 @@ func (x *DeleteSLARequest) String() string {
 func (*DeleteSLARequest) ProtoMessage() {}
 
 func (x *DeleteSLARequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sla_proto_msgTypes[6]
+	mi := &file_sla_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -566,7 +490,7 @@ func (x *DeleteSLARequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteSLARequest.ProtoReflect.Descriptor instead.
 func (*DeleteSLARequest) Descriptor() ([]byte, []int) {
-	return file_sla_proto_rawDescGZIP(), []int{6}
+	return file_sla_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *DeleteSLARequest) GetId() int64 {
@@ -600,7 +524,7 @@ type ListSLARequest struct {
 
 func (x *ListSLARequest) Reset() {
 	*x = ListSLARequest{}
-	mi := &file_sla_proto_msgTypes[7]
+	mi := &file_sla_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -612,7 +536,7 @@ func (x *ListSLARequest) String() string {
 func (*ListSLARequest) ProtoMessage() {}
 
 func (x *ListSLARequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sla_proto_msgTypes[7]
+	mi := &file_sla_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -625,7 +549,7 @@ func (x *ListSLARequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSLARequest.ProtoReflect.Descriptor instead.
 func (*ListSLARequest) Descriptor() ([]byte, []int) {
-	return file_sla_proto_rawDescGZIP(), []int{7}
+	return file_sla_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListSLARequest) GetPage() int32 {
@@ -681,7 +605,7 @@ type LocateSLARequest struct {
 
 func (x *LocateSLARequest) Reset() {
 	*x = LocateSLARequest{}
-	mi := &file_sla_proto_msgTypes[8]
+	mi := &file_sla_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -693,7 +617,7 @@ func (x *LocateSLARequest) String() string {
 func (*LocateSLARequest) ProtoMessage() {}
 
 func (x *LocateSLARequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sla_proto_msgTypes[8]
+	mi := &file_sla_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -706,7 +630,7 @@ func (x *LocateSLARequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocateSLARequest.ProtoReflect.Descriptor instead.
 func (*LocateSLARequest) Descriptor() ([]byte, []int) {
-	return file_sla_proto_rawDescGZIP(), []int{8}
+	return file_sla_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *LocateSLARequest) GetId() int64 {
@@ -733,7 +657,7 @@ type LocateSLAResponse struct {
 
 func (x *LocateSLAResponse) Reset() {
 	*x = LocateSLAResponse{}
-	mi := &file_sla_proto_msgTypes[9]
+	mi := &file_sla_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -745,7 +669,7 @@ func (x *LocateSLAResponse) String() string {
 func (*LocateSLAResponse) ProtoMessage() {}
 
 func (x *LocateSLAResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_sla_proto_msgTypes[9]
+	mi := &file_sla_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -758,7 +682,7 @@ func (x *LocateSLAResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocateSLAResponse.ProtoReflect.Descriptor instead.
 func (*LocateSLAResponse) Descriptor() ([]byte, []int) {
-	return file_sla_proto_rawDescGZIP(), []int{9}
+	return file_sla_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *LocateSLAResponse) GetSla() *SLA {
@@ -772,7 +696,7 @@ var File_sla_proto protoreflect.FileDescriptor
 
 const file_sla_proto_rawDesc = "" +
 	"\n" +
-	"\tsla.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\x1bgoogle/api/visibility.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1aproto/webitel/option.proto\"\xb6\x04\n" +
+	"\tsla.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\x1bgoogle/api/visibility.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1aproto/webitel/option.proto\"\x9e\x03\n" +
 	"\x03SLA\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -780,9 +704,9 @@ const file_sla_proto_rawDesc = "" +
 	"\n" +
 	"valid_from\x18\x04 \x01(\x03R\tvalidFrom\x12\x19\n" +
 	"\bvalid_to\x18\x05 \x01(\x03R\avalidTo\x12+\n" +
-	"\bcalendar\x18\x06 \x01(\v2\x0f.general.LookupR\bcalendar\x12;\n" +
-	"\rreaction_time\x18\a \x01(\v2\x16.webitel.cases.TimingsR\freactionTime\x12?\n" +
-	"\x0fresolution_time\x18\b \x01(\v2\x16.webitel.cases.TimingsR\x0eresolutionTime\x12\x1d\n" +
+	"\bcalendar\x18\x06 \x01(\v2\x0f.general.LookupR\bcalendar\x12#\n" +
+	"\rreaction_time\x18\a \x01(\x03R\freactionTime\x12'\n" +
+	"\x0fresolution_time\x18\b \x01(\x03R\x0eresolutionTime\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x14 \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
@@ -790,22 +714,16 @@ const file_sla_proto_rawDesc = "" +
 	"\n" +
 	"created_by\x18\x16 \x01(\v2\x0f.general.LookupR\tcreatedBy\x12.\n" +
 	"\n" +
-	"updated_by\x18\x17 \x01(\v2\x0f.general.LookupR\tupdatedBy\x120\n" +
-	"\x14reaction_time_millis\x182 \x01(\x03R\x12reactionTimeMillis\x124\n" +
-	"\x16resolution_time_millis\x183 \x01(\x03R\x14resolutionTimeMillis\"9\n" +
-	"\aTimings\x12\x0e\n" +
-	"\x02dd\x18\x01 \x01(\x03R\x02dd\x12\x0e\n" +
-	"\x02hh\x18\x02 \x01(\x03R\x02hh\x12\x0e\n" +
-	"\x02mm\x18\x03 \x01(\x03R\x02mm\"\xa5\x02\n" +
+	"updated_by\x18\x17 \x01(\v2\x0f.general.LookupR\tupdatedBy\"\xf5\x01\n" +
 	"\bInputSLA\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1d\n" +
 	"\n" +
 	"valid_from\x18\x04 \x01(\x03R\tvalidFrom\x12\x19\n" +
 	"\bvalid_to\x18\x05 \x01(\x03R\avalidTo\x12+\n" +
-	"\bcalendar\x18\x06 \x01(\v2\x0f.general.LookupR\bcalendar\x12;\n" +
-	"\rreaction_time\x18\a \x01(\v2\x16.webitel.cases.TimingsR\freactionTime\x12?\n" +
-	"\x0fresolution_time\x18\b \x01(\v2\x16.webitel.cases.TimingsR\x0eresolutionTime\"[\n" +
+	"\bcalendar\x18\x06 \x01(\v2\x0f.general.LookupR\bcalendar\x12#\n" +
+	"\rreaction_time\x18\a \x01(\x03R\freactionTime\x12'\n" +
+	"\x0fresolution_time\x18\b \x01(\x03R\x0eresolutionTime\"[\n" +
 	"\aSLAList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x12(\n" +
@@ -857,48 +775,43 @@ func file_sla_proto_rawDescGZIP() []byte {
 	return file_sla_proto_rawDescData
 }
 
-var file_sla_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_sla_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_sla_proto_goTypes = []any{
 	(*SLA)(nil),               // 0: webitel.cases.SLA
-	(*Timings)(nil),           // 1: webitel.cases.Timings
-	(*InputSLA)(nil),          // 2: webitel.cases.InputSLA
-	(*SLAList)(nil),           // 3: webitel.cases.SLAList
-	(*CreateSLARequest)(nil),  // 4: webitel.cases.CreateSLARequest
-	(*UpdateSLARequest)(nil),  // 5: webitel.cases.UpdateSLARequest
-	(*DeleteSLARequest)(nil),  // 6: webitel.cases.DeleteSLARequest
-	(*ListSLARequest)(nil),    // 7: webitel.cases.ListSLARequest
-	(*LocateSLARequest)(nil),  // 8: webitel.cases.LocateSLARequest
-	(*LocateSLAResponse)(nil), // 9: webitel.cases.LocateSLAResponse
-	(*Lookup)(nil),            // 10: general.Lookup
+	(*InputSLA)(nil),          // 1: webitel.cases.InputSLA
+	(*SLAList)(nil),           // 2: webitel.cases.SLAList
+	(*CreateSLARequest)(nil),  // 3: webitel.cases.CreateSLARequest
+	(*UpdateSLARequest)(nil),  // 4: webitel.cases.UpdateSLARequest
+	(*DeleteSLARequest)(nil),  // 5: webitel.cases.DeleteSLARequest
+	(*ListSLARequest)(nil),    // 6: webitel.cases.ListSLARequest
+	(*LocateSLARequest)(nil),  // 7: webitel.cases.LocateSLARequest
+	(*LocateSLAResponse)(nil), // 8: webitel.cases.LocateSLAResponse
+	(*Lookup)(nil),            // 9: general.Lookup
 }
 var file_sla_proto_depIdxs = []int32{
-	10, // 0: webitel.cases.SLA.calendar:type_name -> general.Lookup
-	1,  // 1: webitel.cases.SLA.reaction_time:type_name -> webitel.cases.Timings
-	1,  // 2: webitel.cases.SLA.resolution_time:type_name -> webitel.cases.Timings
-	10, // 3: webitel.cases.SLA.created_by:type_name -> general.Lookup
-	10, // 4: webitel.cases.SLA.updated_by:type_name -> general.Lookup
-	10, // 5: webitel.cases.InputSLA.calendar:type_name -> general.Lookup
-	1,  // 6: webitel.cases.InputSLA.reaction_time:type_name -> webitel.cases.Timings
-	1,  // 7: webitel.cases.InputSLA.resolution_time:type_name -> webitel.cases.Timings
-	0,  // 8: webitel.cases.SLAList.items:type_name -> webitel.cases.SLA
-	2,  // 9: webitel.cases.CreateSLARequest.input:type_name -> webitel.cases.InputSLA
-	2,  // 10: webitel.cases.UpdateSLARequest.input:type_name -> webitel.cases.InputSLA
-	0,  // 11: webitel.cases.LocateSLAResponse.sla:type_name -> webitel.cases.SLA
-	7,  // 12: webitel.cases.SLAs.ListSLAs:input_type -> webitel.cases.ListSLARequest
-	4,  // 13: webitel.cases.SLAs.CreateSLA:input_type -> webitel.cases.CreateSLARequest
-	5,  // 14: webitel.cases.SLAs.UpdateSLA:input_type -> webitel.cases.UpdateSLARequest
-	6,  // 15: webitel.cases.SLAs.DeleteSLA:input_type -> webitel.cases.DeleteSLARequest
-	8,  // 16: webitel.cases.SLAs.LocateSLA:input_type -> webitel.cases.LocateSLARequest
-	3,  // 17: webitel.cases.SLAs.ListSLAs:output_type -> webitel.cases.SLAList
-	0,  // 18: webitel.cases.SLAs.CreateSLA:output_type -> webitel.cases.SLA
-	0,  // 19: webitel.cases.SLAs.UpdateSLA:output_type -> webitel.cases.SLA
-	0,  // 20: webitel.cases.SLAs.DeleteSLA:output_type -> webitel.cases.SLA
-	9,  // 21: webitel.cases.SLAs.LocateSLA:output_type -> webitel.cases.LocateSLAResponse
-	17, // [17:22] is the sub-list for method output_type
-	12, // [12:17] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	9,  // 0: webitel.cases.SLA.calendar:type_name -> general.Lookup
+	9,  // 1: webitel.cases.SLA.created_by:type_name -> general.Lookup
+	9,  // 2: webitel.cases.SLA.updated_by:type_name -> general.Lookup
+	9,  // 3: webitel.cases.InputSLA.calendar:type_name -> general.Lookup
+	0,  // 4: webitel.cases.SLAList.items:type_name -> webitel.cases.SLA
+	1,  // 5: webitel.cases.CreateSLARequest.input:type_name -> webitel.cases.InputSLA
+	1,  // 6: webitel.cases.UpdateSLARequest.input:type_name -> webitel.cases.InputSLA
+	0,  // 7: webitel.cases.LocateSLAResponse.sla:type_name -> webitel.cases.SLA
+	6,  // 8: webitel.cases.SLAs.ListSLAs:input_type -> webitel.cases.ListSLARequest
+	3,  // 9: webitel.cases.SLAs.CreateSLA:input_type -> webitel.cases.CreateSLARequest
+	4,  // 10: webitel.cases.SLAs.UpdateSLA:input_type -> webitel.cases.UpdateSLARequest
+	5,  // 11: webitel.cases.SLAs.DeleteSLA:input_type -> webitel.cases.DeleteSLARequest
+	7,  // 12: webitel.cases.SLAs.LocateSLA:input_type -> webitel.cases.LocateSLARequest
+	2,  // 13: webitel.cases.SLAs.ListSLAs:output_type -> webitel.cases.SLAList
+	0,  // 14: webitel.cases.SLAs.CreateSLA:output_type -> webitel.cases.SLA
+	0,  // 15: webitel.cases.SLAs.UpdateSLA:output_type -> webitel.cases.SLA
+	0,  // 16: webitel.cases.SLAs.DeleteSLA:output_type -> webitel.cases.SLA
+	8,  // 17: webitel.cases.SLAs.LocateSLA:output_type -> webitel.cases.LocateSLAResponse
+	13, // [13:18] is the sub-list for method output_type
+	8,  // [8:13] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_sla_proto_init() }
@@ -913,7 +826,7 @@ func file_sla_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sla_proto_rawDesc), len(file_sla_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

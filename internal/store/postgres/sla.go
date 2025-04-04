@@ -8,13 +8,9 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/internal/store/postgres/transaction"
 	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/util"
-	"regexp"
-	"strconv"
-	"time"
 )
 
 type SLAScan func(sla *cases.SLA) any
@@ -79,30 +75,16 @@ func (s *SLAStore) buildSLASelectColumnsAndPlan(
 			})
 		case "reaction_time":
 			base = base.
-				Column(util2.Ident(slaLeft, "reaction_time")).
-				Column(util2.Ident(slaLeft, "reaction_duration"))
-
-			plan = append(plan,
-				func(sla *cases.SLA) any {
-					return &sla.ReactionTimeMillis
-				},
-				func(sla *cases.SLA) any {
-					return scanner.ScanTimingsString(&sla.ReactionTime)
-				})
-
+				Column(util2.Ident(slaLeft, "reaction_time"))
+			plan = append(plan, func(sla *cases.SLA) any {
+				return &sla.ReactionTime
+			})
 		case "resolution_time":
 			base = base.
-				Column(util2.Ident(slaLeft, "resolution_time")).
-				Column(util2.Ident(slaLeft, "resolution_duration"))
-
-			plan = append(plan,
-				func(sla *cases.SLA) any {
-					return &sla.ResolutionTimeMillis
-				},
-				func(sla *cases.SLA) any {
-					return scanner.ScanTimingsString(&sla.ResolutionTime)
-				})
-
+				Column(util2.Ident(slaLeft, "resolution_time"))
+			plan = append(plan, func(sla *cases.SLA) any {
+				return &sla.ResolutionTime
+			})
 		case "created_at":
 			base = base.Column(util2.Ident(slaLeft, "created_at"))
 			plan = append(plan, func(sla *cases.SLA) any {
@@ -114,29 +96,36 @@ func (s *SLAStore) buildSLASelectColumnsAndPlan(
 				return scanner.ScanTimestamp(&sla.UpdatedAt)
 			})
 		case "created_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.created_by) created_by", slaLeft))
+			base = base.Column(
+				fmt.Sprintf(
+					"(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.created_by) created_by",
+					slaLeft,
+				),
+			)
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanRowLookup(&sla.CreatedBy)
 			})
 		case "updated_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by", slaLeft))
+			base = base.Column(
+				fmt.Sprintf(
+					"(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by",
+					slaLeft,
+				),
+			)
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanRowLookup(&sla.UpdatedBy)
 			})
 		default:
-			return base, nil, dberr.NewDBInternalError("postgres.sla.unknown_field", fmt.Errorf("unknown field: %s", field))
+			return base, nil, dberr.NewDBInternalError(
+				"postgres.sla.unknown_field",
+				fmt.Errorf("unknown field: %s", field),
+			)
 		}
 	}
 	return base, plan, nil
 }
 
-func (s *SLAStore) buildCreateSLAQuery(
-	rpc options.CreateOptions,
-	sla *cases.SLA,
-	reactionTimeMillis int64,
-	resolutionTimeMillis int64,
-	txManager *transaction.TxManager,
-) (sq.SelectBuilder, []SLAScan, error) {
+func (s *SLAStore) buildCreateSLAQuery(rpc options.CreateOptions, sla *_go.SLA) (sq.SelectBuilder, []SLAScan, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
 	// Build the INSERT query with a RETURNING clause
@@ -146,7 +135,6 @@ func (s *SLAStore) buildCreateSLAQuery(
 			"description", "created_by", "updated_at",
 			"updated_by", "valid_from", "valid_to",
 			"calendar_id", "reaction_time", "resolution_time",
-			"reaction_duration", "resolution_duration",
 		).
 		Values(
 			sla.Name,
@@ -159,10 +147,8 @@ func (s *SLAStore) buildCreateSLAQuery(
 			util.LocalTime(sla.ValidFrom),
 			util.LocalTime(sla.ValidTo),
 			sla.Calendar.Id,
-			reactionTimeMillis,
-			resolutionTimeMillis,
-			FormatTimings(sla.ReactionTime),
-			FormatTimings(sla.ResolutionTime),
+			sla.GetReactionTime(),
+			sla.GetResolutionTime(),
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *") // RETURNING all columns for use in the next SELECT
@@ -194,52 +180,7 @@ func (s *SLAStore) Create(rpc options.CreateOptions, input *cases.SLA) (*cases.S
 		return nil, dberr.NewDBInternalError("postgres.sla.create.database_connection_error", dbErr)
 	}
 
-	tx, err := db.Begin(rpc)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.begin_tx_error", err)
-	}
-	txManager := transaction.NewTxManager(tx)
-
-	defer func() {
-		if err != nil {
-			_ = txManager.Rollback(rpc)
-		} else {
-			_ = txManager.Commit(rpc)
-		}
-	}()
-
-	var (
-		resolutionTimeMillis int64
-		reactionTimeMillis   int64
-	)
-
-	reactionTimeMillis, err = s.CalculateCalendarMillis(
-		rpc,
-		txManager,
-		int(input.Calendar.GetId()),
-		input.ReactionTime,
-	)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.reaction_time_calc_error", err)
-	}
-
-	resolutionTimeMillis, err = s.CalculateCalendarMillis(
-		rpc,
-		txManager,
-		int(input.Calendar.GetId()),
-		input.ResolutionTime,
-	)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.resolution_time_calc_error", err)
-	}
-
-	selectBuilder, plan, err := s.buildCreateSLAQuery(
-		rpc,
-		input,
-		reactionTimeMillis,
-		resolutionTimeMillis,
-		txManager,
-	)
+	selectBuilder, plan, err := s.buildCreateSLAQuery(rpc, input)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.create.build_query_error", err)
 	}
@@ -250,159 +191,16 @@ func (s *SLAStore) Create(rpc options.CreateOptions, input *cases.SLA) (*cases.S
 	}
 
 	scanArgs := convertToSLAScanArgs(plan, input)
-	if err := txManager.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
+	if err := db.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.create.execution_error", err)
 	}
 
 	return input, nil
 }
 
-func FormatTimings(t *cases.Timings) string {
-	if t == nil {
-		return ""
-	}
-	str := ""
-	if t.Dd > 0 {
-		str += fmt.Sprintf("%dd", t.Dd)
-	}
-	if t.Hh > 0 {
-		str += fmt.Sprintf("%dh", t.Hh)
-	}
-	if t.Mm > 0 {
-		str += fmt.Sprintf("%dm", t.Mm)
-	}
-	return str
-}
-
-var re = regexp.MustCompile(`(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?`)
-
-func ParseTimings(s string) *cases.Timings {
-	if s == "" {
-		return &cases.Timings{}
-	}
-	matches := re.FindStringSubmatch(s)
-	t := &cases.Timings{}
-	if len(matches) == 4 {
-		if matches[1] != "" {
-			t.Dd, _ = strconv.ParseInt(matches[1], 10, 64)
-		}
-		if matches[2] != "" {
-			t.Hh, _ = strconv.ParseInt(matches[2], 10, 64)
-		}
-		if matches[3] != "" {
-			t.Mm, _ = strconv.ParseInt(matches[3], 10, 64)
-		}
-	}
-	return t
-}
-
-func (s *SLAStore) getCalendarConfig(
-	rpc TimingOpts,
-	txManager *transaction.TxManager,
-	calendarID int,
-) ([]MergedSlot, time.Duration, error) {
-	// Fetch calendar and exceptions
-	calendar, err := fetchCalendarSlots(rpc, txManager, calendarID)
-	if err != nil {
-		return nil, 0, err
-	}
-	exceptions, err := fetchExceptionSlots(rpc, txManager, calendarID)
-	if err != nil {
-		return nil, 0, err
-	}
-	merged := mergeCalendarAndExceptions(calendar, exceptions)
-
-	// Fetch timezone offset
-	var offset time.Duration
-	err = txManager.QueryRow(rpc, `
-		SELECT tz.utc_offset
-		FROM flow.calendar cl
-		    LEFT JOIN flow.calendar_timezones tz ON tz.id = cl.timezone_id
-		WHERE cl.id = $1`, calendarID).Scan(&offset)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return merged, offset, nil
-}
-
-func (s *SLAStore) CalculateCalendarMillis(
-	rpc TimingOpts,
-	txManager *transaction.TxManager,
-	calendarID int,
-	t *_go.Timings,
-) (int64, error) {
-	if t == nil {
-		return 0, nil
-	}
-
-	merged, offset, err := s.getCalendarConfig(rpc, txManager, calendarID)
-	if err != nil {
-		return 0, err
-	}
-
-	now := rpc.RequestTime()
-	current := now
-	remainingDays := int(t.Dd)
-	totalWorkingMinutes := 0
-
-	for remainingDays > 0 {
-		dayMatched := false
-
-		for _, slot := range merged {
-			if slot.Disabled {
-				continue
-			}
-			if !slot.Date.IsZero() && !isSameDate(current, slot.Date) {
-				continue
-			}
-			if slot.Date.IsZero() && int(current.Weekday()) != slot.Day {
-				continue
-			}
-
-			// Compute slot range
-			slotStart := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, current.Location()).
-				Add(time.Minute * time.Duration(slot.StartTimeOfDay-int(offset.Minutes())))
-			slotEnd := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, current.Location()).
-				Add(time.Minute * time.Duration(slot.EndTimeOfDay-int(offset.Minutes())))
-
-			// Skip expired slots on the first day
-			if current.Year() == now.Year() && current.YearDay() == now.YearDay() && slotEnd.Before(now) {
-				continue
-			}
-
-			// If this is the first day and now is within slot → don't trim start
-			// because Dd means "full calendar working day"
-			start := slotStart
-			end := slotEnd
-
-			if end.After(start) {
-				diff := int(end.Sub(start).Minutes())
-				totalWorkingMinutes += diff
-				dayMatched = true
-			}
-		}
-
-		if dayMatched {
-			remainingDays--
-		}
-
-		current = current.AddDate(0, 0, 1)
-	}
-
-	// Step 2: Add Hh + Mm directly as working minutes
-	added := int(t.Hh*60 + t.Mm)
-	totalWorkingMinutes += added
-
-	return int64(totalWorkingMinutes) * 60_000, nil
-}
-
 func (s *SLAStore) buildUpdateSLAQuery(
 	rpc options.UpdateOptions,
-	sla *cases.SLA,
-	reactionTimeMillis int64,
-	resolutionTimeMillis int64,
-	txManager *transaction.TxManager,
+	input *cases.SLA,
 ) (sq.SelectBuilder, []SLAScan, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
@@ -411,41 +209,39 @@ func (s *SLAStore) buildUpdateSLAQuery(
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
 		Set("updated_at", rpc.RequestTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
-		Where(sq.Eq{"id": sla.Id}).
+		Where(sq.Eq{"id": input.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Dynamically add fields to the SET clause
 	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
-			if sla.Name != "" {
-				updateBuilder = updateBuilder.Set("name", sla.Name)
+			if input.Name != "" {
+				updateBuilder = updateBuilder.Set("name", input.Name)
 			}
 		case "description":
-			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", sla.Description))
+			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
 		case "valid_from":
-			updateBuilder = updateBuilder.Set("valid_from", util.LocalTime(sla.ValidFrom))
+			updateBuilder = updateBuilder.Set("valid_from", util.LocalTime(input.ValidFrom))
 		case "valid_to":
-			updateBuilder = updateBuilder.Set("valid_to", util.LocalTime(sla.ValidTo))
+			updateBuilder = updateBuilder.Set("valid_to", util.LocalTime(input.ValidTo))
 		case "calendar_id":
-			if sla.Calendar.Id != 0 {
-				updateBuilder = updateBuilder.Set("calendar_id", sla.Calendar.Id)
+			if input.Calendar.Id != 0 {
+				updateBuilder = updateBuilder.Set("calendar_id", input.Calendar.Id)
 			}
 		case "reaction_time":
 			updateBuilder = updateBuilder.
-				Set("reaction_time", reactionTimeMillis).
-				Set("reaction_duration", FormatTimings(sla.ReactionTime))
+				Set("reaction_time", input.GetReactionTime())
 		case "resolution_time":
 			updateBuilder = updateBuilder.
-				Set("resolution_time", resolutionTimeMillis).
-				Set("resolution_duration", FormatTimings(sla.ResolutionTime))
+				Set("resolution_time", input.GetResolutionTime())
 		}
 	}
 
 	// Generate the CTE for the update operation
 	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.sla.update.query_build_error", err)
+		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.input.update.query_build_error", err)
 	}
 
 	// Use the UPDATE query as a CTE
@@ -469,55 +265,9 @@ func (s *SLAStore) Update(rpc options.UpdateOptions, input *cases.SLA) (*cases.S
 		return nil, dberr.NewDBInternalError("postgres.sla.input.database_connection_error", dbErr)
 	}
 
-	tx, err := db.Begin(rpc)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.input.begin_tx_error", err)
-	}
-	txManager := transaction.NewTxManager(tx)
-
-	defer func() {
-		if err != nil {
-			_ = txManager.Rollback(rpc)
-		} else {
-			_ = txManager.Commit(rpc)
-		}
-	}()
-
-	var (
-		reactionTimeMillis   int64
-		resolutionTimeMillis int64
-	)
-
-	if util.ContainsField(rpc.GetMask(), "reaction_time") {
-		reactionTimeMillis, err = s.CalculateCalendarMillis(
-			rpc,
-			txManager,
-			int(input.Calendar.GetId()),
-			input.ResolutionTime,
-		)
-		if err != nil {
-			return nil, dberr.NewDBInternalError("postgres.sla.input.reaction_time_calc_error", err)
-		}
-	}
-
-	if util.ContainsField(rpc.GetMask(), "resolution_time") {
-		resolutionTimeMillis, err = s.CalculateCalendarMillis(
-			rpc,
-			txManager,
-			int(input.Calendar.GetId()),
-			input.ReactionTime,
-		)
-		if err != nil {
-			return nil, dberr.NewDBInternalError("postgres.sla.input.resolution_time_calc_error", err)
-		}
-	}
-
 	selectBuilder, plan, err := s.buildUpdateSLAQuery(
 		rpc,
 		input,
-		reactionTimeMillis,
-		resolutionTimeMillis,
-		txManager,
 	)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.input.build_query_error", err)
@@ -529,17 +279,14 @@ func (s *SLAStore) Update(rpc options.UpdateOptions, input *cases.SLA) (*cases.S
 	}
 
 	scanArgs := convertToSLAScanArgs(plan, input)
-	if err := txManager.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
+	if err := db.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.input.execution_error", err)
 	}
 
 	return input, nil
 }
 
-func (s *SLAStore) buildListSLAQuery(
-	rpc options.SearchOptions,
-	txManager *transaction.TxManager,
-) (sq.SelectBuilder, []SLAScan, error) {
+func (s *SLAStore) buildListSLAQuery(rpc options.SearchOptions) (sq.SelectBuilder, []SLAScan, error) {
 
 	queryBuilder := sq.Select().
 		From("cases.sla AS s").
@@ -577,16 +324,7 @@ func (s *SLAStore) List(rpc options.SearchOptions) (*cases.SLAList, error) {
 		return nil, dberr.NewDBInternalError("postgres.sla.list.database_connection_error", dbErr)
 	}
 
-	tx, err := db.Begin(rpc)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.list.begin_tx_error", err)
-	}
-	txManager := transaction.NewTxManager(tx)
-	defer func() {
-		_ = txManager.Rollback(rpc)
-	}()
-
-	selectBuilder, plan, err := s.buildListSLAQuery(rpc, txManager)
+	selectBuilder, plan, err := s.buildListSLAQuery(rpc)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.list.build_query_error", err)
 	}
@@ -597,7 +335,7 @@ func (s *SLAStore) List(rpc options.SearchOptions) (*cases.SLAList, error) {
 	}
 	query = util2.CompactSQL(query)
 
-	rows, err := txManager.Query(rpc, query, args...)
+	rows, err := db.Query(rpc, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.list.execution_error", err)
 	}
@@ -623,8 +361,6 @@ func (s *SLAStore) List(rpc options.SearchOptions) (*cases.SLAList, error) {
 	}
 	rows.Close()
 
-	_ = txManager.Commit(rpc)
-
 	return &cases.SLAList{
 		Page:  int32(rpc.GetPage()),
 		Next:  next,
@@ -637,7 +373,10 @@ func (s *SLAStore) buildDeleteSLAQuery(
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
-		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.sla.delete.missing_ids", fmt.Errorf("no IDs provided for deletion"))
+		return sq.DeleteBuilder{}, dberr.NewDBInternalError(
+			"postgres.sla.delete.missing_ids",
+			fmt.Errorf("no IDs provided for deletion"),
+		)
 	}
 
 	// Build the delete query
