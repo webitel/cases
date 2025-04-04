@@ -43,10 +43,10 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 	if req.Input.Calendar.GetId() == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.calendar_id.required", "Calendar ID is required")
 	}
-	if req.Input.ReactionTime == nil {
+	if req.Input.ReactionTime == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.reaction_time.required", "Reaction time is required")
 	}
-	if req.Input.ResolutionTime == nil {
+	if req.Input.ResolutionTime == 0 {
 		return nil, cerror.NewBadRequestError("sla_service.create_sla.resolution_time.required", "Resolution time is required")
 	}
 
