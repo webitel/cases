@@ -124,7 +124,7 @@ func (c *CaseCommentService) UpdateComment(
 	updatedComment, err := c.app.Store.CaseComment().Update(updateOpts, input)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, cerror.NewInternalError("app.case_comment.update_comment.store_update_failed", "database error")
+		return nil, deferr.DatabaseError
 	}
 
 	id := updatedComment.GetId()

@@ -174,6 +174,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		grpcopts.WithUpdateFields(req, CaseLinkMetadata),
 		grpcopts.WithUpdateParentID(caseTid.GetOid()),
 		grpcopts.WithUpdateEtag(&linkTid),
+		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
 		return nil, NewBadRequestError(err)
