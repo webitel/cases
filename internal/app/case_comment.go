@@ -25,7 +25,7 @@ var CaseCommentMetadata = model.NewObjectMetadata(caseCommentsObjScope, caseObjS
 	{Name: "created_at", Default: true},
 	{Name: "created_by", Default: true},
 	{Name: "updated_at", Default: true},
-	{Name: "updated_by", Default: false},
+	{Name: "updated_by", Default: true},
 	{Name: "text", Default: true},
 	{Name: "edited", Default: true},
 	{Name: "can_edit", Default: true},
@@ -106,6 +106,7 @@ func (c *CaseCommentService) UpdateComment(
 		ctx,
 		grpcopts.WithUpdateFields(req, CaseCommentMetadata),
 		grpcopts.WithUpdateEtag(&tag),
+		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
 		return nil, NewBadRequestError(err)
