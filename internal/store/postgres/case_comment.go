@@ -38,7 +38,7 @@ const (
 // Publish implements store.CommentCaseStore for publishing a single comment.
 func (c *CaseCommentStore) Publish(
 	rpc options.CreateOptions,
-	add *_go.CaseComment,
+	input *_go.CaseComment,
 ) (*_go.CaseComment, error) {
 	// Establish database connection
 	d, dbErr := c.storage.Database()
@@ -47,7 +47,10 @@ func (c *CaseCommentStore) Publish(
 	}
 
 	// Build the insert and select query with RETURNING clause
-	sq, plan, err := c.buildPublishCommentsSqlizer(rpc, &_go.InputCaseComment{Text: add.Text})
+	sq, plan, err := c.buildPublishCommentsSqlizer(rpc, &_go.InputCaseComment{
+		Text:   input.Text,
+		UserID: input.CreatedBy,
+	})
 	if err != nil {
 		return nil, dberr.NewDBInternalError("store.case_comment.publish.build_sqlizer_error", err)
 	}
@@ -58,25 +61,25 @@ func (c *CaseCommentStore) Publish(
 	}
 
 	// Convert plan to scanArgs
-	scanArgs := convertToScanArgs(plan, add)
+	scanArgs := convertToScanArgs(plan, input)
 
-	// Execute the query and scan the result directly into `add`
+	// Execute the query and scan the result directly into `input`
 	if err = d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, dberr.NewDBInternalError("store.case_comment.publish.scan_error", err)
 	}
 
 	for _, field := range rpc.GetFields() {
 		if field == "role_ids" {
-			roles, defErr := c.GetRolesById(rpc, add.GetId(), auth.Read)
+			roles, defErr := c.GetRolesById(rpc, input.GetId(), auth.Read)
 			if defErr != nil {
 				return nil, defErr
 			}
-			add.RoleIds = roles
+			input.RoleIds = roles
 			break
 		}
 	}
 
-	return add, nil
+	return input, nil
 }
 
 func (c *CaseCommentStore) buildPublishCommentsSqlizer(
