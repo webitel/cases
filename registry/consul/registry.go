@@ -82,7 +82,6 @@ func (c *ConsulRegistry) Register() error {
 	}
 	c.checkId = serviceCheck.CheckID
 	go c.RunServiceCheck()
-	slog.Info(fmtConsulLog("service was registered"))
 	return nil
 }
 
@@ -96,20 +95,31 @@ func (c *ConsulRegistry) Deregister() error {
 	return nil
 }
 
+func (c *ConsulRegistry) doUpdateTTL() error {
+	err := c.client.Agent().UpdateTTL(c.checkId, "success", "pass")
+	if err != nil {
+		slog.Error("consul: failed to complete regular check-in", "error", fmtConsulLog(err.Error()))
+		return err
+	}
+	return nil // [OK]
+}
+
 func (c *ConsulRegistry) RunServiceCheck() error {
+	// register: now !
+	if err := c.doUpdateTTL(); err == nil {
+		slog.Info(fmtConsulLog("service was registered"))
+	}
 	defer slog.Info(fmtConsulLog("stopped service checker"))
 	slog.Info(fmtConsulLog("started service checker"))
 	ticker := time.NewTicker(registry.CheckInterval / 2)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-c.stop:
 			// gracefull stop
 			return nil
 		case <-ticker.C:
-			err := c.client.Agent().UpdateTTL(c.checkId, "success", "pass")
-			if err != nil {
-				slog.Error(fmtConsulLog(err.Error()))
-			}
+			_ = c.doUpdateTTL() // regular: check-in
 			// TODO: seems that connection is lost, reconnect?
 		}
 	}
