@@ -27,7 +27,7 @@ type SLAConditionStore struct {
 	storage *Store
 }
 
-func (s *SLAConditionStore) Create(rpc options.CreateOptions, add *cases.SLACondition, priorities []int64) (*cases.SLACondition, error) {
+func (s *SLAConditionStore) Create(rpc options.Creator, add *cases.SLACondition, priorities []int64) (*cases.SLACondition, error) {
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.db_connection_error", dbErr)
@@ -86,7 +86,7 @@ func (s *SLAConditionStore) Create(rpc options.CreateOptions, add *cases.SLACond
 }
 
 // Delete implements store.SLAConditionStore.
-func (s *SLAConditionStore) Delete(rpc options.DeleteOptions) error {
+func (s *SLAConditionStore) Delete(rpc options.Deleter) error {
 	// Establish a connection to the database
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -115,7 +115,7 @@ func (s *SLAConditionStore) Delete(rpc options.DeleteOptions) error {
 }
 
 // List implements store.SLAConditionStore.
-func (s *SLAConditionStore) List(rpc options.SearchOptions) (*cases.SLAConditionList, error) {
+func (s *SLAConditionStore) List(rpc options.Searcher) (*cases.SLAConditionList, error) {
 	// Establish a connection to the database
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -192,7 +192,7 @@ func (s *SLAConditionStore) List(rpc options.SearchOptions) (*cases.SLACondition
 }
 
 // Update implements store.SLAConditionStore.
-func (s *SLAConditionStore) Update(rpc options.UpdateOptions, l *cases.SLACondition) (*cases.SLACondition, error) {
+func (s *SLAConditionStore) Update(rpc options.Updator, l *cases.SLACondition) (*cases.SLACondition, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.database_connection_error", dbErr)
@@ -275,7 +275,7 @@ func (s *SLAConditionStore) Update(rpc options.UpdateOptions, l *cases.SLACondit
 	return l, nil
 }
 
-func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.CreateOptions, sla *cases.SLACondition) (string, []interface{}) {
+func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.Creator, sla *cases.SLACondition) (string, []interface{}) {
 	// Create arguments for the SQL query
 	args := []interface{}{
 		sla.Name,                        // $1
@@ -344,7 +344,7 @@ FROM inserted_sla
 }
 
 // Helper function to build the delete query for SLACondition
-func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.DeleteOptions) (string, []interface{}, error) {
+func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.Deleter) (string, []interface{}, error) {
 	// Create base query for deletion
 	query := deleteSLAConditionQuery
 
@@ -358,7 +358,7 @@ func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.DeleteOptio
 }
 
 // buildSearchSLAConditionQuery constructs the SQL search query for SLAConditions.
-func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.SearchOptions) (string, []interface{}, error) {
+func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (string, []interface{}, error) {
 	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 	queryBuilder := sq.Select().
@@ -452,7 +452,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.SearchOptio
 	return util2.CompactSQL(query), args, nil
 }
 
-func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc options.UpdateOptions, l *cases.SLACondition) (string, []interface{}) {
+func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc options.Updator, l *cases.SLACondition) (string, []interface{}) {
 	// Prepare arguments for the SQL query
 	args := []interface{}{
 		l.Id,                            // $1: sla_condition_id
@@ -487,7 +487,7 @@ FROM (SELECT sla_condition_id
 }
 
 // Function to build the update query for sla_condition and return priorities JSON
-func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc options.UpdateOptions, l *cases.SLACondition) (string, []interface{}, error) {
+func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc options.Updator, l *cases.SLACondition) (string, []interface{}, error) {
 	updateBuilder := sq.Update("cases.sla_condition").
 		PlaceholderFormat(sq.Dollar). // Set placeholder format to Dollar for PostgreSQL
 		Set("updated_at", rpc.RequestTime()).

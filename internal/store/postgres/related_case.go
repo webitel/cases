@@ -31,7 +31,7 @@ const (
 
 // Create implements store.RelatedCaseStore for creating a new related case.
 func (r *RelatedCaseStore) Create(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	relation *cases.RelationType,
 	userID int64,
 ) (*cases.RelatedCase, error) {
@@ -68,7 +68,7 @@ func (r *RelatedCaseStore) Create(
 
 // buildCreateRelatedCaseSqlizer builds the insert and select SQLizer for creating related cases.
 func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	relation *cases.RelationType,
 	inputUserID int64,
 ) (sq.Sqlizer, []func(*cases.RelatedCase) any, *dberr.DBError) {
@@ -120,7 +120,7 @@ func (r *RelatedCaseStore) buildCreateRelatedCaseSqlizer(
 
 // Delete implements store.RelatedCaseStore for deleting a related case.
 func (r *RelatedCaseStore) Delete(
-	rpc options.DeleteOptions,
+	rpc options.Deleter,
 ) error {
 	// Get database connection
 	d, err := r.storage.Database()
@@ -148,7 +148,7 @@ func (r *RelatedCaseStore) Delete(
 	return nil
 }
 
-func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc options.DeleteOptions) (string, []interface{}, *dberr.DBError) {
+func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc options.Deleter) (string, []interface{}, *dberr.DBError) {
 	query := deleteRelatedCaseQuery
 	args := []interface{}{rpc.GetIDs(), rpc.GetAuthOpts().GetDomainId(), rpc.GetParentID()}
 	return query, args, nil
@@ -161,7 +161,7 @@ var deleteRelatedCaseQuery = util2.CompactSQL(`
 
 // List implements store.RelatedCaseStore for fetching related cases.
 func (r *RelatedCaseStore) List(
-	rpc options.SearchOptions,
+	rpc options.Searcher,
 ) (*cases.RelatedCaseList, error) {
 	// Get database connection
 	d, err := r.storage.Database()
@@ -259,7 +259,7 @@ func (r *RelatedCaseStore) ParseRelationTypeWithReversion(
 
 // buildListRelatedCaseSqlizer dynamically builds the SELECT query for related cases.
 func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
-	rpc options.SearchOptions,
+	rpc options.Searcher,
 ) (sq.SelectBuilder, func(*cases.RelatedCase) []any, *dberr.DBError) {
 
 	// Start building the base query
@@ -308,7 +308,7 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 }
 
 func (r *RelatedCaseStore) Update(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	input *cases.InputRelatedCase,
 	userID int64,
 ) (*cases.RelatedCase, error) {
@@ -347,7 +347,7 @@ func (r *RelatedCaseStore) Update(
 
 // buildUpdateRelatedCaseSqlizer dynamically builds the update query for related cases.
 func (r *RelatedCaseStore) buildUpdateRelatedCaseSqlizer(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	input *cases.InputRelatedCase,
 	inputUserID int64,
 ) (sq.Sqlizer, []func(*cases.RelatedCase) any, *dberr.DBError) {

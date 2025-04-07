@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/model/options/defaults"
 	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
@@ -14,6 +15,27 @@ import (
 )
 
 type SearchOption func(options *SearchOptions) error
+
+var _ options.Searcher = (*SearchOptions)(nil)
+
+type SearchOptions struct {
+	createdAt time.Time
+	context.Context
+	// filters
+	IDs     []int64
+	Filters map[string]any
+	// search
+	Search string
+	// output
+	Fields        []string
+	UnknownFields []string
+	// paging
+	Page int
+	Size int
+	Sort string
+	// Auth opts
+	Auth auth.Auther
+}
 
 type Pager interface {
 	GetPage() int32
@@ -125,25 +147,6 @@ func WithIDsAsEtags(tag etag.EtagType, etags ...string) SearchOption {
 		options.IDs = ids
 		return nil
 	}
-}
-
-type SearchOptions struct {
-	createdAt time.Time
-	context.Context
-	// filters
-	IDs     []int64
-	Filters map[string]any
-	// search
-	Search string
-	// output
-	Fields        []string
-	UnknownFields []string
-	// paging
-	Page int
-	Size int
-	Sort string
-	// Auth opts
-	Auth auth.Auther
 }
 
 func (s *SearchOptions) GetAuthOpts() auth.Auther {

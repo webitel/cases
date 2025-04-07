@@ -33,7 +33,7 @@ var CaseLinkFields = []string{
 }
 
 // Create implements store.CaseLinkStore.
-func (l *CaseLinkStore) Create(rpc options.CreateOptions, add *_go.InputCaseLink) (*_go.CaseLink, error) {
+func (l *CaseLinkStore) Create(rpc options.Creator, add *_go.InputCaseLink) (*_go.CaseLink, error) {
 	if rpc == nil {
 		return nil, dberr.NewDBError("postgres.case_link.create.check_args.opts", "create options required")
 	}
@@ -67,7 +67,7 @@ func (l *CaseLinkStore) Create(rpc options.CreateOptions, add *_go.InputCaseLink
 }
 
 // Delete implements store.CaseLinkStore.
-func (l *CaseLinkStore) Delete(opts options.DeleteOptions) error {
+func (l *CaseLinkStore) Delete(opts options.Deleter) error {
 	if opts == nil {
 		return dberr.NewDBError("postgres.case_link.delete.check_args.opts", "delete options required")
 	}
@@ -103,7 +103,7 @@ func (l *CaseLinkStore) Delete(opts options.DeleteOptions) error {
 }
 
 // List implements store.CaseLinkStore.
-func (l *CaseLinkStore) List(opts options.SearchOptions) (*_go.CaseLinkList, error) {
+func (l *CaseLinkStore) List(opts options.Searcher) (*_go.CaseLinkList, error) {
 	// validate
 	if opts == nil {
 		return nil, dberr.NewDBError("postgres.case_link.list.check_args.opts", "search options required")
@@ -161,7 +161,7 @@ func (l *CaseLinkStore) List(opts options.SearchOptions) (*_go.CaseLinkList, err
 }
 
 // Update implements store.CaseLinkStore.
-func (l *CaseLinkStore) Update(opts options.UpdateOptions, upd *_go.InputCaseLink) (*_go.CaseLink, error) {
+func (l *CaseLinkStore) Update(opts options.Updator, upd *_go.InputCaseLink) (*_go.CaseLink, error) {
 	if opts == nil {
 		return nil, dberr.NewDBError("postgres.case_link.update.check_args.opts", "update options required")
 	}
@@ -293,7 +293,7 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 }
 
 func buildCreateLinkQuery(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	fields []string,
 	input *_go.InputCaseLink,
 ) (
@@ -321,7 +321,7 @@ func buildCreateLinkQuery(
 	return buildLinkSelectColumnsAndPlan(base, insertAlias, fields)
 }
 
-func buildUpdateLinkQuery(opts options.UpdateOptions, input *_go.InputCaseLink) (squirrel.Sqlizer, []func(link *_go.CaseLink) any, *dberr.DBError) {
+func buildUpdateLinkQuery(opts options.Updator, input *_go.InputCaseLink) (squirrel.Sqlizer, []func(link *_go.CaseLink) any, *dberr.DBError) {
 	if len(opts.GetEtags()) == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_link.update.etag.empty", "link etag required")
 	}

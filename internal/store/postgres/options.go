@@ -10,23 +10,23 @@ import (
 	options "github.com/webitel/cases/model/options/grpc"
 )
 
-func withSearchOptions(ctx context.Context, opts ...options.SearchOption) common.SearchOptions {
-	// base, _ := ctx.(common.SearchOptions)
+func withSearchOptions(ctx context.Context, opts ...options.SearchOption) common.Searcher {
+	// base, _ := ctx.(common.Searcher)
 	search, _ := ctx.(*options.SearchOptions)
 	if search == nil {
 		search, _ = options.NewSearchOptions(ctx,
 			func(search *options.SearchOptions) error {
 
-				if base, is := ctx.(common.SearchOptions); is {
+				if base, is := ctx.(common.Searcher); is {
 					return fromSearchOptions(base)(search)
 				}
-				if base, is := ctx.(common.UpdateOptions); is {
+				if base, is := ctx.(common.Updator); is {
 					return fromUpdateOptions(base)(search)
 				}
-				if base, is := ctx.(common.CreateOptions); is {
+				if base, is := ctx.(common.Creator); is {
 					return fromCreateOptions(base)(search)
 				}
-				if base, is := ctx.(common.DeleteOptions); is {
+				if base, is := ctx.(common.Deleter); is {
 					return fromDeleteOptions(base)(search)
 				}
 
@@ -44,7 +44,7 @@ func withSearchOptions(ctx context.Context, opts ...options.SearchOption) common
 	return search
 }
 
-func fromSearchOptions(opts common.SearchOptions) options.SearchOption {
+func fromSearchOptions(opts common.Searcher) options.SearchOption {
 	return func(search *options.SearchOptions) (_ error) {
 
 		self, _ := opts.(*options.SearchOptions)
@@ -70,7 +70,7 @@ func fromSearchOptions(opts common.SearchOptions) options.SearchOption {
 	}
 }
 
-func fromCreateOptions(req common.CreateOptions) options.SearchOption {
+func fromCreateOptions(req common.Creator) options.SearchOption {
 	return func(search *options.SearchOptions) error {
 
 		// search.Context = req.(context.Context)
@@ -80,7 +80,7 @@ func fromCreateOptions(req common.CreateOptions) options.SearchOption {
 		search.Fields = slices.Clone(req.GetFields())
 		search.UnknownFields = slices.Clone(req.GetUnknownFields())
 
-		// GetDerivedSearchOpts() map[string]*SearchOptions
+		// GetDerivedSearchOpts() map[string]*Searcher
 		// GetIDs() []int64
 		// GetParentID() int64
 		// GetChildID() int64
@@ -89,7 +89,7 @@ func fromCreateOptions(req common.CreateOptions) options.SearchOption {
 	}
 }
 
-func fromUpdateOptions(req common.UpdateOptions) options.SearchOption {
+func fromUpdateOptions(req common.Updator) options.SearchOption {
 	return func(search *options.SearchOptions) error {
 
 		// search.Context = req.(context.Context)
@@ -108,7 +108,7 @@ func fromUpdateOptions(req common.UpdateOptions) options.SearchOption {
 	}
 }
 
-func fromDeleteOptions(req common.DeleteOptions) options.SearchOption {
+func fromDeleteOptions(req common.Deleter) options.SearchOption {
 	return func(search *options.SearchOptions) error {
 
 		// search.Context = req.(context.Context)

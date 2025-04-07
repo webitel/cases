@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-type UpdateOptions interface {
+type Updator interface {
 	context.Context
 	GetAuthOpts() auth.Auther
 	GetFields() []string
 	GetUnknownFields() []string
-	GetDerivedSearchOpts() map[string]*SearchOptions
+	GetDerivedSearchOpts() map[string]*Searcher
 	RequestTime() time.Time
 	GetMask() []string
 	GetEtags() []*etag.Tid

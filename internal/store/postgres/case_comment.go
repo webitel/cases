@@ -37,7 +37,7 @@ const (
 
 // Publish implements store.CommentCaseStore for publishing a single comment.
 func (c *CaseCommentStore) Publish(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	input *_go.CaseComment,
 ) (*_go.CaseComment, error) {
 	// Establish database connection
@@ -83,7 +83,7 @@ func (c *CaseCommentStore) Publish(
 }
 
 func (c *CaseCommentStore) buildPublishCommentsSqlizer(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	input *_go.InputCaseComment,
 ) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
 	// Ensure "id" and "ver" are in the fields list
@@ -143,7 +143,7 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 
 // Delete implements store.CommentCaseStore.
 func (c *CaseCommentStore) Delete(
-	rpc options.DeleteOptions,
+	rpc options.Deleter,
 ) error {
 	// Establish database connection
 	d, dbErr := c.storage.Database()
@@ -174,7 +174,7 @@ func (c *CaseCommentStore) Delete(
 	return nil
 }
 
-func (c CaseCommentStore) buildDeleteCaseCommentQuery(rpc options.DeleteOptions) (sq.DeleteBuilder, error) {
+func (c CaseCommentStore) buildDeleteCaseCommentQuery(rpc options.Deleter) (sq.DeleteBuilder, error) {
 	var err error
 	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
@@ -195,7 +195,7 @@ var deleteCaseCommentQuery = util2.CompactSQL(`
 	WHERE id = ANY($1) AND dc = $2
 `)
 
-func (c *CaseCommentStore) List(rpc options.SearchOptions) (*_go.CaseCommentList, error) {
+func (c *CaseCommentStore) List(rpc options.Searcher) (*_go.CaseCommentList, error) {
 	// Connect to the database
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -254,7 +254,7 @@ func (c *CaseCommentStore) List(rpc options.SearchOptions) (*_go.CaseCommentList
 }
 
 func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
-	rpc options.SearchOptions,
+	rpc options.Searcher,
 ) (sq.Sqlizer, func(*_go.CaseComment) []any, error) {
 	var defErr error
 
@@ -320,7 +320,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 }
 
 func (c *CaseCommentStore) Update(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	input *_go.CaseComment,
 ) (*_go.CaseComment, error) {
 	// Get the database connection
@@ -400,7 +400,7 @@ func (c *CaseCommentStore) GetRolesById(
 }
 
 func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	input struct {
 		Text   string
 		Id     int64

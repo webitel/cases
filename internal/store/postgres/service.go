@@ -21,7 +21,7 @@ type ServiceStore struct {
 	storage *Store
 }
 
-func (s *ServiceStore) Create(rpc options.CreateOptions, add *cases.Service) (*cases.Service, error) {
+func (s *ServiceStore) Create(rpc options.Creator, add *cases.Service) (*cases.Service, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -66,7 +66,7 @@ func (s *ServiceStore) Create(rpc options.CreateOptions, add *cases.Service) (*c
 }
 
 // Delete implements store.ServiceStore.
-func (s *ServiceStore) Delete(rpc options.DeleteOptions) error {
+func (s *ServiceStore) Delete(rpc options.Deleter) error {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -96,7 +96,7 @@ func (s *ServiceStore) Delete(rpc options.DeleteOptions) error {
 }
 
 // List implements store.ServiceStore.
-func (s *ServiceStore) List(rpc options.SearchOptions) (*cases.ServiceList, error) {
+func (s *ServiceStore) List(rpc options.Searcher) (*cases.ServiceList, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -164,7 +164,7 @@ func (s *ServiceStore) List(rpc options.SearchOptions) (*cases.ServiceList, erro
 }
 
 // Update implements store.ServiceStore.
-func (s *ServiceStore) Update(rpc options.UpdateOptions, lookup *cases.Service) (*cases.Service, error) {
+func (s *ServiceStore) Update(rpc options.Updator, lookup *cases.Service) (*cases.Service, error) {
 	// Establish a connection to the database
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
@@ -211,7 +211,7 @@ func (s *ServiceStore) Update(rpc options.UpdateOptions, lookup *cases.Service) 
 	return lookup, nil
 }
 
-func (s *ServiceStore) buildCreateServiceQuery(rpc options.CreateOptions, add *cases.Service) (string, []interface{}) {
+func (s *ServiceStore) buildCreateServiceQuery(rpc options.Creator, add *cases.Service) (string, []interface{}) {
 	var assignee, group, sla *int64
 	if add.Assignee != nil && add.Assignee.GetId() != 0 {
 		assignee = &add.Assignee.Id
@@ -287,7 +287,7 @@ FROM inserted_service
 }
 
 // Helper method to build the delete query for Service
-func (s *ServiceStore) buildDeleteServiceQuery(rpc options.DeleteOptions) (string, []interface{}) {
+func (s *ServiceStore) buildDeleteServiceQuery(rpc options.Deleter) (string, []interface{}) {
 	query := `
 		DELETE FROM cases.service_catalog
 		WHERE id = ANY($1) AND dc = $2
@@ -300,7 +300,7 @@ func (s *ServiceStore) buildDeleteServiceQuery(rpc options.DeleteOptions) (strin
 	return util2.CompactSQL(query), args
 }
 
-func (s *ServiceStore) buildSearchServiceQuery(rpc options.SearchOptions) (string, []interface{}, error) {
+func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []interface{}, error) {
 	// Map of fields to their corresponding SQL expressions
 	fieldMap := map[string]string{
 		"id":          "service.id",
@@ -378,7 +378,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.SearchOptions) (strin
 	return util2.CompactSQL(query), args, nil
 }
 
-func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.SearchOptions) sq.SelectBuilder {
+func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.Searcher) sq.SelectBuilder {
 	sortableFields := map[string]string{
 		"name":        "service.name",
 		"code":        "service.code",
@@ -418,7 +418,7 @@ func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.SearchOption
 }
 
 // Helper method to build the combined update and select query for Service using Squirrel
-func (s *ServiceStore) buildUpdateServiceQuery(rpc options.UpdateOptions, input *cases.Service) (string, []interface{}, error) {
+func (s *ServiceStore) buildUpdateServiceQuery(rpc options.Updator, input *cases.Service) (string, []interface{}, error) {
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).

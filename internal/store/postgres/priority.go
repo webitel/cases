@@ -24,7 +24,7 @@ const (
 )
 
 // Create implements store.PriorityStore.
-func (p *Priority) Create(rpc options.CreateOptions, add *api.Priority) (*api.Priority, error) {
+func (p *Priority) Create(rpc options.Creator, add *api.Priority) (*api.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.create.database_connection_error", dbErr)
@@ -50,7 +50,7 @@ func (p *Priority) Create(rpc options.CreateOptions, add *api.Priority) (*api.Pr
 }
 
 func (p *Priority) buildCreatePriorityQuery(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	priority *api.Priority,
 ) (sq.SelectBuilder, []PriorityScan, error) {
 	fields := rpc.GetFields()
@@ -92,7 +92,7 @@ func (p *Priority) buildCreatePriorityQuery(
 	return selectBuilder, plan, nil
 }
 
-func (p *Priority) Delete(rpc options.DeleteOptions) error {
+func (p *Priority) Delete(rpc options.Deleter) error {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.priority.delete.database_connection_error", dbErr)
@@ -121,7 +121,7 @@ func (p *Priority) Delete(rpc options.DeleteOptions) error {
 }
 
 func (p *Priority) buildDeletePriorityQuery(
-	rpc options.DeleteOptions,
+	rpc options.Deleter,
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
@@ -139,7 +139,7 @@ func (p *Priority) buildDeletePriorityQuery(
 
 // List implements store.PriorityStore.
 func (p *Priority) List(
-	rpc options.SearchOptions,
+	rpc options.Searcher,
 	notInSla int64,
 	inSla int64,
 ) (*api.PriorityList, error) {
@@ -195,7 +195,7 @@ func (p *Priority) List(
 }
 
 func (p *Priority) buildListPriorityQuery(
-	rpc options.SearchOptions,
+	rpc options.Searcher,
 	notInSla int64,
 	inSla int64,
 ) (sq.SelectBuilder, []PriorityScan, error) {
@@ -268,7 +268,7 @@ func (p *Priority) buildListPriorityQuery(
 }
 
 // Update implements store.PriorityStore.
-func (p *Priority) Update(rpc options.UpdateOptions, update *api.Priority) (*api.Priority, error) {
+func (p *Priority) Update(rpc options.Updator, update *api.Priority) (*api.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.update.database_connection_error", dbErr)
@@ -294,7 +294,7 @@ func (p *Priority) Update(rpc options.UpdateOptions, update *api.Priority) (*api
 }
 
 func (p *Priority) buildUpdatePriorityQuery(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	priority *api.Priority,
 ) (sq.SelectBuilder, []PriorityScan, error) {
 	fields := rpc.GetFields()

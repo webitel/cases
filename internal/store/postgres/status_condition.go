@@ -27,7 +27,7 @@ type StatusConditionStore struct {
 	storage *Store
 }
 
-func (s StatusConditionStore) Create(rpc options.CreateOptions, input *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s StatusConditionStore) Create(rpc options.Creator, input *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.database_connection_error", err)
@@ -65,7 +65,7 @@ func (s StatusConditionStore) Create(rpc options.CreateOptions, input *_go.Statu
 	return input, nil
 }
 
-func (s StatusConditionStore) List(rpc options.SearchOptions, statusId int64) (*_go.StatusConditionList, error) {
+func (s StatusConditionStore) List(rpc options.Searcher, statusId int64) (*_go.StatusConditionList, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.database_connection_error", err)
@@ -121,7 +121,7 @@ func (s StatusConditionStore) List(rpc options.SearchOptions, statusId int64) (*
 	}, nil
 }
 
-func (s StatusConditionStore) Delete(rpc options.DeleteOptions, statusId int64) error {
+func (s StatusConditionStore) Delete(rpc options.Deleter, statusId int64) error {
 	domainId := rpc.GetAuthOpts().GetDomainId()
 
 	query, args, err := s.buildDeleteStatusConditionQuery(rpc.GetIDs(), domainId, statusId)
@@ -146,7 +146,7 @@ func (s StatusConditionStore) Delete(rpc options.DeleteOptions, statusId int64) 
 	return nil
 }
 
-func (s StatusConditionStore) Update(rpc options.UpdateOptions, input *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s StatusConditionStore) Update(rpc options.Updator, input *_go.StatusCondition) (*_go.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.database_connection_error", err)
@@ -190,7 +190,7 @@ func (s StatusConditionStore) Update(rpc options.UpdateOptions, input *_go.Statu
 	return input, nil
 }
 
-func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.CreateOptions, input *_go.StatusCondition) (string, []interface{}, error) {
+func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.Creator, input *_go.StatusCondition) (string, []interface{}, error) {
 	query := createStatusConditionQuery
 	args := []interface{}{
 		input.Name,                      // $1 name
@@ -203,7 +203,7 @@ func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.Create
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.SearchOptions, statusId int64) (string, []interface{}, error) {
+func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.Searcher, statusId int64) (string, []interface{}, error) {
 	queryBuilder := sq.Select().
 		From("cases.status_condition AS s").
 		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId(), "s.status_id": statusId}).
@@ -264,7 +264,7 @@ func (s StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domai
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.UpdateOptions, input *_go.StatusCondition) (string, []interface{}) {
+func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Updator, input *_go.StatusCondition) (string, []interface{}) {
 	var args []interface{}
 
 	// 1. Squirrel operations: Building the dynamic part of the "upd" query

@@ -31,7 +31,7 @@ const (
 )
 
 // List implements store.CaseFileStore for listing case files.
-func (c *CaseFileStore) List(rpc options.SearchOptions) (*cases.CaseFileList, error) {
+func (c *CaseFileStore) List(rpc options.Searcher) (*cases.CaseFileList, error) {
 	// Connect to the database
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -95,7 +95,7 @@ func (c *CaseFileStore) List(rpc options.SearchOptions) (*cases.CaseFileList, er
 }
 
 func (c *CaseFileStore) BuildListCaseFilesSqlizer(
-	rpc options.SearchOptions,
+	rpc options.Searcher,
 ) (sq.Sqlizer, []func(file *cases.File) any, error) {
 
 	parentId, ok := rpc.GetFilter("case_id").(int64)
@@ -141,7 +141,7 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 }
 
 // Delete implements store.CaseFileStore.
-func (c *CaseFileStore) Delete(rpc options.DeleteOptions) error {
+func (c *CaseFileStore) Delete(rpc options.Deleter) error {
 	if rpc == nil {
 		return dberr.NewDBError("postgres.case_file.delete.check_args.opts", "delete options required")
 	}

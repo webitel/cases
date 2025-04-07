@@ -5,10 +5,15 @@ import (
 	"errors"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
 	"time"
 )
+
+type DeleteOption func(options *DeleteOptions) error
+
+var _ options.Deleter = (*DeleteOptions)(nil)
 
 type DeleteOptions struct {
 	createdAt time.Time
@@ -18,8 +23,6 @@ type DeleteOptions struct {
 	Auth     auth.Auther
 	Filters  map[string]any
 }
-
-type DeleteOption func(options *DeleteOptions) error
 
 func WithDeleteIDs(ids []int64) DeleteOption {
 	return func(options *DeleteOptions) error {

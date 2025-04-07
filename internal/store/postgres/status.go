@@ -83,7 +83,7 @@ func buildStatusSelectColumnsAndPlan(
 }
 
 func (s *Status) buildCreateStatusQuery(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	input *_go.Status,
 ) (sq.SelectBuilder, []StatusScan, error) {
 	fields := rpc.GetFields()
@@ -124,7 +124,7 @@ func (s *Status) buildCreateStatusQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *Status) Create(rpc options.CreateOptions, input *_go.Status) (*_go.Status, error) {
+func (s *Status) Create(rpc options.Creator, input *_go.Status) (*_go.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.create.database_connection_error", dbErr)
@@ -150,7 +150,7 @@ func (s *Status) Create(rpc options.CreateOptions, input *_go.Status) (*_go.Stat
 }
 
 func (s *Status) buildUpdateStatusQuery(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	input *_go.Status,
 ) (sq.SelectBuilder, []StatusScan, error) {
 	fields := rpc.GetFields()
@@ -196,7 +196,7 @@ func (s *Status) buildUpdateStatusQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *Status) Update(rpc options.UpdateOptions, input *_go.Status) (*_go.Status, error) {
+func (s *Status) Update(rpc options.Updator, input *_go.Status) (*_go.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.input.database_connection_error", dbErr)
@@ -222,7 +222,7 @@ func (s *Status) Update(rpc options.UpdateOptions, input *_go.Status) (*_go.Stat
 }
 
 func (s *Status) buildListStatusQuery(
-	rpc options.SearchOptions,
+	rpc options.Searcher,
 ) (sq.SelectBuilder, []StatusScan, error) {
 
 	queryBuilder := sq.Select().
@@ -255,7 +255,7 @@ func (s *Status) buildListStatusQuery(
 	return queryBuilder, plan, nil
 }
 
-func (s *Status) List(rpc options.SearchOptions) (*_go.StatusList, error) {
+func (s *Status) List(rpc options.Searcher) (*_go.StatusList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.list.database_connection_error", dbErr)
@@ -308,7 +308,7 @@ func (s *Status) List(rpc options.SearchOptions) (*_go.StatusList, error) {
 }
 
 func (s *Status) buildDeleteStatusQuery(
-	rpc options.DeleteOptions,
+	rpc options.Deleter,
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
@@ -324,7 +324,7 @@ func (s *Status) buildDeleteStatusQuery(
 	return deleteBuilder, nil
 }
 
-func (s *Status) Delete(rpc options.DeleteOptions) error {
+func (s *Status) Delete(rpc options.Deleter) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.status.delete.database_connection_error", dbErr)

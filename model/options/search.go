@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type SearchOptions interface {
+type Searcher interface {
 	context.Context
 	GetAuthOpts() auth.Auther
 	RequestTime() time.Time

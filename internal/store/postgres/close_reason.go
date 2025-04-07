@@ -92,7 +92,7 @@ func buildCloseReasonSelectColumnsAndPlan(
 }
 
 func (s *CloseReason) buildCreateCloseReasonQuery(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	reason *_go.CloseReason,
 ) (sq.SelectBuilder, []CloseReasonScan, error) {
 	fields := rpc.GetFields()
@@ -133,7 +133,7 @@ func (s *CloseReason) buildCreateCloseReasonQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *CloseReason) Create(rpc options.CreateOptions, input *_go.CloseReason) (*_go.CloseReason, error) {
+func (s *CloseReason) Create(rpc options.Creator, input *_go.CloseReason) (*_go.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.create.database_connection_error", dbErr)
@@ -159,7 +159,7 @@ func (s *CloseReason) Create(rpc options.CreateOptions, input *_go.CloseReason) 
 }
 
 func (s *CloseReason) buildUpdateCloseReasonQuery(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	input *_go.CloseReason,
 ) (sq.SelectBuilder, []CloseReasonScan, error) {
 	fields := rpc.GetFields()
@@ -209,7 +209,7 @@ func (s *CloseReason) buildUpdateCloseReasonQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *CloseReason) Update(rpc options.UpdateOptions, input *_go.CloseReason) (*_go.CloseReason, error) {
+func (s *CloseReason) Update(rpc options.Updator, input *_go.CloseReason) (*_go.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.input.database_connection_error", dbErr)
@@ -235,7 +235,7 @@ func (s *CloseReason) Update(rpc options.UpdateOptions, input *_go.CloseReason) 
 }
 
 func (s *CloseReason) buildListCloseReasonQuery(
-	rpc options.SearchOptions,
+	rpc options.Searcher,
 	closeReasonId int64,
 ) (sq.SelectBuilder, []CloseReasonScan, error) {
 	queryBuilder := sq.Select().
@@ -273,7 +273,7 @@ func (s *CloseReason) buildListCloseReasonQuery(
 	return queryBuilder, plan, nil
 }
 
-func (s *CloseReason) List(rpc options.SearchOptions, closeReasonId int64) (*_go.CloseReasonList, error) {
+func (s *CloseReason) List(rpc options.Searcher, closeReasonId int64) (*_go.CloseReasonList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.list.database_connection_error", dbErr)
@@ -326,7 +326,7 @@ func (s *CloseReason) List(rpc options.SearchOptions, closeReasonId int64) (*_go
 }
 
 func (s *CloseReason) buildDeleteCloseReasonQuery(
-	rpc options.DeleteOptions,
+	rpc options.Deleter,
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
@@ -342,7 +342,7 @@ func (s *CloseReason) buildDeleteCloseReasonQuery(
 	return deleteBuilder, nil
 }
 
-func (s *CloseReason) Delete(rpc options.DeleteOptions) error {
+func (s *CloseReason) Delete(rpc options.Deleter) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.close_reason.delete.database_connection_error", dbErr)

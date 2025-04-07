@@ -93,7 +93,7 @@ func buildCloseReasonGroupSelectColumnsAndPlan(
 }
 
 func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	group *_go.CloseReasonGroup,
 ) (sq.SelectBuilder, []CloseReasonGroupScan, error) {
 	fields := rpc.GetFields()
@@ -138,7 +138,7 @@ func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s CloseReasonGroup) Create(rpc options.CreateOptions, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error) {
+func (s CloseReasonGroup) Create(rpc options.Creator, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.database_connection_error", dbErr)
@@ -164,7 +164,7 @@ func (s CloseReasonGroup) Create(rpc options.CreateOptions, input *_go.CloseReas
 }
 
 func (s CloseReasonGroup) buildUpdateCloseReasonGroupQuery(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	input *_go.CloseReasonGroup,
 ) (sq.SelectBuilder, []CloseReasonGroupScan, error) {
 	fields := rpc.GetFields()
@@ -215,7 +215,7 @@ func (s CloseReasonGroup) buildUpdateCloseReasonGroupQuery(
 }
 
 func (s CloseReasonGroup) Update(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	input *_go.CloseReasonGroup,
 ) (*_go.CloseReasonGroup, error) {
 	d, dbErr := s.storage.Database()
@@ -243,7 +243,7 @@ func (s CloseReasonGroup) Update(
 }
 
 func (s CloseReasonGroup) buildListCloseReasonGroupQuery(
-	rpc options.SearchOptions,
+	rpc options.Searcher,
 ) (sq.SelectBuilder, []CloseReasonGroupScan, error) {
 
 	queryBuilder := sq.Select().
@@ -280,7 +280,7 @@ func (s CloseReasonGroup) buildListCloseReasonGroupQuery(
 	return queryBuilder, plan, nil
 }
 
-func (s CloseReasonGroup) List(rpc options.SearchOptions) (*_go.CloseReasonGroupList, error) {
+func (s CloseReasonGroup) List(rpc options.Searcher) (*_go.CloseReasonGroupList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.database_connection_error", dbErr)
@@ -333,7 +333,7 @@ func (s CloseReasonGroup) List(rpc options.SearchOptions) (*_go.CloseReasonGroup
 }
 
 func (s CloseReasonGroup) buildDeleteCloseReasonGroupQuery(
-	rpc options.DeleteOptions,
+	rpc options.Deleter,
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
@@ -352,7 +352,7 @@ func (s CloseReasonGroup) buildDeleteCloseReasonGroupQuery(
 	return deleteBuilder, nil
 }
 
-func (s CloseReasonGroup) Delete(rpc options.DeleteOptions) error {
+func (s CloseReasonGroup) Delete(rpc options.Deleter) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.close_reason_group.delete.database_connection_error", dbErr)

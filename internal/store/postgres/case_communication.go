@@ -22,7 +22,7 @@ type CaseCommunicationStore struct {
 }
 
 func (c *CaseCommunicationStore) Link(
-	options options.CreateOptions,
+	options options.Creator,
 	communications []*cases.InputCaseCommunication,
 ) ([]*cases.CaseCommunication, error) {
 	if len(communications) == 0 {
@@ -75,7 +75,7 @@ func (c *CaseCommunicationStore) Link(
 	return res, nil
 }
 
-func (c *CaseCommunicationStore) Unlink(options options.DeleteOptions) (int64, error) {
+func (c *CaseCommunicationStore) Unlink(options options.Deleter) (int64, error) {
 	base, dbErr := c.buildDeleteCaseCommunicationSqlizer(options)
 	if dbErr != nil {
 		return 0, dbErr
@@ -95,7 +95,7 @@ func (c *CaseCommunicationStore) Unlink(options options.DeleteOptions) (int64, e
 	return res.RowsAffected(), nil
 }
 
-func (c *CaseCommunicationStore) List(opts options.SearchOptions) (*cases.ListCommunicationsResponse, error) {
+func (c *CaseCommunicationStore) List(opts options.Searcher) (*cases.ListCommunicationsResponse, error) {
 	base, plan, dbErr := c.buildListCaseCommunicationSqlizer(opts)
 	if dbErr != nil {
 		return nil, dbErr
@@ -123,7 +123,7 @@ func (c *CaseCommunicationStore) List(opts options.SearchOptions) (*cases.ListCo
 }
 
 func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
-	options options.SearchOptions,
+	options options.Searcher,
 ) (
 	query squirrel.Sqlizer,
 	plan []func(caseCommunication *cases.CaseCommunication) any,
@@ -176,7 +176,7 @@ func (c *CaseCommunicationStore) scanCommunications(
 
 func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 	tx transaction.Transaction,
-	options options.CreateOptions,
+	options options.Creator,
 	input []*cases.InputCaseCommunication,
 ) (
 	query squirrel.Sqlizer,
@@ -375,7 +375,7 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(
 }
 
 func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(
-	options options.DeleteOptions,
+	options options.Deleter,
 ) (
 	query squirrel.Sqlizer,
 	dbError *dberr.DBError,

@@ -13,6 +13,20 @@ import (
 
 type CreateOption func(*CreateOptions) error
 
+var _ options.Creator = (*CreateOptions)(nil)
+
+type CreateOptions struct {
+	context.Context
+	Time              time.Time
+	Fields            []string
+	DerivedSearchOpts map[string]*options.Searcher
+	UnknownFields     []string
+	IDs               []int64
+	ParentID          int64
+	ChildID           int64
+	Auth              auth.Auther
+}
+
 func WithCreateFields(
 	fielder shared.Fielder,
 	md model.ObjectMetadatter,
@@ -55,18 +69,6 @@ func WithCreateChildID(id int64) CreateOption {
 	}
 }
 
-type CreateOptions struct {
-	context.Context
-	Time              time.Time
-	Fields            []string
-	DerivedSearchOpts map[string]*options.SearchOptions
-	UnknownFields     []string
-	IDs               []int64
-	ParentID          int64
-	ChildID           int64
-	Auth              auth.Auther
-}
-
 func (s *CreateOptions) SetAuthOpts(a auth.Auther) *CreateOptions {
 	s.Auth = a
 	return s
@@ -79,7 +81,7 @@ func (s *CreateOptions) GetAuthOpts() auth.Auther {
 func (s *CreateOptions) GetIDs() []int64     { return s.IDs }
 func (s *CreateOptions) GetParentID() int64  { return s.ParentID }
 func (s *CreateOptions) GetFields() []string { return s.Fields }
-func (s *CreateOptions) GetDerivedSearchOpts() map[string]*options.SearchOptions {
+func (s *CreateOptions) GetDerivedSearchOpts() map[string]*options.Searcher {
 	return s.DerivedSearchOpts
 }
 func (s *CreateOptions) GetUnknownFields() []string { return s.UnknownFields }
@@ -102,7 +104,7 @@ func NewCreateOptions(ctx context.Context, opts ...CreateOption) (*CreateOptions
 	createOpts := &CreateOptions{
 		Context:           ctx,
 		Time:              time.Now().UTC(),
-		DerivedSearchOpts: make(map[string]*options.SearchOptions),
+		DerivedSearchOpts: make(map[string]*options.Searcher),
 	}
 
 	// Set authentication

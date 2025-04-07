@@ -6,12 +6,12 @@ import (
 	"time"
 )
 
-type CreateOptions interface {
+type Creator interface {
 	context.Context
 	GetAuthOpts() auth.Auther
 	RequestTime() time.Time
 	GetFields() []string
-	GetDerivedSearchOpts() map[string]*SearchOptions
+	GetDerivedSearchOpts() map[string]*Searcher
 	GetUnknownFields() []string
 	GetIDs() []int64
 	GetParentID() int64

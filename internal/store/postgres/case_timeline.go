@@ -22,7 +22,7 @@ type CaseTimelineStore struct {
 	storage *Store
 }
 
-func (c *CaseTimelineStore) Get(rpc options.SearchOptions) (*cases.GetTimelineResponse, error) {
+func (c *CaseTimelineStore) Get(rpc options.Searcher) (*cases.GetTimelineResponse, error) {
 	query, scanPlan, dbErr := buildCaseTimelineSqlizer(rpc)
 	if dbErr != nil {
 		return nil, dbErr
@@ -60,7 +60,7 @@ func (c *CaseTimelineStore) Get(rpc options.SearchOptions) (*cases.GetTimelineRe
 }
 
 // region Timeline Build Functions
-func buildCaseTimelineSqlizer(rpc options.SearchOptions) (squirrel.Sqlizer, []func(timeline *cases.DayTimeline) any, *dberr.DBError) {
+func buildCaseTimelineSqlizer(rpc options.Searcher) (squirrel.Sqlizer, []func(timeline *cases.DayTimeline) any, *dberr.DBError) {
 	if rpc == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.rpc", "search options required")
 	}
@@ -625,7 +625,7 @@ func buildTimelineEmailsColumn(caseId int64) (base squirrel.Sqlizer, plan []func
 
 // endregion
 
-func (c *CaseTimelineStore) GetCounter(rpc options.SearchOptions) ([]*model.TimelineCounter, error) {
+func (c *CaseTimelineStore) GetCounter(rpc options.Searcher) ([]*model.TimelineCounter, error) {
 	query, plan, dbErr := buildTimelineCounterSqlizer(rpc)
 	if dbErr != nil {
 		return nil, dbErr
@@ -660,7 +660,7 @@ func (c *CaseTimelineStore) GetCounter(rpc options.SearchOptions) ([]*model.Time
 
 // region Timeline Counter Build Functions
 
-func buildTimelineCounterSqlizer(rpc options.SearchOptions) (query squirrel.Sqlizer, scanPlan []func(response *model.TimelineCounter) any, dbError *dberr.DBError) {
+func buildTimelineCounterSqlizer(rpc options.Searcher) (query squirrel.Sqlizer, scanPlan []func(response *model.TimelineCounter) any, dbError *dberr.DBError) {
 	if rpc == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.rpc", "search options required")
 	}

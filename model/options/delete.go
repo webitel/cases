@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type DeleteOptions interface {
+type Deleter interface {
 	context.Context
 	GetAuthOpts() auth.Auther
 	RequestTime() time.Time

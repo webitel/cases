@@ -99,7 +99,7 @@ func stringToType(typeStr string) (_go.SourceType, error) {
 	}
 }
 
-func (s *Source) buildCreateSourceQuery(rpc options.CreateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
+func (s *Source) buildCreateSourceQuery(rpc options.Creator, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
 	insertBuilder := sq.Insert("cases.source").
@@ -131,7 +131,7 @@ func (s *Source) buildCreateSourceQuery(rpc options.CreateOptions, source *_go.S
 	return selectBuilder.PrefixExpr(cte).From(sourceLeft), plan, nil
 }
 
-func (s *Source) Create(rpc options.CreateOptions, source *_go.Source) (*_go.Source, error) {
+func (s *Source) Create(rpc options.Creator, source *_go.Source) (*_go.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.create.database_connection_error", dbErr)
@@ -155,7 +155,7 @@ func (s *Source) Create(rpc options.CreateOptions, source *_go.Source) (*_go.Sou
 	return temp, nil
 }
 
-func (s *Source) buildUpdateSourceQuery(rpc options.UpdateOptions, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
+func (s *Source) buildUpdateSourceQuery(rpc options.Updator, source *_go.Source) (sq.SelectBuilder, []SourceScan, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
 	updateBuilder := sq.Update("cases.source").
@@ -194,7 +194,7 @@ func (s *Source) buildUpdateSourceQuery(rpc options.UpdateOptions, source *_go.S
 	return selectBuilder.PrefixExpr(cte).From(sourceLeft), plan, nil
 }
 
-func (s *Source) Update(rpc options.UpdateOptions, source *_go.Source) (*_go.Source, error) {
+func (s *Source) Update(rpc options.Updator, source *_go.Source) (*_go.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.update.database_connection_error", dbErr)
@@ -218,7 +218,7 @@ func (s *Source) Update(rpc options.UpdateOptions, source *_go.Source) (*_go.Sou
 	return temp, nil
 }
 
-func (s *Source) buildListSourceQuery(rpc options.SearchOptions) (sq.SelectBuilder, []SourceScan, error) {
+func (s *Source) buildListSourceQuery(rpc options.Searcher) (sq.SelectBuilder, []SourceScan, error) {
 	queryBuilder := sq.Select().
 		From("cases.source AS s").
 		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId()}).
@@ -246,7 +246,7 @@ func (s *Source) buildListSourceQuery(rpc options.SearchOptions) (sq.SelectBuild
 	return buildSourceSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 }
 
-func (s *Source) List(rpc options.SearchOptions) (*_go.SourceList, error) {
+func (s *Source) List(rpc options.Searcher) (*_go.SourceList, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.source.list.database_connection_error", dbErr)
@@ -295,7 +295,7 @@ func (s *Source) List(rpc options.SearchOptions) (*_go.SourceList, error) {
 	}, nil
 }
 
-func (s *Source) buildDeleteSourceQuery(rpc options.DeleteOptions) (sq.DeleteBuilder, error) {
+func (s *Source) buildDeleteSourceQuery(rpc options.Deleter) (sq.DeleteBuilder, error) {
 	if len(rpc.GetIDs()) == 0 {
 		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.source.delete.missing_ids", fmt.Errorf("no IDs provided"))
 	}
@@ -306,7 +306,7 @@ func (s *Source) buildDeleteSourceQuery(rpc options.DeleteOptions) (sq.DeleteBui
 		PlaceholderFormat(sq.Dollar), nil
 }
 
-func (s *Source) Delete(rpc options.DeleteOptions) error {
+func (s *Source) Delete(rpc options.Deleter) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.source.delete.database_connection_error", dbErr)

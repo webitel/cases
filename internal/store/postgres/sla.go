@@ -125,7 +125,7 @@ func (s *SLAStore) buildSLASelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func (s *SLAStore) buildCreateSLAQuery(rpc options.CreateOptions, sla *_go.SLA) (sq.SelectBuilder, []SLAScan, error) {
+func (s *SLAStore) buildCreateSLAQuery(rpc options.Creator, sla *_go.SLA) (sq.SelectBuilder, []SLAScan, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
 	// Build the INSERT query with a RETURNING clause
@@ -174,7 +174,7 @@ func (s *SLAStore) buildCreateSLAQuery(rpc options.CreateOptions, sla *_go.SLA) 
 	return selectBuilder, plan, nil
 }
 
-func (s *SLAStore) Create(rpc options.CreateOptions, input *cases.SLA) (*cases.SLA, error) {
+func (s *SLAStore) Create(rpc options.Creator, input *cases.SLA) (*cases.SLA, error) {
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.create.database_connection_error", dbErr)
@@ -199,7 +199,7 @@ func (s *SLAStore) Create(rpc options.CreateOptions, input *cases.SLA) (*cases.S
 }
 
 func (s *SLAStore) buildUpdateSLAQuery(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	input *cases.SLA,
 ) (sq.SelectBuilder, []SLAScan, error) {
 	fields := rpc.GetFields()
@@ -259,7 +259,7 @@ func (s *SLAStore) buildUpdateSLAQuery(
 	return selectBuilder, plan, nil
 }
 
-func (s *SLAStore) Update(rpc options.UpdateOptions, input *cases.SLA) (*cases.SLA, error) {
+func (s *SLAStore) Update(rpc options.Updator, input *cases.SLA) (*cases.SLA, error) {
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.input.database_connection_error", dbErr)
@@ -286,7 +286,7 @@ func (s *SLAStore) Update(rpc options.UpdateOptions, input *cases.SLA) (*cases.S
 	return input, nil
 }
 
-func (s *SLAStore) buildListSLAQuery(rpc options.SearchOptions) (sq.SelectBuilder, []SLAScan, error) {
+func (s *SLAStore) buildListSLAQuery(rpc options.Searcher) (sq.SelectBuilder, []SLAScan, error) {
 
 	queryBuilder := sq.Select().
 		From("cases.sla AS s").
@@ -318,7 +318,7 @@ func (s *SLAStore) buildListSLAQuery(rpc options.SearchOptions) (sq.SelectBuilde
 	return queryBuilder, plan, nil
 }
 
-func (s *SLAStore) List(rpc options.SearchOptions) (*cases.SLAList, error) {
+func (s *SLAStore) List(rpc options.Searcher) (*cases.SLAList, error) {
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.list.database_connection_error", dbErr)
@@ -369,7 +369,7 @@ func (s *SLAStore) List(rpc options.SearchOptions) (*cases.SLAList, error) {
 }
 
 func (s *SLAStore) buildDeleteSLAQuery(
-	rpc options.DeleteOptions,
+	rpc options.Deleter,
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
@@ -388,7 +388,7 @@ func (s *SLAStore) buildDeleteSLAQuery(
 	return deleteBuilder, nil
 }
 
-func (s *SLAStore) Delete(rpc options.DeleteOptions) error {
+func (s *SLAStore) Delete(rpc options.Deleter) error {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return dberr.NewDBInternalError("postgres.sla.delete.database_connection_error", dbErr)

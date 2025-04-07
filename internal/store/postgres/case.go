@@ -62,7 +62,7 @@ const (
 )
 
 func (c *CaseStore) Create(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	add *_go.Case,
 ) (*_go.Case, error) {
 	// Get the database connection
@@ -256,7 +256,7 @@ LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
 }
 
 func (c *CaseStore) buildCreateCaseSqlizer(
-	rpc options.CreateOptions,
+	rpc options.Creator,
 	input *_go.Case,
 	serviceDefs *ServiceRelatedDefs,
 ) (
@@ -885,7 +885,7 @@ func isSameDate(date1, date2 time.Time) bool {
 }
 
 // Delete implements store.CaseStore.
-func (c *CaseStore) Delete(rpc options.DeleteOptions) error {
+func (c *CaseStore) Delete(rpc options.Deleter) error {
 	// Establish database connection
 	d, err := c.storage.Database()
 	if err != nil {
@@ -912,7 +912,7 @@ func (c *CaseStore) Delete(rpc options.DeleteOptions) error {
 	return nil
 }
 
-func (c CaseStore) buildDeleteCaseQuery(rpc options.DeleteOptions) (string, []interface{}, error) {
+func (c CaseStore) buildDeleteCaseQuery(rpc options.Deleter) (string, []interface{}, error) {
 	var err error
 	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
@@ -926,7 +926,7 @@ func (c CaseStore) buildDeleteCaseQuery(rpc options.DeleteOptions) (string, []in
 }
 
 // List implements store.CaseStore.
-func (c *CaseStore) List(opts options.SearchOptions) (*_go.CaseList, error) {
+func (c *CaseStore) List(opts options.Searcher) (*_go.CaseList, error) {
 	if opts == nil {
 		return nil, dberr.NewDBError("postgres.case.list.check_args.opts", "search options required")
 	}
@@ -988,7 +988,7 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	return false, nil
 }
 
-func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
+func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
 	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
 	if search := opts.GetSearch(); search != "" {
@@ -1261,7 +1261,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.SearchOptions) (sq.SelectB
 
 // region UPDATE
 func (c *CaseStore) Update(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	upd *_go.Case,
 ) (*_go.Case, error) {
 	// Establish database connection
@@ -1365,7 +1365,7 @@ func (c *CaseStore) Update(
 }
 
 func (c *CaseStore) buildUpdateCaseSqlizer(
-	rpc options.UpdateOptions,
+	rpc options.Updator,
 	input *_go.Case,
 ) (sq.Sqlizer, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included
@@ -1661,7 +1661,7 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 
 // session required to get some columns
 func (c *CaseStore) buildCaseSelectColumnsAndPlan(
-	req options.SearchOptions, base sq.SelectBuilder,
+	req options.Searcher, base sq.SelectBuilder,
 ) (
 	sq.SelectBuilder, []func(caseItem *_go.Case) any, error,
 ) {

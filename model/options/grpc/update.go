@@ -15,6 +15,21 @@ import (
 
 type UpdateOption func(*UpdateOptions) error
 
+var _ options.Updator = (*UpdateOptions)(nil)
+
+type UpdateOptions struct {
+	context.Context
+	Time              time.Time
+	Fields            []string
+	UnknownFields     []string
+	DerivedSearchOpts map[string]*options.Searcher
+	Mask              []string
+	Etags             []*etag.Tid
+	Auth              auth.Auther
+	ParentID          int64
+	IDs               []int64
+}
+
 type UpdateMasker interface {
 	GetXJsonMask() []string
 }
@@ -70,19 +85,6 @@ func WithUpdateIDs(ids []int64) UpdateOption {
 	}
 }
 
-type UpdateOptions struct {
-	context.Context
-	Time              time.Time
-	Fields            []string
-	UnknownFields     []string
-	DerivedSearchOpts map[string]*options.SearchOptions
-	Mask              []string
-	Etags             []*etag.Tid
-	Auth              auth.Auther
-	ParentID          int64
-	IDs               []int64
-}
-
 func (s *UpdateOptions) GetAuthOpts() auth.Auther {
 	return s.Auth
 }
@@ -95,10 +97,10 @@ func (s *UpdateOptions) GetIDs() []int64            { return s.IDs }
 func (s *UpdateOptions) GetParentID() int64         { return s.ParentID }
 func (s *UpdateOptions) GetFields() []string        { return s.Fields }
 func (s *UpdateOptions) GetUnknownFields() []string { return s.UnknownFields }
-func (s *UpdateOptions) GetDerivedSearchOpts() map[string]*options.SearchOptions {
+func (s *UpdateOptions) GetDerivedSearchOpts() map[string]*options.Searcher {
 	return s.DerivedSearchOpts
 }
-func (s *UpdateOptions) SetDerivedSearchOpts(opts map[string]*options.SearchOptions) *UpdateOptions {
+func (s *UpdateOptions) SetDerivedSearchOpts(opts map[string]*options.Searcher) *UpdateOptions {
 	s.DerivedSearchOpts = opts
 	return s
 }
@@ -114,7 +116,7 @@ func NewUpdateOptions(ctx context.Context, opts ...UpdateOption) (*UpdateOptions
 	updateOpts := &UpdateOptions{
 		Context:           ctx,
 		Time:              time.Now().UTC(),
-		DerivedSearchOpts: make(map[string]*options.SearchOptions),
+		DerivedSearchOpts: make(map[string]*options.Searcher),
 	}
 
 	// Apply functional updateOpts
