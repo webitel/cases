@@ -864,7 +864,10 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 		return cerror.NewBadRequestError("app.case.create_case.source_required", "Case source is required")
 	}
 	if input.Service.GetId() == 0 {
-		return cerror.NewBadRequestError("app.case.create_case.invalid_service", "Invalid service specified")
+		return cerror.NewBadRequestError("app.case.create_case.invalid_service", "Case service is required")
+	}
+	if input.Reporter.GetId() == 0 {
+		return cerror.NewBadRequestError("app.case.create_case.invalid_reporter", "Case reporter is required")
 	}
 	return nil
 }
