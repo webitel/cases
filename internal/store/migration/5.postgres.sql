@@ -38,7 +38,7 @@ BEGIN
         END IF;
     END IF;
 
-    if (TG_OP = 'UPDATE' AND NEW.resolved_at ISNULL AND NEW.is_overdue AND NEW.planned_resolve_at != OLD.planned_resolve_at) THEN
+    IF (TG_OP = 'UPDATE' AND NEW.resolved_at ISNULL AND NEW.is_overdue AND NEW.planned_resolve_at != OLD.planned_resolve_at) THEN
         NEW.is_overdue = false;
     END IF;
 
