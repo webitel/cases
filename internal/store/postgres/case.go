@@ -2397,7 +2397,8 @@ func mustOverdueCasesQuery(mainTable string) sq.SelectBuilder {
 		Where("not is_overdue").
 		Where("close_reason IS NULL").
 		OrderBy("planned_resolve_at").
-		Limit(overdueCasesLimit)
+		Limit(overdueCasesLimit).
+		Suffix("FOR UPDATE SKIP LOCKED")
 
 	subQText, subQArgs, err := subquery.PlaceholderFormat(sq.Dollar).ToSql()
 	if err != nil {
