@@ -65,6 +65,7 @@ func (c *CaseStore) Create(
 	rpc options.Creator,
 	add *_go.Case,
 ) (*_go.Case, error) {
+
 	// Get the database connection
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -184,61 +185,59 @@ func (c *CaseStore) ScanServiceDefs(
 
 	err := txManager.QueryRow(ctx, `
 WITH RECURSIVE
-    service_hierarchy AS (
-        SELECT id,
-               root_id,
-               sla_id,
-               status_id,
-               close_reason_group_id,
-               ARRAY[id] AS path
-        FROM cases.service_catalog
-        WHERE id = $1
+    service_hierarchy AS (SELECT id,
+                                 root_id,
+                                 sla_id,
+                                 status_id,
+                                 close_reason_group_id,
+                                 ARRAY [id] AS path
+                          FROM cases.service_catalog
+                          WHERE id = $1
 
-        UNION ALL
+                          UNION ALL
 
-        SELECT sc.id,
-               sc.root_id,
-               COALESCE(sc.sla_id, sh.sla_id),
-               COALESCE(sc.status_id, sh.status_id),
-               COALESCE(sc.close_reason_group_id, sh.close_reason_group_id),
-               sh.path || sc.id
-        FROM cases.service_catalog sc
-        INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
-    ),
-    deepest_service AS (
-        SELECT id,
-               sla_id,
-               status_id,
-               close_reason_group_id,
-               path
-        FROM service_hierarchy
-        WHERE sla_id IS NOT NULL
-          AND status_id IS NOT NULL
-          AND close_reason_group_id IS NOT NULL
-        ORDER BY array_length(path, 1) ASC
-        LIMIT 1
-    ),
-    priority_condition AS (
-        SELECT sc.id AS sla_condition_id,
-               sc.reaction_time,
-               sc.resolution_time
-        FROM cases.sla_condition sc
-        INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
-        INNER JOIN cases.sla sla ON sc.sla_id = sla.id
-        INNER JOIN deepest_service ds ON sla.id = ds.sla_id
-        WHERE psc.priority_id = $2
-        LIMIT 1
-    )
-SELECT ds.sla_id,
+                          SELECT sc.id,
+                                 sc.root_id,
+                                 COALESCE(sc.sla_id, sh.sla_id),
+                                 COALESCE(sc.status_id, sh.status_id),
+                                 COALESCE(sc.close_reason_group_id, sh.close_reason_group_id),
+                                 sh.path || sc.id
+                          FROM cases.service_catalog sc
+                                   INNER JOIN service_hierarchy sh ON sc.id = sh.root_id),
+    -- Fetch the deepest item with an SLA ID regardless of others
+    sla_service AS (SELECT *
+                    FROM service_hierarchy
+                    WHERE sla_id IS NOT NULL
+                    ORDER BY array_length(path, 1) ASC
+                    LIMIT 1),
+    -- From there, get status and close_reason from any deepest with both fields filled
+    fallback_status AS (SELECT *
+                        FROM service_hierarchy
+                        WHERE status_id IS NOT NULL
+                          AND close_reason_group_id IS NOT NULL
+                        ORDER BY array_length(path, 1) ASC
+                        LIMIT 1),
+    priority_condition AS (SELECT sc.id AS sla_condition_id,
+                                  sc.reaction_time,
+                                  sc.resolution_time
+                           FROM cases.sla_condition sc
+                                    INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+                                    INNER JOIN cases.sla sla ON sc.sla_id = sla.id
+                                    INNER JOIN sla_service ss ON sla.id = ss.sla_id
+                           WHERE psc.priority_id = $2
+                           LIMIT 1)
+SELECT ss.sla_id,
        COALESCE(pc.reaction_time, sla.reaction_time),
        COALESCE(pc.resolution_time, sla.resolution_time),
        sla.calendar_id,
        pc.sla_condition_id,
-       ds.status_id,
-       ds.close_reason_group_id
-FROM deepest_service ds
-LEFT JOIN priority_condition pc ON true
-LEFT JOIN cases.sla sla ON ds.sla_id = sla.id;
+       COALESCE(ss.status_id, fs.status_id)                         AS status_id,
+       COALESCE(ss.close_reason_group_id, fs.close_reason_group_id) AS close_reason_group_id
+FROM sla_service ss
+         LEFT JOIN fallback_status fs ON true
+         LEFT JOIN priority_condition pc ON true
+         LEFT JOIN cases.sla sla ON ss.sla_id = sla.id;
+
 `, serviceID, priorityID).Scan(
 		scanner.ScanInt(&res.SLAID),
 		scanner.ScanInt(&res.ReactionTime),
