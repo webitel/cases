@@ -79,7 +79,7 @@ var (
 		{Name: "dc", Default: false},
 	}, CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata)
 
-	resolutionTimeSO = resolutionTimeSearchOptions()
+	resolutionTimeSO = &grpcopts.SearchOptions{Context: context.Background(), Fields: util.ParseFieldsForEtag(CaseMetadata.GetAllFields())}
 )
 
 type CaseService struct {
@@ -1049,35 +1049,12 @@ func (wd *CaseWatcherData) GetArgs() map[string]any {
 	return wd.Args
 }
 
-func resolutionTimeSearchOptions() *grpcopts.SearchOptions {
-	so := &grpcopts.SearchOptions{Fields: CaseMetadata.GetAllFields()}
-	err := grpcopts.WithFields(so, CaseMetadata,
-		util.DeduplicateFields,
-		util.ParseFieldsForEtag,
-		func(fields []string) []string {
-			for i, v := range fields {
-				if v == "related" {
-					fields = append(fields[:i], fields[i+1:]...)
-				}
-			}
-			return fields
-		},
-		util.EnsureIdField,
-	)(so)
-	if err != nil {
-		panic(err.Error())
-	}
-	so.Context = context.Background()
-
-	return so
-}
-
 func (c *CaseService) scheduleResolutionTime(app *App) {
 	var css []*cases.Case
 	var err error
 	var retry bool
 
-	if css, retry, err = app.Store.Case().SetOverdueCases(resolutionTimeSO.Context, resolutionTimeSO); err != nil {
+	if css, retry, err = app.Store.Case().SetOverdueCases(resolutionTimeSO); err != nil {
 		slog.Error(err.Error())
 		return
 	}

@@ -2412,55 +2412,39 @@ func mustOverdueCasesQuery(mainTable string) sq.SelectBuilder {
 
 	updateQuery = updateQuery.Where("id IN ("+subQText+")", subQArgs...)
 
-	return sq.Select().PrefixExpr(
+	return sq.Select().From(caseLeft).PrefixExpr(
 		sq.Expr("WITH "+caseLeft+" AS (?)",
 			updateQuery,
 		),
 	)
 }
 
-func (c *CaseStore) SetOverdueCases(ctx context.Context, so options.Searcher) ([]*_go.Case, bool, error) {
-	var selectBuilder sq.SelectBuilder
-	var plan []func(link *_go.Case) any
-	var query string
-	var args []any
-	var rows pgx.Rows
-	var cases []*_go.Case
-	var err error
+func (c *CaseStore) SetOverdueCases(so options.Searcher) ([]*_go.Case, bool, error) {
 
 	// Define SELECT query for returning updated fields
-	selectBuilder, plan, err = c.buildCaseSelectColumnsAndPlan(
+	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
 		so, c.overdueCasesQuery,
 	)
-
 	if err != nil {
 		return nil, false, err
 	}
 
-	if plan == nil {
-		return nil, false, dberr.NewDBError("postgres.case.set_overdue", "plan is nil")
-	}
-
-	selectBuilder = selectBuilder.From(caseLeft)
-	query, args, err = selectBuilder.ToSql()
+	query, args, err := selectBuilder.ToSql()
 	if err != nil {
 		return nil, false, err
 	}
-
-	query = storeutils.CompactSQL(query)
-
 	db, dbErr := c.storage.Database()
 	if dbErr != nil {
 		return nil, false, dbErr
 	}
 
-	rows, err = db.Query(ctx, query, args...)
+	rows, err := db.Query(so, storeutils.CompactSQL(query), args...)
 	if err != nil {
 		return nil, false, err
 	}
 	defer rows.Close()
 
-	cases, err = c.scanCases(rows, plan)
+	cases, err := c.scanCases(rows, plan)
 	if err != nil {
 		return nil, false, err
 	}
