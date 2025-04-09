@@ -35,8 +35,9 @@ import (
 )
 
 type CaseStore struct {
-	storage   *Store
-	mainTable string
+	storage           *Store
+	mainTable         string
+	overdueCasesQuery sq.SelectBuilder
 }
 
 const (
@@ -59,6 +60,10 @@ const (
 	caseSlaConditionAlias     = "cond"
 	caseRelatedAlias          = "related"
 	caseLinksAlias            = "links"
+)
+
+const (
+	overdueCasesLimit = 100
 )
 
 func (c *CaseStore) Create(
@@ -1744,6 +1749,11 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			})
 		case "role_ids":
 			// skip
+		case "dc":
+			base = base.Column(storeutils.Ident(tableAlias, "dc"))
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanInt64(&caseItem.Dc)
+			})
 		case "source":
 			base = base.Column(fmt.Sprintf(
 				"ROW(%s.source, %[2]s.name, %[2]s.type)::text AS source", caseLeft, tableAlias))
@@ -2323,7 +2333,8 @@ func NewCaseStore(store *Store) (store.CaseStore, error) {
 		return nil, dberr.NewDBError("postgres.new_case.check.bad_arguments",
 			"error creating case interface to the case table, main store is nil")
 	}
-	return &CaseStore{storage: store, mainTable: "cases.case"}, nil
+	const mainTable = "cases.case"
+	return &CaseStore{storage: store, mainTable: mainTable, overdueCasesQuery: mustOverdueCasesQuery(mainTable)}, nil
 }
 
 func addCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
@@ -2377,4 +2388,81 @@ func (c *CaseStore) scanCase(row pgx.Row, plan []func(link *_go.Case) any) (*_go
 	}
 
 	return &link, nil
+}
+
+func mustOverdueCasesQuery(mainTable string) sq.SelectBuilder {
+	subquery := sq.Select("id").
+		From(mainTable).
+		Where("planned_resolve_at >= now()").
+		Where("not is_overdue").
+		Where("close_reason IS NULL").
+		OrderBy("planned_resolve_at").
+		Limit(overdueCasesLimit)
+
+	subQText, subQArgs, err := subquery.PlaceholderFormat(sq.Dollar).ToSql()
+	if err != nil {
+		panic(err)
+	}
+
+	updateQuery := sq.Update(mainTable).
+		PlaceholderFormat(sq.Dollar).
+		Set("is_overdue", true).
+		Suffix("RETURNING *")
+
+	updateQuery = updateQuery.Where("id IN ("+subQText+")", subQArgs...)
+
+	return sq.Select().PrefixExpr(
+		sq.Expr("WITH "+caseLeft+" AS (?)",
+			updateQuery,
+		),
+	)
+}
+
+func (c *CaseStore) SetOverdueCases(ctx context.Context, so options.Searcher) ([]*_go.Case, bool, error) {
+	var selectBuilder sq.SelectBuilder
+	var plan []func(link *_go.Case) any
+	var query string
+	var args []any
+	var rows pgx.Rows
+	var cases []*_go.Case
+	var err error
+
+	// Define SELECT query for returning updated fields
+	selectBuilder, plan, err = c.buildCaseSelectColumnsAndPlan(
+		so, c.overdueCasesQuery,
+	)
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	if plan == nil {
+		return nil, false, dberr.NewDBError("postgres.case.set_overdue", "plan is nil")
+	}
+
+	selectBuilder = selectBuilder.From(caseLeft)
+	query, args, err = selectBuilder.ToSql()
+	if err != nil {
+		return nil, false, err
+	}
+
+	query = storeutils.CompactSQL(query)
+
+	db, dbErr := c.storage.Database()
+	if dbErr != nil {
+		return nil, false, dbErr
+	}
+
+	rows, err = db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+
+	cases, err = c.scanCases(rows, plan)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return cases, len(cases) == overdueCasesLimit, nil
 }

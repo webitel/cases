@@ -76,7 +76,10 @@ var (
 		{Name: "difference_in_resolve", Default: true},
 		{Name: "contact_info", Default: true},
 		{Name: "role_ids", Default: false},
+		{Name: "dc", Default: false},
 	}, CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata)
+
+	resolutionTimeSO = resolutionTimeSearchOptions()
 )
 
 type CaseService struct {
@@ -766,6 +769,11 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 		)
 	}
 
+	service := &CaseService{
+		app:    app,
+		logger: app.wtelLogger.GetObjectedLogger(CaseMetadata.GetMainScopeName()),
+	}
+
 	watcher := NewDefaultWatcher()
 
 	if app.config.LoggerWatcher.Enabled {
@@ -801,11 +809,16 @@ func NewCaseService(app *App) (*CaseService, cerror.AppError) {
 		watcher.Attach(EventTypeCreate, mq)
 		watcher.Attach(EventTypeUpdate, mq)
 		watcher.Attach(EventTypeDelete, mq)
+		watcher.Attach(EventTypeResolutionTime, mq)
+		app.caseResolutionTimer = NewTimerTask[*App](time.Duration(app.config.TriggerWatcher.ResolutionCheckInterval)*time.Second,
+			service.scheduleResolutionTime, app)
+
+		app.caseResolutionTimer.Start()
 	}
 
 	app.watcherManager.AddWatcher(caseObjScope, watcher)
 
-	return &CaseService{app: app, logger: app.wtelLogger.GetObjectedLogger(CaseMetadata.GetMainScopeName())}, nil
+	return service, nil
 }
 
 func (c *CaseService) ValidateUpdateInput(
@@ -1018,16 +1031,79 @@ func formCaseTriggerModel(item *cases.Case) (*model.CaseAMQPMessage, error) {
 }
 
 type CaseWatcherData struct {
-	case_      *cases.Case
-	CaseString string `json:"case"`
-	DomainId   int64  `json:"domain_id"`
-	Args       map[string]any
+	case_ *cases.Case
+	Args  map[string]any
 }
 
 func NewCaseWatcherData(session auth.Auther, case_ *cases.Case, caseId int64, roleIds []int64) *CaseWatcherData {
-	return &CaseWatcherData{case_: case_, Args: map[string]any{"session": session, "obj": case_, "id": caseId, "role_ids": roleIds}}
+	return &CaseWatcherData{case_: case_, Args: map[string]any{
+		"session":   session,
+		"obj":       case_,
+		"id":        caseId,
+		"role_ids":  roleIds,
+		"domain_id": case_.Dc,
+	}}
 }
 
 func (wd *CaseWatcherData) GetArgs() map[string]any {
 	return wd.Args
+}
+
+func resolutionTimeSearchOptions() *grpcopts.SearchOptions {
+	so := &grpcopts.SearchOptions{Fields: CaseMetadata.GetAllFields()}
+	err := grpcopts.WithFields(so, CaseMetadata,
+		util.DeduplicateFields,
+		util.ParseFieldsForEtag,
+		func(fields []string) []string {
+			for i, v := range fields {
+				if v == "related" {
+					fields = append(fields[:i], fields[i+1:]...)
+				}
+			}
+			return fields
+		},
+		util.EnsureIdField,
+	)(so)
+	if err != nil {
+		panic(err.Error())
+	}
+	so.Context = context.Background()
+
+	return so
+}
+
+func (c *CaseService) scheduleResolutionTime(app *App) {
+	var css []*cases.Case
+	var err error
+	var retry bool
+
+	if css, retry, err = app.Store.Case().SetOverdueCases(resolutionTimeSO.Context, resolutionTimeSO); err != nil {
+		slog.Error(err.Error())
+		return
+	}
+
+	for _, cs := range css {
+		err = c.NormalizeResponseCase(cs, resolutionTimeSO)
+		if err != nil {
+			slog.Error(err.Error())
+			continue
+		}
+
+		if notifyErr := app.watcherManager.Notify(
+			model.ScopeCases,
+			EventTypeResolutionTime,
+			NewCaseWatcherData(
+				nil,
+				cs,
+				cs.Id,
+				nil,
+			),
+		); notifyErr != nil {
+			slog.Error(fmt.Sprintf("could not notify case resolution time: %s", notifyErr.Error()))
+		}
+	}
+
+	if retry {
+		c.scheduleResolutionTime(app)
+	}
 }
