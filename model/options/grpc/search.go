@@ -88,14 +88,13 @@ func WithPagination(pager Pager) SearchOption {
 func WithFilters(filterer Filterer) SearchOption {
 	return func(options *SearchOptions) error {
 		for _, s := range filterer.GetFilters() {
-			str := strings.Split(s, "=")
-			if len(str) != 2 {
+			parts := strings.SplitN(s, "=", 2)
+			if len(parts) != 2 {
 				continue
 			}
-			column := str[0]
-			value := strings.TrimSpace(str[1])
+			column := parts[0]
+			value := strings.TrimSpace(parts[1])
 			options.AddFilter(column, value)
-
 		}
 		return nil
 	}
