@@ -79,7 +79,10 @@ var (
 		{Name: "dc", Default: false},
 	}, CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata)
 
-	resolutionTimeSO = &grpcopts.SearchOptions{Context: context.Background(), Fields: util.ParseFieldsForEtag(CaseMetadata.GetAllFields())}
+	resolutionTimeSO = &grpcopts.SearchOptions{
+		Context: context.Background(),
+		Fields:  util.ParseFieldsForEtag(util.RemoveSliceElement(CaseMetadata.GetAllFields(), "related")),
+	}
 )
 
 type CaseService struct {
