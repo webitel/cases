@@ -6,6 +6,7 @@ import (
 	"fmt"
 	cerr "github.com/webitel/cases/internal/errors"
 	"os"
+	"strconv"
 )
 
 type AppConfig struct {
@@ -28,9 +29,10 @@ type DatabaseConfig struct {
 }
 
 type TriggerWatcherConfig struct {
-	ExchangeName string `json:"exchange" flag:"trigger_watcher_exchange || watcher exchange"`
-	TopicName    string `json:"topic" flag:"trigger_watcher_topic || watcher topic"`
-	Enabled      bool   `json:"enabled" flag:"trigger_watch_enabled || watch_enabled"`
+	ExchangeName            string `json:"exchange" flag:"trigger_watcher_exchange || watcher exchange"`
+	TopicName               string `json:"topic" flag:"trigger_watcher_topic || watcher topic"`
+	Enabled                 bool   `json:"enabled" flag:"trigger_watch_enabled || watch_enabled"`
+	ResolutionCheckInterval int64  `json:"resolution_check_interval_sec" flag:"resolution_check_interval_sec || watch_enabled"`
 }
 
 type FtsWatcherConfig struct {
@@ -61,6 +63,7 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 	flag.StringVar(&triggerConfig.ExchangeName, "trigger_watcher_exchange", "", "Exchange name")
 	flag.StringVar(&triggerConfig.TopicName, "trigger_watcher_topic", "", "Queue name")
 	flag.BoolVar(&triggerConfig.Enabled, "trigger_watch_enabled", true, "Watcher enabled")
+	flag.Int64Var(&triggerConfig.ResolutionCheckInterval, "resolution_check_interval_sec", 5, "The period, measured in seconds, between consecutive checks for resolution updates")
 
 	loggerConfig := new(LoggerWatcherConfig)
 	flag.BoolVar(&loggerConfig.Enabled, "logger_watch_enabled", true, "Watcher enabled")
@@ -110,6 +113,13 @@ func LoadConfig() (*AppConfig, error) { // Change to return standard error
 
 	if env := os.Getenv("TRIGGER_WATCHER_ENABLED"); env != "" {
 		triggerConfig.Enabled = env == "1" || env == "true"
+	}
+
+	if env := os.Getenv("TRIGGER_RESOLUTION_CHECK_INTERVAL_SEC"); env != "" {
+		i, _ := strconv.ParseInt(env, 10, 64)
+		if i > 0 {
+			triggerConfig.ResolutionCheckInterval = i
+		}
 	}
 
 	if env := os.Getenv("LOGGER_WATCHER_ENABLED"); env != "" {

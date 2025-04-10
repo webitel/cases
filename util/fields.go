@@ -379,3 +379,13 @@ func ContainsStringIgnoreCase(slice []string, target string) bool {
 	}
 	return false
 }
+
+func RemoveSliceElement[T comparable](slice []T, elementToRemove T) []T {
+	for i, v := range slice {
+		if v == elementToRemove {
+			slice = append(slice[:i], slice[i+1:]...)
+			return slice
+		}
+	}
+	return slice
+}

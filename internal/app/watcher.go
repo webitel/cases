@@ -19,9 +19,10 @@ import (
 type EventType string
 
 const (
-	EventTypeCreate EventType = "create"
-	EventTypeDelete EventType = "remove"
-	EventTypeUpdate EventType = "update"
+	EventTypeCreate         EventType = "create"
+	EventTypeDelete         EventType = "remove"
+	EventTypeUpdate         EventType = "update"
+	EventTypeResolutionTime EventType = "resolution_time"
 )
 
 var ErrUnknownType = errors.New("unknown type")
@@ -153,6 +154,8 @@ func (dw *DefaultWatcher) OnEvent(et EventType, entity WatchMarshaller) error {
 		return dw.OnDelete(entity)
 	case EventTypeUpdate:
 		return dw.OnUpdate(entity)
+	case EventTypeResolutionTime:
+		return dw.OnResolutionTime(entity)
 	default:
 		return ErrUnknownType
 	}
@@ -166,6 +169,9 @@ func (dw *DefaultWatcher) OnDelete(entity WatchMarshaller) error {
 }
 func (dw *DefaultWatcher) OnUpdate(entity WatchMarshaller) error {
 	return dw.Notify(EventTypeUpdate, entity)
+}
+func (dw *DefaultWatcher) OnResolutionTime(entity WatchMarshaller) error {
+	return dw.Notify(EventTypeResolutionTime, entity)
 }
 
 type AMQPBroker interface {
@@ -206,14 +212,17 @@ func (cao *TriggerObserver[T, V]) GetId() string {
 }
 
 func (cao *TriggerObserver[T, V]) Update(et EventType, args map[string]any) error {
+	var domainId int64
 	obj, ok := args["obj"].(T)
 	if !ok {
 		return fmt.Errorf("could not convert to %d", obj)
 	}
 
 	session, ok := args["session"].(auth.Auther)
-	if !ok {
-		return fmt.Errorf("could not convert to session")
+	if ok {
+		domainId = session.GetDomainId()
+	} else if domainId, ok = args["domain_id"].(int64); !ok {
+		return fmt.Errorf("could not found domain id")
 	}
 
 	message, err := cao.converter(obj)
@@ -226,7 +235,7 @@ func (cao *TriggerObserver[T, V]) Update(et EventType, args map[string]any) erro
 		return err
 	}
 
-	routingKey := cao.getRoutingKeyByEventType(et, session.GetDomainId())
+	routingKey := cao.getRoutingKeyByEventType(et, domainId)
 	cao.logger.Debug(fmt.Sprintf("Trying to publish message to %s", routingKey))
 	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, "", time.Now())
 }

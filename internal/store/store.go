@@ -66,6 +66,7 @@ type CaseStore interface {
 	Delete(req options.Deleter) error
 	// Check case by current auth options
 	CheckRbacAccess(ctx context.Context, auth auth.Auther, access auth.AccessMode, caseId int64) (bool, error)
+	SetOverdueCases(so options.Searcher) ([]*_go.Case, bool, error)
 }
 
 // RelatedCases attribute attached to the case (n:1)

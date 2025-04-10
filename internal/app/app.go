@@ -55,23 +55,24 @@ func getClientIp(ctx context.Context) string {
 }
 
 type App struct {
-	config            *conf.AppConfig
-	Store             store.Store
-	server            *server.Server
-	exitChan          chan error
-	storageConn       *grpc.ClientConn
-	sessionManager    user_auth.AuthManager
-	webitelAppConn    *grpc.ClientConn
-	shutdown          func(ctx context.Context) error
-	log               *slog.Logger
-	rabbit            *broker.RabbitBroker
-	rabbitExitChan    chan cerror.AppError
-	webitelgoClient   webitelgo.GroupsClient
-	engineConn        *grpc.ClientConn
-	engineAgentClient engine.AgentServiceClient
-	wtelLogger        *wlogger.LoggerClient
-	ftsClient         *ftsclient.Client
-	watcherManager    WatcherManager
+	config              *conf.AppConfig
+	Store               store.Store
+	server              *server.Server
+	exitChan            chan error
+	storageConn         *grpc.ClientConn
+	sessionManager      user_auth.AuthManager
+	webitelAppConn      *grpc.ClientConn
+	shutdown            func(ctx context.Context) error
+	log                 *slog.Logger
+	rabbit              *broker.RabbitBroker
+	rabbitExitChan      chan cerror.AppError
+	webitelgoClient     webitelgo.GroupsClient
+	engineConn          *grpc.ClientConn
+	engineAgentClient   engine.AgentServiceClient
+	wtelLogger          *wlogger.LoggerClient
+	ftsClient           *ftsclient.Client
+	watcherManager      WatcherManager
+	caseResolutionTimer *TimerTask[*App]
 }
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
@@ -197,6 +198,10 @@ func (a *App) Stop() error { // Change return type to standard error
 	err = a.webitelAppConn.Close()
 	if err != nil {
 		return err
+	}
+
+	if a.caseResolutionTimer != nil {
+		a.caseResolutionTimer.Stop()
 	}
 
 	// ----- Call the shutdown function for OTel ----- //

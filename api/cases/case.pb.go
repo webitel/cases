@@ -774,6 +774,7 @@ type Case struct {
 	Files                *CaseFileList    `protobuf:"bytes,38,opt,name=files,proto3" json:"files,omitempty"`                                   // List of attached files.
 	Sla                  *Lookup          `protobuf:"bytes,39,opt,name=sla,proto3" json:"sla,omitempty"`                                       // SLA associated with the case.
 	RoleIds              []int64          `protobuf:"varint,40,rep,packed,name=role_ids,json=roleIds,proto3" json:"role_ids,omitempty"`        // System field
+	Dc                   int64            `protobuf:"varint,41,opt,name=dc,proto3" json:"dc,omitempty"`                                        // System field
 	// Custom data extension fields ..
 	Custom        *structpb.Struct `protobuf:"bytes,100,opt,name=custom,proto3" json:"custom,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1081,6 +1082,13 @@ func (x *Case) GetRoleIds() []int64 {
 		return x.RoleIds
 	}
 	return nil
+}
+
+func (x *Case) GetDc() int64 {
+	if x != nil {
+		return x.Dc
+	}
+	return 0
 }
 
 func (x *Case) GetCustom() *structpb.Struct {
@@ -1578,7 +1586,7 @@ const file_case_proto_rawDesc = "" +
 	"\bCaseList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x03R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x12)\n" +
-	"\x05items\x18\x03 \x03(\v2\x13.webitel.cases.CaseR\x05items\"\x97\r\n" +
+	"\x05items\x18\x03 \x03(\v2\x13.webitel.cases.CaseR\x05items\"\xa7\r\n" +
 	"\x04Case\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x10\n" +
 	"\x03ver\x18\x02 \x01(\x05R\x03ver\x12\x12\n" +
@@ -1625,7 +1633,8 @@ const file_case_proto_rawDesc = "" +
 	"\x05links\x18% \x01(\v2\x1b.webitel.cases.CaseLinkListR\x05links\x121\n" +
 	"\x05files\x18& \x01(\v2\x1b.webitel.cases.CaseFileListR\x05files\x12!\n" +
 	"\x03sla\x18' \x01(\v2\x0f.general.LookupR\x03sla\x12\x19\n" +
-	"\brole_ids\x18( \x03(\x03R\aroleIds\x12/\n" +
+	"\brole_ids\x18( \x03(\x03R\aroleIds\x12\x0e\n" +
+	"\x02dc\x18) \x01(\x03R\x02dc\x12/\n" +
 	"\x06custom\x18d \x01(\v2\x17.google.protobuf.StructR\x06custom\"b\n" +
 	"\tCloseInfo\x12!\n" +
 	"\fclose_result\x18\x01 \x01(\tR\vcloseResult\x122\n" +
