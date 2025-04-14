@@ -1263,7 +1263,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 		base = base.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
 	}
 
-	return base, plan, nil
+    return base, plan, nil
 }
 
 // region UPDATE
@@ -1919,7 +1919,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 		case "status_condition":
 			base = base.Column(fmt.Sprintf(
 				"ROW(%s.id, %[1]s.name, %[1]s.initial, %[1]s.final)::text AS status_condition",
-				caseStatusConditionAlias))
+				tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
