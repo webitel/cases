@@ -60,6 +60,7 @@ const (
 	caseSlaConditionAlias     = "cond"
 	caseRelatedAlias          = "related"
 	caseLinksAlias            = "links"
+	caseStatusConditionAlias  = "stc"
 )
 
 const (
@@ -1244,6 +1245,8 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 			tableAlias = caseCloseReasonAlias
 		case "sla_condition":
 			tableAlias = caseSlaConditionAlias
+		case "status_condition":
+			tableAlias = caseStatusConditionAlias
 		}
 	}
 	if tableAlias == "" {
@@ -1260,7 +1263,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 		base = base.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
 	}
 
-	return base, plan, nil
+    return base, plan, nil
 }
 
 // region UPDATE
@@ -1659,6 +1662,9 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 	case "sla_condition":
 		tableAlias = caseSlaConditionAlias
 		joinTable(tableAlias, "cases.sla_condition", storeutils.Ident(caseLeft, "sla_condition_id"))
+	case "status_condition":
+		tableAlias = caseStatusConditionAlias
+		joinTable(tableAlias, "cases.status_condition", storeutils.Ident(caseLeft, "status_condition"))
 	}
 	return base, tableAlias, nil
 }
@@ -1911,10 +1917,9 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&caseItem.Sla)
 			})
 		case "status_condition":
-			base = base.Column(fmt.Sprintf(`
-				(SELECT ROW(stc.id, stc.name, stc.initial, stc.final)::text
-				 FROM cases.status_condition stc
-				 WHERE stc.id = %s.status_condition) AS status_condition`, caseLeft))
+			base = base.Column(fmt.Sprintf(
+				"ROW(%s.id, %[1]s.name, %[1]s.initial, %[1]s.final)::text AS status_condition",
+				tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
