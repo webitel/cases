@@ -30,6 +30,7 @@ import (
 	common "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 
+	customtyp "github.com/webitel/custom/data"
 	customrel "github.com/webitel/custom/reflect"
 	custompgx "github.com/webitel/custom/store/postgres"
 )
@@ -1027,6 +1028,27 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 	if len(opts.GetIDs()) != 0 {
 		base = base.Where(fmt.Sprintf("%s = ANY(?)", storeutils.Ident(caseLeft, "id")), opts.GetIDs())
 	}
+	// region: custom fields
+	type operator uint8
+	const (
+		not     operator = 1 << iota // "!"
+		less                         // "<"
+		greater                      // ">"
+		present                      // "*"
+		equals  operator = 0         // "="
+	)
+	type fieldValue struct {
+		field    customrel.FieldDescriptor
+		vtype    customrel.Type // typeof( list[elem], lookup[rel.primary] )
+		value    customrel.Codec
+		operator // e.g.: ?field=*
+	}
+	var custom = struct {
+		ctx *customCtx
+		// fields map[string]any // filter [AND] kind ; order doesn't matter ..
+		fields []fieldValue
+	}{}
+	// endregion: custom fields
 	for column, value := range opts.GetFilters() {
 		switch column {
 		case "created_by",
@@ -1189,11 +1211,262 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 				sq.Expr(fmt.Sprintf("%s.reporter = ?", caseLeft), value),
 				sq.Expr(fmt.Sprintf("%s.assignee = ?", caseLeft), value),
 			})
+		default:
+			{
+				if column == customCtxState {
+					break // internal usage ; omit
+				}
+				// init custom [extensions/cases] configuration ?!
+				if custom.ctx == nil {
+					custom.ctx = c.custom(opts)
+					// if custom.ctx.refer != nil {
+					// 	custom.fields = make(map[string]any)
+					// }
+				}
+				// found & available ?
+				if custom.ctx == nil || custom.ctx.refer == nil {
+					break // no configuration | table
+				}
+				// // filter [multi-]values ; list ?
+				// assert, ok := custom.fields[strings.ToLower(column)].(fieldValue)
+				var assert fieldValue
+				// if !ok {
+				// find custom extension [field] descriptor
+				assert.field = custom.ctx.typof.Fields().ByName(column)
+				if assert.field == nil {
+					// no such custom field ! skip ..
+					break
+				}
+				// default
+				assert.vtype = assert.field.Type()
+				// list[elem] ?
+				if assert.vtype.Kind() == customrel.LIST {
+					assert.vtype = assert.vtype.(*customtyp.List).Elem()
+				}
+				// }
+				switch data := value.(type) {
+				case nil:
+					{
+						// break // skip ; no value to assert !
+						// break // [NOTE] value is missing !
+						// [FIXME]: -OR- match empty string ?
+						assert.operator = (not | present)
+					}
+				case string:
+					{
+						switch strings.ToLower(data) {
+						case "*":
+							{
+								// [NOTE]: "present" filter ! has value(s) !
+								assert.operator = (present)
+							}
+						case "": // , "nil", "null", "none":
+							{
+								// break // [NOTE] value is missing !
+								// [FIXME]: -OR- match empty string ?
+								assert.operator = (not | present)
+							}
+						default:
+							{
+								// assert.operand == (equals)
+								var modifier bool // operator modifier ?
+								switch data[0] {
+								case '!':
+									assert.operator = (not | equals)
+									modifier = true
+								case '<':
+									assert.operator = (less | equals)
+									modifier = true
+								case '>':
+									assert.operator = (greater | equals)
+									modifier = true
+								case '\\': // ESCAPE ; .. upper modifier(s) as a part of value !
+									assert.operator = (equals) // default
+									modifier = true            // unescape
+								}
+								// seen modifier ?
+								if modifier {
+									// crop modifier !
+									data = data[1:]
+									value = data
+								}
+								// if strings.ContainsAny(data, "*?") {
+								// 	// [NOTE]: "substring" filter ! match simple pattern
+								// }
+							}
+							// decode assertion from string value
+							assert.value = assert.vtype.New()
+							if re := assert.value.Decode(data); re != nil {
+								// invalid assertion value !
+								break // [FIXME] !!!
+							}
+						}
+					}
+				default:
+					{
+						// decode assertion from datatype value
+						assert.value = assert.vtype.New()
+						if re := assert.value.Decode(value); re != nil {
+							// invalid assertion value !
+							break // [FIXME] !!!
+						}
+					}
+				}
+				// custom.fields[strings.ToLower(assert.field.Name())] = assert
+				custom.fields = append(custom.fields, assert)
+			}
 		}
 	}
 	if err != nil {
 		return base, nil, err
 	}
+
+	// region: apply custom filter(s)
+	if len(custom.fields) > 0 {
+		const right = "x" // custom.* alias
+		// for _, e := range custom.fields {
+		// 	assert := e.(fieldValue)
+		for _, assert := range custom.fields {
+			column := storeutils.Ident(
+				right, assert.field.Name(),
+			)
+			// filter: [not] "present" ?
+			if (assert.operator & present) == present {
+				expr := "NOTNULL"
+				if (assert.operator & not) == not {
+					expr = "ISNULL"
+				}
+				base = base.Where(fmt.Sprintf(
+					"%s %s", column, expr,
+				))
+				continue // we are done here ..
+			}
+			// Cast assertion [Value] to [sql.Value] ..
+			vs := assert.value.Interface()
+			vs, err = custompgx.CustomTypeSqlValue(
+				assert.vtype, vs,
+			)
+			if err != nil {
+				// failed to cast to SQL value !
+				return base, nil, err
+			}
+			if vs == nil {
+				base = base.Where(column + " ISNULL")
+				break
+			}
+			var (
+				// expr = "%s = ?" // default: "equals"
+				// support [LIST] values ; "%s" will be replaced with "ANY(%s)"
+				// https://www.postgresql.org/docs/current/functions-comparisons.html#FUNCTIONS-COMPARISONS-ANY-SOME
+				expr = "? = %s" // default: "equals"
+
+				// ftyp = assert.field
+				// dtyp = ftyp.Type()
+
+				list *customtyp.List
+				refx *customtyp.Lookup
+
+				elem = assert.field.Type()
+				kind = elem.Kind()
+			)
+			if kind == customrel.LIST {
+				list = elem.(*customtyp.List)
+				elem = list.Elem()
+				kind = elem.Kind()
+			}
+			if kind == customrel.LOOKUP {
+				refx = elem.(*customtyp.Lookup)
+				// ftyp = refx.Dictionary().Primary()
+				// dtyp = ftyp.Type()
+				// elem = dtyp
+				elem = refx.Dictionary().Primary().Type()
+				kind = elem.Kind()
+			}
+
+			// switch kind {
+			// case customrel.LIST:
+			// 	kind = assert.field.Type().(*customtyp.List).Elem().Kind()
+			// case customrel.LOOKUP:
+			// 	kind = assert.field.Type().(*customtyp.Lookup).Dictionary().Primary().Kind()
+			// }
+			switch kind {
+			// case customrel.LIST:
+			// 	{
+			// 		expr = "%s @> ?" // array[] contains
+			// 	}
+			case customrel.BOOL:
+				{
+					if (assert.operator & not) == not {
+						expr = "? != %s"
+					}
+					if list != nil {
+						expr = strings.Replace(
+							expr, "%s", "ANY(%s)", 1,
+						)
+					}
+				}
+			// case customrel.LOOKUP:
+			case customrel.STRING, customrel.RICHTEXT:
+				{
+					// + flattened [LIST] value(s) support
+					expr = "(%s)::text ILIKE ? COLLATE \"default\""
+					if (assert.operator & not) == not {
+						expr = "(%s)::text NOT ILIKE ? COLLATE \"default\""
+					}
+					pattern := fmt.Sprintf("%s", vs)
+					// vs = util.Substring(pattern)[0]
+					// https://postgrespro.ru/docs/postgresql/12/functions-matching#FUNCTIONS-LIKE
+					const escape = "\\"
+					pattern = strings.ReplaceAll(pattern, "_", (escape + "_")) // escape control '_' (single char entry)
+					pattern = strings.ReplaceAll(pattern, "?", "_")            // propagate '?' char for PostgreSQL purpose
+					pattern = strings.ReplaceAll(pattern, "%", (escape + "%")) // escape control '%' (any char(s) or none)
+					pattern = strings.ReplaceAll(pattern, "*", "%")            // propagate '%' char for PostgreSQL purpose
+					vs = pattern
+
+					if list != nil {
+						// expr = strings.Replace(
+						// 	expr, "%s", "ANY(%s)", 1,
+						// )
+					}
+				}
+			case customrel.DATETIME, customrel.DURATION,
+				customrel.INT, customrel.INT32, customrel.INT64,
+				customrel.UINT, customrel.UINT32, customrel.UINT64,
+				customrel.FLOAT, customrel.FLOAT32, customrel.FLOAT64:
+				{
+					if (assert.operator & not) == not {
+						expr = "? != %s" // "<>"
+					} else if (assert.operator & less) == less {
+						expr = "? > %s"
+					} else if (assert.operator & greater) == greater {
+						expr = "? < %s"
+					}
+					if list != nil {
+						expr = strings.Replace(
+							expr, "%s", "ANY(%s)", 1,
+						)
+					}
+				}
+			case customrel.BINARY:
+				// not implemented !
+				continue
+			}
+			// if list != nil {
+			// 	switch reflect.ValueOf(vs).Len() {
+			// 	case 0:
+			// 	case 1:
+			// 	default: // multi( > 1 )
+			// 	}
+			// 	// [TODO]: swap operands "?" and "%s"
+			// 	expr = strings.ReplaceAll(expr, ">", "<")
+			// 	expr = strings.ReplaceAll(expr, "<", ">")
+			// 	expr = strings.ReplaceAll(expr, "?", "ANY(%s)")
+			// 	expr = strings.ReplaceAll(expr, "%s", "?")
+			// }
+			base = base.Where(fmt.Sprintf(expr, column), vs)
+		}
+	}
+	// endregion: apply custom filter(s)
 
 	if sess := opts.GetAuthOpts(); sess != nil {
 		base = base.Where(storeutils.Ident(caseLeft, "dc = ?"), opts.GetAuthOpts().GetDomainId())
