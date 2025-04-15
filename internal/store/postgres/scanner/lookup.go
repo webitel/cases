@@ -83,9 +83,10 @@ func ScanRowLookup(value **_go.Lookup) any {
 		}
 
 		var (
-			ok  bool
-			str pgtype.Text
-			row = []pgtype.TextDecoder{
+			hasID   bool
+			hasName bool
+			str     pgtype.Text
+			row     = []pgtype.TextDecoder{
 				TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
 						return nil
@@ -99,6 +100,7 @@ func ScanRowLookup(value **_go.Lookup) any {
 						return err
 					}
 					res.Id = id
+					hasID = true
 					return nil
 				}),
 				TextDecoder(func(src []byte) error {
@@ -110,25 +112,21 @@ func ScanRowLookup(value **_go.Lookup) any {
 						return err
 					}
 					res.Name = str.String
-					ok = ok || (str.String != "" && str.String != "[deleted]") // && str.Status == pgtype.Present
+					hasName = str.String != "" && str.String != "[deleted]"
 					return nil
 				}),
 			}
 			raw = pgtype.NewCompositeTextScanner(nil, src)
 		)
 
-		var err error
 		for _, col := range row {
-
 			raw.ScanDecoder(col)
-
-			err = raw.Err()
-			if err != nil {
+			if err := raw.Err(); err != nil {
 				return err
 			}
 		}
 
-		if ok {
+		if hasID || hasName {
 			*(value) = res
 		}
 
