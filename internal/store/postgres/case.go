@@ -1263,7 +1263,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 		base = base.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
 	}
 
-    return base, plan, nil
+	return base, plan, nil
 }
 
 // region UPDATE
@@ -1706,7 +1706,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			})
 		case "created_by":
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.id, %[1]s.name)::text AS created_by", tableAlias))
+				"ROW(%[1]s.id, coalesce(%[1]s.name, %[1]s.username))::text AS created_by", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.CreatedBy)
 			})
@@ -1717,7 +1717,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			})
 		case "updated_by":
 			base = base.Column(fmt.Sprintf(
-				"ROW(%s.id, %[1]s.name)::text AS updated_by", tableAlias))
+				"ROW(%[1]s.id, coalesce(%[1]s.name, %[1]s.username))::text AS updated_by", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.UpdatedBy)
 			})
