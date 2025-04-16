@@ -2670,7 +2670,7 @@ func (c *CaseStore) scanCase(row pgx.Row, plan []func(link *_go.Case) any) (*_go
 func mustOverdueCasesQuery(mainTable string) sq.SelectBuilder {
 	subquery := sq.Select("id").
 		From(mainTable).
-		Where("planned_resolve_at >= timezone('utc', now())").
+		Where("planned_resolve_at <= timezone('utc', now())").
 		Where("not is_overdue").
 		Where("resolved_at IS NULL").
 		OrderBy("planned_resolve_at").
