@@ -346,10 +346,10 @@ github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXl
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
-github.com/webitel/custom v0.0.0-20250405154446-2f4eadd99f15 h1:EQAqdqXTaEIS9HUuVprPpUC6vy6hg9rBkxX2RnDhF0A=
-github.com/webitel/custom v0.0.0-20250405154446-2f4eadd99f15/go.mod h1:95hLy8vYcLq5Yry5coXcIn/wGItxYw6kcZvUoRKD/qo=
-github.com/webitel/custom/proto/gen v0.0.0-20250405154446-2f4eadd99f15 h1:9WvBiV7RAOiBEv0K2BMoJw/D/Dt2ItV1LzOZ6gUplas=
-github.com/webitel/custom/proto/gen v0.0.0-20250405154446-2f4eadd99f15/go.mod h1:EETpUkTJNc2mZTJgYPuNghH7HEoX23qGLqwcyfRUXXg=
+github.com/webitel/custom v0.0.0-20250415133524-4730007c1e6e h1:MjpdIxDjc6qbxva7Az3De9EI+Iyl6K6LhoL56m3SoSo=
+github.com/webitel/custom v0.0.0-20250415133524-4730007c1e6e/go.mod h1:95hLy8vYcLq5Yry5coXcIn/wGItxYw6kcZvUoRKD/qo=
+github.com/webitel/custom/proto/gen v0.0.0-20250415133524-4730007c1e6e h1:hD8KxbvtPZzmV0d1nFSA5WwDPSnAF2TEzFBkUG2+6Ag=
+github.com/webitel/custom/proto/gen v0.0.0-20250415133524-4730007c1e6e/go.mod h1:EETpUkTJNc2mZTJgYPuNghH7HEoX23qGLqwcyfRUXXg=
 github.com/webitel/logger v0.0.0-20250131144320-fa79d885252a h1:gZ+MbaoQ8Wb3eSWr9BYJXqtc9ZSEfskv1yMxr4YfrGg=
 github.com/webitel/logger v0.0.0-20250131144320-fa79d885252a/go.mod h1:YoEwlpSUESlyW7h5SqYsoyN96eyHFdOQdWp2/We4sB8=
 github.com/webitel/webitel-go-kit v0.0.21-0.20250226104147-74e3a9f53286 h1:TMw2KaVLrmbe2WcYkwzCROuh2aSYGXt5dDj4JvV8nYI=
