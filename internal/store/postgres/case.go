@@ -1173,11 +1173,31 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 			cutted, _ := strings.CutSuffix(column, ".to")
 			base = base.Where(fmt.Sprintf("%s <= ?::INT", storeutils.Ident(caseLeft, cutted)), value)
 		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolve_at.from", "created_at.from":
+			var stamp int64
 			cutted, _ := strings.CutSuffix(column, ".from")
-			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT > ?::BIGINT", storeutils.Ident(caseLeft, cutted)), value)
+			switch typedValue := value.(type) {
+			case string:
+				stamp, err = strconv.ParseInt(typedValue, 10, 64)
+				if err != nil {
+					return sq.SelectBuilder{}, nil, err
+				}
+			default:
+				return sq.SelectBuilder{}, nil, fmt.Errorf("%s: invalid type", column)
+			}
+			base = base.Where(fmt.Sprintf("%s > ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp))
 		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolve_at.to", "created_at.to":
+			var stamp int64
 			cutted, _ := strings.CutSuffix(column, ".to")
-			base = base.Where(fmt.Sprintf("extract(epoch from %s)*1000::BIGINT < ?::BIGINT", storeutils.Ident(caseLeft, cutted)), value)
+			switch typedValue := value.(type) {
+			case string:
+				stamp, err = strconv.ParseInt(typedValue, 10, 64)
+				if err != nil {
+					return sq.SelectBuilder{}, nil, err
+				}
+			default:
+				return sq.SelectBuilder{}, nil, fmt.Errorf("%s: invalid type", column)
+			}
+			base = base.Where(fmt.Sprintf("%s < ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp))
 		case "attachments":
 			var operator string
 			if value != "true" {
@@ -1263,7 +1283,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 		base = base.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
 	}
 
-    return base, plan, nil
+	return base, plan, nil
 }
 
 // region UPDATE
