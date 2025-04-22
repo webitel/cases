@@ -1206,7 +1206,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 			default:
 				return sq.SelectBuilder{}, nil, fmt.Errorf("%s: invalid type", column)
 			}
-			base = base.Where(fmt.Sprintf("%s > ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp))
+			base = base.Where(fmt.Sprintf("%s at time zone 'utc' >= ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp))
 		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolve_at.to", "created_at.to":
 			var stamp int64
 			cutted, _ := strings.CutSuffix(column, ".to")
@@ -1219,7 +1219,7 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 			default:
 				return sq.SelectBuilder{}, nil, fmt.Errorf("%s: invalid type", column)
 			}
-			base = base.Where(fmt.Sprintf("%s < ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp))
+			base = base.Where(fmt.Sprintf("%s at time zone 'utc' <= ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp).UTC())
 		case "attachments":
 			var operator string
 			if value != "true" {
