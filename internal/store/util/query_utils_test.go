@@ -208,3 +208,108 @@ func TestResolvePaging(t *testing.T) {
 		})
 	}
 }
+
+func TestParseSearchTerm(t *testing.T) {
+	type args struct {
+		q string
+	}
+	tests := []struct {
+		name         string
+		args         args
+		wantS        string
+		wantOperator string
+	}{
+		{
+			name: "simple",
+			args: args{
+				q: "simple",
+			},
+			wantS:        "%simple%",
+			wantOperator: ComparisonILike,
+		},
+		{
+			name: "simple with suffix star",
+			args: args{
+				q: "simple*",
+			},
+			wantS:        "%simple%",
+			wantOperator: ComparisonILike,
+		},
+		{
+			name: "simple with prefix star",
+			args: args{
+				q: "*simple",
+			},
+			wantS:        "%simple%",
+			wantOperator: ComparisonILike,
+		},
+		{
+			name: "simple with double star",
+			args: args{
+				q: "*simple*",
+			},
+			wantS:        "%simple%",
+			wantOperator: ComparisonILike,
+		},
+		{
+			name: "simple with mixed regexp and star",
+			args: args{
+				q: "/simple*",
+			},
+			wantS:        "%/simple%",
+			wantOperator: ComparisonILike,
+		},
+
+		{
+			name: "simple with regexp",
+			args: args{
+				q: "/simple/",
+			},
+			wantS:        "simple",
+			wantOperator: ComparisonRegexp,
+		},
+		{
+			name: "simple with regexp and added star",
+			args: args{
+				q: "/simple/*",
+			},
+			wantS:        "simple",
+			wantOperator: ComparisonRegexp,
+		},
+		{
+			name: "simple with regexp",
+			args: args{
+				q: "/simple*/",
+			},
+			wantS:        "simple*",
+			wantOperator: ComparisonRegexp,
+		},
+		{
+			name: "simple with regexp",
+			args: args{
+				q: "/*simple*/",
+			},
+			wantS:        "*simple*",
+			wantOperator: ComparisonRegexp,
+		},
+		{
+			name: "simple with regexp",
+			args: args{
+				q: "*simple**",
+			},
+			wantS:        "%simple*%",
+			wantOperator: ComparisonILike,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotS, gotOperator := ParseSearchTerm(tt.args.q)
+			if gotS != tt.wantS {
+				t.Errorf("ParseSearchTerm() gotS = %v, want %v", gotS, tt.wantS)
+			}
+			if gotOperator != tt.wantOperator {
+				t.Errorf("ParseSearchTerm() gotOperator = %v, want %v", gotOperator, tt.wantOperator)
+			}
+		})
+	}
+}

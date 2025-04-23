@@ -59,16 +59,27 @@ func FormAsCTEs(in map[string]squirrel.Sqlizer) (string, []any, error) {
 // Returns changed copy of the input slice.
 func ParseSearchTerm(q string) (s string, operator string) {
 	var (
-		escapePre = "/"
-		escapeSu  = "/"
+		escapePre  = "/"
+		escapeSu   = "/"
+		escapeStar = "*"
+		res        = q
 	)
-	if strings.HasPrefix(q, escapePre) && strings.HasSuffix(q, escapeSu) {
-		pre, _ := strings.CutPrefix(q, escapePre)
-		su, _ := strings.CutSuffix(pre, escapeSu)
-		return su, ComparisonRegexp
-	} else {
-		return "%" + q + "%", ComparisonILike
+	if res == "" {
+		return q, ComparisonILike
 	}
+	res, _ = strings.CutSuffix(q, escapeStar)
+	if strings.HasPrefix(res, escapePre) && strings.HasSuffix(res, escapeSu) {
+		operator = ComparisonRegexp
+		res, _ = strings.CutPrefix(res, escapePre)
+		res, _ = strings.CutSuffix(res, escapeSu)
+
+	} else {
+		operator = ComparisonILike
+		res, _ = strings.CutPrefix(res, escapeStar)
+		res = "%" + res + "%"
+
+	}
+	return res, operator
 }
 
 func AddSearchTerm(base squirrel.SelectBuilder, q string, columns ...string) squirrel.SelectBuilder {
