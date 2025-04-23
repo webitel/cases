@@ -4,7 +4,7 @@ go 1.23.0
 
 //replace buf.build/gen/go/webitel/cases/grpc/go/_gogrpc v1.5.1-20241105122241-a1d959115d35.1 => ./api/cases
 
-replace github.com/webitel/proto/gen => github.com/webitel/custom/proto/gen v0.0.0-20250415133524-4730007c1e6e
+replace github.com/webitel/proto/gen => github.com/webitel/custom/proto/gen v0.0.0-20250423145544-e181bc2b5c59
 
 require (
 	buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2
@@ -12,7 +12,7 @@ require (
 	github.com/gammazero/deque v1.0.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1
 	github.com/jackc/pgtype v1.14.4
-	github.com/webitel/custom v0.0.0-20250415133524-4730007c1e6e
+	github.com/webitel/custom v0.0.0-20250423145544-e181bc2b5c59
 	github.com/webitel/logger v0.0.0-20250131144320-fa79d885252a
 	github.com/webitel/proto/gen v0.0.0-00010101000000-000000000000 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250204164813-702378808489

@@ -1343,12 +1343,17 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 
 	// region: apply custom filter(s)
 	if len(custom.fields) > 0 {
-		const right = "x" // custom.* alias
+		if custom.ctx.table == "" {
+			// LEFT JOIN custom.table AS alias ; IF NOT yet ..
+			base, custom.ctx.table = custom.ctx.refer.Join(
+				base, caseLeft, custom.ctx.table, "",
+			)
+		}
 		// for _, e := range custom.fields {
 		// 	assert := e.(fieldValue)
 		for _, assert := range custom.fields {
 			column := storeutils.Ident(
-				right, assert.field.Name(),
+				custom.ctx.table, custompgx.CustomSqlIdentifier(assert.field.Name()),
 			)
 			// filter: [not] "present" ?
 			if (assert.operator & present) == present {
@@ -2529,6 +2534,8 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				base, custom.table = custom.refer.Join(
 					base, tableAlias, custom.table, "",
 				)
+				// Chain prepared query context for filtering stage next ...
+				req.AddFilter(customCtxState, custom)
 				var scan func(custompgx.RecordExtendable) sql.Scanner
 				base, scan, err = custom.refer.Columns(
 					base, custom.table, nested...,
