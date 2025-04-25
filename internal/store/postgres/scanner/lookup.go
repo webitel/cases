@@ -175,7 +175,7 @@ func ScanRowExtendedLookup(value **_go.ExtendedLookup) any {
 						return err
 					}
 					res.Name = str.String
-					ok = ok || (str.String != "" && str.String != "[deleted]") // && str.Status == pgtype.Present
+					ok = ok || (str.String != "" && str.String != "[deleted]")
 					return nil
 				}),
 				TextDecoder(func(src []byte) error {
@@ -187,7 +187,7 @@ func ScanRowExtendedLookup(value **_go.ExtendedLookup) any {
 						return err
 					}
 					res.Type = str.String
-					ok = ok || (str.String != "" && str.String != "[deleted]") // && str.Status == pgtype.Present
+					ok = ok || (str.String != "" && str.String != "[deleted]")
 					return nil
 				}),
 			}
@@ -196,16 +196,14 @@ func ScanRowExtendedLookup(value **_go.ExtendedLookup) any {
 
 		var err error
 		for _, col := range row {
-
 			raw.ScanDecoder(col)
-
 			err = raw.Err()
 			if err != nil {
 				return err
 			}
 		}
 
-		if ok {
+		if res.Id != 0 {
 			*(value) = res
 		}
 
