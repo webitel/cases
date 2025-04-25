@@ -290,15 +290,17 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, NewBadRequestError(err)
 	}
 
+	// if userID is set explicitly - log it else log userID extracted from token
+	userID := req.Input.UserID.GetId()
+	if userID == 0 {
+		userID = createOpts.GetAuthOpts().GetUserId()
+	}
+
 	logAttributes := slog.Group(
 		"context",
-		slog.Int64(
-			"user_id",
-			createOpts.GetAuthOpts().GetUserId()),
-		slog.Int64(
-			"domain_id",
-			createOpts.GetAuthOpts().GetDomainId(),
-		))
+		slog.Int64("user_id", userID),
+		slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()),
+	)
 
 	res, err = c.app.Store.Case().Create(createOpts, res)
 	if err != nil {
@@ -386,20 +388,17 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, NewBadRequestError(err)
 	}
 
+	// if userID is set explicitly - log it else log userID extracted from token
+	userID := req.Input.UserID.GetId()
+	if userID == 0 {
+		userID = updateOpts.GetAuthOpts().GetUserId()
+	}
+
 	logAttributes := slog.Group(
 		"context",
-		slog.Int64(
-			"user_id",
-			updateOpts.GetAuthOpts().GetUserId(),
-		),
-		slog.Int64(
-			"domain_id",
-			updateOpts.GetAuthOpts().GetDomainId(),
-		),
-		slog.Int64(
-			"case_id",
-			tag.GetOid(),
-		))
+		slog.Int64("user_id", userID),
+		slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()),
+		slog.Int64("case_id", tag.GetOid()))
 
 	upd := &cases.Case{
 		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
