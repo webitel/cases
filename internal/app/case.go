@@ -986,14 +986,23 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts shared.Fielder)
 	}
 	if re.Comments != nil {
 		for _, com := range re.Comments.Items {
+			if com.Id == 0 {
+				// FIXME temp sanitize: skip comments with empty ID
+				continue
+			}
 			err = util.NormalizeEtags(etag.EtagCaseComment, true, false, false, &com.Etag, &com.Id, &com.Ver)
 			if err != nil {
 				return err
 			}
 		}
 	}
+
 	if re.Links != nil {
 		for _, link := range re.Links.Items {
+			if link.Id == 0 {
+				// FIXME temp sanitize: skip links with empty ID
+				continue
+			}
 			err = util.NormalizeEtags(
 				etag.EtagCaseLink,
 				true,
@@ -1008,8 +1017,13 @@ func (c *CaseService) NormalizeResponseCase(re *cases.Case, opts shared.Fielder)
 			}
 		}
 	}
+
 	if re.Related != nil {
 		for _, related := range re.Related.Data {
+			if related.Id == 0 {
+				// FIXME temp sanitize: skip related cases with empty ID
+				continue
+			}
 			err = util.NormalizeEtags(
 				etag.EtagRelatedCase,
 				true,
