@@ -1031,17 +1031,18 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 	// region: custom fields
 	type operator uint8
 	const (
-		not     operator = 1 << iota // "!"
-		less                         // "<"
-		greater                      // ">"
-		present                      // "*"
-		equals  operator = 0         // "="
+		not             operator = 1 << iota // "!"
+		less                                 // "<"
+		greater                              // ">"
+		present                              // "*"
+		greaterOrEquals                      // ">="
+		equals          operator = 0         // "="
 	)
 	type fieldValue struct {
 		field    customrel.FieldDescriptor
 		vtype    customrel.Type // typeof( list[elem], lookup[rel.primary] )
 		value    customrel.Codec
-		operator // e.g.: ?field=*
+		operator // e.g.: ?field=[!|<|>|*]value
 	}
 	var custom = struct {
 		ctx *customCtx
@@ -1252,6 +1253,8 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 				var assert fieldValue
 				// if !ok {
 				// find custom extension [field] descriptor
+				column, since := strings.CutSuffix(column, ".from")
+				column, until := strings.CutSuffix(column, ".to")
 				assert.field = custom.ctx.typof.Fields().ByName(column)
 				if assert.field == nil {
 					// no such custom field ! skip ..
@@ -1331,6 +1334,11 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 							break // [FIXME] !!!
 						}
 					}
+				}
+				if since && assert.operator == equals {
+					assert.operator = (greaterOrEquals) // (greater | equals) // ">="
+				} else if until && assert.operator == equals {
+					assert.operator = (less) // "<"
 				}
 				// custom.fields[strings.ToLower(assert.field.Name())] = assert
 				custom.fields = append(custom.fields, assert)
@@ -1465,6 +1473,8 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 						expr = "? > %s"
 					} else if (assert.operator & greater) == greater {
 						expr = "? < %s"
+					} else if (assert.operator & greaterOrEquals) == greaterOrEquals {
+						expr = "? <= %s"
 					}
 					if list != nil {
 						expr = strings.Replace(
