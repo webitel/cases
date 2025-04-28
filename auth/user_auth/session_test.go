@@ -138,7 +138,7 @@ func TestUserAuthSession_CheckLicenseAccess(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &UserAuthSession{
-				user:             tt.fields.user,
+				User:             tt.fields.user,
 				permissions:      tt.fields.permissions,
 				scopes:           tt.fields.scopes,
 				license:          tt.fields.license,
@@ -429,7 +429,7 @@ func TestUserAuthSession_CheckObacAccess(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &UserAuthSession{
-				user:             tt.fields.user,
+				User:             tt.fields.user,
 				permissions:      tt.fields.permissions,
 				scopes:           tt.fields.scopes,
 				license:          tt.fields.license,
@@ -474,7 +474,7 @@ func TestUserAuthSession_GetDomainId(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &UserAuthSession{
-				user:             tt.fields.user,
+				User:             tt.fields.user,
 				permissions:      tt.fields.permissions,
 				scopes:           tt.fields.scopes,
 				license:          tt.fields.license,
@@ -521,7 +521,7 @@ func TestUserAuthSession_GetRoles(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &UserAuthSession{
-				user:             tt.fields.user,
+				User:             tt.fields.user,
 				permissions:      tt.fields.permissions,
 				scopes:           tt.fields.scopes,
 				license:          tt.fields.license,
@@ -593,7 +593,7 @@ func TestUserAuthSession_GetUserId(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &UserAuthSession{
-				user:             tt.fields.user,
+				User:             tt.fields.user,
 				permissions:      tt.fields.permissions,
 				scopes:           tt.fields.scopes,
 				license:          tt.fields.license,
@@ -640,7 +640,7 @@ func TestUserAuthSession_IsExpired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &UserAuthSession{
-				user:             tt.fields.user,
+				User:             tt.fields.user,
 				permissions:      tt.fields.permissions,
 				scopes:           tt.fields.scopes,
 				license:          tt.fields.license,
@@ -814,7 +814,7 @@ func TestUserAuthSession_IsRbacCheckRequired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &UserAuthSession{
-				user:             tt.fields.user,
+				User:             tt.fields.user,
 				permissions:      tt.fields.permissions,
 				scopes:           tt.fields.scopes,
 				license:          tt.fields.license,

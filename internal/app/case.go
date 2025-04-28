@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	auth_util "github.com/webitel/cases/auth/util"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -338,18 +339,24 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, deferr.ResponseNormalizingError
 	}
 
+	authOpts := createOpts.GetAuthOpts()
+	if overrideID := req.Input.UserID.GetId(); overrideID != 0 {
+		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
+	}
+
 	if notifyErr := c.app.watcherManager.Notify(
 		model.ScopeCases,
 		EventTypeCreate,
 		NewCaseWatcherData(
-			createOpts.GetAuthOpts(),
+			authOpts,
 			res,
 			id,
 			roleIds,
 		),
 	); notifyErr != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s, ", notifyErr.Error()), logAttributes)
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s", notifyErr.Error()), logAttributes)
 	}
+
 	return res, nil
 }
 
@@ -459,7 +466,20 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, deferr.ResponseNormalizingError
 	}
 
-	if notifyErr := c.app.watcherManager.Notify(model.ScopeCases, EventTypeUpdate, NewCaseWatcherData(updateOpts.GetAuthOpts(), upd, id, roleIds)); notifyErr != nil {
+	authOpts := updateOpts.GetAuthOpts()
+	if overrideID := req.Input.UserID.GetId(); overrideID != 0 {
+		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
+	}
+
+	if notifyErr := c.app.watcherManager.Notify(
+		model.ScopeCases,
+		EventTypeUpdate,
+		NewCaseWatcherData(
+			authOpts,
+			upd,
+			id,
+			roleIds,
+		)); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case update: %s, ", notifyErr.Error()), logAttributes)
 	}
 

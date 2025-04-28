@@ -9,7 +9,7 @@ import (
 )
 
 type UserAuthSession struct {
-	user             *User
+	User             *User
 	permissions      []string
 	scopes           map[string]*Scope
 	license          map[string]bool
@@ -27,10 +27,10 @@ type UserAuthSession struct {
 // region Auther interface implementation
 
 func (s *UserAuthSession) GetUserId() int64 {
-	if s.user == nil || s.user.Id <= 0 {
+	if s.User == nil || s.User.Id <= 0 {
 		return 0
 	}
-	return s.user.Id
+	return s.User.Id
 }
 
 func (s *UserAuthSession) GetDomainId() int64 {
@@ -172,7 +172,7 @@ func (s *UserAuthSession) HasSuperPermission(permission auth.SuperPermission) bo
 
 func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo, mainObjClass string, mainAccess auth.AccessMode) *UserAuthSession {
 	session := &UserAuthSession{
-		user: &User{
+		User: &User{
 			Id:        userinfo.UserId,
 			Name:      userinfo.Name,
 			Username:  userinfo.Username,
