@@ -1264,7 +1264,17 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 				assert.vtype = assert.field.Type()
 				// list[elem] ?
 				if assert.vtype.Kind() == customrel.LIST {
-					assert.vtype = assert.vtype.(*customtyp.List).Elem()
+					// assert.vtype = assert.vtype.(*customtyp.List).Elem()
+					if vs, is := value.(string); is {
+						if n := len(vs); n > 2 && vs[0] == '[' && vs[n-1] == ']' {
+							// [OK]: marked as array !
+						} else {
+							// vs = strings.ReplaceAll(vs, "[", "\\[")
+							// vs = strings.ReplaceAll(vs, "]", "\\]")
+							vs = "[" + vs + "]"
+							value = vs // normalized ; as inline JSON array of values
+						}
+					}
 				}
 				// }
 				switch data := value.(type) {
@@ -1477,9 +1487,13 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 						expr = "? <= %s"
 					}
 					if list != nil {
-						expr = strings.Replace(
-							expr, "%s", "ANY(%s)", 1,
-						)
+						// // expr = strings.Replace(
+						// // 	expr, "?", "?::_int8", 1,
+						// // )
+						// expr = strings.Replace(
+						// 	expr, "%s", "ANY(%s)", 1,
+						// )
+						expr = "? <@ %s" // "<@" Is the first array contained by the second ?
 					}
 				}
 			case customrel.BINARY:

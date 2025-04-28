@@ -479,10 +479,10 @@ github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8
 github.com/subosito/gotenv v1.4.1 h1:jyEFiXpy21Wm81FBN71l9VoMMV8H8jG+qIK3GCpY6Qs=
 github.com/subosito/gotenv v1.4.1/go.mod h1:ayKnFf/c6rvx/2iiLrJUk1e6plDbT3edrFNGqEflhK0=
 github.com/tv42/httpunix v0.0.0-20150427012821-b75d8614f926/go.mod h1:9ESjWnEqriFuLhtthL60Sar/7RFoluCcXsuvEwTV5KM=
-github.com/webitel/custom v0.0.0-20250428140503-d6da02cb4b7d h1:8mjvRQlrHSD6R4WtnVIwVnW6XODtu1w1oIgI1GZJCcA=
-github.com/webitel/custom v0.0.0-20250428140503-d6da02cb4b7d/go.mod h1:95hLy8vYcLq5Yry5coXcIn/wGItxYw6kcZvUoRKD/qo=
-github.com/webitel/custom/proto/gen v0.0.0-20250428140503-d6da02cb4b7d h1:8i8GJ7Il9J4uRttp/4Jd+3XaRBkyPqnWA7a9WijmhuA=
-github.com/webitel/custom/proto/gen v0.0.0-20250428140503-d6da02cb4b7d/go.mod h1:EETpUkTJNc2mZTJgYPuNghH7HEoX23qGLqwcyfRUXXg=
+github.com/webitel/custom v0.0.0-20250428163832-c568eedf8e2e h1:GJgb3xrytNS5lO+wQqsvU+WPO88zz1DA0eoDJPn5mlM=
+github.com/webitel/custom v0.0.0-20250428163832-c568eedf8e2e/go.mod h1:95hLy8vYcLq5Yry5coXcIn/wGItxYw6kcZvUoRKD/qo=
+github.com/webitel/custom/proto/gen v0.0.0-20250428163832-c568eedf8e2e h1:p1qe/CfFenvEIUJMG/as0eVjXrK3jdZI8/9yLRK4bm0=
+github.com/webitel/custom/proto/gen v0.0.0-20250428163832-c568eedf8e2e/go.mod h1:EETpUkTJNc2mZTJgYPuNghH7HEoX23qGLqwcyfRUXXg=
 github.com/webitel/logger v0.0.0-20250131144320-fa79d885252a h1:gZ+MbaoQ8Wb3eSWr9BYJXqtc9ZSEfskv1yMxr4YfrGg=
 github.com/webitel/logger v0.0.0-20250131144320-fa79d885252a/go.mod h1:YoEwlpSUESlyW7h5SqYsoyN96eyHFdOQdWp2/We4sB8=
 github.com/webitel/webitel-go-kit v0.0.21-0.20250226104147-74e3a9f53286 h1:TMw2KaVLrmbe2WcYkwzCROuh2aSYGXt5dDj4JvV8nYI=
