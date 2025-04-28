@@ -5,10 +5,10 @@ import (
 	"github.com/webitel/cases/auth/user_auth"
 )
 
-func CloneWithUserID(original auth.Auther, overrideUserID int64) auth.Auther {
-	session, ok := original.(*user_auth.UserAuthSession)
+func CloneWithUserID(src auth.Auther, overrideUserID int64) auth.Auther {
+	session, ok := src.(*user_auth.UserAuthSession)
 	if !ok {
-		return original
+		return src
 	}
 	// Clone
 	newSession := *session
