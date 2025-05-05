@@ -146,6 +146,7 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
 	base := squirrel.Select().
 		From(fmt.Sprintf("%s %s", c.mainTable, alias)).
 		Where(fmt.Sprintf("%s = ?", util.Ident(alias, "case_id")), parentId).
+		Where(fmt.Sprintf("%s = ?", util.Ident(alias, "dc")), options.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
 	base = util.ApplyPaging(options.GetPage(), options.GetSize(), base)
 	return c.buildSelectColumnsAndPlan(base, alias, options.GetFields())
@@ -229,25 +230,32 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 	}
 
 	for _, communication := range input {
-		var channel string
+		var (
+			channel    string
+			commTypeId int64
+			subquery   squirrel.Sqlizer
+		)
+		if commType := communication.CommunicationType; commType == nil || commType.GetId() == 0 {
+			// can't determine communication type
+			// skip?
+			continue
+		} else {
+			commTypeId = commType.GetId()
+		}
 		err := tx.QueryRow(
 			options,
-			`SELECT channel FROM call_center.cc_communication WHERE id = $1 AND dc = $2`,
-			communication.CommunicationId,
+			`SELECT channel FROM call_center.cc_communication WHERE id = $1 AND domain_id = $2`,
+			commTypeId,
 			options.GetAuthOpts().GetDomainId(),
 		).Scan(&channel)
 		if err != nil {
 			return nil, nil, dberr.NewDBError("postgres.case_communication.resolve_channel", err.Error())
 		}
 
-		var (
-			commType int64
-			subquery squirrel.Sqlizer
-		)
+		var ()
 
 		switch channel {
-		case "Phone":
-			commType = int64(cases.CaseTimelineEventType_call)
+		case store.CommunicationCall:
 			if callsRbac {
 				subquery = squirrel.Expr(`(
 					SELECT c.id::text FROM call_center.cc_calls_history c
@@ -270,14 +278,12 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 					communication.CommunicationId,
 				)
 			}
-		case "Messaging":
-			commType = int64(cases.CaseTimelineEventType_chat)
+		case store.CommunicationChat:
 			subquery = squirrel.Expr(
 				`(SELECT id FROM chat.conversation WHERE id = ?)`,
 				communication.CommunicationId,
 			)
-		case "Email":
-			commType = int64(cases.CaseTimelineEventType_email)
+		case store.CommunicationEmail:
 			subquery = squirrel.Expr(
 				`(SELECT id FROM call_center.cc_email WHERE id = ?)`,
 				communication.CommunicationId,
@@ -289,7 +295,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 			)
 		}
 
-		insert = insert.Values(userId, options.RequestTime(), dc, commType, subquery, caseSubquery)
+		insert = insert.Values(userId, options.RequestTime(), dc, commTypeId, subquery, caseSubquery)
 	}
 
 	insertAlias := "i"
@@ -326,7 +332,7 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(
 			communicationAlias = "comm"
 			base = base.LeftJoin(
 				fmt.Sprintf(
-					"call_center.cc_communication %s ON %s.id = %s.communication_id",
+					"call_center.cc_communication %s ON %s.id = %s.communication_type",
 					communicationAlias,
 					communicationAlias,
 					left,
@@ -350,7 +356,7 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(
 		case "communication_type":
 			joinCommunication()
 			base = base.Column(
-				fmt.Sprintf("ROW(%s.communication_type, %s.channel)::text AS communication_type",
+				fmt.Sprintf("ROW(%s.id, %s.channel)::text AS communication_type",
 					communicationAlias,
 					communicationAlias,
 				),

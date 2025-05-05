@@ -29,59 +29,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Enum to define types of case communications.
-type CaseCommunicationsTypes int32
-
-const (
-	CaseCommunicationsTypes_NO_TYPE             CaseCommunicationsTypes = 0 // Default value, no type specified.
-	CaseCommunicationsTypes_COMMUNICATION_CHAT  CaseCommunicationsTypes = 1 // Communication type: Chat.
-	CaseCommunicationsTypes_COMMUNICATION_CALL  CaseCommunicationsTypes = 2 // Communication type: Call.
-	CaseCommunicationsTypes_COMMUNICATION_EMAIL CaseCommunicationsTypes = 3 // Communication type: Email.
-)
-
-// Enum value maps for CaseCommunicationsTypes.
-var (
-	CaseCommunicationsTypes_name = map[int32]string{
-		0: "NO_TYPE",
-		1: "COMMUNICATION_CHAT",
-		2: "COMMUNICATION_CALL",
-		3: "COMMUNICATION_EMAIL",
-	}
-	CaseCommunicationsTypes_value = map[string]int32{
-		"NO_TYPE":             0,
-		"COMMUNICATION_CHAT":  1,
-		"COMMUNICATION_CALL":  2,
-		"COMMUNICATION_EMAIL": 3,
-	}
-)
-
-func (x CaseCommunicationsTypes) Enum() *CaseCommunicationsTypes {
-	p := new(CaseCommunicationsTypes)
-	*p = x
-	return p
-}
-
-func (x CaseCommunicationsTypes) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (CaseCommunicationsTypes) Descriptor() protoreflect.EnumDescriptor {
-	return file_case_communication_proto_enumTypes[0].Descriptor()
-}
-
-func (CaseCommunicationsTypes) Type() protoreflect.EnumType {
-	return &file_case_communication_proto_enumTypes[0]
-}
-
-func (x CaseCommunicationsTypes) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use CaseCommunicationsTypes.Descriptor instead.
-func (CaseCommunicationsTypes) EnumDescriptor() ([]byte, []int) {
-	return file_case_communication_proto_rawDescGZIP(), []int{0}
-}
-
 // Represents a single case communication.
 type CaseCommunication struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
@@ -606,12 +553,7 @@ const file_case_communication_proto_rawDesc = "" +
 	"\x1aListCommunicationsResponse\x124\n" +
 	"\x04data\x18\x01 \x03(\v2 .webitel.cases.CaseCommunicationR\x04data\x12\x12\n" +
 	"\x04page\x18\x05 \x01(\x05R\x04page\x12\x12\n" +
-	"\x04next\x18\x06 \x01(\bR\x04next*o\n" +
-	"\x17CaseCommunicationsTypes\x12\v\n" +
-	"\aNO_TYPE\x10\x00\x12\x16\n" +
-	"\x12COMMUNICATION_CHAT\x10\x01\x12\x16\n" +
-	"\x12COMMUNICATION_CALL\x10\x02\x12\x17\n" +
-	"\x13COMMUNICATION_EMAIL\x10\x032\xf9\x03\n" +
+	"\x04next\x18\x06 \x01(\bR\x04next2\xf9\x03\n" +
 	"\x12CaseCommunications\x12\x9b\x01\n" +
 	"\x11LinkCommunication\x12'.webitel.cases.LinkCommunicationRequest\x1a(.webitel.cases.LinkCommunicationResponse\"3\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02):\x05input\" /cases/{case_etag}/communication\x12\x9f\x01\n" +
 	"\x13UnlinkCommunication\x12).webitel.cases.UnlinkCommunicationRequest\x1a*.webitel.cases.UnlinkCommunicationResponse\"1\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02'*%/cases/{case_etag}/communication/{id}\x12\x97\x01\n" +
@@ -630,32 +572,30 @@ func file_case_communication_proto_rawDescGZIP() []byte {
 	return file_case_communication_proto_rawDescData
 }
 
-var file_case_communication_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_case_communication_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_case_communication_proto_goTypes = []any{
-	(CaseCommunicationsTypes)(0),        // 0: webitel.cases.CaseCommunicationsTypes
-	(*CaseCommunication)(nil),           // 1: webitel.cases.CaseCommunication
-	(*InputCaseCommunication)(nil),      // 2: webitel.cases.InputCaseCommunication
-	(*LinkCommunicationRequest)(nil),    // 3: webitel.cases.LinkCommunicationRequest
-	(*LinkCommunicationResponse)(nil),   // 4: webitel.cases.LinkCommunicationResponse
-	(*UnlinkCommunicationRequest)(nil),  // 5: webitel.cases.UnlinkCommunicationRequest
-	(*UnlinkCommunicationResponse)(nil), // 6: webitel.cases.UnlinkCommunicationResponse
-	(*ListCommunicationsRequest)(nil),   // 7: webitel.cases.ListCommunicationsRequest
-	(*ListCommunicationsResponse)(nil),  // 8: webitel.cases.ListCommunicationsResponse
-	(*Lookup)(nil),                      // 9: general.Lookup
+	(*CaseCommunication)(nil),           // 0: webitel.cases.CaseCommunication
+	(*InputCaseCommunication)(nil),      // 1: webitel.cases.InputCaseCommunication
+	(*LinkCommunicationRequest)(nil),    // 2: webitel.cases.LinkCommunicationRequest
+	(*LinkCommunicationResponse)(nil),   // 3: webitel.cases.LinkCommunicationResponse
+	(*UnlinkCommunicationRequest)(nil),  // 4: webitel.cases.UnlinkCommunicationRequest
+	(*UnlinkCommunicationResponse)(nil), // 5: webitel.cases.UnlinkCommunicationResponse
+	(*ListCommunicationsRequest)(nil),   // 6: webitel.cases.ListCommunicationsRequest
+	(*ListCommunicationsResponse)(nil),  // 7: webitel.cases.ListCommunicationsResponse
+	(*Lookup)(nil),                      // 8: general.Lookup
 }
 var file_case_communication_proto_depIdxs = []int32{
-	9, // 0: webitel.cases.CaseCommunication.communication_type:type_name -> general.Lookup
-	9, // 1: webitel.cases.InputCaseCommunication.communication_type:type_name -> general.Lookup
-	2, // 2: webitel.cases.LinkCommunicationRequest.input:type_name -> webitel.cases.InputCaseCommunication
-	1, // 3: webitel.cases.LinkCommunicationResponse.data:type_name -> webitel.cases.CaseCommunication
-	1, // 4: webitel.cases.ListCommunicationsResponse.data:type_name -> webitel.cases.CaseCommunication
-	3, // 5: webitel.cases.CaseCommunications.LinkCommunication:input_type -> webitel.cases.LinkCommunicationRequest
-	5, // 6: webitel.cases.CaseCommunications.UnlinkCommunication:input_type -> webitel.cases.UnlinkCommunicationRequest
-	7, // 7: webitel.cases.CaseCommunications.ListCommunications:input_type -> webitel.cases.ListCommunicationsRequest
-	4, // 8: webitel.cases.CaseCommunications.LinkCommunication:output_type -> webitel.cases.LinkCommunicationResponse
-	6, // 9: webitel.cases.CaseCommunications.UnlinkCommunication:output_type -> webitel.cases.UnlinkCommunicationResponse
-	8, // 10: webitel.cases.CaseCommunications.ListCommunications:output_type -> webitel.cases.ListCommunicationsResponse
+	8, // 0: webitel.cases.CaseCommunication.communication_type:type_name -> general.Lookup
+	8, // 1: webitel.cases.InputCaseCommunication.communication_type:type_name -> general.Lookup
+	1, // 2: webitel.cases.LinkCommunicationRequest.input:type_name -> webitel.cases.InputCaseCommunication
+	0, // 3: webitel.cases.LinkCommunicationResponse.data:type_name -> webitel.cases.CaseCommunication
+	0, // 4: webitel.cases.ListCommunicationsResponse.data:type_name -> webitel.cases.CaseCommunication
+	2, // 5: webitel.cases.CaseCommunications.LinkCommunication:input_type -> webitel.cases.LinkCommunicationRequest
+	4, // 6: webitel.cases.CaseCommunications.UnlinkCommunication:input_type -> webitel.cases.UnlinkCommunicationRequest
+	6, // 7: webitel.cases.CaseCommunications.ListCommunications:input_type -> webitel.cases.ListCommunicationsRequest
+	3, // 8: webitel.cases.CaseCommunications.LinkCommunication:output_type -> webitel.cases.LinkCommunicationResponse
+	5, // 9: webitel.cases.CaseCommunications.UnlinkCommunication:output_type -> webitel.cases.UnlinkCommunicationResponse
+	7, // 10: webitel.cases.CaseCommunications.ListCommunications:output_type -> webitel.cases.ListCommunicationsResponse
 	8, // [8:11] is the sub-list for method output_type
 	5, // [5:8] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name
@@ -674,14 +614,13 @@ func file_case_communication_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_case_communication_proto_rawDesc), len(file_case_communication_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      0,
 			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_case_communication_proto_goTypes,
 		DependencyIndexes: file_case_communication_proto_depIdxs,
-		EnumInfos:         file_case_communication_proto_enumTypes,
 		MessageInfos:      file_case_communication_proto_msgTypes,
 	}.Build()
 	File_case_communication_proto = out.File

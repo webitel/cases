@@ -277,7 +277,7 @@ func buildTimelineChatsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 	if caseId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_chats_column.check_args.case_id.empty", "case id required")
 	}
-	base = squirrel.Expr(ChatsCTE, caseId, int32(cases.CaseCommunicationsTypes_COMMUNICATION_CHAT))
+	base = squirrel.Expr(ChatsCTE, caseId, store.CommunicationChat)
 	plan = append(plan,
 		func(node **cases.Event) any {
 			buf := *node
@@ -340,7 +340,7 @@ func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 	if caseId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_calls_column.check_args.case_id.empty", "case id required")
 	}
-	base = squirrel.Expr(CallsCTE, caseId, int32(cases.CaseCommunicationsTypes_COMMUNICATION_CALL))
+	base = squirrel.Expr(CallsCTE, caseId, store.CommunicationCall)
 
 	plan = append(plan,
 		func(node **cases.Event) any {
@@ -508,7 +508,7 @@ func buildTimelineEmailsColumn(caseId int64) (base squirrel.Sqlizer, plan []func
 	if caseId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_emails_column.check_args.case_id.empty", "case id required")
 	}
-	base = squirrel.Expr(EmailsCTE, caseId, int32(cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL))
+	base = squirrel.Expr(EmailsCTE, caseId, store.CommunicationEmail)
 
 	plan = append(plan,
 		func(node **cases.Event) any {
@@ -682,13 +682,13 @@ func buildTimelineCounterSqlizer(rpc options.Searcher) (query squirrel.Sqlizer, 
 	for i, field := range fields {
 		switch field {
 		case cases.CaseTimelineEventType_call.String():
-			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_CALL)
+			communicationType := store.CommunicationCall
 			ctes[field] = squirrel.Expr(CallsCounterCTE, communicationType, caseId, communicationType)
 		case cases.CaseTimelineEventType_email.String():
-			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL)
+			communicationType := store.CommunicationEmail
 			ctes[field] = squirrel.Expr(EmailsCounterCTE, communicationType, caseId, communicationType)
 		case cases.CaseTimelineEventType_chat.String():
-			communicationType := int64(cases.CaseCommunicationsTypes_COMMUNICATION_CHAT)
+			communicationType := store.CommunicationChat
 			ctes[field] = squirrel.Expr(ChatsCounterCTE, communicationType, caseId, communicationType)
 		default:
 			return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_counter_sqlizer.parse_fields.unknown", "unknown field "+field)
@@ -718,7 +718,7 @@ func buildTimelineCounterSqlizer(rpc options.Searcher) (query squirrel.Sqlizer, 
 		func(node *model.TimelineCounter) any {
 			return scanner.ScanInt64(&node.Count)
 		}, func(node *model.TimelineCounter) any {
-			return scanner.ScanInt64(&node.EventType)
+			return scanner.ScanText(&node.EventType)
 		}, func(node *model.TimelineCounter) any {
 			return scanner.ScanTimestamp(&node.DateTo)
 		}, func(node *model.TimelineCounter) any {
@@ -803,7 +803,7 @@ from call_center.cc_calls_history c
                                      LEFT JOIN storage.files ff ON ff.id = tr.file_id
                             WHERE tr.uuid::text = c.id::text
     ) transcripts ON true
-where c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication WHERE case_id = ? AND communication_type = ?)
+where c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)
   and c.transfer_from isnull`
 
 	EmailsCTE = `SELECT e.id::text,
@@ -830,7 +830,7 @@ FROM call_center.cc_email e
                             where f.id = any (e.attachment_ids)
 
     ) attachments ON true
-WHERE e.id = ANY(SELECT communication_id::bigint FROM cases.case_communication WHERE case_id = ? AND communication_type =?)`
+WHERE e.id = ANY(SELECT communication_id::bigint FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)`
 
 	ChatsCTE = `SELECT conv.id::text,
        conv.created_at,
@@ -861,29 +861,29 @@ FROM chat.conversation conv
     ) gateway ON true
     -- join flow scheme
          LEFT JOIN flow.acr_routing_scheme flow_scheme ON flow_scheme.id = (conv.props ->> 'flow')::bigint
-WHERE conv.id =  ANY(SELECT communication_id::uuid FROM cases.case_communication WHERE case_id = ? AND communication_type = ?)`
+WHERE conv.id =  ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)`
 
 	CallsCounterCTE = `SELECT c.id::text,
                       c.created_at,
                       c.hangup_at                                             AS      closed_at,
-                      ?::int                                                          type
+                      ?                                                          type
 
                FROM call_center.cc_calls_history c
-               WHERE c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication WHERE case_id = ? AND communication_type = ?::int)`
+               WHERE c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)`
 
 	ChatsCounterCTE = `select conv.id::text,
                       conv.created_at,
                       conv.closed_at,
-                      ?::int                                                           type
+                      ?                                                           type
                from chat.conversation conv
-               WHERE conv.id = ANY(SELECT communication_id::uuid FROM cases.case_communication WHERE case_id = ? AND communication_type = ?::int)`
+               WHERE conv.id = ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)`
 
 	EmailsCounterCTE = `select m.id::text,
                       m.created_at,
                       m.created_at,
-                      ?::int                                                           type
+                      ?                                                           type
                from call_center.cc_email m
-               WHERE m.id = ANY(SELECT communication_id::bigint FROM cases.case_communication WHERE case_id = ? AND communication_type = ?::int)`
+               WHERE m.id = ANY(SELECT communication_id::bigint FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)`
 )
 
 func NewCaseTimelineStore(store *Store) (store.CaseTimelineStore, error) {
