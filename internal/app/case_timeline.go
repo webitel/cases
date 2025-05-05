@@ -6,6 +6,7 @@ import (
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/errors"
 	deferr "github.com/webitel/cases/internal/errors/defaults"
+	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
@@ -124,12 +125,12 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 
 	for _, eventTypeCounter := range eventTypeCounters {
 		// find max and min date
-		switch cases.CaseCommunicationsTypes(eventTypeCounter.EventType) {
-		case cases.CaseCommunicationsTypes_COMMUNICATION_CHAT:
+		switch eventTypeCounter.EventType {
+		case store.CommunicationChat:
 			res.ChatsCount = eventTypeCounter.Count
-		case cases.CaseCommunicationsTypes_COMMUNICATION_CALL:
+		case store.CommunicationCall:
 			res.CallsCount = eventTypeCounter.Count
-		case cases.CaseCommunicationsTypes_COMMUNICATION_EMAIL:
+		case store.CommunicationEmail:
 			res.EmailsCount = eventTypeCounter.Count
 		}
 
