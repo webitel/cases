@@ -1493,7 +1493,8 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 						// expr = strings.Replace(
 						// 	expr, "%s", "ANY(%s)", 1,
 						// )
-						expr = "? <@ %s" // "<@" Is the first array contained by the second ?
+						// expr = "? <@ %s" // [AND] "<@" Is the first array contained by the second ?
+						expr = "? && %s" // [OR]  "&&" Do the arrays overlap, that is, have any elements in common?
 					}
 				}
 			case customrel.BINARY:

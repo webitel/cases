@@ -537,7 +537,7 @@ func (c *CaseService) resolveDynamicGroup(
 		return nil, err
 	}
 
-	et, ok := caseMap["case.et"].(string)
+	et, ok := caseMap["case.etag"].(string)
 	if !ok {
 		return nil, deferr.ForbiddenError
 	}
