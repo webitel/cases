@@ -2,7 +2,9 @@ package postgres
 
 import (
 	"fmt"
+
 	sq "github.com/Masterminds/squirrel"
+
 	"github.com/webitel/cases/api/cases"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
@@ -225,7 +227,7 @@ func (s *SLAStore) buildUpdateSLAQuery(
 			updateBuilder = updateBuilder.Set("valid_from", util.LocalTime(input.ValidFrom))
 		case "valid_to":
 			updateBuilder = updateBuilder.Set("valid_to", util.LocalTime(input.ValidTo))
-		case "calendar_id":
+		case "calendar":
 			if input.Calendar.Id != 0 {
 				updateBuilder = updateBuilder.Set("calendar_id", input.Calendar.Id)
 			}
