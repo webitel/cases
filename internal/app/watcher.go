@@ -235,13 +235,14 @@ func (cao *TriggerObserver[T, V]) Update(et EventType, args map[string]any) erro
 		return err
 	}
 
-	routingKey := cao.getRoutingKeyByEventType(et, domainId)
+	// TODO
+	routingKey := cao.getRoutingKeyByEventType("cases", "case", et, domainId)
 	cao.logger.Debug(fmt.Sprintf("Trying to publish message to %s", routingKey))
 	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, "", time.Now())
 }
 
-func (cao *TriggerObserver[T, V]) getRoutingKeyByEventType(eventType EventType, domainId int64) string {
-	return fmt.Sprintf("%s.%d", strings.Replace(cao.config.TopicName, "*", string(eventType), 1), domainId)
+func (cao *TriggerObserver[T, V]) getRoutingKeyByEventType(service string, object string, eventType EventType, domainId int64) string {
+	return fmt.Sprintf("%s.%s.%s.%d", service, object, strings.Replace(cao.config.TopicName, "*", string(eventType), 1), domainId)
 }
 
 type LoggerObserver struct {
