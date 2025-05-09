@@ -343,25 +343,18 @@ func (s *SLAStore) List(rpc options.Searcher) (*cases.SLAList, error) {
 	}
 	defer rows.Close()
 
-	var slas []*cases.SLA
-	lCount := 0
-	next := false
-	fetchAll := rpc.GetSize() == -1
-
+	var rawSLAs []*cases.SLA
 	for rows.Next() {
 		sla := &cases.SLA{}
 		scanArgs := convertToSLAScanArgs(plan, sla)
 		if err := rows.Scan(scanArgs...); err != nil {
 			return nil, dberr.NewDBInternalError("postgres.sla.list.row_scan_error", err)
 		}
-		slas = append(slas, sla)
-		lCount++
-		if !fetchAll && lCount >= rpc.GetSize() {
-			next = true
-			break
-		}
+		rawSLAs = append(rawSLAs, sla)
 	}
-	rows.Close()
+
+	// Resolve pagination
+	slas, next := util2.ResolvePaging(rpc.GetSize(), rawSLAs)
 
 	return &cases.SLAList{
 		Page:  int32(rpc.GetPage()),
