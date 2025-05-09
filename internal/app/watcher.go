@@ -8,6 +8,7 @@ import (
 	"github.com/webitel/cases/auth"
 	model "github.com/webitel/cases/config"
 	cerr "github.com/webitel/cases/internal/errors"
+	model2 "github.com/webitel/cases/model"
 	"github.com/webitel/cases/rabbit"
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/fts_client"
@@ -235,14 +236,30 @@ func (cao *TriggerObserver[T, V]) Update(et EventType, args map[string]any) erro
 		return err
 	}
 
-	// TODO
-	routingKey := cao.getRoutingKeyByEventType("cases", "case", et, domainId)
+	objStr := args["obj"].(string)
+	routingKey := cao.getRoutingKeyByEventType("cases", objStr, et, domainId)
 	cao.logger.Debug(fmt.Sprintf("Trying to publish message to %s", routingKey))
+
+	if objStr == model2.ScopeCaseComments || objStr == model2.BrokerScopeCaseLinks {
+		routingKey = cao.getRoutingKeyByEventType("cases", "case", et, domainId)
+	}
+
 	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, "", time.Now())
 }
 
-func (cao *TriggerObserver[T, V]) getRoutingKeyByEventType(service string, object string, eventType EventType, domainId int64) string {
-	return fmt.Sprintf("%s.%s.%s.%d", service, object, strings.Replace(cao.config.TopicName, "*", string(eventType), 1), domainId)
+func (cao *TriggerObserver[T, V]) getRoutingKeyByEventType(
+	service string,
+	object string,
+	eventType EventType,
+	domainId int64,
+) string {
+	return fmt.Sprintf(
+		"%s.%s.%s.%d",
+		service,
+		object,
+		strings.Replace(cao.config.TopicName, "*", string(eventType), 1),
+		domainId,
+	)
 }
 
 type LoggerObserver struct {
