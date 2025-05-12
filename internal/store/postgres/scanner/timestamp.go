@@ -47,13 +47,18 @@ func ScanTimestamp(ref *int64) any {
 		)
 		switch val := src.(type) {
 		case []byte:
-
+			if val == nil {
+				return nil
+			}
 			out, err := tryAllLayouts(string(val))
 			if err != nil {
 				return err
 			}
 			res = out
 		case string:
+			if val == "" {
+				return nil
+			}
 			out, err := tryAllLayouts(val)
 			if err != nil {
 				return err
