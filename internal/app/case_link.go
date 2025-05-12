@@ -163,13 +163,10 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 
 	if notifyErr := c.app.watcherManager.Notify(
 		model.BrokerScopeCaseLinks,
-		EventTypeUpdate,
+		EventTypeCreate,
 		NewLinkWatcherData(
 			authOpts,
-			&cases.CaseLink{
-				Name: req.Input.GetName(),
-				Url:  req.Input.GetUrl(),
-			},
+			res,
 			res.GetId(),
 			authOpts.GetDomainId(),
 		)); notifyErr != nil {
@@ -245,10 +242,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		EventTypeUpdate,
 		NewLinkWatcherData(
 			authOpts,
-			&cases.CaseLink{
-				Name: req.Input.GetName(),
-				Url:  req.Input.GetUrl(),
-			},
+			updated,
 			updated.GetId(),
 			authOpts.GetDomainId(),
 		)); notifyErr != nil {
@@ -297,7 +291,7 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 
 	if notifyErr := c.app.watcherManager.Notify(
 		model.BrokerScopeCaseLinks,
-		EventTypeUpdate,
+		EventTypeDelete,
 		NewLinkWatcherData(
 			deleteOpts.GetAuthOpts(),
 			&cases.CaseLink{},
@@ -383,13 +377,13 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 	watcher := NewDefaultWatcher()
 
 	if app.config.TriggerWatcher.Enabled {
-		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseTriggerModel, slog.With(
+		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseLinkTriggerModel, slog.With(
 			slog.Group("context",
 				slog.String("scope", "watcher")),
 		))
 
 		if err != nil {
-			return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_mq_observer.app", err.Error())
+			return nil, cerror.NewInternalError("app.case.new_case_link_service.create_mq_observer.app", err.Error())
 		}
 		watcher.Attach(EventTypeCreate, mq)
 		watcher.Attach(EventTypeUpdate, mq)
@@ -399,7 +393,7 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 		app.caseResolutionTimer.Start()
 	}
 
-	app.watcherManager.AddWatcher(caseCommentsObjScope, watcher)
+	app.watcherManager.AddWatcher(model.BrokerScopeCaseLinks, watcher)
 
 	return service, nil
 }
@@ -424,17 +418,17 @@ func NormalizeResponseLink(res *cases.CaseLink, opts shared.Fielder) error {
 	return nil
 }
 
-type LinkWatcherData struct {
+type CaseLinkWatcherData struct {
 	link *cases.CaseLink
 	Args map[string]any
 }
 
-func (wd *LinkWatcherData) GetArgs() map[string]any {
+func (wd *CaseLinkWatcherData) GetArgs() map[string]any {
 	return wd.Args
 }
 
-func NewLinkWatcherData(session auth.Auther, link *cases.CaseLink, linkId int64, dc int64) *LinkWatcherData {
-	return &LinkWatcherData{
+func NewLinkWatcherData(session auth.Auther, link *cases.CaseLink, linkId int64, dc int64) *CaseLinkWatcherData {
+	return &CaseLinkWatcherData{
 		link: link,
 		Args: map[string]any{
 			"session":   session,

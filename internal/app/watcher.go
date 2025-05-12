@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
-	model "github.com/webitel/cases/config"
+	cfg "github.com/webitel/cases/config"
 	cerr "github.com/webitel/cases/internal/errors"
-	model2 "github.com/webitel/cases/model"
+	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/rabbit"
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/fts_client"
@@ -185,12 +186,12 @@ type AMQPBroker interface {
 type TriggerObserver[T any, V any] struct {
 	id         string
 	amqpBroker AMQPBroker
-	config     *model.TriggerWatcherConfig
+	config     *cfg.TriggerWatcherConfig
 	logger     *slog.Logger
 	converter  func(T) (V, error)
 }
 
-func NewTriggerObserver[T any, V any](amqpBroker AMQPBroker, config *model.TriggerWatcherConfig, conv func(T) (V, error), log *slog.Logger) (*TriggerObserver[T, V], error) {
+func NewTriggerObserver[T any, V any](amqpBroker AMQPBroker, config *cfg.TriggerWatcherConfig, conv func(T) (V, error), log *slog.Logger) (*TriggerObserver[T, V], error) {
 	// declare exchange
 	opts := []rabbit.ExchangeDeclareOption{rabbit.ExchangeEnableDurable, rabbit.ExchangeEnableNoWait}
 
@@ -236,11 +237,23 @@ func (cao *TriggerObserver[T, V]) Update(et EventType, args map[string]any) erro
 		return err
 	}
 
-	objStr := args["obj"].(string)
+	// Determine routing key prefix based on type of obj
+	var objStr string
+	switch any(obj).(type) {
+	case *cases.Case:
+		objStr = model.ScopeCases
+	case *cases.CaseLink:
+		objStr = model.BrokerScopeCaseLinks
+	case *cases.CaseComment:
+		objStr = model.ScopeCaseComments
+	default:
+		return fmt.Errorf("unsupported object type %T", obj)
+	}
+
 	routingKey := cao.getRoutingKeyByEventType("cases", objStr, et, domainId)
 	cao.logger.Debug(fmt.Sprintf("Trying to publish message to %s", routingKey))
 
-	if objStr == model2.ScopeCaseComments || objStr == model2.BrokerScopeCaseLinks {
+	if objStr == model.ScopeCaseComments || objStr == model.BrokerScopeCaseLinks {
 		routingKey = cao.getRoutingKeyByEventType("cases", "case", et, domainId)
 	}
 

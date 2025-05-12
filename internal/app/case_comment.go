@@ -389,7 +389,7 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 	}
 
 	if app.config.TriggerWatcher.Enabled {
-		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseTriggerModel, slog.With(
+		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseCommentTriggerModel, slog.With(
 			slog.Group("context",
 				slog.String("scope", "watcher")),
 		))
