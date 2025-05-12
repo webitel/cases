@@ -7,3 +7,11 @@ import (
 type CaseAMQPMessage struct {
 	Case *cases.Case `json:"case"`
 }
+
+type CaseLinkAMQPMessage struct {
+	CaseLink *cases.CaseLink `json:"case_link"`
+}
+
+type CaseCommentAMQPMessage struct {
+	CaseComment *cases.CaseComment `json:"case_comment"`
+}

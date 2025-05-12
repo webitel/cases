@@ -138,7 +138,11 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, deferr.ResponseNormalizingError
 	}
 
-	if notifyErr := c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeUpdate, NewCaseCommentWatcherData(updateOpts.GetAuthOpts(), updatedComment, id, parentId, roleIds)); notifyErr != nil {
+	if notifyErr := c.app.watcherManager.Notify(
+		caseCommentsObjScope,
+		EventTypeUpdate,
+		NewCaseCommentWatcherData(updateOpts.GetAuthOpts(), updatedComment, id, parentId, roleIds),
+	); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify input update: %s, ", notifyErr.Error()), logAttributes)
 	}
 
@@ -168,7 +172,11 @@ func (c *CaseCommentService) DeleteComment(
 		return nil, deferr.DatabaseError
 	}
 
-	if notifyErr := c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeDelete, NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, tag.GetOid(), 0, nil)); notifyErr != nil {
+	if notifyErr := c.app.watcherManager.Notify(
+		caseCommentsObjScope,
+		EventTypeDelete,
+		NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, tag.GetOid(), 0, nil),
+	); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment delete: %s, ", notifyErr.Error()), logAttributes)
 	}
 	return nil, nil
@@ -289,9 +297,14 @@ func (c *CaseCommentService) PublishComment(
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, deferr.ResponseNormalizingError
 	}
-	if notifyErr := c.app.watcherManager.Notify(caseCommentsObjScope, EventTypeCreate, NewCaseCommentWatcherData(createOpts.GetAuthOpts(), comment, id, parentId, roleId)); notifyErr != nil {
+	if notifyErr := c.app.watcherManager.Notify(
+		caseCommentsObjScope,
+		EventTypeCreate,
+		NewCaseCommentWatcherData(createOpts.GetAuthOpts(), comment, id, parentId, roleId),
+	); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment create: %s, ", notifyErr.Error()), logAttributes)
 	}
+
 	return comment, nil
 }
 
@@ -360,6 +373,11 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 		return nil, cerror.NewInternalError("app.case_comment.new_case_comment_service.app_required", "Unable to initialize service, app is nil")
 	}
 	watcher := NewDefaultWatcher()
+
+	service := &CaseCommentService{
+		app: app,
+	}
+
 	if app.config.FtsWatcher.Enabled {
 		ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseCommentsObjScope, formCommentsFtsModel)
 		if err != nil {
@@ -369,8 +387,27 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 		watcher.Attach(EventTypeUpdate, ftsObserver)
 		watcher.Attach(EventTypeDelete, ftsObserver)
 	}
+
+	if app.config.TriggerWatcher.Enabled {
+		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseCommentTriggerModel, slog.With(
+			slog.Group("context",
+				slog.String("scope", "watcher")),
+		))
+
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_mq_observer.app", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, mq)
+		watcher.Attach(EventTypeUpdate, mq)
+		watcher.Attach(EventTypeDelete, mq)
+		watcher.Attach(EventTypeResolutionTime, mq)
+
+		app.caseResolutionTimer.Start()
+	}
+
 	app.watcherManager.AddWatcher(caseCommentsObjScope, watcher)
-	return &CaseCommentService{app: app}, nil
+
+	return service, nil
 }
 
 type CaseCommentWatcherData struct {

@@ -1063,6 +1063,23 @@ func formCaseTriggerModel(item *cases.Case) (*model.CaseAMQPMessage, error) {
 	m := &model.CaseAMQPMessage{
 		Case: item,
 	}
+
+	return m, nil
+}
+
+func formCaseLinkTriggerModel(item *cases.CaseLink) (*model.CaseLinkAMQPMessage, error) {
+	m := &model.CaseLinkAMQPMessage{
+		CaseLink: item,
+	}
+
+	return m, nil
+}
+
+func formCaseCommentTriggerModel(item *cases.CaseComment) (*model.CaseCommentAMQPMessage, error) {
+	m := &model.CaseCommentAMQPMessage{
+		CaseComment: item,
+	}
+
 	return m, nil
 }
 

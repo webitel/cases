@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
+	auth_util "github.com/webitel/cases/auth/util"
 	cerror "github.com/webitel/cases/internal/errors"
 	deferr "github.com/webitel/cases/internal/errors/defaults"
 	"github.com/webitel/cases/model"
@@ -137,20 +139,40 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
+
 			return nil, deferr.ForbiddenError
 		}
 	}
 	res, dbErr := c.app.Store.CaseLink().Create(createOpts, req.Input)
 	if dbErr != nil {
 		slog.ErrorContext(ctx, dbErr.Error(), logAttributes)
+
 		return nil, deferr.DatabaseError
 	}
 
 	err = NormalizeResponseLink(res, req)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
+
 		return nil, deferr.ResponseNormalizingError
 	}
+	authOpts := createOpts.GetAuthOpts()
+	if overrideID := req.Input.UserID.GetId(); overrideID != 0 {
+		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
+	}
+
+	if notifyErr := c.app.watcherManager.Notify(
+		model.BrokerScopeCaseLinks,
+		EventTypeCreate,
+		NewLinkWatcherData(
+			authOpts,
+			res,
+			res.GetId(),
+			authOpts.GetDomainId(),
+		)); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify link create: %s, ", notifyErr.Error()), logAttributes)
+	}
+
 	return res, nil
 }
 
@@ -210,6 +232,23 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		return nil, deferr.ResponseNormalizingError
 	}
 
+	authOpts := updateOpts.GetAuthOpts()
+	if overrideID := req.Input.UserID.GetId(); overrideID != 0 {
+		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
+	}
+
+	if notifyErr := c.app.watcherManager.Notify(
+		model.BrokerScopeCaseLinks,
+		EventTypeUpdate,
+		NewLinkWatcherData(
+			authOpts,
+			updated,
+			updated.GetId(),
+			authOpts.GetDomainId(),
+		)); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify link update: %s, ", notifyErr.Error()), logAttributes)
+	}
+
 	return updated, nil
 }
 
@@ -248,6 +287,18 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, deferr.DatabaseError
+	}
+
+	if notifyErr := c.app.watcherManager.Notify(
+		model.BrokerScopeCaseLinks,
+		EventTypeDelete,
+		NewLinkWatcherData(
+			deleteOpts.GetAuthOpts(),
+			&cases.CaseLink{},
+			linkTID.GetOid(),
+			deleteOpts.GetAuthOpts().GetDomainId(),
+		)); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify link delete: %s, ", notifyErr.Error()), logAttributes)
 	}
 
 	return nil, nil
@@ -315,9 +366,36 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 
 func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 	if app == nil {
-		return nil, cerror.NewBadRequestError("app.case.new_case_comment_service.check_args.app", "unable to init service, app is nil")
+		return nil, cerror.NewBadRequestError(
+			"app.case.new_case_comment_service.check_args.app",
+			"unable to init service, app is nil",
+		)
 	}
-	return &CaseLinkService{app: app}, nil
+	service := &CaseLinkService{
+		app: app,
+	}
+	watcher := NewDefaultWatcher()
+
+	if app.config.TriggerWatcher.Enabled {
+		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseLinkTriggerModel, slog.With(
+			slog.Group("context",
+				slog.String("scope", "watcher")),
+		))
+
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_link_service.create_mq_observer.app", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, mq)
+		watcher.Attach(EventTypeUpdate, mq)
+		watcher.Attach(EventTypeDelete, mq)
+		watcher.Attach(EventTypeResolutionTime, mq)
+
+		app.caseResolutionTimer.Start()
+	}
+
+	app.watcherManager.AddWatcher(model.BrokerScopeCaseLinks, watcher)
+
+	return service, nil
 }
 
 func NormalizeResponseLink(res *cases.CaseLink, opts shared.Fielder) error {
@@ -338,6 +416,27 @@ func NormalizeResponseLink(res *cases.CaseLink, opts shared.Fielder) error {
 		}
 	}
 	return nil
+}
+
+type CaseLinkWatcherData struct {
+	link *cases.CaseLink
+	Args map[string]any
+}
+
+func (wd *CaseLinkWatcherData) GetArgs() map[string]any {
+	return wd.Args
+}
+
+func NewLinkWatcherData(session auth.Auther, link *cases.CaseLink, linkId int64, dc int64) *CaseLinkWatcherData {
+	return &CaseLinkWatcherData{
+		link: link,
+		Args: map[string]any{
+			"session":   session,
+			"obj":       link,
+			"id":        linkId,
+			"domain_id": dc,
+		},
+	}
 }
 
 func NormalizeResponseLinks(res *cases.CaseLinkList, requestedFields []string) error {
