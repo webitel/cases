@@ -378,6 +378,17 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 		app: app,
 	}
 
+	if app.config.LoggerWatcher.Enabled {
+
+		obs, err := NewLoggerObserver(app.wtelLogger, caseCommentsObjScope, defaultLogTimeout)
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_observer.app", err.Error())
+		}
+		watcher.Attach(EventTypeCreate, obs)
+		watcher.Attach(EventTypeUpdate, obs)
+		watcher.Attach(EventTypeDelete, obs)
+	}
+
 	if app.config.FtsWatcher.Enabled {
 		ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseCommentsObjScope, formCommentsFtsModel)
 		if err != nil {

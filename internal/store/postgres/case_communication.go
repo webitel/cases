@@ -41,8 +41,10 @@ func (c *CaseCommunicationStore) Link(
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case_communication.link.transaction_error", err)
 	}
+
+	// Defer rollback, but ignore error if the transaction is already committed/rolled back
 	defer func() {
-		_ = tx.Rollback(options)
+		_ = tx.Rollback(options) // Will be a no-op if already committed
 	}()
 
 	txManager := transaction.NewTxManager(tx)
@@ -68,6 +70,7 @@ func (c *CaseCommunicationStore) Link(
 		return nil, dbErr
 	}
 
+	// If Commit succeeds, rollback is now a no-op
 	if err := txManager.Commit(options); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case_communication.link.commit_error", err)
 	}
@@ -149,6 +152,7 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
 		Where(fmt.Sprintf("%s = ?", util.Ident(alias, "dc")), options.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
 	base = util.ApplyPaging(options.GetPage(), options.GetSize(), base)
+
 	return c.buildSelectColumnsAndPlan(base, alias, options.GetFields())
 }
 
