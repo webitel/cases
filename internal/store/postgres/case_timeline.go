@@ -296,7 +296,7 @@ func buildTimelineChatsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 		func(node **cases.Event) any {
 			buf := *node
 			chat := buf.GetChat()
-			return &chat.Duration
+			return scanner.ScanInt64(&chat.Duration)
 		},
 		func(node **cases.Event) any {
 			buf := *node
@@ -360,7 +360,7 @@ func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(
 		func(node **cases.Event) any {
 			buf := *node
 			call := buf.GetCall()
-			return &call.Duration
+			return scanner.ScanInt64(&call.Duration)
 		},
 		func(node **cases.Event) any {
 			buf := *node
