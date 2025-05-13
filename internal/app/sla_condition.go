@@ -64,7 +64,7 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 		return nil, NewBadRequestError(err)
 	}
 
-	// Create a new SLACondition user_auth
+	// Create a new SLACondition user_session
 	slaCondition := &cases.SLACondition{
 		Name:           req.Input.Name,
 		ReactionTime:   req.Input.ReactionTime,
@@ -194,7 +194,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 		Id: updateOpts.GetAuthOpts().GetUserId(),
 	}
 
-	// Update SLACondition user_auth
+	// Update SLACondition user_session
 	slaCondition := &cases.SLACondition{
 		Id:             req.Id,
 		Name:           req.Input.Name,

@@ -102,7 +102,7 @@ func (s CloseReasonGroupService) UpdateCloseReasonGroup(
 		return nil, NewBadRequestError(err)
 	}
 
-	// Update lookup user_auth
+	// Update lookup user_session
 	input := &_go.CloseReasonGroup{
 		Id:          req.Id,
 		Name:        req.Input.Name,

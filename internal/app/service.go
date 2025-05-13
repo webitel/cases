@@ -52,7 +52,7 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 		return nil, NewBadRequestError(err)
 	}
 
-	// Create a new Service user_auth
+	// Create a new Service user_session
 	service := &api.Service{
 		Name:        req.Input.Name,
 		Description: req.Input.Description,

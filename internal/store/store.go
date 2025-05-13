@@ -2,10 +2,8 @@ package store
 
 import (
 	"context"
-
-	"github.com/webitel/cases/model/options"
-
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/model/options"
 
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"

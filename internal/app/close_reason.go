@@ -107,7 +107,7 @@ func (s *CloseReasonService) UpdateCloseReason(
 		return nil, NewBadRequestError(err)
 	}
 
-	// Update close reason user_auth
+	// Update close reason user_session
 	input := &_go.CloseReason{
 		Id:                 req.Id,
 		CloseReasonGroupId: req.CloseReasonGroupId,

@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/auth"
 	auth_util "github.com/webitel/cases/auth/util"
 	"log/slog"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/webitel/cases/auth"
 
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 

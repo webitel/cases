@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/webitel/cases/auth/user_auth"
+	"github.com/webitel/cases/auth"
 
 	"github.com/bufbuild/protovalidate-go"
 	conf "github.com/webitel/cases/config"
@@ -26,7 +26,7 @@ type Server struct {
 }
 
 // BuildServer constructs and configures a new gRPC server with interceptors.
-func BuildServer(config *conf.ConsulConfig, authManager user_auth.AuthManager, exitChan chan error) (*Server, error) {
+func BuildServer(config *conf.ConsulConfig, authManager auth.Manager, exitChan chan error) (*Server, error) {
 	// Initialize protovalidate validator
 	val, err := protovalidate.New(protovalidate.WithFailFast(true))
 	if err != nil {

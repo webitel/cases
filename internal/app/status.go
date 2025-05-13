@@ -47,7 +47,7 @@ func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRe
 		return nil, NewBadRequestError(err)
 	}
 
-	// Create a new input user_auth
+	// Create a new input user_session
 	input := &_go.Status{
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
@@ -103,7 +103,7 @@ func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRe
 		return nil, NewBadRequestError(err)
 	}
 
-	// Update input user_auth
+	// Update input user_session
 	input := &_go.Status{
 		Id:          req.Id,
 		Name:        req.Input.Name,

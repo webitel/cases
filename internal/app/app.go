@@ -3,25 +3,19 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"strings"
-
-	ftspublisher "github.com/webitel/cases/fts_client"
-	ftsclient "github.com/webitel/webitel-go-kit/fts_client"
-
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	"github.com/webitel/cases/auth"
-	"github.com/webitel/cases/auth/user_auth"
-	"github.com/webitel/cases/auth/user_auth/webitel_manager"
-	"github.com/webitel/cases/internal/errors"
-	"google.golang.org/grpc/metadata"
-
+	"github.com/webitel/cases/auth/manager/webitel_app"
 	conf "github.com/webitel/cases/config"
+	ftspublisher "github.com/webitel/cases/fts_client"
+	"github.com/webitel/cases/internal/errors"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/server"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
 	broker "github.com/webitel/cases/rabbit"
+	ftsclient "github.com/webitel/webitel-go-kit/fts_client"
+	"log/slog"
 
 	engine "github.com/webitel/cases/api/engine"
 	wlogger "github.com/webitel/logger/pkg/client/v2"
@@ -37,30 +31,13 @@ func NewBadRequestError(err error) errors.AppError {
 	return errors.NewBadRequestError("app.process_api.validation.error", err.Error())
 }
 
-func getClientIp(ctx context.Context) string {
-	v := ctx.Value("grpc_ctx")
-	info, ok := v.(metadata.MD)
-	if !ok {
-		info, ok = metadata.FromIncomingContext(ctx)
-	}
-	if !ok {
-		return ""
-	}
-	ip := strings.Join(info.Get("x-real-ip"), ",")
-	if ip == "" {
-		ip = strings.Join(info.Get("x-forwarded-for"), ",")
-	}
-
-	return ip
-}
-
 type App struct {
 	config              *conf.AppConfig
 	Store               store.Store
 	server              *server.Server
 	exitChan            chan error
 	storageConn         *grpc.ClientConn
-	sessionManager      user_auth.AuthManager
+	sessionManager      auth.Manager
 	webitelAppConn      *grpc.ClientConn
 	shutdown            func(ctx context.Context) error
 	log                 *slog.Logger
@@ -134,8 +111,8 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
 	}
 
-	// --------- UserAuthSession Manager Initialization ---------
-	app.sessionManager, err = webitel_manager.NewWebitelAppAuthManager(app.webitelAppConn)
+	// --------- Session Manager Initialization ---------
+	app.sessionManager, err = webitel_app.New(app.webitelAppConn)
 	if err != nil {
 		return nil, err
 	}
@@ -213,15 +190,4 @@ func (a *App) Stop() error { // Change return type to standard error
 	}
 
 	return nil
-}
-
-func (a *App) AuthorizeFromContext(ctx context.Context) (*user_auth.UserAuthSession, error) { // Change return type to standard error
-	session, err := a.sessionManager.AuthorizeFromContext(ctx, "", auth.NONE)
-	if err != nil {
-		return nil, err
-	}
-	if session.IsExpired() {
-		return nil, cerror.NewUnauthorizedError("internal.internal.authorize_from_context.validate_session.expired", "session expired")
-	}
-	return session, nil
 }

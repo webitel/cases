@@ -3,9 +3,9 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"github.com/webitel/cases/auth"
 	"log/slog"
 
-	"github.com/webitel/cases/auth"
 	customrel "github.com/webitel/custom/reflect"
 	customreg "github.com/webitel/custom/registry"
 	cstore "github.com/webitel/custom/store"

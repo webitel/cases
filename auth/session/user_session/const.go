@@ -1,4 +1,4 @@
-package user_auth
+package user_session
 
 const (
 	AuthTokenName      = "X-Webitel-Access"

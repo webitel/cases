@@ -1,4 +1,4 @@
-package user_auth
+package user_session
 
 type User struct {
 	Name      string

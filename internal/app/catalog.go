@@ -70,7 +70,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		return nil, NewBadRequestError(err)
 	}
 
-	// Create a new Catalog user_auth
+	// Create a new Catalog user_session
 	catalog := &cases.Catalog{
 		Name:             req.Input.Name,
 		Description:      req.Input.Description,

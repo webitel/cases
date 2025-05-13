@@ -32,6 +32,7 @@ const (
 type Auther interface {
 	GetRoles() []int64
 	GetUserId() int64
+	GetUserIp() string
 	GetDomainId() int64
 	GetPermissions() []string
 	GetObjectScope(string) ObjectScoper

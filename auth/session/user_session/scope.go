@@ -1,4 +1,4 @@
-package user_auth
+package user_session
 
 type Scope struct {
 	Name   string

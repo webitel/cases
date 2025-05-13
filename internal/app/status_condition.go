@@ -47,7 +47,7 @@ func (s StatusConditionService) CreateStatusCondition(ctx context.Context, req *
 		return nil, NewBadRequestError(err)
 	}
 
-	// Create a new status user_auth
+	// Create a new status user_session
 	status := &_go.StatusCondition{
 		Name:        req.Input.Name,
 		Description: req.Input.Description,
@@ -108,7 +108,7 @@ func (s StatusConditionService) UpdateStatusCondition(ctx context.Context, req *
 		return nil, NewBadRequestError(err)
 	}
 
-	// Update input user_auth
+	// Update input user_session
 	input := &_go.StatusCondition{
 		Id:          req.Id,
 		StatusId:    req.StatusId,

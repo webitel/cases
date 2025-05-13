@@ -313,7 +313,7 @@ func (l *LoggerObserver) Update(et EventType, args map[string]any) error {
 	default:
 		return ErrUnknownType
 	}
-	message, err := wlogger.NewMessage(auth.GetUserId(), "", tp, id, args["obj"])
+	message, err := wlogger.NewMessage(auth.GetUserId(), auth.GetUserIp(), tp, id, args["obj"])
 	if err != nil {
 		return err
 	}

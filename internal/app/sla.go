@@ -58,7 +58,7 @@ func (s *SLAService) CreateSLA(ctx context.Context, req *cases.CreateSLARequest)
 		return nil, NewBadRequestError(err)
 	}
 
-	// Create a new SLA user_auth
+	// Create a new SLA user_session
 	input := &cases.SLA{
 		Name:           req.Input.Name,
 		Description:    req.Input.Description,
@@ -173,7 +173,7 @@ func (s *SLAService) UpdateSLA(ctx context.Context, req *cases.UpdateSLARequest)
 		return nil, NewBadRequestError(err)
 	}
 
-	// Update SLA user_auth
+	// Update SLA user_session
 	input := &cases.SLA{
 		Id:             req.Id,
 		Name:           req.Input.Name,

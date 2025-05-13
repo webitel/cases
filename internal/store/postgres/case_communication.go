@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	"github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
@@ -9,7 +10,6 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/auth"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
