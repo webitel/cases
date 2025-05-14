@@ -17,7 +17,7 @@ import (
 	ftsclient "github.com/webitel/webitel-go-kit/fts_client"
 	"log/slog"
 
-	engine "github.com/webitel/cases/api/engine"
+	"github.com/webitel/cases/api/engine"
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

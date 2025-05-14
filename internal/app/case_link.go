@@ -12,6 +12,7 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
+	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/etag"
 	"log/slog"
 )
@@ -20,7 +21,8 @@ import (
 // Remove from search options fields functions
 
 type CaseLinkService struct {
-	app *App
+	app    *App
+	logger *wlogger.ObjectedLogger
 	cases.UnimplementedCaseLinksServer
 }
 
@@ -161,6 +163,18 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
 	}
 
+	message, err := wlogger.NewMessage(
+		createOpts.GetAuthOpts().GetUserId(),
+		"",
+		wlogger.UpdateAction,
+		res.GetId(),
+		req,
+	)
+	err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
 	if notifyErr := c.app.watcherManager.Notify(
 		model.BrokerScopeCaseLinks,
 		EventTypeCreate,
@@ -237,6 +251,18 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
 	}
 
+	message, err := wlogger.NewMessage(
+		updateOpts.GetAuthOpts().GetUserId(),
+		"",
+		wlogger.UpdateAction,
+		linkTid.GetOid(),
+		req,
+	)
+	err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
 	if notifyErr := c.app.watcherManager.Notify(
 		model.BrokerScopeCaseLinks,
 		EventTypeUpdate,
@@ -287,6 +313,18 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, deferr.DatabaseError
+	}
+
+	message, err := wlogger.NewMessage(
+		deleteOpts.GetAuthOpts().GetUserId(),
+		"",
+		wlogger.UpdateAction,
+		linkTID.GetOid(),
+		req,
+	)
+	err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
 	}
 
 	if notifyErr := c.app.watcherManager.Notify(
@@ -371,8 +409,10 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 			"unable to init service, app is nil",
 		)
 	}
+	logger := app.wtelLogger.GetObjectedLogger("cases")
 	service := &CaseLinkService{
-		app: app,
+		app:    app,
+		logger: logger,
 	}
 	watcher := NewDefaultWatcher()
 
