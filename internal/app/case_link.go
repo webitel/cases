@@ -165,7 +165,7 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 
 	message, err := wlogger.NewMessage(
 		createOpts.GetAuthOpts().GetUserId(),
-		"",
+		createOpts.GetAuthOpts().GetUserIp(),
 		wlogger.UpdateAction,
 		res.GetId(),
 		req,
@@ -253,7 +253,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 
 	message, err := wlogger.NewMessage(
 		updateOpts.GetAuthOpts().GetUserId(),
-		"",
+		updateOpts.GetAuthOpts().GetUserIp(),
 		wlogger.UpdateAction,
 		linkTid.GetOid(),
 		req,
@@ -317,7 +317,7 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 
 	message, err := wlogger.NewMessage(
 		deleteOpts.GetAuthOpts().GetUserId(),
-		"",
+		deleteOpts.GetAuthOpts().GetUserIp(),
 		wlogger.UpdateAction,
 		linkTID.GetOid(),
 		req,
