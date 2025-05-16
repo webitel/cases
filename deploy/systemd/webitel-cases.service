@@ -1,0 +1,16 @@
+[Unit]
+Description=Webitel Cases Service
+After=network.target rabbitmq-server.service postgresql.service consul.service
+
+[Service]
+Type=simple
+Restart=always
+TimeoutStartSec=0
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=WebitelCases
+EnvironmentFile=/etc/default/webitel-cases.env
+ExecStart=/usr/local/bin/webitel-cases
+
+[Install]
+WantedBy=multi-user.target

@@ -7,7 +7,6 @@ managed:
       value: github.com/webitel/cases/api/cases
       module: buf.build/webitel/general
 
-
 plugins:
   - remote: buf.build/protocolbuffers/go
     out: api/cases
@@ -23,4 +22,6 @@ plugins:
     out: api/cases
 
 inputs:
-  - directory: "../protos/cases"
+  - git_repo: "https://github.com/webitel/protos"
+    branch: "main"
+    subdir: cases
