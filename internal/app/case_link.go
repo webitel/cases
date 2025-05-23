@@ -14,6 +14,7 @@ import (
 	"github.com/webitel/cases/util"
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/etag"
+	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
 )
 
@@ -177,7 +178,7 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 
 	if notifyErr := c.app.watcherManager.Notify(
 		model.BrokerScopeCaseLinks,
-		EventTypeCreate,
+		watcherkit.EventTypeCreate,
 		NewLinkWatcherData(
 			authOpts,
 			res,
@@ -265,7 +266,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 
 	if notifyErr := c.app.watcherManager.Notify(
 		model.BrokerScopeCaseLinks,
-		EventTypeUpdate,
+		watcherkit.EventTypeUpdate,
 		NewLinkWatcherData(
 			authOpts,
 			updated,
@@ -329,7 +330,7 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 
 	if notifyErr := c.app.watcherManager.Notify(
 		model.BrokerScopeCaseLinks,
-		EventTypeDelete,
+		watcherkit.EventTypeDelete,
 		NewLinkWatcherData(
 			deleteOpts.GetAuthOpts(),
 			&cases.CaseLink{},
@@ -414,7 +415,7 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 		app:    app,
 		logger: logger,
 	}
-	watcher := NewDefaultWatcher()
+	watcher := watcherkit.NewDefaultWatcher()
 
 	if app.config.TriggerWatcher.Enabled {
 		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseLinkTriggerModel, slog.With(
@@ -425,10 +426,10 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 		if err != nil {
 			return nil, cerror.NewInternalError("app.case.new_case_link_service.create_mq_observer.app", err.Error())
 		}
-		watcher.Attach(EventTypeCreate, mq)
-		watcher.Attach(EventTypeUpdate, mq)
-		watcher.Attach(EventTypeDelete, mq)
-		watcher.Attach(EventTypeResolutionTime, mq)
+		watcher.Attach(watcherkit.EventTypeCreate, mq)
+		watcher.Attach(watcherkit.EventTypeUpdate, mq)
+		watcher.Attach(watcherkit.EventTypeDelete, mq)
+		watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
 
 		app.caseResolutionTimer.Start()
 	}

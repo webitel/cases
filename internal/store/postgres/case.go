@@ -1605,12 +1605,14 @@ func (c *CaseStore) Update(
 	if txErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", txErr)
 	}
-	defer func(tx pgx.Tx, ctx context.Context) {
-		err := tx.Rollback(ctx)
+	defer func() {
 		if err != nil {
-			log.Printf("postgres.case.update.rollback_error: %v\n", err)
+			rbErr := tx.Rollback(rpc)
+			if rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
+				log.Printf("postgres.case.update.rollback_error: %v\n", rbErr)
+			}
 		}
-	}(tx, rpc)
+	}()
 	txManager := transaction.NewTxManager(tx)
 
 	// * if user change Service -- SLA ; SLA Condition ; Planned Reaction / Resolve at ; Calendar could be changed

@@ -13,6 +13,7 @@ import (
 	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
 )
 
@@ -140,7 +141,7 @@ func (c *CaseCommentService) UpdateComment(
 
 	if notifyErr := c.app.watcherManager.Notify(
 		caseCommentsObjScope,
-		EventTypeUpdate,
+		watcherkit.EventTypeUpdate,
 		NewCaseCommentWatcherData(updateOpts.GetAuthOpts(), updatedComment, id, parentId, roleIds),
 	); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify input update: %s, ", notifyErr.Error()), logAttributes)
@@ -174,7 +175,7 @@ func (c *CaseCommentService) DeleteComment(
 
 	if notifyErr := c.app.watcherManager.Notify(
 		caseCommentsObjScope,
-		EventTypeDelete,
+		watcherkit.EventTypeDelete,
 		NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, tag.GetOid(), 0, nil),
 	); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment delete: %s, ", notifyErr.Error()), logAttributes)
@@ -299,7 +300,7 @@ func (c *CaseCommentService) PublishComment(
 	}
 	if notifyErr := c.app.watcherManager.Notify(
 		caseCommentsObjScope,
-		EventTypeCreate,
+		watcherkit.EventTypeCreate,
 		NewCaseCommentWatcherData(createOpts.GetAuthOpts(), comment, id, parentId, roleId),
 	); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment create: %s, ", notifyErr.Error()), logAttributes)
@@ -372,7 +373,7 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 	if app == nil {
 		return nil, cerror.NewInternalError("app.case_comment.new_case_comment_service.app_required", "Unable to initialize service, app is nil")
 	}
-	watcher := NewDefaultWatcher()
+	watcher := watcherkit.NewDefaultWatcher()
 
 	service := &CaseCommentService{
 		app: app,
@@ -384,9 +385,9 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 		if err != nil {
 			return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_observer.app", err.Error())
 		}
-		watcher.Attach(EventTypeCreate, obs)
-		watcher.Attach(EventTypeUpdate, obs)
-		watcher.Attach(EventTypeDelete, obs)
+		watcher.Attach(watcherkit.EventTypeCreate, obs)
+		watcher.Attach(watcherkit.EventTypeUpdate, obs)
+		watcher.Attach(watcherkit.EventTypeDelete, obs)
 	}
 
 	if app.config.FtsWatcher.Enabled {
@@ -394,9 +395,9 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 		if err != nil {
 			return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_observer.app", err.Error())
 		}
-		watcher.Attach(EventTypeCreate, ftsObserver)
-		watcher.Attach(EventTypeUpdate, ftsObserver)
-		watcher.Attach(EventTypeDelete, ftsObserver)
+		watcher.Attach(watcherkit.EventTypeCreate, ftsObserver)
+		watcher.Attach(watcherkit.EventTypeUpdate, ftsObserver)
+		watcher.Attach(watcherkit.EventTypeDelete, ftsObserver)
 	}
 
 	if app.config.TriggerWatcher.Enabled {
@@ -408,10 +409,10 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 		if err != nil {
 			return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_mq_observer.app", err.Error())
 		}
-		watcher.Attach(EventTypeCreate, mq)
-		watcher.Attach(EventTypeUpdate, mq)
-		watcher.Attach(EventTypeDelete, mq)
-		watcher.Attach(EventTypeResolutionTime, mq)
+		watcher.Attach(watcherkit.EventTypeCreate, mq)
+		watcher.Attach(watcherkit.EventTypeUpdate, mq)
+		watcher.Attach(watcherkit.EventTypeDelete, mq)
+		watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
 
 		app.caseResolutionTimer.Start()
 	}

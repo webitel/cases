@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
@@ -13,168 +12,11 @@ import (
 	"github.com/webitel/cases/rabbit"
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/fts_client"
+	"github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
 	"strings"
 	"time"
 )
-
-type EventType string
-
-const (
-	EventTypeCreate         EventType = "create"
-	EventTypeDelete         EventType = "remove"
-	EventTypeUpdate         EventType = "update"
-	EventTypeResolutionTime EventType = "resolution_time"
-)
-
-var ErrUnknownType = errors.New("unknown type")
-
-type WatchMarshaller interface {
-	GetArgs() map[string]any
-}
-
-type Observer interface {
-	Update(EventType, map[string]any) error
-	GetId() string
-}
-
-type Watcher interface {
-	Attach(EventType, Observer)
-	Detach(EventType, Observer)
-	OnEvent(et EventType, entity WatchMarshaller) error
-}
-
-// WatcherManager manages a clustered storage of watchers
-type WatcherManager interface {
-	// AddWatcher adds watcher to cluster
-	AddWatcher(clusterId string, watcher Watcher)
-
-	// RemoveCluster removes full cluster
-	RemoveCluster(clusterId string)
-
-	GetCluster(clusterId string) []Watcher
-
-	// Notify full cluster with event
-	Notify(clusterId string, et EventType, data WatchMarshaller) error
-
-	Enable()
-
-	Disable()
-
-	GetState() bool
-}
-
-type DefaultWatcherManager struct {
-	clusters map[string][]Watcher
-	state    bool
-}
-
-func NewDefaultWatcherManager(state bool) *DefaultWatcherManager {
-	return &DefaultWatcherManager{clusters: make(map[string][]Watcher), state: state}
-}
-
-func (d *DefaultWatcherManager) AddWatcher(clusterId string, watcher Watcher) {
-	d.clusters[clusterId] = append(d.clusters[clusterId], watcher)
-}
-
-func (d *DefaultWatcherManager) RemoveCluster(clusterId string) {
-	delete(d.clusters, clusterId)
-}
-
-func (d *DefaultWatcherManager) GetCluster(clusterId string) []Watcher {
-	return d.clusters[clusterId]
-}
-
-func (d *DefaultWatcherManager) Notify(clusterId string, et EventType, data WatchMarshaller) error {
-	if !d.state {
-		// noop
-		return nil
-	}
-	cl := d.GetCluster(clusterId)
-	if cl == nil {
-		return nil
-	}
-	for _, watcher := range cl {
-		err := watcher.OnEvent(et, data)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (d *DefaultWatcherManager) GetState() bool {
-	return d.state
-}
-
-func (d *DefaultWatcherManager) Enable() {
-	d.state = true
-}
-
-func (d *DefaultWatcherManager) Disable() {
-	d.state = false
-}
-
-type DefaultWatcher struct {
-	observers map[EventType][]Observer
-}
-
-func NewDefaultWatcher() *DefaultWatcher {
-	return &DefaultWatcher{
-		observers: make(map[EventType][]Observer),
-	}
-}
-
-func (dw *DefaultWatcher) Attach(et EventType, o Observer) {
-	dw.observers[et] = append(dw.observers[et], o)
-}
-func (dw *DefaultWatcher) Detach(et EventType, o Observer) {
-	for i, v := range dw.observers[et] {
-		if v.GetId() == o.GetId() {
-			dw.observers[et] = append(dw.observers[et][:i], dw.observers[et][i+1:]...)
-			break
-		}
-	}
-}
-
-func (dw *DefaultWatcher) Notify(et EventType, entity WatchMarshaller) error {
-	var err error
-	for _, o := range dw.observers[et] {
-		err = o.Update(et, entity.GetArgs())
-		if err != nil {
-			slog.Error(fmt.Sprintf("observer %s: %s", o.GetId(), err.Error()))
-		}
-	}
-	return nil
-}
-
-func (dw *DefaultWatcher) OnEvent(et EventType, entity WatchMarshaller) error {
-	switch et {
-	case EventTypeCreate:
-		return dw.OnCreate(entity)
-	case EventTypeDelete:
-		return dw.OnDelete(entity)
-	case EventTypeUpdate:
-		return dw.OnUpdate(entity)
-	case EventTypeResolutionTime:
-		return dw.OnResolutionTime(entity)
-	default:
-		return ErrUnknownType
-	}
-}
-
-func (dw *DefaultWatcher) OnCreate(entity WatchMarshaller) error {
-	return dw.Notify(EventTypeCreate, entity)
-}
-func (dw *DefaultWatcher) OnDelete(entity WatchMarshaller) error {
-	return dw.Notify(EventTypeDelete, entity)
-}
-func (dw *DefaultWatcher) OnUpdate(entity WatchMarshaller) error {
-	return dw.Notify(EventTypeUpdate, entity)
-}
-func (dw *DefaultWatcher) OnResolutionTime(entity WatchMarshaller) error {
-	return dw.Notify(EventTypeResolutionTime, entity)
-}
 
 type AMQPBroker interface {
 	QueueDeclare(queueName string, opts ...rabbit.QueueDeclareOption) (string, cerr.AppError)
@@ -213,7 +55,7 @@ func (cao *TriggerObserver[T, V]) GetId() string {
 	return cao.id
 }
 
-func (cao *TriggerObserver[T, V]) Update(et EventType, args map[string]any) error {
+func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]any) error {
 	var domainId int64
 	obj, ok := args["obj"].(T)
 	if !ok {
@@ -263,7 +105,7 @@ func (cao *TriggerObserver[T, V]) Update(et EventType, args map[string]any) erro
 func (cao *TriggerObserver[T, V]) getRoutingKeyByEventType(
 	service string,
 	object string,
-	eventType EventType,
+	eventType watcher.EventType,
 	domainId int64,
 ) string {
 	return fmt.Sprintf(
@@ -293,7 +135,7 @@ func (l *LoggerObserver) GetId() string {
 	return l.id
 }
 
-func (l *LoggerObserver) Update(et EventType, args map[string]any) error {
+func (l *LoggerObserver) Update(et watcher.EventType, args map[string]any) error {
 	auth, ok := args["session"].(auth.Auther)
 	if !ok {
 		return fmt.Errorf("could not get session auth")
@@ -304,14 +146,14 @@ func (l *LoggerObserver) Update(et EventType, args map[string]any) error {
 	}
 	var tp wlogger.Action
 	switch et {
-	case EventTypeCreate:
+	case watcher.EventTypeCreate:
 		tp = wlogger.CreateAction
-	case EventTypeDelete:
+	case watcher.EventTypeDelete:
 		tp = wlogger.DeleteAction
-	case EventTypeUpdate:
+	case watcher.EventTypeUpdate:
 		tp = wlogger.UpdateAction
 	default:
-		return ErrUnknownType
+		return watcher.ErrUnknownType
 	}
 	message, err := wlogger.NewMessage(auth.GetUserId(), auth.GetUserIp(), tp, id, args["obj"])
 	if err != nil {
@@ -342,7 +184,7 @@ func (l *FullTextSearchObserver[T, V]) GetId() string {
 	return l.id
 }
 
-func (l *FullTextSearchObserver[T, V]) Update(et EventType, args map[string]any) error {
+func (l *FullTextSearchObserver[T, V]) Update(et watcher.EventType, args map[string]any) error {
 	auth, ok := args["session"].(auth.Auther)
 	if !ok {
 		return fmt.Errorf("could not get session auth")
@@ -362,14 +204,14 @@ func (l *FullTextSearchObserver[T, V]) Update(et EventType, args map[string]any)
 	}
 	switch et {
 
-	case EventTypeCreate:
+	case watcher.EventTypeCreate:
 		err = l.client.Create(auth.GetDomainId(), l.objclass, id, neededType)
-	case EventTypeDelete:
+	case watcher.EventTypeDelete:
 		err = l.client.Delete(auth.GetDomainId(), l.objclass, id)
-	case EventTypeUpdate:
+	case watcher.EventTypeUpdate:
 		err = l.client.Update(auth.GetDomainId(), l.objclass, id, neededType)
 	default:
-		return ErrUnknownType
+		return watcher.ErrUnknownType
 	}
 	if err != nil {
 		return err
@@ -377,6 +219,6 @@ func (l *FullTextSearchObserver[T, V]) Update(et EventType, args map[string]any)
 	return nil
 }
 
-func (l *FullTextSearchObserver[T, V]) getRoutingKeyByEventType(eventType EventType) string {
+func (l *FullTextSearchObserver[T, V]) getRoutingKeyByEventType(eventType watcher.EventType) string {
 	return fmt.Sprintf("%s_case_key", string(eventType))
 }
