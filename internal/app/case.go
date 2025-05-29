@@ -204,8 +204,13 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if len(req.Input.Related) > 0 {
 		relatedItems := make([]*cases.RelatedCase, len(req.Input.Related))
 		for i, inputRelated := range req.Input.Related {
+			var relatedID int64
+			if inputRelated.GetRelatedTo() != "" {
+				relatedID, _ = strconv.ParseInt(inputRelated.GetRelatedTo(), 10, 64)
+			}
 			relatedItems[i] = &cases.RelatedCase{
-				Etag:         inputRelated.GetRelatedTo(),
+				Id:           relatedID,
+				Etag:         inputRelated.GetEtag(),
 				RelationType: inputRelated.RelationType,
 			}
 		}
@@ -276,16 +281,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			req,
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
-			util.ParseFieldsForEtag,
-			func(fields []string) []string {
-				for i, v := range fields {
-					if v == "related" {
-						fields = append(fields[:i], fields[i+1:]...)
-					}
-				}
-
-				return fields
-			}),
+			util.ParseFieldsForEtag),
 	)
 	if err != nil {
 		return nil, NewBadRequestError(err)
@@ -379,15 +375,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 			req,
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
-			util.ParseFieldsForEtag,
-			func(fields []string) []string {
-				for i, v := range fields {
-					if v == "related" {
-						fields = append(fields[:i], fields[i+1:]...)
-					}
-				}
-				return fields
-			}),
+			util.ParseFieldsForEtag),
 		grpcopts.WithUpdateEtag(&tag),
 		grpcopts.WithUpdateMasker(req),
 	)
