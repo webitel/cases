@@ -12,10 +12,11 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
-	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/etag"
+	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
+	"strconv"
 )
 
 // In search options extract from context user
@@ -168,10 +169,10 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		createOpts.GetAuthOpts().GetUserId(),
 		createOpts.GetAuthOpts().GetUserIp(),
 		wlogger.UpdateAction,
-		res.GetId(),
+		strconv.FormatInt(res.GetId(), 10),
 		req,
 	)
-	err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
+	_, err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
 	if err != nil {
 		return nil, err
 	}
@@ -256,10 +257,10 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		updateOpts.GetAuthOpts().GetUserId(),
 		updateOpts.GetAuthOpts().GetUserIp(),
 		wlogger.UpdateAction,
-		linkTid.GetOid(),
+		strconv.FormatInt(linkTid.GetOid(), 10),
 		req,
 	)
-	err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
+	_, err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
 	if err != nil {
 		return nil, err
 	}
@@ -320,10 +321,10 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 		deleteOpts.GetAuthOpts().GetUserId(),
 		deleteOpts.GetAuthOpts().GetUserIp(),
 		wlogger.UpdateAction,
-		linkTID.GetOid(),
+		strconv.FormatInt(linkTID.GetOid(), 10),
 		req,
 	)
-	err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
+	_, err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
 	if err != nil {
 		return nil, err
 	}
@@ -403,14 +404,17 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 	return links, nil
 }
 
-func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
+func NewCaseLinkService(app *App) (*CaseLinkService, error) {
 	if app == nil {
 		return nil, cerror.NewBadRequestError(
 			"app.case.new_case_comment_service.check_args.app",
 			"unable to init service, app is nil",
 		)
 	}
-	logger := app.wtelLogger.GetObjectedLogger("cases")
+	logger, err := app.wtelLogger.GetObjectedLogger("cases")
+	if err != nil {
+		return nil, err
+	}
 	service := &CaseLinkService{
 		app:    app,
 		logger: logger,
