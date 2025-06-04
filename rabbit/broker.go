@@ -255,13 +255,7 @@ func fmtBrokerLog(description string) string {
 	return fmt.Sprintf("broker: %s", description)
 }
 
-func (l *RabbitBroker) Publish(
-	exchange string, // Exchange name -- [Cases]
-	routingKey string, // Routing key -- [api path]
-	body []byte, // Message body
-	_ string, // User ID
-	t time.Time, // Message timestamp
-) cerror.AppError {
+func (l *RabbitBroker) Publish(exchange string, routingKey string, body []byte, headers map[string]any) error {
 	err := l.channel.Publish(
 		exchange,
 		routingKey,
@@ -270,7 +264,7 @@ func (l *RabbitBroker) Publish(
 		amqp.Publishing{
 			ContentType: "application/json",
 			Body:        body,
-			Timestamp:   t,
+			Headers:     headers,
 		},
 	)
 	if err != nil {

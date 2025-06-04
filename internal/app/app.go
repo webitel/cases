@@ -18,7 +18,7 @@ import (
 	"log/slog"
 
 	engine "github.com/webitel/cases/api/engine"
-	wlogger "github.com/webitel/logger/pkg/client/v2"
+	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -46,7 +46,7 @@ type App struct {
 	webitelgoClient     webitelgo.GroupsClient
 	engineConn          *grpc.ClientConn
 	engineAgentClient   engine.AgentServiceClient
-	wtelLogger          *wlogger.LoggerClient
+	wtelLogger          *wlogger.Logger
 	ftsClient           *ftsclient.Client
 	watcherManager      WatcherManager
 	caseResolutionTimer *TimerTask[*App]
@@ -106,11 +106,10 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	}
 
 	// --------- Webitel Logger gRPC Connection ---------
-	app.wtelLogger, err = wlogger.NewLoggerClient(wlogger.WithAmqpConnectionString(app.config.Rabbit.Url), wlogger.WithGrpcConsulAddress(config.Consul.Address))
+	app.wtelLogger, err = wlogger.New(wlogger.WithPublisher(NewLoggerAdapter(app.rabbit)))
 	if err != nil {
-		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
+		return nil, err
 	}
-
 	// --------- Session Manager Initialization ---------
 	app.sessionManager, err = webitel_app.New(app.webitelAppConn)
 	if err != nil {

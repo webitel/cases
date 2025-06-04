@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	wlogger "github.com/webitel/logger/pkg/client/v2"
+	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 
 	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
@@ -277,14 +277,15 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
-			func(fields []string) []string {
-				for i, v := range fields {
-					if v == "related" {
-						fields = append(fields[:i], fields[i+1:]...)
-					}
-				}
-				return fields
-			}),
+			//func(fields []string) []string {
+			//	for i, v := range fields {
+			//		if v == "related" {
+			//			fields = append(fields[:i], fields[i+1:]...)
+			//		}
+			//	}
+			//	return fields
+			//}
+		),
 	)
 	if err != nil {
 		return nil, NewBadRequestError(err)
@@ -782,17 +783,20 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	return nil, nil
 }
 
-func NewCaseService(app *App) (*CaseService, cerror.AppError) {
+func NewCaseService(app *App) (*CaseService, error) {
 	if app == nil {
 		return nil, cerror.NewBadRequestError(
 			"app.case.new_case_service.check_args.app",
 			"unable to init case service, app is nil",
 		)
 	}
-
+	objectedLogger, err := app.wtelLogger.GetObjectedLogger(CaseMetadata.GetMainScopeName())
+	if err != nil {
+		return nil, err
+	}
 	service := &CaseService{
 		app:    app,
-		logger: app.wtelLogger.GetObjectedLogger(CaseMetadata.GetMainScopeName()),
+		logger: objectedLogger,
 	}
 
 	watcher := NewDefaultWatcher()

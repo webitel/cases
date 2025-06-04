@@ -11,9 +11,10 @@ import (
 	cerr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/rabbit"
-	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/fts_client"
+	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -180,7 +181,7 @@ type AMQPBroker interface {
 	QueueDeclare(queueName string, opts ...rabbit.QueueDeclareOption) (string, cerr.AppError)
 	ExchangeDeclare(exchangeName string, kind string, opts ...rabbit.ExchangeDeclareOption) cerr.AppError
 	QueueBind(exchangeName string, queueName string, routingKey string, noWait bool, args map[string]any) cerr.AppError
-	Publish(exchange string, routingKey string, body []byte, userId string, t time.Time) cerr.AppError
+	Publish(exchange string, routingKey string, body []byte, headers map[string]any) error
 }
 
 type TriggerObserver[T any, V any] struct {
@@ -257,7 +258,7 @@ func (cao *TriggerObserver[T, V]) Update(et EventType, args map[string]any) erro
 		routingKey = cao.getRoutingKeyByEventType("cases", "case", et, domainId)
 	}
 
-	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, "", time.Now())
+	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, nil)
 }
 
 func (cao *TriggerObserver[T, V]) getRoutingKeyByEventType(
@@ -281,10 +282,14 @@ type LoggerObserver struct {
 	timeout time.Duration
 }
 
-func NewLoggerObserver(logger *wlogger.LoggerClient, objclass string, timeout time.Duration) (*LoggerObserver, error) {
+func NewLoggerObserver(logger *wlogger.Logger, objclass string, timeout time.Duration) (*LoggerObserver, error) {
+	objectedLogger, err := logger.GetObjectedLogger(objclass)
+	if err != nil {
+		return nil, err
+	}
 	return &LoggerObserver{
 		id:      fmt.Sprintf("%s logger", objclass),
-		logger:  logger.GetObjectedLogger(objclass),
+		logger:  objectedLogger,
 		timeout: timeout,
 	}, nil
 }
@@ -313,13 +318,17 @@ func (l *LoggerObserver) Update(et EventType, args map[string]any) error {
 	default:
 		return ErrUnknownType
 	}
-	message, err := wlogger.NewMessage(auth.GetUserId(), auth.GetUserIp(), tp, id, args["obj"])
+	message, err := wlogger.NewMessage(auth.GetUserId(), auth.GetUserIp(), tp, strconv.FormatInt(id, 10), args["obj"])
 	if err != nil {
 		return err
 	}
 	ctx, cancelFunc := context.WithTimeout(context.Background(), l.timeout)
 	defer cancelFunc()
-	return l.logger.SendContext(ctx, auth.GetDomainId(), message)
+	_, err = l.logger.SendContext(ctx, auth.GetDomainId(), message)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 type FullTextSearchObserver[T any, V any] struct {
