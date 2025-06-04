@@ -23,6 +23,7 @@ import (
 	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -283,6 +284,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			//			fields = append(fields[:i], fields[i+1:]...)
 			//		}
 			//	}
+
 			//	return fields
 			//}
 		),
@@ -346,7 +348,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 
 	if notifyErr := c.app.watcherManager.Notify(
 		model.ScopeCases,
-		EventTypeCreate,
+		watcherkit.EventTypeCreate,
 		NewCaseWatcherData(
 			authOpts,
 			res,
@@ -473,7 +475,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	if notifyErr := c.app.watcherManager.Notify(
 		model.ScopeCases,
-		EventTypeUpdate,
+		watcherkit.EventTypeUpdate,
 		NewCaseWatcherData(
 			authOpts,
 			upd,
@@ -770,7 +772,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 
 	if notifyErr := c.app.watcherManager.Notify(
 		model.ScopeCases,
-		EventTypeDelete,
+		watcherkit.EventTypeDelete,
 		NewCaseWatcherData(
 			deleteOpts.GetAuthOpts(),
 			deleteCase,
@@ -799,7 +801,7 @@ func NewCaseService(app *App) (*CaseService, error) {
 		logger: objectedLogger,
 	}
 
-	watcher := NewDefaultWatcher()
+	watcher := watcherkit.NewDefaultWatcher()
 
 	if app.config.LoggerWatcher.Enabled {
 
@@ -807,9 +809,9 @@ func NewCaseService(app *App) (*CaseService, error) {
 		if err != nil {
 			return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
 		}
-		watcher.Attach(EventTypeCreate, obs)
-		watcher.Attach(EventTypeUpdate, obs)
-		watcher.Attach(EventTypeDelete, obs)
+		watcher.Attach(watcherkit.EventTypeCreate, obs)
+		watcher.Attach(watcherkit.EventTypeUpdate, obs)
+		watcher.Attach(watcherkit.EventTypeDelete, obs)
 	}
 
 	if app.config.FtsWatcher.Enabled {
@@ -817,9 +819,9 @@ func NewCaseService(app *App) (*CaseService, error) {
 		if err != nil {
 			return nil, cerror.NewInternalError("app.case.new_case_service.create_fts_observer.app", err.Error())
 		}
-		watcher.Attach(EventTypeCreate, ftsObserver)
-		watcher.Attach(EventTypeUpdate, ftsObserver)
-		watcher.Attach(EventTypeDelete, ftsObserver)
+		watcher.Attach(watcherkit.EventTypeCreate, ftsObserver)
+		watcher.Attach(watcherkit.EventTypeUpdate, ftsObserver)
+		watcher.Attach(watcherkit.EventTypeDelete, ftsObserver)
 	}
 
 	if app.config.TriggerWatcher.Enabled {
@@ -831,10 +833,10 @@ func NewCaseService(app *App) (*CaseService, error) {
 		if err != nil {
 			return nil, cerror.NewInternalError("app.case.new_case_service.create_mq_observer.app", err.Error())
 		}
-		watcher.Attach(EventTypeCreate, mq)
-		watcher.Attach(EventTypeUpdate, mq)
-		watcher.Attach(EventTypeDelete, mq)
-		watcher.Attach(EventTypeResolutionTime, mq)
+		watcher.Attach(watcherkit.EventTypeCreate, mq)
+		watcher.Attach(watcherkit.EventTypeUpdate, mq)
+		watcher.Attach(watcherkit.EventTypeDelete, mq)
+		watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
 		app.caseResolutionTimer = NewTimerTask[*App](time.Duration(app.config.TriggerWatcher.ResolutionCheckInterval)*time.Second,
 			service.scheduleResolutionTime, app)
 
@@ -1124,7 +1126,7 @@ func (c *CaseService) scheduleResolutionTime(app *App) {
 
 		if notifyErr := app.watcherManager.Notify(
 			model.ScopeCases,
-			EventTypeResolutionTime,
+			watcherkit.EventTypeResolutionTime,
 			NewCaseWatcherData(
 				nil,
 				cs,

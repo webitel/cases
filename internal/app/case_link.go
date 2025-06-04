@@ -12,7 +12,9 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
+	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/etag"
+	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
 )
 
@@ -20,7 +22,8 @@ import (
 // Remove from search options fields functions
 
 type CaseLinkService struct {
-	app *App
+	app    *App
+	logger *wlogger.ObjectedLogger
 	cases.UnimplementedCaseLinksServer
 }
 
@@ -161,9 +164,21 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
 	}
 
+	message, err := wlogger.NewMessage(
+		createOpts.GetAuthOpts().GetUserId(),
+		createOpts.GetAuthOpts().GetUserIp(),
+		wlogger.UpdateAction,
+		res.GetId(),
+		req,
+	)
+	err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
 	if notifyErr := c.app.watcherManager.Notify(
 		model.BrokerScopeCaseLinks,
-		EventTypeCreate,
+		watcherkit.EventTypeCreate,
 		NewLinkWatcherData(
 			authOpts,
 			res,
@@ -237,9 +252,21 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
 	}
 
+	message, err := wlogger.NewMessage(
+		updateOpts.GetAuthOpts().GetUserId(),
+		updateOpts.GetAuthOpts().GetUserIp(),
+		wlogger.UpdateAction,
+		linkTid.GetOid(),
+		req,
+	)
+	err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
 	if notifyErr := c.app.watcherManager.Notify(
 		model.BrokerScopeCaseLinks,
-		EventTypeUpdate,
+		watcherkit.EventTypeUpdate,
 		NewLinkWatcherData(
 			authOpts,
 			updated,
@@ -289,9 +316,21 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 		return nil, deferr.DatabaseError
 	}
 
+	message, err := wlogger.NewMessage(
+		deleteOpts.GetAuthOpts().GetUserId(),
+		deleteOpts.GetAuthOpts().GetUserIp(),
+		wlogger.UpdateAction,
+		linkTID.GetOid(),
+		req,
+	)
+	err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
 	if notifyErr := c.app.watcherManager.Notify(
 		model.BrokerScopeCaseLinks,
-		EventTypeDelete,
+		watcherkit.EventTypeDelete,
 		NewLinkWatcherData(
 			deleteOpts.GetAuthOpts(),
 			&cases.CaseLink{},
@@ -371,10 +410,12 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 			"unable to init service, app is nil",
 		)
 	}
+	logger := app.wtelLogger.GetObjectedLogger("cases")
 	service := &CaseLinkService{
-		app: app,
+		app:    app,
+		logger: logger,
 	}
-	watcher := NewDefaultWatcher()
+	watcher := watcherkit.NewDefaultWatcher()
 
 	if app.config.TriggerWatcher.Enabled {
 		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseLinkTriggerModel, slog.With(
@@ -385,10 +426,10 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 		if err != nil {
 			return nil, cerror.NewInternalError("app.case.new_case_link_service.create_mq_observer.app", err.Error())
 		}
-		watcher.Attach(EventTypeCreate, mq)
-		watcher.Attach(EventTypeUpdate, mq)
-		watcher.Attach(EventTypeDelete, mq)
-		watcher.Attach(EventTypeResolutionTime, mq)
+		watcher.Attach(watcherkit.EventTypeCreate, mq)
+		watcher.Attach(watcherkit.EventTypeUpdate, mq)
+		watcher.Attach(watcherkit.EventTypeDelete, mq)
+		watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
 
 		app.caseResolutionTimer.Start()
 	}

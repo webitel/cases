@@ -15,9 +15,10 @@ import (
 	"github.com/webitel/cases/internal/store/postgres"
 	broker "github.com/webitel/cases/rabbit"
 	ftsclient "github.com/webitel/webitel-go-kit/fts_client"
+	"github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
 
-	engine "github.com/webitel/cases/api/engine"
+	"github.com/webitel/cases/api/engine"
 	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -48,7 +49,7 @@ type App struct {
 	engineAgentClient   engine.AgentServiceClient
 	wtelLogger          *wlogger.Logger
 	ftsClient           *ftsclient.Client
-	watcherManager      WatcherManager
+	watcherManager      watcher.Manager
 	caseResolutionTimer *TimerTask[*App]
 }
 
@@ -78,7 +79,7 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	}
 
 	// register watchers
-	watcherManager := NewDefaultWatcherManager(config.WatchersEnabled)
+	watcherManager := watcher.NewDefaultWatcherManager(config.WatchersEnabled)
 	app.watcherManager = watcherManager
 	//
 
