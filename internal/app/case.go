@@ -148,7 +148,9 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 		grpcopts.WithFields(req, CaseMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
-			util.EnsureIdField),
+			util.EnsureIdField,
+			util.EnsureCustomField,
+		),
 		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetEtag()),
 	)
 	if err != nil {
