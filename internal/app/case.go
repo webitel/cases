@@ -280,15 +280,15 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
-			//func(fields []string) []string {
-			//	for i, v := range fields {
-			//		if v == "related" {
-			//			fields = append(fields[:i], fields[i+1:]...)
-			//		}
-			//	}
+			func(fields []string) []string {
+				for i, v := range fields {
+					if v == "related" {
+						fields = append(fields[:i], fields[i+1:]...)
+					}
+				}
 
-			//	return fields
-			//}
+				return fields
+			},
 		),
 	)
 	if err != nil {
