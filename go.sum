@@ -4,10 +4,10 @@ buf.build/gen/go/webitel/logger/grpc/go v1.5.1-20250128105802-aaacc0377b27.2 h1:
 buf.build/gen/go/webitel/logger/grpc/go v1.5.1-20250128105802-aaacc0377b27.2/go.mod h1:rKkdsIkJnFkMiDKryV/MUhKCPCN4SyUUGwgiTsUGalc=
 buf.build/gen/go/webitel/logger/protocolbuffers/go v1.36.4-20250128105802-aaacc0377b27.1 h1:MecpVVYa8m8Q5AfjcTqVKBdnnT3mfvwoUq+RO9J4TaU=
 buf.build/gen/go/webitel/logger/protocolbuffers/go v1.36.4-20250128105802-aaacc0377b27.1/go.mod h1:sIqtudRiH9K2ks4loN2AW2gAuIMil2dvID+GRHHFBDM=
-buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2 h1:5r8oFldYy3AbufyZxRCIfdUXb6RMkkXoHUUxgpsGQTY=
-buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2/go.mod h1:AnWODZnuDqALHRMXJxOFQ3n26qywVNfKm9bSPxRSEW8=
-buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250121132426-2c80753dfee6.1 h1:pbrVnu5Zs3fq50Vj8ybP9qxSrkQRvMYvyFMa78SKLFY=
-buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250121132426-2c80753dfee6.1/go.mod h1:slrzXMrLW2DmHemeZQUpUeCGCQFusgGvbHMoVvPDrYw=
+buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250407111641-05899e9cc796.2 h1:aBhp8TWmlbh7ag3L2YqOORJ7WZKGhkBlsk5E+6OOK/E=
+buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250407111641-05899e9cc796.2/go.mod h1:oyeboAmVLAwjGdA+hR1oRf0WOze79HB4eLuCtbCvcUs=
+buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250407111641-05899e9cc796.1 h1:OmYDZrve1DlOJgKL/+dkEVBh369Sc1thFZE2KeFNJos=
+buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250407111641-05899e9cc796.1/go.mod h1:ASofof5P7/h/+3cLsJDuz3DeBtES4cvCAirsr7bZs0M=
 cel.dev/expr v0.19.0 h1:lXuo+nDhpyJSpWxpPVi5cPUwzKb+dsdOiw6IreM5yt0=
 cel.dev/expr v0.19.0/go.mod h1:MrpN08Q+lEBs+bGYdLxxHkZoUSsCp0nSKTs0nTymJgw=
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
