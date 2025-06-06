@@ -994,6 +994,40 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	return false, nil
 }
 
+func parseExprToSql(expr string) sq.Sqlizer {
+	orGroups := strings.Split(expr, "||")
+	var orExpr sq.Or
+	for _, orGroup := range orGroups {
+		andGroups := strings.Split(orGroup, "&&")
+		var andExpr sq.And
+		for _, cond := range andGroups {
+			cond = strings.TrimSpace(cond)
+			var op string
+			var field, value string
+			if strings.Contains(cond, "!=") {
+				op = "!="
+				parts := strings.SplitN(cond, "!=", 2)
+				field, value = strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+			} else if strings.Contains(cond, "=") {
+				op = "="
+				parts := strings.SplitN(cond, "=", 2)
+				field, value = strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+			}
+			col := storeutils.Ident(caseLeft, field)
+			switch op {
+			case "=":
+				andExpr = append(andExpr, sq.Expr(fmt.Sprintf("%s = ?", col), value))
+			case "!=":
+				andExpr = append(andExpr, sq.Expr(fmt.Sprintf("%s != ?", col), value))
+			}
+		}
+		if len(andExpr) > 0 {
+			orExpr = append(orExpr, andExpr)
+		}
+	}
+	return orExpr
+}
+
 func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
 	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
@@ -1357,6 +1391,15 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 	}
 	if err != nil {
 		return base, nil, err
+	}
+
+	if getter, ok := opts.(interface {
+		GetComplexFilters() []string
+	}); ok {
+		for _, expr := range getter.GetComplexFilters() {
+			sqlizer := parseExprToSql(expr)
+			base = base.Where(sqlizer)
+		}
 	}
 
 	// region: apply custom filter(s)
