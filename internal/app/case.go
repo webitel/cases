@@ -1077,6 +1077,14 @@ func formCaseCommentTriggerModel(item *cases.CaseComment) (*model.CaseCommentAMQ
 	return m, nil
 }
 
+func formCaseFiletriggerModel(item *cases.File) (*model.CaseFileAMQPMessage, error) {
+	m := &model.CaseFileAMQPMessage{
+		CaseFile: item,
+	}
+
+	return m, nil
+}
+
 type CaseWatcherData struct {
 	case_ *cases.Case
 	Args  map[string]any

@@ -11,8 +11,8 @@ import (
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/rabbit"
 	"github.com/webitel/webitel-go-kit/fts_client"
-	"github.com/webitel/webitel-go-kit/pkg/watcher"
 	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
+	"github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -49,6 +49,7 @@ func NewTriggerObserver[T any, V any](amqpBroker AMQPBroker, config *cfg.Trigger
 		logger:     log,
 		converter:  conv,
 	}
+
 	return amqpObserver, nil
 }
 
@@ -89,6 +90,8 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 		objStr = model.BrokerScopeCaseLinks
 	case *cases.CaseComment:
 		objStr = model.ScopeCaseComments
+	case *cases.File:
+		objStr = model.ScopeFiles
 	default:
 		return fmt.Errorf("unsupported object type %T", obj)
 	}
@@ -129,6 +132,7 @@ func NewLoggerObserver(logger *wlogger.Logger, objclass string, timeout time.Dur
 	if err != nil {
 		return nil, err
 	}
+
 	return &LoggerObserver{
 		id:      fmt.Sprintf("%s logger", objclass),
 		logger:  objectedLogger,
