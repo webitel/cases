@@ -1605,8 +1605,13 @@ func (c *CaseStore) Update(
 	if txErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", txErr)
 	}
+
+	var (
+		commited  bool
+		commitErr error
+	)
 	defer func() {
-		if err != nil {
+		if !commited {
 			rbErr := tx.Rollback(rpc)
 			if rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) {
 				log.Printf("postgres.case.update.rollback_error: %v\n", rbErr)
@@ -1678,10 +1683,13 @@ func (c *CaseStore) Update(
 		return nil, dberr.NewDBInternalError("postgres.case.update.update.execution_error", err)
 	}
 
-	// Commit the transaction
-	if err := tx.Commit(rpc); err != nil {
+	commitErr = tx.Commit(rpc)
+	if commitErr != nil {
+		commited = false
 		return nil, dberr.NewDBInternalError("postgres.case.update.commit_error", err)
 	}
+	commited = true
+
 	for _, field := range rpc.GetFields() {
 		if field == "role_ids" {
 			roles, defErr := c.GetRolesById(rpc, upd.GetId(), auth.Read)

@@ -374,6 +374,8 @@ github.com/webitel/logger v0.0.0-20250131144320-fa79d885252a h1:gZ+MbaoQ8Wb3eSWr
 github.com/webitel/logger v0.0.0-20250131144320-fa79d885252a/go.mod h1:YoEwlpSUESlyW7h5SqYsoyN96eyHFdOQdWp2/We4sB8=
 github.com/webitel/webitel-go-kit v0.0.21-0.20250522134942-6461799e3a09 h1:zA9g2vePdcSdyorVqG1G04B7DO1racEL15D22VyH/x8=
 github.com/webitel/webitel-go-kit v0.0.21-0.20250522134942-6461799e3a09/go.mod h1:m35vEcY7xr2y99I1TeZFR1mknEYLpddEWwq0cvbA/5E=
+github.com/webitel/webitel-go-kit/infra/logger_client v0.0.0-20250603122722-f7f4dd47adba h1:GROvo3tH+HbPf1wqP3HM4yeRs2/2pPFpATSFnm9c4z4=
+github.com/webitel/webitel-go-kit/infra/logger_client v0.0.0-20250603122722-f7f4dd47adba/go.mod h1:yxlOlLlcLKAYumTnxUPxZa0dYZFYtAcsbJMihtAWdIY=
 github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218 h1:5Jn9KhUMjqAUdVMi7EvFJrJlJGrwndhKFbz7FZ7woL0=
 github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218/go.mod h1:mdwPNCv2dd7RIJ8euwVJGYf8AaVH2H7CVh8D/zyCTqA=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
