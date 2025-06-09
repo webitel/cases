@@ -2511,24 +2511,23 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
 		case "related":
-			subquery, err := buildRelatedCasesSubquery(caseLeft)
-			if err != nil {
-				return base, nil, err
+			relatedFields := []string{"id", "ver", "related_case", "created_at", "created_by", "updated_by", "relation", "primary_case"}
+			subquery, scanPlan, dbErr := buildRelatedCasesSelectAsSubquery(auther, relatedFields, caseLeft)
+			if dbErr != nil {
+				return base, nil, dbErr
 			}
-
-			sqlStr, _, sqlErr := subquery.ToSql()
-			if sqlErr != nil {
-				return base, nil, sqlErr
-			}
-
-			// Add the subquery as a column
-			base = base.Column(fmt.Sprintf("(%s) AS related_cases", sqlStr))
-
-			plan = append(plan, func(caseItem *_go.Case) any {
-				if caseItem.Related == nil {
-					caseItem.Related = &_go.RelatedCaseList{}
+			base = AddSubqueryAsColumn(base, subquery, "related", false)
+			plan = append(plan, func(value *_go.Case) any {
+				var items []*_go.RelatedCase
+				postProcessing := func() error {
+					if value.Related == nil {
+						value.Related = &_go.RelatedCaseList{}
+					}
+					value.Related.Data = items
+					value.Related.Page = 1
+					return nil
 				}
-				return scanner.ScanJSONToStructList(&caseItem.Related.Data)
+				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
 		default:
 			return sq.SelectBuilder{}, nil, fmt.Errorf("unknown field: %s", field)
@@ -2592,30 +2591,6 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 	}
 
 	return base, plan, nil
-}
-
-func buildRelatedCasesSubquery(caseAlias string) (sq.SelectBuilder, error) {
-	return sq.Select(` 
-        JSON_AGG(JSON_BUILD_OBJECT(
-            'id', rc.id,
-            'related_case', JSON_BUILD_OBJECT(
-                'id', c_child.id,
-                'name', c_child.name,
-                'subject', c_child.subject,
-                'description', c_child.description
-            ),
-            'created_at', CAST(EXTRACT(EPOCH FROM rc.created_at) * 1000 AS BIGINT),
-            'created_by', JSON_BUILD_OBJECT(
-                'name', u.name,
-                'id', u.id
-            ),
-            'relation_type', rc.relation_type -- No casting needed for enum type
-        )) AS related_cases
-    `).
-		From("cases.related_case rc").
-		Join("cases.case c_child ON rc.related_case_id = c_child.id").
-		LeftJoin("directory.wbt_user u ON rc.created_by = u.id").
-		Where(fmt.Sprintf("%s = %s.id", storeutils.Ident("rc", "primary_case_id"), caseAlias)), nil
 }
 
 func AddSubqueryAsColumn(mainQuery sq.SelectBuilder, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) sq.SelectBuilder {
