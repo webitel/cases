@@ -14,8 +14,7 @@ require (
 	github.com/gammazero/deque v1.0.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1
 	github.com/jackc/pgtype v1.14.4
-	github.com/webitel/custom v0.0.0-20250507094703-36254da8d7d5
-	github.com/webitel/logger v0.0.0-20250131144320-fa79d885252a
+	github.com/webitel/custom v0.0.0-20250609172310-6bbcfbb74fa5
 	github.com/webitel/proto/gen v0.0.0-00010101000000-000000000000 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250204164813-702378808489
 	google.golang.org/protobuf v1.36.5
@@ -24,32 +23,34 @@ require (
 require (
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1
+	github.com/webitel/webitel-go-kit/infra/logger_client v0.0.0-20250603122722-f7f4dd47adba
 )
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 // indirect
-	buf.build/gen/go/webitel/logger/grpc/go v1.5.1-20250128105802-aaacc0377b27.2 // indirect
-	buf.build/gen/go/webitel/logger/protocolbuffers/go v1.36.4-20250128105802-aaacc0377b27.1 // indirect
 	cel.dev/expr v0.19.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
+	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/cel-go v0.22.1 // indirect
 	github.com/grafana/otel-profiling-go v0.5.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
+	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
+	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/webitel/webitel-go-kit/infra/logger_client v0.0.0-20250603122722-f7f4dd47adba // indirect
 	github.com/webitel/webitel-go-kit/logging/wlog v0.0.0-20240807083813-0853fbc06218 // indirect
 	go.opentelemetry.io/contrib/propagators/jaeger v1.28.0 // indirect
 	go.opentelemetry.io/contrib/samplers/jaegerremote v0.22.0 // indirect
