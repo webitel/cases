@@ -465,23 +465,30 @@ func buildRelatedCasesSelectColumnsAndPlan(
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanTimestamp(&rc.UpdatedAt)
 			})
+		//case "relation":
+		//	base = base.Column(util2.Ident(left, "relation_type"))
+		//	plan = append(plan, func(rc *cases.RelatedCase) any {
+		//		return scanner.TextDecoder(func(src []byte) error {
+		//			if len(src) == 0 {
+		//				rc.RelationType = 0
+		//
+		//				return nil
+		//			}
+		//			var relType int32
+		//			s := string(src)
+		//			_, err := fmt.Sscanf(s, "%d", &relType)
+		//			if err != nil {
+		//				return err
+		//			}
+		//			rc.RelationType = cases.RelationType(relType)
+		//			return nil
+		//		})
+		//	})
 		case "relation":
 			base = base.Column(util2.Ident(left, "relation_type"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
-				return scanner.TextDecoder(func(src []byte) error {
-					if len(src) == 0 {
-						rc.RelationType = 0
-						return nil
-					}
-					var relType int32
-					s := string(src)
-					_, err := fmt.Sscanf(s, "%d", &relType)
-					if err != nil {
-						return err
-					}
-					rc.RelationType = cases.RelationType(relType)
-					return nil
-				})
+				// Scan directly into int32 (handles NULL as 0 automatically)
+				return (*int32)(&rc.RelationType)
 			})
 		case "related_case":
 			joinRelatedCase()
