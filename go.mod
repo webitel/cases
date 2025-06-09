@@ -17,7 +17,7 @@ require (
 	github.com/webitel/custom v0.0.0-20250609172310-6bbcfbb74fa5
 	github.com/webitel/proto/gen v0.0.0-00010101000000-000000000000 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250204164813-702378808489
-	google.golang.org/protobuf v1.36.5
+	google.golang.org/protobuf v1.36.6
 )
 
 require (
