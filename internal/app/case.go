@@ -422,6 +422,12 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Service:          req.Input.GetService(),
 		Custom:           req.Input.GetCustom(),
 	}
+	if reporter := upd.Reporter; reporter != nil {
+		if reporter.GetId() == 0 {
+			// looks like anonymous
+			reporter = nil
+		}
+	}
 
 	res, err := c.app.Store.Case().Update(updateOpts, upd)
 	if err != nil {
@@ -859,10 +865,6 @@ func (c *CaseService) ValidateUpdateInput(
 			if input.Status.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.status_required", "Status is required")
 			}
-		//case "close_reason":
-		//	if closeReason := input.GetCloseReason(); closeReason != nil && closeReason.GetId() == 0 {
-		//		return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
-		//	}
 		case "priority":
 			if input.Priority.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.priority_required", "Priority is required")
@@ -875,10 +877,6 @@ func (c *CaseService) ValidateUpdateInput(
 			if input.Service.GetId() == 0 {
 				return cerror.NewBadRequestError("app.case.update_case.service_required", "Service is required")
 			}
-			// default:
-			// 	if jpath, ok := strings.CutPrefix(field, "custom"); ok {
-
-			// 	}
 		}
 	}
 
