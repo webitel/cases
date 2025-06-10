@@ -425,7 +425,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if reporter := upd.Reporter; reporter != nil {
 		if reporter.GetId() == 0 {
 			// looks like anonymous
-			reporter = nil
+			upd.Reporter = nil
 		}
 	}
 

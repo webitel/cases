@@ -1793,37 +1793,37 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 					input.Service.GetId(), caseIDString))
 
 		case "assignee":
-			if input.Assignee.GetId() == 0 {
-				updateBuilder = updateBuilder.Set("assignee", nil)
-			} else {
-				updateBuilder = updateBuilder.Set("assignee", input.Assignee.GetId())
+			var assignee *int64
+			if id := input.Reporter.GetId(); id > 0 {
+				assignee = &id
 			}
+			updateBuilder = updateBuilder.Set("assignee", assignee)
 		case "reporter":
-			updateBuilder = updateBuilder.Set("reporter", input.Reporter.GetId())
+			var reporter *int64
+			if id := input.Reporter.GetId(); id > 0 {
+				reporter = &id
+			}
+			updateBuilder = updateBuilder.Set("reporter", reporter)
 		case "contact_info":
 			updateBuilder = updateBuilder.Set("contact_info", input.GetContactInfo())
 		case "impacted":
 			var impacted *int64
-			if imp := input.GetImpacted().GetId(); imp != 0 {
+			if imp := input.GetImpacted().GetId(); imp > 0 {
 				impacted = &imp
 			}
 			updateBuilder = updateBuilder.Set("impacted", impacted)
 		case "group":
-			if input.Group.GetId() == 0 {
-				updateBuilder = updateBuilder.Set("contact_group", nil)
-			} else {
-				updateBuilder = updateBuilder.Set("contact_group", input.Group.GetId())
+			var group *int64
+			if id := input.GetGroup().GetId(); id > 0 {
+				group = &id
 			}
+			updateBuilder = updateBuilder.Set("contact_group", group)
 		case "close_reason":
-			if input.GetCloseReason() != nil {
-				var closeReason *int64
-				if reas := input.CloseReason.GetId(); reas > 0 {
-					closeReason = &reas
-				}
-				updateBuilder = updateBuilder.Set("close_reason", closeReason)
-			} else {
-				updateBuilder = updateBuilder.Set("close_reason", nil)
+			var closeReason *int64
+			if id := input.GetCloseReason().GetId(); id > 0 {
+				closeReason = &id
 			}
+			updateBuilder = updateBuilder.Set("close_reason", closeReason)
 		case "close_result":
 			var closeResult *string
 			if res := input.GetCloseResult(); res != "" {
