@@ -1686,7 +1686,7 @@ func (c *CaseStore) Update(
 	commitErr = tx.Commit(rpc)
 	if commitErr != nil {
 		commited = false
-		return nil, dberr.NewDBInternalError("postgres.case.update.commit_error", err)
+		return nil, dberr.NewDBInternalError("postgres.case.update.commit_error", commitErr)
 	}
 	commited = true
 
