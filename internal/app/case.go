@@ -425,15 +425,15 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	res, err := c.app.Store.Case().Update(updateOpts, upd)
 	if err != nil {
-		if err != nil {
-			switch err.(type) {
-			case *cerror.DBNoRowsError:
-				return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid et")
-			default:
-				slog.ErrorContext(ctx, err.Error())
-				return nil, deferr.DatabaseError
-			}
+		var DBNoRowsError *cerror.DBNoRowsError
+		switch {
+		case errors.As(err, &DBNoRowsError):
+			return nil, cerror.NewBadRequestError("app.case.update.invalid_etag", "Invalid et")
+		default:
+			slog.ErrorContext(ctx, err.Error())
+			return nil, deferr.DatabaseError
 		}
+
 	}
 
 	et, err := etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)

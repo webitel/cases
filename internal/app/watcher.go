@@ -61,7 +61,7 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 	var domainId int64
 	obj, ok := args["obj"].(T)
 	if !ok {
-		return fmt.Errorf("could not convert to %d", obj)
+		return fmt.Errorf("could not convert to %v", obj)
 	}
 
 	session, ok := args["session"].(auth.Auther)
@@ -208,7 +208,7 @@ func (l *FullTextSearchObserver[T, V]) Update(et watcher.EventType, args map[str
 	}
 	obj, ok := args["obj"].(T)
 	if !ok {
-		return fmt.Errorf("could not convert to %d", obj)
+		return fmt.Errorf("could not convert to %v", obj)
 	}
 
 	neededType, err := l.converter(obj, args)
