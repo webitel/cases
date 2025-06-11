@@ -99,9 +99,9 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 	routingKey := cao.getRoutingKeyByEventType("cases", objStr, et, domainId)
 	cao.logger.Debug(fmt.Sprintf("Trying to publish message to %s", routingKey))
 
-	if objStr == model.ScopeCaseComments || objStr == model.BrokerScopeCaseLinks {
-		routingKey = cao.getRoutingKeyByEventType("cases", "case", et, domainId)
-	}
+	//if objStr == model.ScopeCaseComments || objStr == model.BrokerScopeCaseLinks {
+	//	routingKey = cao.getRoutingKeyByEventType("cases", "case", et, domainId)
+	//}
 
 	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, nil)
 }
