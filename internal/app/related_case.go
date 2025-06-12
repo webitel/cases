@@ -10,12 +10,14 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"log/slog"
 	"strconv"
 )
 
 type RelatedCaseService struct {
-	app *App
+	app    *App
+	logger *wlogger.ObjectedLogger
 	cases.UnimplementedRelatedCasesServer
 }
 
@@ -166,6 +168,18 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		return nil, err
 	}
 
+	message, _ := wlogger.NewMessage(
+		createOpts.GetAuthOpts().GetUserId(),
+		createOpts.GetAuthOpts().GetUserIp(),
+		wlogger.UpdateAction,
+		strconv.Itoa(int(primaryCaseTag.GetOid())),
+		req,
+	)
+	_, err = r.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
 	relatedCase.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, relatedCase.GetId(), relatedCase.Ver)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
@@ -278,6 +292,18 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		return nil, err
 	}
 
+	message, _ := wlogger.NewMessage(
+		updateOpts.GetAuthOpts().GetUserId(),
+		updateOpts.GetAuthOpts().GetUserIp(),
+		wlogger.UpdateAction,
+		strconv.Itoa(int(primaryCaseTag.GetOid())),
+		req,
+	)
+	_, err = r.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
 	output.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, output.GetId(), output.GetVer())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
@@ -297,6 +323,15 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
+
+	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
+	if err != nil {
+		return nil, cerror.NewBadRequestError(
+			"app.related_case.deleted_related_case.invalid_etag",
+			"Invalid primary case etag",
+		)
+	}
+
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()),
@@ -322,6 +357,18 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, deferr.DatabaseError
+	}
+
+	message, _ := wlogger.NewMessage(
+		deleteOpts.GetAuthOpts().GetUserId(),
+		deleteOpts.GetAuthOpts().GetUserIp(),
+		wlogger.UpdateAction,
+		strconv.Itoa(int(primaryCaseTag.GetOid())),
+		req,
+	)
+	_, err = r.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
 	}
 
 	return nil, nil
@@ -402,9 +449,19 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 	return nil
 }
 
-func NewRelatedCaseService(app *App) (*RelatedCaseService, cerror.AppError) {
+func NewRelatedCaseService(app *App) (*RelatedCaseService, error) {
 	if app == nil {
 		return nil, cerror.NewBadRequestError("app.case.new_related_case_service.check_args.app", "unable to init service, app is nil")
 	}
-	return &RelatedCaseService{app: app}, nil
+	logger, err := app.wtelLogger.GetObjectedLogger("cases")
+	if err != nil {
+		return nil, err
+	}
+
+	service := &RelatedCaseService{
+		app:    app,
+		logger: logger,
+	}
+
+	return service, nil
 }
