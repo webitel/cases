@@ -90,10 +90,6 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 		return nil, NewBadRequestError(err)
 	}
 
-	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.GetCaseEtag())
-	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_file.delete_file.invalid_case_etag", "Invalid etag")
-	}
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64(
@@ -141,18 +137,38 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 	if notifyErr := c.app.watcherManager.Notify(
 		filesObj,
 		watcherkit.EventTypeDelete,
-		NewCaseCommentWatcherData(
+		NewFileWatcherData(
 			deleteOpts.GetAuthOpts(),
 			nil,
 			req.GetId(),
-			tag.GetOid(),
-			nil,
+			deleteOpts.GetAuthOpts().GetDomainId(),
 		),
 	); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case file delete: %s, ", notifyErr.Error()), logAttributes)
 	}
 
 	return &cases.File{}, nil
+}
+
+func NewFileWatcherData(session auth.Auther, file *cases.File, fileID int64, dc int64) *CaseFileWatcherData {
+	return &CaseFileWatcherData{
+		file: file,
+		Args: map[string]any{
+			"session":   session,
+			"obj":       file,
+			"id":        fileID,
+			"domain_id": dc,
+		},
+	}
+}
+
+type CaseFileWatcherData struct {
+	file *cases.File
+	Args map[string]any
+}
+
+func (wd *CaseFileWatcherData) GetArgs() map[string]any {
+	return wd.Args
 }
 
 // in DB directory.wbt_class `files` object is called `record_file`

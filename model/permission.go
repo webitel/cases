@@ -5,7 +5,7 @@ const (
 	ScopeCases        = "cases"
 	ScopeCalls        = "calls"
 	ScopeCaseComments = "case_comments"
-	ScopeFiles        = "files"
+	ScopeFiles        = "case_files"
 )
 
 // scope defaults for rabbit events
