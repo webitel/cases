@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
+
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/manager/webitel_app"
@@ -16,7 +18,6 @@ import (
 	broker "github.com/webitel/cases/rabbit"
 	ftsclient "github.com/webitel/webitel-go-kit/fts_client"
 	"github.com/webitel/webitel-go-kit/pkg/watcher"
-	"log/slog"
 
 	"github.com/webitel/cases/api/engine"
 	wlogger "github.com/webitel/logger/pkg/client/v2"
@@ -51,6 +52,7 @@ type App struct {
 	ftsClient           *ftsclient.Client
 	watcherManager      watcher.Manager
 	caseResolutionTimer *TimerTask[*App]
+	CloseReason         *CloseReasonService1
 }
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {

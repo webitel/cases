@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/model/options"
 
@@ -164,13 +165,13 @@ type CloseReasonGroupStore interface {
 
 type CloseReasonStore interface {
 	// Create a new reason
-	Create(ctx options.Creator, input *_go.CloseReason) (*_go.CloseReason, error)
+	Create(creator options.Creator, input *model.CloseReason) (*model.CloseReason, error)
 	// List reasons
-	List(ctx options.Searcher, closeReasonId int64) (*_go.CloseReasonList, error)
+	List(searcher options.Searcher, closeReasonId int64) (*model.CloseReasonList, error)
 	// Delete reason
-	Delete(ctx options.Deleter) error
+	Delete(deleter options.Deleter) (*model.CloseReason, error)
 	// Update reason
-	Update(ctx options.Updator, input *_go.CloseReason) (*_go.CloseReason, error)
+	Update(updator options.Updator, input *model.CloseReason) (*model.CloseReason, error)
 }
 
 type SourceStore interface {
