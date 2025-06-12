@@ -5,10 +5,11 @@ const (
 	ScopeCases        = "cases"
 	ScopeCalls        = "calls"
 	ScopeCaseComments = "case_comments"
-	ScopeFiles        = "case_files"
 )
 
 // scope defaults for rabbit events
 const (
-	BrokerScopeCaseLinks = "case_links"
+	BrokerScopeCaseLinks    = "case_links"
+	BrokerScopeFiles        = "case_files"
+	BrokerScopeRelatedCases = "related_cases"
 )
