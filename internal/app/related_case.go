@@ -168,13 +168,19 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		return nil, err
 	}
 
+	userIP := createOpts.GetAuthOpts().GetUserIp()
+	if userIP == "" {
+		userIP = "unknown"
+	}
+
 	message, _ := wlogger.NewMessage(
 		createOpts.GetAuthOpts().GetUserId(),
-		createOpts.GetAuthOpts().GetUserIp(),
+		userIP,
 		wlogger.UpdateAction,
 		strconv.Itoa(int(primaryCaseTag.GetOid())),
 		req,
 	)
+
 	_, err = r.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
 	if err != nil {
 		return nil, err
@@ -292,13 +298,19 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		return nil, err
 	}
 
+	userIP := updateOpts.GetAuthOpts().GetUserIp()
+	if userIP == "" {
+		userIP = "unknown"
+	}
+
 	message, _ := wlogger.NewMessage(
 		updateOpts.GetAuthOpts().GetUserId(),
-		updateOpts.GetAuthOpts().GetUserIp(),
+		userIP,
 		wlogger.UpdateAction,
 		strconv.Itoa(int(primaryCaseTag.GetOid())),
 		req,
 	)
+
 	_, err = r.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
 	if err != nil {
 		return nil, err
@@ -359,13 +371,19 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		return nil, deferr.DatabaseError
 	}
 
+	userIP := deleteOpts.GetAuthOpts().GetUserIp()
+	if userIP == "" {
+		userIP = "unknown"
+	}
+
 	message, _ := wlogger.NewMessage(
 		deleteOpts.GetAuthOpts().GetUserId(),
-		deleteOpts.GetAuthOpts().GetUserIp(),
+		userIP,
 		wlogger.UpdateAction,
 		strconv.Itoa(int(primaryCaseTag.GetOid())),
 		req,
 	)
+
 	_, err = r.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
 	if err != nil {
 		return nil, err
