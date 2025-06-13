@@ -207,15 +207,3 @@ func (s *CloseReasonGroupService) Marshal(model *model.CloseReasonGroup) (*_go.C
 		UpdatedBy:   utils.MarshalLookup(model.Editor),
 	}, nil
 }
-
-func (s *CloseReasonGroupService) Unmarshal(model *model.CloseReasonGroup) (*_go.CloseReasonGroup, error) {
-	return &_go.CloseReasonGroup{
-		Id:          int64(model.Id),
-		Name:        utils.Dereference(model.Name),
-		Description: utils.Dereference(model.Description),
-		CreatedAt:   model.CreatedAt.UnixMilli(),
-		UpdatedAt:   model.UpdatedAt.UnixMilli(),
-		CreatedBy:   utils.MarshalLookup(model.Author),
-		UpdatedBy:   utils.MarshalLookup(model.Editor),
-	}, nil
-}
