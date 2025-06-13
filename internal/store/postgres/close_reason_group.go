@@ -3,11 +3,11 @@ package postgres
 import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
-	_go "github.com/webitel/cases/api/cases"
+	"github.com/georgysavva/scany/v2/pgxscan"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/postgres/scanner"
 	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/util"
 )
@@ -16,86 +16,71 @@ type CloseReasonGroup struct {
 	storage *Store
 }
 
-type CloseReasonGroupScan func(group *_go.CloseReasonGroup) any
-
 const (
 	crgLeft                     = "g"
 	closeReasonGroupDefaultSort = "name"
 )
 
-// Helper function to convert plan to scan arguments.
-func convertToCloseReasonGroupScanArgs(plan []CloseReasonGroupScan, group *_go.CloseReasonGroup) []any {
-	var scanArgs []any
-	for _, scan := range plan {
-		scanArgs = append(scanArgs, scan(group))
-	}
-	return scanArgs
-}
-
 // Helper function to dynamically build select columns and plan.
-func buildCloseReasonGroupSelectColumnsAndPlan(
+func buildCloseReasonGroupSelectColumns(
 	base sq.SelectBuilder,
 	fields []string,
-) (sq.SelectBuilder, []CloseReasonGroupScan, error) {
-	var plan []CloseReasonGroupScan
+) (sq.SelectBuilder, error) {
+	var (
+		createdByAlias string
+		joinCreatedBy  = func(alias string) string {
+			if createdByAlias != "" {
+				return createdByAlias
+			}
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %s.created_by = %s.id", alias, crgLeft, alias))
+			createdByAlias = alias
+			return alias
+		}
+		updatedByAlias string
+		joinUpdatedBy  = func(alias string) string {
+			if updatedByAlias != "" {
+				return updatedByAlias
+			}
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %s.updated_by = %s.id", alias, crgLeft, alias))
+			updatedByAlias = alias
+			return alias
+		}
+	)
+	base = base.Column(util2.Ident(crgLeft, "id"))
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util2.Ident(crgLeft, "id"))
-			plan = append(plan, func(group *_go.CloseReasonGroup) any {
-				return &group.Id
-			})
+			// already set
 		case "name":
 			base = base.Column(util2.Ident(crgLeft, "name"))
-			plan = append(plan, func(group *_go.CloseReasonGroup) any {
-				return &group.Name
-			})
 		case "description":
 			base = base.Column(util2.Ident(crgLeft, "description"))
-			plan = append(plan, func(group *_go.CloseReasonGroup) any {
-				return scanner.ScanText(&group.Description)
-			})
 		case "created_at":
 			base = base.Column(util2.Ident(crgLeft, "created_at"))
-			plan = append(plan, func(group *_go.CloseReasonGroup) any {
-				return scanner.ScanTimestamp(&group.CreatedAt)
-			})
 		case "updated_at":
 			base = base.Column(util2.Ident(crgLeft, "updated_at"))
-			plan = append(plan, func(group *_go.CloseReasonGroup) any {
-				return scanner.ScanTimestamp(&group.UpdatedAt)
-			})
 		case "created_by":
-			base = base.Column(
-				fmt.Sprintf("(SELECT ROW(id, COALESCE(name, username))::text FROM directory.wbt_user WHERE id = %s.created_by) created_by",
-					crgLeft,
-				))
-			plan = append(plan, func(group *_go.CloseReasonGroup) any {
-				return scanner.ScanRowLookup(&group.CreatedBy)
-			})
+			crb := "crb"
+			joinCreatedBy(crb)
+			base = base.Column(util2.Ident(crb, "id created_by_id"))
+			base = base.Column(fmt.Sprintf("COALESCE(%s.name, %s.username) created_by_name", crb, crb))
 		case "updated_by":
-			base = base.Column(
-				fmt.Sprintf("(SELECT ROW(id, COALESCE(name, username))::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by",
-					crgLeft,
-				))
-			plan = append(plan, func(group *_go.CloseReasonGroup) any {
-				return scanner.ScanRowLookup(&group.UpdatedBy)
-			})
+			crb := "upb"
+			joinUpdatedBy(crb)
+			base = base.Column(util2.Ident(crb, "id created_by_id"))
+			base = base.Column(fmt.Sprintf("COALESCE(%s.name, %s.username) created_by_name", crb, crb))
 		default:
-			return base, nil,
+			return base,
 				dberr.NewDBInternalError(
 					"postgres.close_reason_group.unknown_field",
 					fmt.Errorf("unknown field: %s", field),
 				)
 		}
 	}
-	return base, plan, nil
+	return base, nil
 }
 
-func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(
-	rpc options.Creator,
-	group *_go.CloseReasonGroup,
-) (sq.SelectBuilder, []CloseReasonGroupScan, error) {
+func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(rpc options.Creator, group *model.CloseReasonGroup) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
 	// Build the INSERT query with a RETURNING clause
@@ -105,7 +90,7 @@ func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(
 			group.Name,
 			rpc.GetAuthOpts().GetDomainId(),
 			rpc.RequestTime(),
-			sq.Expr("NULLIF(?, '')", group.Description),
+			group.Description,
 			rpc.GetAuthOpts().GetUserId(),
 			rpc.RequestTime(),
 			rpc.GetAuthOpts().GetUserId(),
@@ -116,35 +101,34 @@ func (s CloseReasonGroup) buildCreateCloseReasonGroupQuery(
 	// Convert the INSERT query into a CTE
 	insertSQL, args, err := insertBuilder.ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, nil,
-			dberr.NewDBInternalError(
-				"postgres.close_reason_group.create.query_build_error",
-				err,
-			)
+		return sq.SelectBuilder{}, dberr.NewDBInternalError(
+			"postgres.close_reason_group.create.query_build_error",
+			err,
+		)
 	}
 
 	// Use the INSERT query as a CTE (Common Table Expression)
 	cte := sq.Expr("WITH g AS ("+insertSQL+")", args...)
 
 	// Dynamically build the SELECT query for the resulting row
-	selectBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(sq.Select(), fields)
+	selectBuilder, err := buildCloseReasonGroupSelectColumns(sq.Select(), fields)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
 	// Combine the CTE with the SELECT query
 	selectBuilder = selectBuilder.PrefixExpr(cte).From(crgLeft)
 
-	return selectBuilder, plan, nil
+	return selectBuilder, nil
 }
 
-func (s CloseReasonGroup) Create(rpc options.Creator, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error) {
+func (s CloseReasonGroup) Create(rpc options.Creator, input *model.CloseReasonGroup) (*model.CloseReasonGroup, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.database_connection_error", dbErr)
 	}
 
-	selectBuilder, plan, err := s.buildCreateCloseReasonGroupQuery(rpc, input)
+	selectBuilder, err := s.buildCreateCloseReasonGroupQuery(rpc, input)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.build_query_error", err)
 	}
@@ -154,19 +138,16 @@ func (s CloseReasonGroup) Create(rpc options.Creator, input *_go.CloseReasonGrou
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.query_build_error", err)
 	}
 	// temporary object for scanning
-	tempAdd := &_go.CloseReasonGroup{}
-	scanArgs := convertToCloseReasonGroupScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
+	var res model.CloseReasonGroup
+	err = pgxscan.Get(rpc, d, &res, query, args...)
+	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.execution_error", err)
 	}
 
-	return tempAdd, nil
+	return &res, nil
 }
 
-func (s CloseReasonGroup) buildUpdateCloseReasonGroupQuery(
-	rpc options.Updator,
-	input *_go.CloseReasonGroup,
-) (sq.SelectBuilder, []CloseReasonGroupScan, error) {
+func (s CloseReasonGroup) buildUpdateCloseReasonGroupQuery(rpc options.Updator, input *model.CloseReasonGroup) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
 	// Start the UPDATE query
@@ -181,18 +162,16 @@ func (s CloseReasonGroup) buildUpdateCloseReasonGroupQuery(
 	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
-			if input.Name != "" {
-				updateBuilder = updateBuilder.Set("name", input.Name)
-			}
+			updateBuilder = updateBuilder.Set("name", input.Name)
 		case "description":
-			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
+			updateBuilder = updateBuilder.Set("description", input.Description)
 		}
 	}
 
 	// Generate the CTE for the update operation
 	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, nil,
+		return sq.SelectBuilder{},
 			dberr.NewDBInternalError(
 				"postgres.close_reason_group.update.query_build_error",
 				err,
@@ -202,28 +181,25 @@ func (s CloseReasonGroup) buildUpdateCloseReasonGroupQuery(
 	// Use the UPDATE query as a CTE
 	cte := sq.Expr("WITH g AS ("+updateSQL+")", args...)
 
-	// Build select clause and scan plan dynamically using buildCloseReasonGroupSelectColumnsAndPlan
-	selectBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(sq.Select(), fields)
+	// Build select clause and scan plan dynamically using buildCloseReasonGroupSelectColumns
+	selectBuilder, err := buildCloseReasonGroupSelectColumns(sq.Select(), fields)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
 	// Combine the CTE with the SELECT query
 	selectBuilder = selectBuilder.PrefixExpr(cte).From("g")
 
-	return selectBuilder, plan, nil
+	return selectBuilder, nil
 }
 
-func (s CloseReasonGroup) Update(
-	rpc options.Updator,
-	input *_go.CloseReasonGroup,
-) (*_go.CloseReasonGroup, error) {
+func (s CloseReasonGroup) Update(rpc options.Updator, input *model.CloseReasonGroup) (*model.CloseReasonGroup, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.input.database_connection_error", dbErr)
 	}
 
-	selectBuilder, plan, err := s.buildUpdateCloseReasonGroupQuery(rpc, input)
+	selectBuilder, err := s.buildUpdateCloseReasonGroupQuery(rpc, input)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.input.build_query_error", err)
 	}
@@ -233,18 +209,16 @@ func (s CloseReasonGroup) Update(
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.input.query_build_error", err)
 	}
 	// temporary object for scanning
-	tempAdd := &_go.CloseReasonGroup{}
-	scanArgs := convertToCloseReasonGroupScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
+	var res model.CloseReasonGroup
+	err = pgxscan.Get(rpc, d, &res, query, args...)
+	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.input.execution_error", err)
 	}
 
-	return tempAdd, nil
+	return &res, nil
 }
 
-func (s CloseReasonGroup) buildListCloseReasonGroupQuery(
-	rpc options.Searcher,
-) (sq.SelectBuilder, []CloseReasonGroupScan, error) {
+func (s CloseReasonGroup) buildListCloseReasonGroupQuery(rpc options.Searcher) (sq.SelectBuilder, error) {
 
 	queryBuilder := sq.Select().
 		From("cases.close_reason_group AS g").
@@ -268,25 +242,24 @@ func (s CloseReasonGroup) buildListCloseReasonGroupQuery(
 	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
-	queryBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
+	queryBuilder, err := buildCloseReasonGroupSelectColumns(queryBuilder, rpc.GetFields())
 	if err != nil {
-		return sq.SelectBuilder{}, nil,
-			dberr.NewDBInternalError(
-				"postgres.close_reason_group.search.query_build_error",
-				err,
-			)
+		return sq.SelectBuilder{}, dberr.NewDBInternalError(
+			"postgres.close_reason_group.search.query_build_error",
+			err,
+		)
 	}
 
-	return queryBuilder, plan, nil
+	return queryBuilder, nil
 }
 
-func (s CloseReasonGroup) List(rpc options.Searcher) (*_go.CloseReasonGroupList, error) {
+func (s CloseReasonGroup) List(rpc options.Searcher) (*model.CloseReasonGroup, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.database_connection_error", dbErr)
 	}
 
-	selectBuilder, plan, err := s.buildListCloseReasonGroupQuery(rpc)
+	selectBuilder, err := s.buildListCloseReasonGroupQuery(rpc)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.build_query_error", err)
 	}
@@ -296,40 +269,12 @@ func (s CloseReasonGroup) List(rpc options.Searcher) (*_go.CloseReasonGroupList,
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.query_build_error", err)
 	}
 	query = util2.CompactSQL(query)
-
-	rows, err := d.Query(rpc, query, args...)
+	var res model.CloseReasonGroup
+	err = pgxscan.Get(rpc, d, &res, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.execution_error", err)
 	}
-	defer rows.Close()
-
-	var groups []*_go.CloseReasonGroup
-	lCount := 0
-	next := false
-	fetchAll := rpc.GetSize() == -1
-
-	for rows.Next() {
-		if !fetchAll && lCount >= rpc.GetSize() {
-			next = true
-			break
-		}
-
-		group := &_go.CloseReasonGroup{}
-		scanArgs := convertToCloseReasonGroupScanArgs(plan, group)
-
-		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.row_scan_error", err)
-		}
-
-		groups = append(groups, group)
-		lCount++
-	}
-
-	return &_go.CloseReasonGroupList{
-		Page:  int32(rpc.GetPage()),
-		Next:  next,
-		Items: groups,
-	}, nil
+	return &res, nil
 }
 
 func (s CloseReasonGroup) buildDeleteCloseReasonGroupQuery(

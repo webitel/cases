@@ -52,7 +52,7 @@ func AuthUnaryServerInterceptor(authManager auth.Manager) grpc.UnaryServerInterc
 
 		ctx = context.WithValue(ctx, SessionHeader, session)
 
-		// Proceed with handler after successful validation
+		// Proceed with api_handler after successful validation
 		resp, err := handler(ctx, req)
 		if err != nil {
 			return nil, err

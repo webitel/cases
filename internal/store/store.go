@@ -154,13 +154,13 @@ type StatusConditionStore interface {
 
 type CloseReasonGroupStore interface {
 	// Create a new close reason lookup
-	Create(rpc options.Creator, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
+	Create(rpc options.Creator, input *model.CloseReasonGroup) (*model.CloseReasonGroup, error)
 	// List close reason lookup
-	List(rpc options.Searcher) (*_go.CloseReasonGroupList, error)
+	List(rpc options.Searcher) (*model.CloseReasonGroup, error)
 	// Delete close reason lookup
 	Delete(rpc options.Deleter) error
 	// Update close reason lookup
-	Update(rpc options.Updator, input *_go.CloseReasonGroup) (*_go.CloseReasonGroup, error)
+	Update(rpc options.Updator, input *model.CloseReasonGroup) (*model.CloseReasonGroup, error)
 }
 
 type CloseReasonStore interface {

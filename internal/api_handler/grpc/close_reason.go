@@ -1,4 +1,4 @@
-package grpc_api
+package grpc
 
 import (
 	"context"
@@ -6,9 +6,9 @@ import (
 
 	"github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/model"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 )
 
@@ -33,38 +33,38 @@ var CloseReasonMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*
 })
 
 func (api *CloseReasonAPI) LocateCloseReason(ctx context.Context, req *cases.LocateCloseReasonRequest) (*cases.LocateCloseReasonResponse, error) {
-    if req.GetId() == 0 {
-        return nil, cerror.NewBadRequestError("close_reason_service.locate_close_reason.id.required", "Close reason ID is required")
-    }
+	if req.GetId() == 0 {
+		return nil, cerror.NewBadRequestError("close_reason_service.locate_close_reason.id.required", "Close reason ID is required")
+	}
 
-    listReq := &cases.ListCloseReasonRequest{
-        Id:                 []int64{req.GetId()},
-        Fields:             req.GetFields(),
-        Page:               1,
-        Size:               1,
-        CloseReasonGroupId: req.GetCloseReasonGroupId(),
-    }
-    searcher, err := grpcopts.NewSearchOptions(
-        ctx,
-        grpcopts.WithSearch(listReq),
-        grpcopts.WithFields(listReq, CloseReasonMetadata,
-            util.DeduplicateFields,
-            util.EnsureIdField,
-        ),
-    )
-    if err != nil {
-        return nil, cerror.NewBadRequestError("close_reason_service.locate.options.invalid", err.Error())
-    }
+	listReq := &cases.ListCloseReasonRequest{
+		Id:                 []int64{req.GetId()},
+		Fields:             req.GetFields(),
+		Page:               1,
+		Size:               1,
+		CloseReasonGroupId: req.GetCloseReasonGroupId(),
+	}
+	searcher, err := grpcopts.NewSearchOptions(
+		ctx,
+		grpcopts.WithSearch(listReq),
+		grpcopts.WithFields(listReq, CloseReasonMetadata,
+			util.DeduplicateFields,
+			util.EnsureIdField,
+		),
+	)
+	if err != nil {
+		return nil, cerror.NewBadRequestError("close_reason_service.locate.options.invalid", err.Error())
+	}
 
-    result, err := api.closeReasonService.List(searcher, req.GetCloseReasonGroupId())
-    if err != nil {
-        return nil, err
-    }
-    if len(result.Items) == 0 {
-        return nil, cerror.NewNotFoundError("close_reason_service.locate_close_reason.not_found", "Close reason not found")
-    }
+	result, err := api.closeReasonService.List(searcher, req.GetCloseReasonGroupId())
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Items) == 0 {
+		return nil, cerror.NewNotFoundError("close_reason_service.locate_close_reason.not_found", "Close reason not found")
+	}
 
-    return &cases.LocateCloseReasonResponse{CloseReason: ModelToProtoCloseReason(result.Items[0])}, nil
+	return &cases.LocateCloseReasonResponse{CloseReason: ModelToProtoCloseReason(result.Items[0])}, nil
 }
 
 func (api *CloseReasonAPI) CreateCloseReason(ctx context.Context, req *cases.CreateCloseReasonRequest) (*cases.CloseReason, error) {

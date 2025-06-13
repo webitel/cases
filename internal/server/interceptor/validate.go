@@ -33,7 +33,7 @@ func ValidateUnaryServerInterceptor(val *protovalidate.Validator) grpc.UnaryServ
 				return nil, cerr.NewInternalError("unknown", err.Error())
 			}
 		}
-		// Proceed to handler if validation passes
+		// Proceed to api_handler if validation passes
 		return handler(ctx, req)
 	}
 }

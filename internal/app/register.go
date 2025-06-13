@@ -1,10 +1,10 @@
 package app
 
 import (
+	grpc2 "github.com/webitel/cases/internal/api_handler/grpc"
 	"log"
 
 	cases "github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/grpc_api"
 	"google.golang.org/grpc"
 )
 
@@ -93,7 +93,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 				if a.CloseReason == nil {
 					a.CloseReason, _ = NewCloseReasonService(a)
 				}
-				return grpc_api.NewCloseReasonAPI(a.CloseReason), nil
+				return grpc2.NewCloseReasonAPI(a.CloseReason), nil
 			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCloseReasonsServer(s, svc.(cases.CloseReasonsServer))
