@@ -8,8 +8,8 @@ import (
 
 	conf "github.com/webitel/cases/config"
 	"github.com/webitel/cases/internal/app"
+	"github.com/webitel/cases/internal/model"
 	logging "github.com/webitel/cases/internal/otel"
-	"github.com/webitel/cases/model"
 
 	// ------------ logging ------------ //
 	"go.opentelemetry.io/otel/sdk/resource"

@@ -3,17 +3,17 @@ package postgres
 import (
 	"fmt"
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	"github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 )
 
 type CaseCommunicationStore struct {

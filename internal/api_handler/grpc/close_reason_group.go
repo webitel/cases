@@ -42,7 +42,7 @@ func (s *CloseReasonGroupService) CreateCloseReasonGroup(
 ) (*_go.CloseReasonGroup, error) {
 	// Validate required fields
 	if req.Input.Name == "" {
-		return nil, grpcerror.NewBadRequestError(deferror.New("Lookup name is required"))
+		return nil, grpcerror.NewBadRequestError(deferror.New("lookup name is required"))
 	}
 
 	createOpts, err := grpcopts.NewCreateOptions(

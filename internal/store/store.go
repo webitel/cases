@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/webitel/cases/auth"
-	"github.com/webitel/cases/model/options"
+	"github.com/webitel/cases/internal/model/options"
 
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
-	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/internal/model"
 
 	custom "github.com/webitel/custom/store"
 )
@@ -156,7 +156,7 @@ type CloseReasonGroupStore interface {
 	// Create a new close reason lookup
 	Create(rpc options.Creator, input *model.CloseReasonGroup) (*model.CloseReasonGroup, error)
 	// List close reason lookup
-	List(rpc options.Searcher) (*model.CloseReasonGroup, error)
+	List(rpc options.Searcher) ([]*model.CloseReasonGroup, error)
 	// Delete close reason lookup
 	Delete(rpc options.Deleter) error
 	// Update close reason lookup

@@ -7,10 +7,10 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
 	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/model/options"
 )
 
 type CloseReasonScan func(reason *_go.CloseReason) any
@@ -115,64 +115,64 @@ func buildCloseReasonSelectColumns(fields []string) ([]string, error) {
 */
 
 func (s *CloseReason) Create(creator options.Creator, input *model.CloseReason) (*model.CloseReason, error) {
-    d, dbErr := s.storage.Database()
-    if dbErr != nil {
-        return nil, dberr.NewDBInternalError("postgres.close_reason.create.database_connection_error", dbErr)
-    }
+	d, dbErr := s.storage.Database()
+	if dbErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.close_reason.create.database_connection_error", dbErr)
+	}
 
-    // Dynamic fields
-    fields := creator.GetFields()
-    if len(fields) == 0 {
-        fields = []string{"id", "name", "description", "close_reason_id", "created_at", "updated_at", "dc", "created_by", "updated_by"}
-    }
-    cols, err := buildCloseReasonSelectColumns(fields)
-    if err != nil {
-        return nil, dberr.NewDBInternalError("postgres.close_reason.create.columns_error", err)
-    }
+	// Dynamic fields
+	fields := creator.GetFields()
+	if len(fields) == 0 {
+		fields = []string{"id", "name", "description", "close_reason_id", "created_at", "updated_at", "dc", "created_by", "updated_by"}
+	}
+	cols, err := buildCloseReasonSelectColumns(fields)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.close_reason.create.columns_error", err)
+	}
 
-    // Insert builder
-    insertBuilder := sq.Insert("cases.close_reason").
-        Columns("name", "description", "close_reason_id", "created_at", "created_by", "updated_at", "updated_by", "dc").
-        Values(
-            input.Name,
-            input.Description,
-            input.CloseReasonGroupId,
-            creator.RequestTime(),
-            creator.GetAuthOpts().GetUserId(),
-            creator.RequestTime(),
-            creator.GetAuthOpts().GetUserId(),
-            creator.GetAuthOpts().GetDomainId(),
-        ).
-        PlaceholderFormat(sq.Dollar).
-        Suffix("RETURNING *")
+	// Insert builder
+	insertBuilder := sq.Insert("cases.close_reason").
+		Columns("name", "description", "close_reason_id", "created_at", "created_by", "updated_at", "updated_by", "dc").
+		Values(
+			input.Name,
+			input.Description,
+			input.CloseReasonGroupId,
+			creator.RequestTime(),
+			creator.GetAuthOpts().GetUserId(),
+			creator.RequestTime(),
+			creator.GetAuthOpts().GetUserId(),
+			creator.GetAuthOpts().GetDomainId(),
+		).
+		PlaceholderFormat(sq.Dollar).
+		Suffix("RETURNING *")
 
-    insertSQL, args, err := insertBuilder.ToSql()
-    if err != nil {
-        return nil, dberr.NewDBInternalError("postgres.close_reason.create.query_build_error", err)
-    }
+	insertSQL, args, err := insertBuilder.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.close_reason.create.query_build_error", err)
+	}
 
-    // Select with joins, using the CTE
-    queryBuilder := sq.Select(cols...).
-        From("cr").
-        LeftJoin("directory.wbt_user cb ON cb.id = cr.created_by").
-        LeftJoin("directory.wbt_user ub ON ub.id = cr.updated_by").
-        PlaceholderFormat(sq.Dollar)
+	// Select with joins, using the CTE
+	queryBuilder := sq.Select(cols...).
+		From("cr").
+		LeftJoin("directory.wbt_user cb ON cb.id = cr.created_by").
+		LeftJoin("directory.wbt_user ub ON ub.id = cr.updated_by").
+		PlaceholderFormat(sq.Dollar)
 
-    selectSQL, selectArgs, err := queryBuilder.ToSql()
-    if err != nil {
-        return nil, dberr.NewDBInternalError("postgres.close_reason.create.select_query_build_error", err)
-    }
+	selectSQL, selectArgs, err := queryBuilder.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.close_reason.create.select_query_build_error", err)
+	}
 
-    finalQuery := fmt.Sprintf("WITH cr AS (%s) %s", insertSQL, selectSQL)
-    allArgs := append(args, selectArgs...)
+	finalQuery := fmt.Sprintf("WITH cr AS (%s) %s", insertSQL, selectSQL)
+	allArgs := append(args, selectArgs...)
 
-    var result model.CloseReason
-    err = pgxscan.Get(creator, d, &result, finalQuery, allArgs...)
-    if err != nil {
-        return nil, dberr.NewDBInternalError("postgres.close_reason.create.execution_error", err)
-    }
+	var result model.CloseReason
+	err = pgxscan.Get(creator, d, &result, finalQuery, allArgs...)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.close_reason.create.execution_error", err)
+	}
 
-    return &result, nil
+	return &result, nil
 }
 
 /* func (s *CloseReason) buildUpdateCloseReasonQuery(
@@ -408,51 +408,51 @@ func (s *CloseReason) List(searcher options.Searcher, closeReasonId int64) (*mod
 } */
 
 func (s *CloseReason) Delete(deleter options.Deleter) (*model.CloseReason, error) {
-    d, dbErr := s.storage.Database()
-    if dbErr != nil {
-        return nil, dberr.NewDBInternalError("postgres.close_reason.delete.database_connection_error", dbErr)
-    }
+	d, dbErr := s.storage.Database()
+	if dbErr != nil {
+		return nil, dberr.NewDBInternalError("postgres.close_reason.delete.database_connection_error", dbErr)
+	}
 
-    // default fields because GetFields is not available in the deleter
-    fields := []string{"id", "name", "description", "close_reason_id", "created_at", "updated_at", "dc", "created_by", "updated_by"}
+	// default fields because GetFields is not available in the deleter
+	fields := []string{"id", "name", "description", "close_reason_id", "created_at", "updated_at", "dc", "created_by", "updated_by"}
 
-    cols, err := buildCloseReasonSelectColumns(fields)
-    if err != nil {
-        return nil, dberr.NewDBInternalError("postgres.close_reason.delete.columns_error", err)
-    }
+	cols, err := buildCloseReasonSelectColumns(fields)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.close_reason.delete.columns_error", err)
+	}
 
-    deleteBuilder := sq.Delete("cases.close_reason").
-        Where(sq.Eq{"id": deleter.GetIDs()}).
-        Where(sq.Eq{"dc": deleter.GetAuthOpts().GetDomainId()}).
-        PlaceholderFormat(sq.Dollar).
-        Suffix("RETURNING *")
+	deleteBuilder := sq.Delete("cases.close_reason").
+		Where(sq.Eq{"id": deleter.GetIDs()}).
+		Where(sq.Eq{"dc": deleter.GetAuthOpts().GetDomainId()}).
+		PlaceholderFormat(sq.Dollar).
+		Suffix("RETURNING *")
 
-    deleteSQL, args, err := deleteBuilder.ToSql()
-    if err != nil {
-        return nil, dberr.NewDBInternalError("postgres.close_reason.delete.query_to_sql_error", err)
-    }
+	deleteSQL, args, err := deleteBuilder.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.close_reason.delete.query_to_sql_error", err)
+	}
 
-    queryBuilder := sq.Select(cols...).
-        From("deleted cr").
-        LeftJoin("directory.wbt_user cb ON cb.id = cr.created_by").
-        LeftJoin("directory.wbt_user ub ON ub.id = cr.updated_by").
-        PlaceholderFormat(sq.Dollar)
+	queryBuilder := sq.Select(cols...).
+		From("deleted cr").
+		LeftJoin("directory.wbt_user cb ON cb.id = cr.created_by").
+		LeftJoin("directory.wbt_user ub ON ub.id = cr.updated_by").
+		PlaceholderFormat(sq.Dollar)
 
-    selectSQL, selectArgs, err := queryBuilder.ToSql()
-    if err != nil {
-        return nil, dberr.NewDBInternalError("postgres.close_reason.delete.select_query_build_error", err)
-    }
+	selectSQL, selectArgs, err := queryBuilder.ToSql()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.close_reason.delete.select_query_build_error", err)
+	}
 
-    finalQuery := fmt.Sprintf("WITH deleted AS (%s) %s", deleteSQL, selectSQL)
-    allArgs := append(args, selectArgs...)
+	finalQuery := fmt.Sprintf("WITH deleted AS (%s) %s", deleteSQL, selectSQL)
+	allArgs := append(args, selectArgs...)
 
-    var result model.CloseReason
-    err = pgxscan.Get(deleter, d, &result, finalQuery, allArgs...)
-    if err != nil {
-        return nil, dberr.NewDBInternalError("postgres.close_reason.delete.execution_error", err)
-    }
+	var result model.CloseReason
+	err = pgxscan.Get(deleter, d, &result, finalQuery, allArgs...)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.close_reason.delete.execution_error", err)
+	}
 
-    return &result, nil
+	return &result, nil
 }
 
 func NewCloseReasonStore(store *Store) (store.CloseReasonStore, error) {

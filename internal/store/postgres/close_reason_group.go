@@ -5,10 +5,10 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
 	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/util"
 )
 

@@ -5,8 +5,8 @@ import (
 
 	"github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
-	"github.com/webitel/cases/model"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
+	"github.com/webitel/cases/internal/model"
+	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
 )
 

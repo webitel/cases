@@ -7,11 +7,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model/options"
+	"github.com/webitel/cases/internal/model/options/defaults"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	dbutil "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
-	"github.com/webitel/cases/model/options/defaults"
 	"github.com/webitel/cases/util"
 	"net/url"
 )

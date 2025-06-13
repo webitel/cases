@@ -4,7 +4,7 @@ import (
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/error"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/internal/model/"
 )
 
 type [MAIN_OBJECT]Store struct {

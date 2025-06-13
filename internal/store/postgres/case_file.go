@@ -3,9 +3,9 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"github.com/webitel/cases/internal/model/options"
+	"github.com/webitel/cases/internal/model/options/defaults"
 	"github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
-	"github.com/webitel/cases/model/options/defaults"
 	"strconv"
 
 	sq "github.com/Masterminds/squirrel"

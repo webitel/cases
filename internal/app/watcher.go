@@ -8,7 +8,7 @@ import (
 	"github.com/webitel/cases/auth"
 	cfg "github.com/webitel/cases/config"
 	cerr "github.com/webitel/cases/internal/errors"
-	"github.com/webitel/cases/model"
+	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/rabbit"
 	wlogger "github.com/webitel/logger/pkg/client/v2"
 	"github.com/webitel/webitel-go-kit/fts_client"

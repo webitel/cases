@@ -3,8 +3,8 @@ package postgres
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/webitel/cases/internal/model/options"
 	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
 	"strings"
 	"time"
 

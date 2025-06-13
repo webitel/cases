@@ -1,7 +1,7 @@
 package app
 
 import (
-	grpc2 "github.com/webitel/cases/internal/api_handler/grpc"
+	grpchandler "github.com/webitel/cases/internal/api_handler/grpc"
 	"log"
 
 	cases "github.com/webitel/cases/api/cases"
@@ -101,7 +101,9 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "CloseReasons",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewCloseReasonGroupsService(a) },
+			init: func(a *App) (interface{}, error) {
+				return grpchandler.NewCloseReasonGroupsService(a)
+			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCloseReasonGroupsServer(s, svc.(cases.CloseReasonGroupsServer))
 			},

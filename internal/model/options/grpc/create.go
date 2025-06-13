@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/webitel/cases/auth"
-	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/model/options"
-	"github.com/webitel/cases/model/options/grpc/shared"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
+	"github.com/webitel/cases/internal/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"time"
 )

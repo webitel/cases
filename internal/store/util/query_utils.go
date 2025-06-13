@@ -3,7 +3,7 @@ package util
 import (
 	"fmt"
 	"github.com/Masterminds/squirrel"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
+	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"strings"
 )
 
