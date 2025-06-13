@@ -1,9 +1,9 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 h1:hl0FrmGlNpQZIGvU1/jDz0lsPDd0BhCE0QDRwPfLZcA=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2/go.mod h1:ylS4c28ACSI59oJrOdW4pHS4n0Hw4TgSPHn8rpHl4Yw=
-buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2 h1:5r8oFldYy3AbufyZxRCIfdUXb6RMkkXoHUUxgpsGQTY=
-buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2/go.mod h1:AnWODZnuDqALHRMXJxOFQ3n26qywVNfKm9bSPxRSEW8=
-buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250121132426-2c80753dfee6.1 h1:pbrVnu5Zs3fq50Vj8ybP9qxSrkQRvMYvyFMa78SKLFY=
-buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250121132426-2c80753dfee6.1/go.mod h1:slrzXMrLW2DmHemeZQUpUeCGCQFusgGvbHMoVvPDrYw=
+buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250609124843-105d56479f4e.2 h1:UakzlcgjYfzehUGqjB4FDdctxzRXQLlWiLdP4F0beWM=
+buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250609124843-105d56479f4e.2/go.mod h1:J1r49v7CokIClDqrBe+HVMNAzu3uBw4BaLlVhlTqKNw=
+buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250609124843-105d56479f4e.1 h1:VlDovP75XByXoM5PxRVn2QXAq9CkIwnw3tKxIJtdM4w=
+buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250609124843-105d56479f4e.1/go.mod h1:ASofof5P7/h/+3cLsJDuz3DeBtES4cvCAirsr7bZs0M=
 cel.dev/expr v0.19.0 h1:lXuo+nDhpyJSpWxpPVi5cPUwzKb+dsdOiw6IreM5yt0=
 cel.dev/expr v0.19.0/go.mod h1:MrpN08Q+lEBs+bGYdLxxHkZoUSsCp0nSKTs0nTymJgw=
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
