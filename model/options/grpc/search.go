@@ -22,8 +22,9 @@ type SearchOptions struct {
 	createdAt time.Time
 	context.Context
 	// filters
-	IDs     []int64
-	Filters map[string]any
+	IDs            []int64
+	Filters        map[string]any
+	ComplexFilters []string
 	// search
 	Search string
 	// output
@@ -96,6 +97,13 @@ func WithFilters(filterer Filterer) SearchOption {
 			value := strings.TrimSpace(parts[1])
 			options.AddFilter(column, value)
 		}
+		return nil
+	}
+}
+
+func WithComplexFilters(filters []string) SearchOption {
+	return func(options *SearchOptions) error {
+		options.ComplexFilters = filters
 		return nil
 	}
 }
@@ -206,6 +214,14 @@ func (s *SearchOptions) AddFilter(key string, value any) {
 
 func (s *SearchOptions) GetFilter(key string) any {
 	return s.Filters[key]
+}
+
+func (s *SearchOptions) AddComplexFilter(f string) {
+	s.ComplexFilters = append(s.ComplexFilters, f)
+}
+
+func (s *SearchOptions) GetComplexFilters() []string {
+	return s.ComplexFilters
 }
 
 func (s *SearchOptions) GetIDs() []int64 {
