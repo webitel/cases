@@ -201,8 +201,8 @@ func (s *CloseReasonGroupService) Marshal(model *model.CloseReasonGroup) (*_go.C
 		Id:          int64(model.Id),
 		Name:        utils.Dereference(model.Name),
 		Description: utils.Dereference(model.Description),
-		CreatedAt:   model.CreatedAt.UnixMilli(),
-		UpdatedAt:   model.UpdatedAt.UnixMilli(),
+		CreatedAt:   utils.MarshalTime(model.CreatedAt),
+		UpdatedAt:   utils.MarshalTime(model.UpdatedAt),
 		CreatedBy:   utils.MarshalLookup(model.Author),
 		UpdatedBy:   utils.MarshalLookup(model.Editor),
 	}, nil

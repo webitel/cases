@@ -3,6 +3,7 @@ package utils
 import (
 	_go "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/model"
+	"time"
 )
 
 func UnmarshalLookup[K model.Lookup](lp *_go.Lookup, lookup K) K {
@@ -40,4 +41,11 @@ func Dereference[T any](lp *T) T {
 		return *new(T)
 	}
 	return *lp
+}
+
+func MarshalTime(t *time.Time) int64 {
+	if t == nil || t.IsZero() {
+		return 0
+	}
+	return t.UnixMilli()
 }

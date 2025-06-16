@@ -207,8 +207,8 @@ func (s *StatusService) Marshal(input *model.Status) (*_go.Status, error) {
 		Id:          int64(input.Id),
 		Name:        utils.Dereference(input.Name),
 		Description: utils.Dereference(input.Description),
-		CreatedAt:   input.CreatedAt.UnixMilli(),
-		UpdatedAt:   input.UpdatedAt.UnixMilli(),
+		CreatedAt:   utils.MarshalTime(input.CreatedAt),
+		UpdatedAt:   utils.MarshalTime(input.UpdatedAt),
 		CreatedBy:   utils.MarshalLookup(input.Author),
 		UpdatedBy:   utils.MarshalLookup(input.Editor),
 	}, nil
