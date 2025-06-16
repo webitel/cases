@@ -75,7 +75,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "Sources",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewStatusService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewStatusService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterStatusesServer(s, svc.(cases.StatusesServer))
 			},
@@ -90,7 +90,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 		},
 		{
 			init: func(a *App) (interface{}, error) {
-				return grpchandler.NewCloseReasonService(a),nil
+				return grpchandler.NewCloseReasonService(a), nil
 			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCloseReasonsServer(s, svc.(cases.CloseReasonsServer))

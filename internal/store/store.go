@@ -132,13 +132,13 @@ type AccessControlStore interface {
 // ------------ Dictionary Stores ------------ //
 type StatusStore interface {
 	// Create a new status lookup
-	Create(rpc options.Creator, input *_go.Status) (*_go.Status, error)
+	Create(rpc options.Creator, input *model.Status) (*model.Status, error)
 	// List status lookup
-	List(rpc options.Searcher) (*_go.StatusList, error)
+	List(rpc options.Searcher) ([]*model.Status, error)
 	// Delete status lookup
-	Delete(rpc options.Deleter) error
+	Delete(rpc options.Deleter) (*model.Status, error)
 	// Update status lookup
-	Update(rpc options.Updator, input *_go.Status) (*_go.Status, error)
+	Update(rpc options.Updator, input *model.Status) (*model.Status, error)
 }
 
 type StatusConditionStore interface {
