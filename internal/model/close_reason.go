@@ -14,16 +14,6 @@ type CloseReason struct {
 	Dc                 int64     `json:"dc" db:"dc"`
 }
 
-type CloseReasonSearchOptions struct {
-	DomainId           int64
-	Page               int
-	Size               int
-	Fields             []string
-	Sort               string
-	Ids                []int64
-	Q                  string
-	CloseReasonGroupId int64
-}
 type CloseReasonList struct {
 	Page  int
 	Next  bool

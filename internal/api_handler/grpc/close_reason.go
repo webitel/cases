@@ -2,23 +2,32 @@ package grpc
 
 import (
 	"context"
-	"time"
+	deferror "errors"
 
 	"github.com/webitel/cases/api/cases"
-	cerror "github.com/webitel/cases/internal/errors"
+	grpcerror "github.com/webitel/cases/internal/api_handler/grpc/errors"
+	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
-	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/util"
 )
 
-type CloseReasonAPI struct {
-	closeReasonService store.CloseReasonStore
+type CloseReasonHandler interface {
+	ListCloseReasons(options.Searcher, int64) (*model.CloseReasonList, error)
+	LocateCloseReason(options.Searcher, int64) (*model.CloseReason, error)
+	CreateCloseReason(options.Creator, *model.CloseReason) (*model.CloseReason, error)
+	UpdateCloseReason(options.Updator, *model.CloseReason) (*model.CloseReason, error)
+	DeleteCloseReason(options.Deleter) (*model.CloseReason, error)
+}
+
+type CloseReasonService struct {
+	app CloseReasonHandler
 	cases.UnimplementedCloseReasonsServer
 }
 
-func NewCloseReasonAPI(service store.CloseReasonStore) *CloseReasonAPI {
-	return &CloseReasonAPI{closeReasonService: service}
+func NewCloseReasonService(app CloseReasonHandler) *CloseReasonService {
+	return &CloseReasonService{app: app}
 }
 
 var CloseReasonMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
@@ -32,102 +41,38 @@ var CloseReasonMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*
 	{Name: "close_reason_id", Default: false},
 })
 
-func (api *CloseReasonAPI) LocateCloseReason(ctx context.Context, req *cases.LocateCloseReasonRequest) (*cases.LocateCloseReasonResponse, error) {
-	if req.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("close_reason_service.locate_close_reason.id.required", "Close reason ID is required")
+func (s *CloseReasonService) CreateCloseReason(
+	ctx context.Context,
+	req *cases.CreateCloseReasonRequest,
+) (*cases.CloseReason, error) {
+	if req.GetInput().GetName() == "" {
+		return nil, grpcerror.NewBadRequestError(deferror.New("close reason name is required"))
 	}
-
-	listReq := &cases.ListCloseReasonRequest{
-		Id:                 []int64{req.GetId()},
-		Fields:             req.GetFields(),
-		Page:               1,
-		Size:               1,
-		CloseReasonGroupId: req.GetCloseReasonGroupId(),
-	}
-	searcher, err := grpcopts.NewSearchOptions(
+	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
-		grpcopts.WithSearch(listReq),
-		grpcopts.WithFields(listReq, CloseReasonMetadata,
-			util.DeduplicateFields,
-			util.EnsureIdField,
-		),
+		grpcopts.WithCreateFields(req, CloseReasonMetadata),
 	)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("close_reason_service.locate.options.invalid", err.Error())
-	}
-
-	result, err := api.closeReasonService.List(searcher, req.GetCloseReasonGroupId())
-	if err != nil {
-		return nil, err
-	}
-	if len(result.Items) == 0 {
-		return nil, cerror.NewNotFoundError("close_reason_service.locate_close_reason.not_found", "Close reason not found")
-	}
-
-	return &cases.LocateCloseReasonResponse{CloseReason: ModelToProtoCloseReason(result.Items[0])}, nil
-}
-
-func (api *CloseReasonAPI) CreateCloseReason(ctx context.Context, req *cases.CreateCloseReasonRequest) (*cases.CloseReason, error) {
-	creator, err := grpcopts.NewCreateOptions(
-		ctx,
-		grpcopts.WithCreateFields(req, CloseReasonMetadata,
-			util.DeduplicateFields,
-			util.EnsureIdField,
-		),
-	)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("close_reason_service.create.options.invalid", err.Error())
+		return nil, grpcerror.NewBadRequestError(err)
 	}
 
 	input := &model.CloseReason{
-		Name:               req.GetInput().GetName(),
-		Description:        strPtr(req.GetInput().GetDescription()),
-		CloseReasonGroupId: req.GetCloseReasonGroupId(),
+		Name:               req.Input.Name,
+		Description:        &req.Input.Description,
+		CloseReasonGroupId: req.CloseReasonGroupId,
 	}
 
-	created, err := api.closeReasonService.Create(creator, input)
+	m, err := s.app.CreateCloseReason(createOpts, input)
 	if err != nil {
 		return nil, err
 	}
-	return ModelToProtoCloseReason(created), nil
+	return s.Marshal(m)
 }
 
-func (api *CloseReasonAPI) UpdateCloseReason(ctx context.Context, req *cases.UpdateCloseReasonRequest) (*cases.CloseReason, error) {
-	if req.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("close_reason_service.update_close_reason.id.required", "Close reason ID is required")
-	}
-
-	updator, err := grpcopts.NewUpdateOptions(
-		ctx,
-		grpcopts.WithUpdateFields(req, CloseReasonMetadata,
-			util.DeduplicateFields,
-			util.EnsureIdField,
-		),
-		grpcopts.WithUpdateMasker(req),
-	)
-	if err != nil {
-		return nil, cerror.NewBadRequestError("close_reason_service.update.options.invalid", err.Error())
-	}
-
-	input := &model.CloseReason{
-		Id:                 req.GetId(),
-		Name:               req.GetInput().GetName(),
-		Description:        strPtr(req.GetInput().GetDescription()),
-		CloseReasonGroupId: req.GetCloseReasonGroupId(),
-	}
-
-	updated, err := api.closeReasonService.Update(updator, input)
-	if err != nil {
-		return nil, err
-	}
-	return ModelToProtoCloseReason(updated), nil
-}
-
-func strPtr(s string) *string {
-	return &s
-}
-
-func (api *CloseReasonAPI) ListCloseReasons(ctx context.Context, req *cases.ListCloseReasonRequest) (*cases.CloseReasonList, error) {
+func (s *CloseReasonService) ListCloseReasons(
+	ctx context.Context,
+	req *cases.ListCloseReasonRequest,
+) (*cases.CloseReasonList, error) {
 	searcher, err := grpcopts.NewSearchOptions(
 		ctx,
 		grpcopts.WithSearch(req),
@@ -139,121 +84,122 @@ func (api *CloseReasonAPI) ListCloseReasons(ctx context.Context, req *cases.List
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("close_reason_service.list.options.invalid", err.Error())
+		return nil, grpcerror.NewBadRequestError(err)
 	}
-	searcher.AddFilter("name", req.GetQ())
+	searcher.AddFilter("name", req.Q)
 
-	result, err := api.closeReasonService.List(searcher, req.GetCloseReasonGroupId())
+	result, err := s.app.ListCloseReasons(searcher, req.GetCloseReasonGroupId())
 	if err != nil {
 		return nil, err
 	}
 
-	items := make([]*cases.CloseReason, len(result.Items))
-	for i, m := range result.Items {
-		items[i] = ModelToProtoCloseReason(m)
+	items, err := utils.ConvertToOutputBulk(result.Items, s.Marshal)
+	if err != nil {
+		return nil, err
 	}
+	next, items := utils.GetListResult(req, items)
+
 	return &cases.CloseReasonList{
-		Page:  int32(result.Page),
-		Next:  result.Next,
+		Page:  req.GetPage(),
+		Next:  next,
 		Items: items,
 	}, nil
 }
 
-func (api *CloseReasonAPI) DeleteCloseReason(ctx context.Context, req *cases.DeleteCloseReasonRequest) (*cases.CloseReason, error) {
+func (s *CloseReasonService) UpdateCloseReason(
+	ctx context.Context,
+	req *cases.UpdateCloseReasonRequest,
+) (*cases.CloseReason, error) {
 	if req.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("close_reason_service.delete_close_reason.id.required", "Close reason ID is required")
+		return nil, grpcerror.NewBadRequestError(deferror.New("close reason ID is required"))
+	}
+
+	updator, err := grpcopts.NewUpdateOptions(
+		ctx,
+		grpcopts.WithUpdateFields(req, CloseReasonMetadata),
+		grpcopts.WithUpdateMasker(req),
+	)
+	if err != nil {
+		return nil, grpcerror.NewBadRequestError(err)
+	}
+
+	input := &model.CloseReason{
+		Id:                 int64(req.Id),
+		Name:               req.Input.Name,
+		Description:        &req.Input.Description,
+		CloseReasonGroupId: req.CloseReasonGroupId,
+	}
+
+	updated, err := s.app.UpdateCloseReason(updator, input)
+	if err != nil {
+		return nil, err
+	}
+	return s.Marshal(updated)
+}
+
+func (s *CloseReasonService) DeleteCloseReason(
+	ctx context.Context,
+	req *cases.DeleteCloseReasonRequest,
+) (*cases.CloseReason, error) {
+	if req.GetId() == 0 {
+		return nil, grpcerror.NewBadRequestError(deferror.New("close reason ID is required"))
 	}
 
 	deleteOpts, err := grpcopts.NewDeleteOptions(
 		ctx,
-		grpcopts.WithDeleteID(req.GetId()),
+		grpcopts.WithDeleteID(req.Id),
 	)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("close_reason_service.delete.options.invalid", err.Error())
+		return nil, grpcerror.NewBadRequestError(err)
 	}
 
-	deleted, err := api.closeReasonService.Delete(deleteOpts)
+	item, err := s.app.DeleteCloseReason(deleteOpts)
 	if err != nil {
 		return nil, err
 	}
-	return ModelToProtoCloseReason(deleted), nil
+	return s.Marshal(item)
 }
 
-func ModelToProtoCloseReason(m *model.CloseReason) *cases.CloseReason {
-	if m == nil {
-		return nil
+func (s *CloseReasonService) LocateCloseReason(
+	ctx context.Context,
+	req *cases.LocateCloseReasonRequest,
+) (*cases.LocateCloseReasonResponse, error) {
+	if req.Id == 0 {
+		return nil, grpcerror.NewBadRequestError(deferror.New("close reason ID is required"))
+	}
+
+	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithFields(req, CloseReasonMetadata,
+		util.DeduplicateFields,
+		util.EnsureIdField,
+	), grpcopts.WithID(req.Id))
+	if err != nil {
+		return nil, grpcerror.NewBadRequestError(err)
+	}
+
+	item, err := s.app.LocateCloseReason(opts, req.GetCloseReasonGroupId())
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := s.Marshal(item)
+	if err != nil {
+		return nil, err
+	}
+	return &cases.LocateCloseReasonResponse{CloseReason: res}, nil
+}
+
+func (s *CloseReasonService) Marshal(model *model.CloseReason) (*cases.CloseReason, error) {
+	if model == nil {
+		return nil, nil
 	}
 	return &cases.CloseReason{
-		Id:                 m.Id,
-		Name:               m.Name,
-		Description:        dereferString(m.Description),
-		CloseReasonGroupId: m.CloseReasonGroupId,
-		CreatedAt:          m.CreatedAt.Unix(),
-		UpdatedAt:          m.UpdatedAt.Unix(),
-		CreatedBy:          ModelToProtoAuthor(m.Author),
-		UpdatedBy:          ModelToProtoEditor(m.Editor),
-	}
-}
-
-func ProtoToModelCloseReason(p *cases.CloseReason) *model.CloseReason {
-	if p == nil {
-		return nil
-	}
-	return &model.CloseReason{
-		Id:                 p.Id,
-		Name:               p.Name,
-		Description:        &p.Description,
-		CloseReasonGroupId: p.CloseReasonGroupId,
-		CreatedAt:          time.Unix(p.CreatedAt, 0),
-		UpdatedAt:          time.Unix(p.UpdatedAt, 0),
-		Author:             ProtoToModelAuthor(p.CreatedBy),
-		Editor:             ProtoToModelEditor(p.UpdatedBy),
-	}
-}
-
-func ModelToProtoAuthor(a *model.Author) *cases.Lookup {
-	if a == nil || a.Id == nil {
-		return nil
-	}
-	return &cases.Lookup{
-		Id:   *a.Id,
-		Name: dereferString(a.Name),
-	}
-}
-
-func ModelToProtoEditor(e *model.Editor) *cases.Lookup {
-	if e == nil || e.Id == nil {
-		return nil
-	}
-	return &cases.Lookup{
-		Id:   *e.Id,
-		Name: dereferString(e.Name),
-	}
-}
-
-func dereferString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-func ProtoToModelAuthor(p *cases.Lookup) *model.Author {
-	if p == nil {
-		return nil
-	}
-	return &model.Author{
-		Id:   &p.Id,
-		Name: &p.Name,
-	}
-}
-
-func ProtoToModelEditor(p *cases.Lookup) *model.Editor {
-	if p == nil {
-		return nil
-	}
-	return &model.Editor{
-		Id:   &p.Id,
-		Name: &p.Name,
-	}
+		Id:                 model.Id,
+		Name:               model.Name,
+		Description:        utils.Dereference(model.Description),
+		CloseReasonGroupId: model.CloseReasonGroupId,
+		CreatedAt:          model.CreatedAt.UnixMilli(),
+		UpdatedAt:          model.UpdatedAt.UnixMilli(),
+		CreatedBy:          utils.MarshalLookup(model.Author),
+		UpdatedBy:          utils.MarshalLookup(model.Editor),
+	}, nil
 }

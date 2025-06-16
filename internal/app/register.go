@@ -90,10 +90,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 		},
 		{
 			init: func(a *App) (interface{}, error) {
-				if a.CloseReason == nil {
-					a.CloseReason, _ = NewCloseReasonService(a)
-				}
-				return grpc2.NewCloseReasonAPI(a.CloseReason), nil
+				return grpchandler.NewCloseReasonService(a),nil
 			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCloseReasonsServer(s, svc.(cases.CloseReasonsServer))

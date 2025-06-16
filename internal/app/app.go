@@ -52,7 +52,6 @@ type App struct {
 	ftsClient           *ftsclient.Client
 	watcherManager      watcher.Manager
 	caseResolutionTimer *TimerTask[*App]
-	CloseReason         *CloseReasonService1
 }
 
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {

@@ -253,7 +253,7 @@ func (s CloseReasonGroup) buildListCloseReasonGroupQuery(rpc options.Searcher) (
 	return queryBuilder, nil
 }
 
-func (s CloseReasonGroup) List(rpc options.Searcher) (*model.CloseReasonGroup, error) {
+func (s CloseReasonGroup) List(rpc options.Searcher) ([]*model.CloseReasonGroup, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.database_connection_error", dbErr)
@@ -269,12 +269,12 @@ func (s CloseReasonGroup) List(rpc options.Searcher) (*model.CloseReasonGroup, e
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.query_build_error", err)
 	}
 	query = util2.CompactSQL(query)
-	var res model.CloseReasonGroup
+	var res []*model.CloseReasonGroup
 	err = pgxscan.Get(rpc, d, &res, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.execution_error", err)
 	}
-	return &res, nil
+	return res, nil
 }
 
 func (s CloseReasonGroup) buildDeleteCloseReasonGroupQuery(
