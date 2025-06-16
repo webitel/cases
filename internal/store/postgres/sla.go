@@ -301,7 +301,7 @@ func (s *SLAStore) buildListSLAQuery(rpc options.Searcher) (sq.SelectBuilder, []
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name"); ok && name != "" {
 		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
 	}
 

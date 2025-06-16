@@ -2,12 +2,14 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"strings"
+
 	api "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"strings"
 )
 
 var ServiceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
@@ -117,15 +119,15 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 	}
 
 	if req.Q != "" {
-		searchOptions.AddFilter("name", req.Q)
+		searchOptions.AddFilter(fmt.Sprintf("name=%s", req.Q))
 	}
 
 	if req.RootId != 0 {
-		searchOptions.AddFilter("root_id", req.RootId)
+		searchOptions.AddFilter(fmt.Sprintf("root_id=%d", req.RootId))
 	}
 
 	if req.State {
-		searchOptions.AddFilter("state", req.State)
+		searchOptions.AddFilter(fmt.Sprintf("state=%d", req.State))
 	}
 
 	services, e := s.app.Store.Service().List(searchOptions)

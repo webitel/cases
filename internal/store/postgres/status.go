@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+
 	sq "github.com/Masterminds/squirrel"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
@@ -236,7 +237,7 @@ func (s *Status) buildListStatusQuery(
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name"); ok && name != "" {
 		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
 	}
 

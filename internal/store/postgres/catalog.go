@@ -3,10 +3,12 @@ package postgres
 import (
 	"encoding/json"
 	"fmt"
-	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
+	"strconv"
 	"strings"
 	"time"
+
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
@@ -629,7 +631,8 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		"services": false,
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
+	filter, ok := rpc.GetFilter("name")
+	if ok && len(filter) > 0 {
 		selectFlags["search"] = true
 	}
 
@@ -719,32 +722,42 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	// AND JSONB_ARRAY_LENGTH(services_cte.services) > 0
 
 	// 7) State + ID filters
-	if state, ok := rpc.GetFilter("state").(bool); ok {
-		params["state"] = state
-		queryBuilder = queryBuilder.Where("catalog.state = :state")
+	stateFilter, ok := rpc.GetFilter("state")
+	if ok {
+		state, err := strconv.ParseBool(stateFilter)
+		if err == nil {
+			params["state"] = state
+			queryBuilder = queryBuilder.Where("catalog.state = :state")
 
-		// Add EXISTS condition if hasSubservices is true
-		if hasSubservices && state {
-			queryBuilder = queryBuilder.Where(`EXISTS (
+			// Add EXISTS condition if hasSubservices is true
+			if hasSubservices && state {
+				queryBuilder = queryBuilder.Where(`EXISTS (
             SELECT 1
             FROM cases.service_catalog sc
             WHERE sc.root_id = catalog.id
               AND sc.state = :state
         )`)
+			}
 		}
 	}
 
-	teamFilter, teamFilterFound := rpc.GetFilter("team").(int64)
-	skillsFilter, skillFilterFound := rpc.GetFilter("skills").([]int64)
+	teamFilter, teamFilterFound := rpc.GetFilter("team")
+	skillsFilter, skillFilterFound := rpc.GetFilter("skills")
 	if teamFilterFound || skillFilterFound {
 		or := sq.Or{}
-		if teamFilter > 0 {
-			or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.team_catalog WHERE team_id = :team)"))
-			params["team"] = teamFilter
+		if teamFilter != "" {
+			teamID, err := strconv.ParseInt(teamFilter, 10, 64)
+			if err == nil && teamID > 0 {
+				or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.team_catalog WHERE team_id = :team)"))
+				params["team"] = teamID
+			}
 		}
-		if len(skillsFilter) > 0 {
-			or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.skill_catalog WHERE skill_id = ANY(:skills))", skillsFilter))
-			params["skills"] = skillsFilter
+		if skillsFilter != "" {
+			var skillIDs []int64
+			if err := json.Unmarshal([]byte(skillsFilter), &skillIDs); err == nil && len(skillIDs) > 0 {
+				or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.skill_catalog WHERE skill_id = ANY(:skills))", skillIDs))
+				params["skills"] = skillIDs
+			}
 		}
 		or = append(or, sq.Expr("(NOT EXISTS(SELECT catalog_id FROM cases.team_catalog WHERE catalog_id = catalog.id) AND NOT EXISTS(SELECT catalog_id FROM cases.skill_catalog WHERE catalog_id = catalog.id))"))
 		queryBuilder = queryBuilder.Where(or)
@@ -773,8 +786,8 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	}
 
 	if selectFlags["search"] {
-		if name, ok := rpc.GetFilter("name").(string); ok {
-			params["name"] = "%" + strings.Join(util.Substring(name), "%") + "%"
+		if nameFilter, ok := rpc.GetFilter("name"); ok {
+			params["name"] = "%" + strings.Join(util.Substring(nameFilter), "%") + "%"
 		}
 
 		searchQ = `
@@ -818,7 +831,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 
 	// 10) If we need CTE(s)
 	if selectFlags["teams"] || selectFlags["skills"] || selectFlags["services"] || selectFlags["search"] {
-		prefixQuery := buildCTEs(selectFlags, depth, subfields, rpc.GetFilters())
+		prefixQuery := buildCTEs(selectFlags, depth, subfields, rpc)
 		queryBuilder = queryBuilder.Prefix(prefixQuery)
 	}
 	// Add GROUP BY for catalog fields
@@ -995,7 +1008,7 @@ func buildCTEs(
 	selectFlags map[string]bool,
 	depth int64,
 	subfields []string,
-	filter map[string]any,
+	rpc options.Searcher,
 ) string {
 	var prefixQuery strings.Builder
 	// prefixQuery.WriteString("WITH ")
@@ -1055,7 +1068,7 @@ func buildCTEs(
 	// Services Hierarchy CTE
 	if selectFlags["services"] {
 		anchorSQL := buildAnchorServiceSelect(subfields, selectFlags)
-		subserviceSQL := buildSubserviceSelect(subfields, depth, selectFlags, filter)
+		subserviceSQL := buildSubserviceSelect(subfields, depth, selectFlags, rpc)
 
 		prefixQuery.WriteString(fmt.Sprintf(`service_hierarchy AS (
 			WITH RECURSIVE recursive_hierarchy AS (
@@ -1209,7 +1222,7 @@ func buildSubserviceSelect(
 	serviceFields []string,
 	depth int64,
 	selectFlags map[string]bool,
-	filter map[string]any,
+	rpc options.Searcher,
 ) string {
 	var sb strings.Builder
 
@@ -1351,8 +1364,11 @@ WHERE parent.level < CASE WHEN `)
 	sb.WriteString(fmt.Sprintf(`%[1]d > 0 THEN %[1]d ELSE 3 END`, depth+1))
 
 	// Add state filter for subservices
-	if _, ok := filter["state"].(bool); ok {
-		sb.WriteString(` AND subservice.state = :state`)
+	stateFilter, found := rpc.GetFilter("state")
+	if found {
+		if state, err := strconv.ParseBool(stateFilter); err == nil {
+			sb.WriteString(fmt.Sprintf(` AND subservice.state = %v`, state))
+		}
 	}
 
 	sb.WriteString(`

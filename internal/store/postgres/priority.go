@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+
 	sq "github.com/Masterminds/squirrel"
 	api "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
@@ -211,8 +212,8 @@ func (p *Priority) buildListPriorityQuery(
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "cp.name")
+	if nameFilter, found := rpc.GetFilter("name"); found && len(nameFilter) > 0 {
+		queryBuilder = util2.AddSearchTerm(queryBuilder, nameFilter, "cp.name")
 	}
 
 	// Add NOT IN SLA condition if `notInSla` is not 0

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+
 	"github.com/webitel/cases/auth"
 	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
@@ -263,7 +265,11 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 		From("cases.case_comment AS cc").
 		Where(sq.Eq{"cc.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
-	parentId, ok := rpc.GetFilter("case_id").(int64)
+	filter, ok := rpc.GetFilter("case_id")
+	var parentId int64
+	if ok && filter != "" {
+		parentId, _ = strconv.ParseInt(filter, 10, 64)
+	}
 	if ok && parentId != 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": parentId})
 	}
@@ -301,7 +307,8 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 		queryBuilder = queryBuilder.Where(sq.Eq{"cc.id": rpc.GetIDs()})
 	}
 
-	if caseID, ok := rpc.GetFilter("case_id").(string); ok && caseID != "" {
+	caseID, ok := rpc.GetFilter("case_id")
+	if ok && caseID != "" {
 		queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": caseID})
 	}
 

@@ -3,6 +3,9 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"net/url"
+	"strconv"
+
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	_go "github.com/webitel/cases/api/cases"
@@ -13,7 +16,6 @@ import (
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/model/options/defaults"
 	"github.com/webitel/cases/util"
-	"net/url"
 )
 
 const (
@@ -109,8 +111,12 @@ func (l *CaseLinkStore) List(opts options.Searcher) (*_go.CaseLinkList, error) {
 		return nil, dberr.NewDBError("postgres.case_link.list.check_args.opts", "search options required")
 	}
 
-	parentId, ok := opts.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
+	filter, ok := opts.GetFilter("case_id")
+	if !ok {
+		return nil, dberr.NewDBError("postgres.case_link.list.check_args.parent_id", "case id required")
+	}
+	parentId, err := strconv.ParseInt(filter, 10, 64)
+	if err != nil || parentId == 0 {
 		return nil, dberr.NewDBError("postgres.case_link.list.check_args.parent_id", "case id required")
 	}
 	db, dbErr := l.storage.Database()

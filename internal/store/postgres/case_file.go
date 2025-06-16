@@ -3,10 +3,11 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"strconv"
+
 	"github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/model/options/defaults"
-	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/api/cases"
@@ -98,8 +99,12 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 	rpc options.Searcher,
 ) (sq.Sqlizer, []func(file *cases.File) any, error) {
 
-	parentId, ok := rpc.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
+	filter, ok := rpc.GetFilter("case_id")
+	if !ok || filter == "" {
+		return nil, nil, errors.New("case id required")
+	}
+	parentId, err := strconv.ParseInt(filter, 10, 64)
+	if err != nil || parentId == 0 {
 		return nil, nil, errors.New("case id required")
 	}
 	// Begin building the base query with alias `cf`

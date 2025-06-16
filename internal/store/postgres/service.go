@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"fmt"
+	"strconv"
+	"time"
+
 	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
-	"time"
 
 	"github.com/jackc/pgtype"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
@@ -348,16 +350,18 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 	}
 
 	// Apply filters
-	if rootID, ok := rpc.GetFilter("root_id").(int64); ok && rootID > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"service.root_id": rootID})
+	if rootIDFilter, ok := rpc.GetFilter("root_id"); ok {
+		if rootID, err := strconv.ParseInt(rootIDFilter, 10, 64); err == nil && rootID > 0 {
+			queryBuilder = queryBuilder.Where(sq.Eq{"service.root_id": rootID})
+		}
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "service.name")
+	if nameFilter, ok := rpc.GetFilter("name"); ok && len(nameFilter) > 0 {
+		queryBuilder = util2.AddSearchTerm(queryBuilder, nameFilter, "service.name")
 	}
 
-	if state := rpc.GetFilter("state"); state != nil {
-		queryBuilder = queryBuilder.Where(sq.Eq{"service.state": state})
+	if stateFilter, ok := rpc.GetFilter("state"); ok && len(stateFilter) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"service.state": stateFilter})
 	}
 
 	if len(rpc.GetIDs()) > 0 {

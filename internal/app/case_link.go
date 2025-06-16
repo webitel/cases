@@ -29,17 +29,17 @@ type CaseLinkService struct {
 }
 
 var CaseLinkMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
-	{"etag", true},
-	{"id", false},
-	{"ver", false},
-	{"created_by", true},
-	{"created_at", true},
-	{"updated_by", false},
-	{"updated_at", false},
-	{"author", true},
-	{"name", true},
-	{"url", true},
-	{"case_id", false},
+	{Name: "etag", Default: true},
+	{Name: "id", Default: false},
+	{Name: "ver", Default: false},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
+	{Name: "author", Default: true},
+	{Name: "name", Default: true},
+	{Name: "url", Default: true},
+	{Name: "case_id", Default: false},
 })
 
 func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkRequest) (*cases.CaseLink, error) {
@@ -65,7 +65,7 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	searchOpts.AddFilter("case_id", caseEtg.GetOid())
+	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", caseEtg.GetOid()))
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
@@ -369,7 +369,7 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
-	searchOpts.AddFilter("case_id", etg.GetOid())
+	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", etg.GetOid()))
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),

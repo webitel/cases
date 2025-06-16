@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	"github.com/webitel/cases/internal/store/util"
@@ -138,8 +140,9 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
 			"search options required",
 		)
 	}
-	parentId, ok := options.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
+	filter, ok := options.GetFilter("case_id")
+	parentId, err := strconv.ParseInt(filter, 10, 64)
+	if !ok || filter == "" || err != nil || parentId == 0 {
 		return nil, nil, dberr.NewDBError(
 			"postgres.case_communication.build_list_case_communication_sqlizer.check_args.case_id",
 			"case id required",

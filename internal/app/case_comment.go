@@ -214,7 +214,7 @@ func (c *CaseCommentService) ListComments(
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_etag", "Invalid etag")
 	}
-	searchOpts.AddFilter("case_id", tag.GetOid())
+	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tag.GetOid()))
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
 	comments, err := c.app.Store.CaseComment().List(searchOpts)

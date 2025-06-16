@@ -3,6 +3,8 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"strconv"
+
 	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 
@@ -268,12 +270,21 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 		Where(sq.Eq{"rc.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	// Filter by parent case if provided
-	parentId, ok := rpc.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
-		return queryBuilder, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id required")
+		// Filter by parent case if provided
+	filter, ok := rpc.GetFilter("case_id")
+	if !ok || filter == "" {
+		return queryBuilder, nil, dberr.NewDBError(
+			"postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id",
+			"case id required",
+		)
 	}
-
+	parentId, perr := strconv.ParseInt(filter, 10, 64)
+	if perr != nil || parentId == 0 {
+		return queryBuilder, nil, dberr.NewDBError(
+			"postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id",
+			"case id required",
+		)
+	}
 	queryBuilder = queryBuilder.Where(sq.Or{
 		sq.Eq{"rc.primary_case_id": parentId},
 		sq.Eq{"rc.related_case_id": parentId},

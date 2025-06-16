@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/api/engine"
 	"github.com/webitel/cases/auth"
@@ -10,7 +13,6 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"google.golang.org/grpc/metadata"
-	"log/slog"
 )
 
 type CatalogService struct {
@@ -157,7 +159,7 @@ func (s *CatalogService) ListCatalogs(
 		return nil, NewBadRequestError(err)
 	}
 	if req.State {
-		searchOptions.AddFilter("state", req.State)
+		searchOptions.AddFilter(fmt.Sprintf("state=%d", req.State))
 	}
 
 	if !searchOptions.GetAuthOpts().HasSuperPermission(auth.SuperSelectPermission) { // if user doesn't have super select permission, then apply filters
@@ -182,14 +184,14 @@ func (s *CatalogService) ListCatalogs(
 				)
 				if team := agent.Team; team != nil {
 					if team.GetId() > 0 {
-						searchOptions.AddFilter("team", agent.Team.Id)
+						searchOptions.AddFilter(fmt.Sprintf("team=%d", agent.Team.Id))
 					}
 				}
 				if agent.Skills != nil && len(agent.Skills) != 0 {
 					for _, skill := range agent.Skills {
 						skills = append(skills, skill.GetId())
 					}
-					searchOptions.AddFilter("skills", skills)
+					searchOptions.AddFilter(fmt.Sprintf("skills=%v", skills))
 
 				}
 			}
@@ -200,7 +202,7 @@ func (s *CatalogService) ListCatalogs(
 	}
 
 	if req.Query != "" {
-		searchOptions.AddFilter("name", req.Query)
+		searchOptions.AddFilter(fmt.Sprintf("name=%s", req.Query))
 		req.Fields = append(req.Fields, "searched")
 	}
 

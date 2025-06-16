@@ -3,8 +3,9 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"github.com/webitel/cases/auth"
 	"log/slog"
+
+	"github.com/webitel/cases/auth"
 
 	customrel "github.com/webitel/custom/reflect"
 	customreg "github.com/webitel/custom/registry"
@@ -72,12 +73,14 @@ type customCtx struct {
 func (c *CaseStore) custom(ctx context.Context) (custom *customCtx) {
 	// opts, is := ctx.(options.SearchOptions)
 	if opts, _ := ctx.(interface {
-		GetFilter(string) any
+		GetCustomContext() map[string]any
 	}); opts != nil {
-		// try to extract already prepared context
-		custom, _ = opts.GetFilter(customCtxState).(*customCtx)
+		if ctxMap := opts.GetCustomContext(); ctxMap != nil {
+			if v, ok := ctxMap[customCtxState]; ok {
+				custom, _ = v.(*customCtx)
+			}
+		}
 	}
-
 	if custom == nil {
 		custom = &customCtx{}
 	} else if custom.typof != nil {

@@ -2,12 +2,14 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"strings"
+
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"strings"
 )
 
 type StatusService struct {
@@ -17,13 +19,13 @@ type StatusService struct {
 }
 
 var StatusMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{"id", true},
-	{"created_by", true},
-	{"created_at", true},
-	{"updated_by", false},
-	{"updated_at", false},
-	{"name", true},
-	{"description", true},
+	{Name: "id", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
 })
 
 const (
@@ -77,7 +79,7 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	searchOpts.AddFilter("name", req.Q)
+	searchOpts.AddFilter(fmt.Sprintf("name=%s", req.Q))
 
 	res, err := s.app.Store.Status().List(searchOpts)
 	if err != nil {

@@ -2,6 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"strconv"
+
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
@@ -10,8 +14,6 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
-	"log/slog"
-	"strconv"
 )
 
 type RelatedCaseService struct {
@@ -52,7 +54,7 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	searchOpts.AddFilter("case_id", caseTid.GetOid())
+	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", caseTid.GetOid()))
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
@@ -351,7 +353,7 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.list_related_cases.invalid_etag", "Invalid etag")
 	}
-	searchOpts.AddFilter("case_id", tag.GetOid())
+	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tag.GetOid()))
 
 	output, err := r.app.Store.RelatedCase().List(searchOpts)
 	if err != nil {

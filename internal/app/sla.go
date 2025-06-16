@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
@@ -20,18 +21,18 @@ var SLAMetadata = model.NewObjectMetadata(
 	model.ScopeDictionary,
 	"",
 	[]*model.Field{
-		{"id", true},
-		{"created_by", true},
-		{"created_at", true},
-		{"updated_by", true},
-		{"updated_at", true},
-		{"name", true},
-		{"description", true},
-		{"valid_from", true},
-		{"valid_to", true},
-		{"calendar", true},
-		{"reaction_time", true},
-		{"resolution_time", true},
+		{Name: "id", Default: true},
+		{Name: "created_by", Default: true},
+		{Name: "created_at", Default: true},
+		{Name: "updated_by", Default: true},
+		{Name: "updated_at", Default: true},
+		{Name: "name", Default: true},
+		{Name: "description", Default: true},
+		{Name: "valid_from", Default: true},
+		{Name: "valid_to", Default: true},
+		{Name: "calendar", Default: true},
+		{Name: "reaction_time", Default: true},
+		{Name: "resolution_time", Default: true},
 	})
 
 // CreateSLA implements cases.SLAsServer.
@@ -115,7 +116,7 @@ func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	searchOpts.AddFilter("name", req.GetQ())
+	searchOpts.AddFilter(fmt.Sprintf("name=%s", req.GetQ()))
 
 	res, err := s.app.Store.SLA().List(searchOpts)
 	if err != nil {

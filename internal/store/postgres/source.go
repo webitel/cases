@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
+
 	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
-	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 	_go "github.com/webitel/cases/api/cases"
@@ -228,16 +230,23 @@ func (s *Source) buildListSourceQuery(rpc options.Searcher) (sq.SelectBuilder, [
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.GetIDs()})
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && name != "" {
+	if name, ok := rpc.GetFilter("name"); ok && name != "" {
 		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
 	}
 
-	if types, ok := rpc.GetFilter("type").([]_go.SourceType); ok && len(types) > 0 {
-		var typeStrings []string
+	if typeStr, ok := rpc.GetFilter("type"); ok && typeStr != "" {
+		var typeInts []int32 //_go.SourceType which is int32
+		types := strings.Split(typeStr, ",")
 		for _, t := range types {
-			typeStrings = append(typeStrings, t.String())
+			if t != "" {
+				if typeInt, err := strconv.ParseInt(t, 10, 32); err == nil {
+					typeInts = append(typeInts, int32(typeInt))
+				}
+			}
 		}
-		queryBuilder = queryBuilder.Where(sq.Eq{"s.type": typeStrings})
+		if len(typeInts) > 0 {
+			queryBuilder = queryBuilder.Where(sq.Eq{"s.type": typeInts})
+		}
 	}
 
 	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)

@@ -249,8 +249,9 @@ func (s *CloseReason) buildListCloseReasonQuery(
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "cr.name")
+	nameFilter, found := rpc.GetFilter("name")
+	if found && len(nameFilter) > 0 {
+		queryBuilder = util2.AddSearchTerm(queryBuilder, nameFilter, "cr.name")
 	}
 
 	// Add close reason group filter if provided

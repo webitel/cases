@@ -2,6 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"time"
+
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/errors"
@@ -11,8 +15,6 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
-	"log/slog"
-	"time"
 )
 
 var CaseTimelineMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
@@ -57,7 +59,7 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline.check_args.invalid_etag", "Invalid case etag")
 	}
-	searchOpts.AddFilter("case_id", tid.GetOid())
+	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tid.GetOid()))
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),

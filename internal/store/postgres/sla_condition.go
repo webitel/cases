@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
+	"strconv"
 	"strings"
 	"time"
+
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
@@ -361,9 +363,15 @@ func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.Deleter) (s
 func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (string, []interface{}, error) {
 	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
+
+	var slaId string
+	if id, ok := rpc.GetFilter("sla_id"); ok && id != "" {
+		slaId = id
+	}
+
 	queryBuilder := sq.Select().
 		From("cases.sla_condition AS g").
-		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId(), "g.sla_id": rpc.GetFilter("sla_id")}).
+		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId(), "g.sla_id": slaId}).
 		LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
 		PlaceholderFormat(sq.Dollar)
 
@@ -408,13 +416,13 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
-	if priorityId := rpc.GetFilter("priority_id"); priorityId != nil {
-		// Join cases.priority_sla_condition only if filtering by priority_id
-		queryBuilder = queryBuilder.
-			Where(sq.Eq{"ps.priority_id": priorityId})
+	if priorityId, ok := rpc.GetFilter("priority_id"); ok && priorityId != "" {
+		if id, err := strconv.ParseInt(priorityId, 10, 64); err == nil && id > 0 {
+			queryBuilder = queryBuilder.Where(sq.Eq{"ps.priority_id": id})
+		}
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name"); ok && name != "" {
 		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "g.name")
 	}
 

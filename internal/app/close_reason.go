@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
@@ -16,14 +18,14 @@ type CloseReasonService struct {
 }
 
 var CloseReasonMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{"id", true},
-	{"created_by", true},
-	{"created_at", true},
-	{"updated_by", false},
-	{"updated_at", false},
-	{"name", true},
-	{"description", true},
-	{"close_reason_id", false},
+	{Name: "id", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
+	{Name: "close_reason_id", Default: false},
 })
 
 // CreateCloseReason implements api.CloseReasonsServer.
@@ -78,7 +80,7 @@ func (s *CloseReasonService) ListCloseReasons(
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	searchOpts.AddFilter("name", req.Q)
+	searchOpts.AddFilter(fmt.Sprintf("name=%s", req.Q))
 
 	res, err := s.app.Store.CloseReason().List(searchOpts, req.CloseReasonGroupId)
 	if err != nil {

@@ -3,11 +3,12 @@ package postgres
 import (
 	"context"
 	"fmt"
-	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
 	"log"
 	"strings"
 	"time"
+
+	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -234,7 +235,7 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.Searcher
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": ids})
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
+	if name, ok := rpc.GetFilter("name"); ok && name != "" {
 		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
 	}
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
@@ -17,14 +18,14 @@ type SourceService struct {
 }
 
 var SourceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{"id", true},
-	{"created_by", true},
-	{"created_at", true},
-	{"updated_by", false},
-	{"updated_at", false},
-	{"name", true},
-	{"description", true},
-	{"type", true},
+	{Name: "id", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
+	{Name: "type", Default: true},
 })
 
 // CreateSource implements api.SourcesServer.
@@ -83,10 +84,10 @@ func (s *SourceService) ListSources(
 		return nil, NewBadRequestError(err)
 	}
 	if req.Q != "" {
-		searchOpts.AddFilter("name", req.Q)
+		searchOpts.AddFilter(fmt.Sprintf("name=%s", req.Q))
 	}
 	if len(req.Type) > 0 {
-		searchOpts.AddFilter("type", req.Type)
+		searchOpts.AddFilter(fmt.Sprintf("type=%v", req.Type))
 	}
 
 	res, err := s.app.Store.Source().List(searchOpts)
