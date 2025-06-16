@@ -164,7 +164,13 @@ func (l *LoggerObserver) Update(et watcher.EventType, args map[string]any) error
 	default:
 		return watcher.ErrUnknownType
 	}
-	message, err := wlogger.NewMessage(auth.GetUserId(), auth.GetUserIp(), tp, strconv.FormatInt(id, 10), args["obj"])
+
+	userIP := auth.GetUserIp()
+	if userIP != "" {
+		userIP = "unknown"
+	}
+
+	message, err := wlogger.NewMessage(auth.GetUserId(), userIP, tp, strconv.FormatInt(id, 10), args["obj"])
 	if err != nil {
 		return err
 	}
@@ -174,6 +180,7 @@ func (l *LoggerObserver) Update(et watcher.EventType, args map[string]any) error
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
