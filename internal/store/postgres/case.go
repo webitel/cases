@@ -1794,7 +1794,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 
 		case "assignee":
 			var assignee *int64
-			if id := input.Reporter.GetId(); id > 0 {
+			if id := input.Assignee.GetId(); id > 0 {
 				assignee = &id
 			}
 			updateBuilder = updateBuilder.Set("assignee", assignee)
