@@ -82,7 +82,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "Statuses",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewStatusConditionService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewStatusConditionService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterStatusConditionsServer(s, svc.(cases.StatusConditionsServer))
 			},

@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	util2 "github.com/webitel/cases/internal/store/util"
 	"log"
@@ -27,7 +29,7 @@ type StatusConditionStore struct {
 	storage *Store
 }
 
-func (s StatusConditionStore) Create(rpc options.Creator, input *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s *StatusConditionStore) Create(rpc options.Creator, input *model.StatusCondition) (*model.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.database_connection_error", err)
@@ -44,109 +46,68 @@ func (s StatusConditionStore) Create(rpc options.Creator, input *_go.StatusCondi
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.query_build_error", err)
 	}
 
-	var (
-		createdBy, updatedBy _go.Lookup
-		createdAt, updatedAt time.Time
-	)
-
-	err = tx.QueryRow(rpc, query, args...).Scan(
-		&input.Id, &input.Name, &createdAt, &updatedAt, &input.Description, &input.Initial, &input.Final,
-		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &input.StatusId,
-	)
+	var res model.StatusCondition
+	err = pgxscan.Get(rpc, db, &res, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.create.execution_error", err)
 	}
 
-	input.CreatedAt = util.Timestamp(createdAt)
-	input.UpdatedAt = util.Timestamp(updatedAt)
-	input.CreatedBy = &createdBy
-	input.UpdatedBy = &updatedBy
-
-	return input, nil
+	return &res, nil
 }
 
-func (s StatusConditionStore) List(rpc options.Searcher, statusId int64) (*_go.StatusConditionList, error) {
+func (s *StatusConditionStore) List(rpc options.Searcher) ([]*model.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.database_connection_error", err)
 	}
-
+	var statusId int
+	switch v := rpc.GetFilter("parent_id").(type) {
+	case int:
+		statusId = v
+	case int64:
+		statusId = int(v)
+	default:
+		return nil, dberr.NewDBBadRequestError("postgres.status_condition.list.database_param_error", "invalid filter type")
+	}
 	query, args, err := s.buildListStatusConditionQuery(rpc, statusId)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.query_build_error", err)
 	}
-
-	rows, err := db.Query(rpc, query, args...)
+	var res []*model.StatusCondition
+	err = pgxscan.Select(rpc, db, &res, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.list.execution_error", err)
 	}
-	defer rows.Close()
 
-	var statusList []*_go.StatusCondition
-	lCount := 0
-	next := false
-	// Check if we want to fetch all records
-	//
-	// If the size is -1, we want to fetch all records
-	fetchAll := rpc.GetSize() == -1
-
-	for rows.Next() {
-		// If not fetching all records, check the size limit
-		if !fetchAll && lCount >= int(rpc.GetSize()) {
-			next = true
-			break
-		}
-
-		st := &_go.StatusCondition{}
-
-		var (
-			createdBy, updatedBy         _go.Lookup
-			tempCreatedAt, tempUpdatedAt time.Time
-		)
-
-		scanArgs := s.buildScanArgs(rpc.GetFields(), st, &createdBy, &updatedBy, &tempCreatedAt, &tempUpdatedAt)
-		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, dberr.NewDBInternalError("postgres.status_condition.list.row_scan_error", err)
-		}
-
-		s.populateStatusConditionFields(rpc.GetFields(), st, &createdBy, &updatedBy, tempCreatedAt, tempUpdatedAt)
-		statusList = append(statusList, st)
-		lCount++
-	}
-
-	return &_go.StatusConditionList{
-		Page:  int32(rpc.GetPage()),
-		Next:  next,
-		Items: statusList,
-	}, nil
+	return res, nil
 }
 
-func (s StatusConditionStore) Delete(rpc options.Deleter, statusId int64) error {
+func (s *StatusConditionStore) Delete(rpc options.Deleter) (*model.StatusCondition, error) {
 	domainId := rpc.GetAuthOpts().GetDomainId()
 
-	query, args, err := s.buildDeleteStatusConditionQuery(rpc.GetIDs(), domainId, statusId)
+	query, args, err := s.buildDeleteStatusConditionQuery(rpc.GetIDs(), domainId, rpc.GetParentID())
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.status_condition.delete.query_build_error", err)
+		return nil, dberr.NewDBInternalError("postgres.status_condition.delete.query_build_error", err)
 	}
 
 	db, err := s.getDBConnection()
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.status_condition.delete.database_connection_error", err)
+		return nil, dberr.NewDBInternalError("postgres.status_condition.delete.database_connection_error", err)
 	}
 
 	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.status_condition.delete.execution_error", err)
+		return nil, dberr.NewDBInternalError("postgres.status_condition.delete.execution_error", err)
 	}
 
 	// Check if any rows were affected
 	if res.RowsAffected() == 0 {
-		return dberr.NewDBNoRowsError("postgres.status_condition.delete.not_found")
+		return nil, dberr.NewDBNoRowsError("postgres.status_condition.delete.not_found")
 	}
-	return nil
+	return nil, nil
 }
 
-func (s StatusConditionStore) Update(rpc options.Updator, input *_go.StatusCondition) (*_go.StatusCondition, error) {
+func (s *StatusConditionStore) Update(rpc options.Updator, input *model.StatusCondition) (*model.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.database_connection_error", err)
@@ -161,36 +122,23 @@ func (s StatusConditionStore) Update(rpc options.Updator, input *_go.StatusCondi
 	for _, field := range rpc.GetMask() {
 		switch field {
 		case "initial":
-			if !input.Initial {
+			if input.Initial == nil || !*input.Initial {
 				return nil, dberr.NewDBCheckViolationError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
 			}
 		}
 	}
 
 	query, args := s.buildUpdateStatusConditionQuery(rpc, input)
+	var res *model.StatusCondition
 
-	var (
-		createdBy, updatedBy _go.Lookup
-		createdAt, updatedAt time.Time
-	)
-
-	err = tx.QueryRow(rpc, query, args...).Scan(
-		&input.Id, &input.Name, &createdAt, &updatedAt, &input.Description, &input.Initial, &input.Final,
-		&createdBy.Id, &createdBy.Name, &updatedBy.Id, &updatedBy.Name, &input.StatusId,
-	)
+	err = pgxscan.Get(rpc, tx, &res, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status_condition.update.execution_error", err)
 	}
-
-	input.CreatedAt = util.Timestamp(createdAt)
-	input.UpdatedAt = util.Timestamp(updatedAt)
-	input.CreatedBy = &createdBy
-	input.UpdatedBy = &updatedBy
-
 	return input, nil
 }
 
-func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.Creator, input *_go.StatusCondition) (string, []interface{}, error) {
+func (s *StatusConditionStore) buildCreateStatusConditionQuery(rpc options.Creator, input *model.StatusCondition) (string, []interface{}, error) {
 	query := createStatusConditionQuery
 	args := []interface{}{
 		input.Name,                      // $1 name
@@ -203,7 +151,7 @@ func (s StatusConditionStore) buildCreateStatusConditionQuery(rpc options.Creato
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.Searcher, statusId int64) (string, []interface{}, error) {
+func (s *StatusConditionStore) buildListStatusConditionQuery(rpc options.Searcher, statusId int) (string, []interface{}, error) {
 	queryBuilder := sq.Select().
 		From("cases.status_condition AS s").
 		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId(), "s.status_id": statusId}).
@@ -253,7 +201,7 @@ func (s StatusConditionStore) buildListStatusConditionQuery(rpc options.Searcher
 	return util2.CompactSQL(query), args, nil
 }
 
-func (s StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domainId, statusId int64) (string, []interface{}, error) {
+func (s *StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domainId, statusId int64) (string, []interface{}, error) {
 	query := deleteStatusConditionQuery
 
 	args := []interface{}{
@@ -264,7 +212,7 @@ func (s StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domai
 	return query, args, nil
 }
 
-func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Updator, input *_go.StatusCondition) (string, []interface{}) {
+func (s *StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Updator, input *model.StatusCondition) (string, []interface{}) {
 	var args []interface{}
 
 	// 1. Squirrel operations: Building the dynamic part of the "upd" query
@@ -280,7 +228,7 @@ func (s StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Updato
 	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
-			if input.Name != "" {
+			if input.Name != nil && *input.Name != "" {
 				updBuilder = updBuilder.Set("name", input.Name)
 			}
 		case "description":
@@ -378,7 +326,7 @@ WHERE CASE
 	return util2.CompactSQL(query), args
 }
 
-func (s StatusConditionStore) getDBConnection() (*pgxpool.Pool, error) {
+func (s *StatusConditionStore) getDBConnection() (*pgxpool.Pool, error) {
 	db, err := s.storage.Database()
 	if err != nil {
 		log.Printf("Failed to get database connection: %v", err)
@@ -387,7 +335,7 @@ func (s StatusConditionStore) getDBConnection() (*pgxpool.Pool, error) {
 	return db, nil
 }
 
-func (s StatusConditionStore) handleTx(rpc context.Context, tx pgx.Tx, err *error) {
+func (s *StatusConditionStore) handleTx(rpc context.Context, tx pgx.Tx, err *error) {
 	if p := recover(); p != nil {
 		if rbErr := tx.Rollback(rpc); rbErr != nil {
 			log.Printf("Failed to rollback transaction: %v", rbErr)
@@ -402,7 +350,7 @@ func (s StatusConditionStore) handleTx(rpc context.Context, tx pgx.Tx, err *erro
 	}
 }
 
-func (s StatusConditionStore) buildScanArgs(fields []string, input *_go.StatusCondition, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt *time.Time) []interface{} {
+func (s *StatusConditionStore) buildScanArgs(fields []string, input *_go.StatusCondition, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt *time.Time) []interface{} {
 	var scanArgs []interface{}
 	for _, field := range fields {
 		switch field {
@@ -431,7 +379,7 @@ func (s StatusConditionStore) buildScanArgs(fields []string, input *_go.StatusCo
 	return scanArgs
 }
 
-func (s StatusConditionStore) populateStatusConditionFields(fields []string, st *_go.StatusCondition, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt time.Time) {
+func (s *StatusConditionStore) populateStatusConditionFields(fields []string, st *_go.StatusCondition, createdBy, updatedBy *_go.Lookup, tempCreatedAt, tempUpdatedAt time.Time) {
 	if s.containsField(fields, "created_by") {
 		st.CreatedBy = createdBy
 	}
@@ -446,7 +394,7 @@ func (s StatusConditionStore) populateStatusConditionFields(fields []string, st 
 	}
 }
 
-func (s StatusConditionStore) containsField(fields []string, field string) bool {
+func (s *StatusConditionStore) containsField(fields []string, field string) bool {
 	for _, f := range fields {
 		if f == field {
 			return true

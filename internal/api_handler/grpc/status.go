@@ -11,6 +11,7 @@ import (
 	"github.com/webitel/cases/internal/model/options"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
+	"log/slog"
 	"strings"
 )
 
@@ -98,9 +99,11 @@ func (s *StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusReq
 	var res _go.StatusList
 	res.Items, err = utils.ConvertToOutputBulk(items, s.Marshal)
 	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
 		return nil, grpcerror.ConversionError
 	}
 	res.Next, res.Items = utils.GetListResult(req, res.Items)
+	res.Page = req.GetPage()
 	return &res, nil
 }
 
