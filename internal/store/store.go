@@ -186,14 +186,14 @@ type SourceStore interface {
 }
 
 type PriorityStore interface {
-	// Create a new priority lookup
-	Create(rpc options.Creator, add *_go.Priority) (*_go.Priority, error)
-	// List priority lookup
-	List(rpc options.Searcher, notInSla int64, inSla int64) (*_go.PriorityList, error)
-	// Delete priority lookup
-	Delete(rpc options.Deleter) error
-	// Update priority lookup
-	Update(rpc options.Updator, lookup *_go.Priority) (*_go.Priority, error)
+    // Create a new priority lookup
+    Create(rpc options.Creator, add *model.Priority) (*model.Priority, error)
+    // List priority lookup
+    List(rpc options.Searcher, notInSla int64, inSla int64) (*model.PriorityList, error)
+    // Delete priority lookup
+    Delete(rpc options.Deleter) (*model.Priority, error)
+    // Update priority lookup
+    Update(rpc options.Updator, lookup *model.Priority) (*model.Priority, error)
 }
 
 type SLAStore interface {

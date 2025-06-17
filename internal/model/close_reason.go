@@ -9,8 +9,8 @@ type CloseReason struct {
 	Name               string    `json:"name" db:"name"`
 	Description        *string   `json:"description" db:"description"`
 	CloseReasonGroupId int64     `json:"close_reason_group_id" db:"close_reason_id"`
-	CreatedAt          time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at" db:"updated_at"`
+	CreatedAt          *time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt          *time.Time `json:"updated_at" db:"updated_at"`
 	Dc                 int64     `json:"dc" db:"dc"`
 }
 

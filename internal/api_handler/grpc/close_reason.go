@@ -82,6 +82,7 @@ func (s *CloseReasonService) ListCloseReasons(
 			util.EnsureIdField,
 		),
 		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
 		return nil, grpcerror.NewBadRequestError(err)
@@ -197,8 +198,8 @@ func (s *CloseReasonService) Marshal(model *model.CloseReason) (*cases.CloseReas
 		Name:               model.Name,
 		Description:        utils.Dereference(model.Description),
 		CloseReasonGroupId: model.CloseReasonGroupId,
-		CreatedAt:          model.CreatedAt.UnixMilli(),
-		UpdatedAt:          model.UpdatedAt.UnixMilli(),
+		CreatedAt:          utils.MarshalTime(model.CreatedAt),
+		UpdatedAt:          utils.MarshalTime(model.UpdatedAt),
 		CreatedBy:          utils.MarshalLookup(model.Author),
 		UpdatedBy:          utils.MarshalLookup(model.Editor),
 	}, nil

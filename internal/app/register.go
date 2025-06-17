@@ -1,8 +1,9 @@
 package app
 
 import (
-	grpchandler "github.com/webitel/cases/internal/api_handler/grpc"
 	"log"
+
+	grpchandler "github.com/webitel/cases/internal/api_handler/grpc"
 
 	cases "github.com/webitel/cases/api/cases"
 	"google.golang.org/grpc"
@@ -107,7 +108,9 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "CloseReasonGroups",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewPriorityService(a) },
+			init: func(a *App) (interface{}, error) {
+				return grpchandler.NewPriorityService(a), nil
+			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterPrioritiesServer(s, svc.(cases.PrioritiesServer))
 			},

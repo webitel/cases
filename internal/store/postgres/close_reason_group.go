@@ -76,7 +76,7 @@ func (s *CloseReasonGroup) buildCreateCloseReasonGroupQuery(rpc options.Creator,
 			group.Name,
 			rpc.GetAuthOpts().GetDomainId(),
 			rpc.RequestTime(),
-			group.Description,
+			sq.Expr("NULLIF(?, '')", group.Description),
 			rpc.GetAuthOpts().GetUserId(),
 			rpc.RequestTime(),
 			rpc.GetAuthOpts().GetUserId(),
@@ -135,7 +135,7 @@ func (s *CloseReasonGroup) Create(rpc options.Creator, input *model.CloseReasonG
 
 func (s *CloseReasonGroup) buildUpdateCloseReasonGroupQuery(rpc options.Updator, input *model.CloseReasonGroup) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
-	fields = util.EnsureIdField(rpc.GetFields())
+	fields = util.EnsureIdField(rpc.GetFields())//util.EnsureIdField(fields)???
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.close_reason_group").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
@@ -150,7 +150,7 @@ func (s *CloseReasonGroup) buildUpdateCloseReasonGroupQuery(rpc options.Updator,
 		case "name":
 			updateBuilder = updateBuilder.Set("name", input.Name)
 		case "description":
-			updateBuilder = updateBuilder.Set("description", input.Description)
+			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
 		}
 	}
 

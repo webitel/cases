@@ -10,6 +10,7 @@ import (
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
 	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/util"
 )
 
 type CloseReason struct {
@@ -88,6 +89,7 @@ func (s *CloseReason) buildCreateCloseReasonQuery(
 	input *model.CloseReason,
 ) (sq.SelectBuilder, []interface{}, error) {
 	fields := creator.GetFields()
+	fields = util.EnsureIdField(fields)
 	if len(fields) == 0 {
 		fields = []string{"id", "name", "description", "close_reason_id", "created_at", "updated_at", "dc", "created_by", "updated_by"}
 	}
@@ -96,7 +98,7 @@ func (s *CloseReason) buildCreateCloseReasonQuery(
 		Columns("name", "description", "close_reason_id", "created_at", "created_by", "updated_at", "updated_by", "dc").
 		Values(
 			input.Name,
-			input.Description,
+			sq.Expr("NULLIF(?, '')", input.Description), // NULLIF for empty description
 			input.CloseReasonGroupId,
 			creator.RequestTime(),
 			creator.GetAuthOpts().GetUserId(),
@@ -131,6 +133,7 @@ func (s *CloseReason) buildUpdateCloseReasonQuery(
 	input *model.CloseReason,
 ) (sq.SelectBuilder, []interface{}, error) {
 	fields := updator.GetFields()
+	fields = util.EnsureIdField(fields)
 	if len(fields) == 0 {
 		fields = []string{"id", "name", "description", "close_reason_id", "created_at", "updated_at", "dc", "created_by", "updated_by"}
 	}
@@ -149,7 +152,7 @@ func (s *CloseReason) buildUpdateCloseReasonQuery(
 				updateBuilder = updateBuilder.Set("name", input.Name)
 			}
 		case "description":
-			updateBuilder = updateBuilder.Set("description", input.Description)
+			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
 		case "close_reason_id":
 			if input.CloseReasonGroupId != 0 {
 				updateBuilder = updateBuilder.Set("close_reason_id", input.CloseReasonGroupId)

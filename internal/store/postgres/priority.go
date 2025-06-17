@@ -2,12 +2,13 @@ package postgres
 
 import (
 	"fmt"
+
 	sq "github.com/Masterminds/squirrel"
-	api "github.com/webitel/cases/api/cases"
+	"github.com/georgysavva/scany/v2/pgxscan"
 	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/postgres/scanner"
 	util2 "github.com/webitel/cases/internal/store/util"
 	util "github.com/webitel/cases/util"
 )
@@ -16,21 +17,76 @@ type Priority struct {
 	storage *Store
 }
 
-type PriorityScan func(priority *api.Priority) any
-
 const (
 	prioLeft            = "cp"
 	priorityDefaultSort = "name"
 )
 
+func buildPrioritySelectColumns(
+	base sq.SelectBuilder,
+	fields []string,
+) (sq.SelectBuilder, error) {
+
+	var (
+		createdByAlias string
+		joinCreatedBy  = func(alias string) string {
+			if createdByAlias != "" {
+				return createdByAlias
+			}
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %s.created_by = %s.id", alias, prioLeft, alias))
+			createdByAlias = alias
+			return alias
+		}
+		updatedByAlias string
+		joinUpdatedBy  = func(alias string) string {
+			if updatedByAlias != "" {
+				return updatedByAlias
+			}
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %s.updated_by = %s.id", alias, prioLeft, alias))
+			updatedByAlias = alias
+			return alias
+		}
+	)
+	base = base.Column(util2.Ident(prioLeft, "id"))
+	for _, field := range fields {
+		switch field {
+		case "id":
+			// already set
+		case "name":
+			base = base.Column(util2.Ident(prioLeft, "name"))
+		case "description":
+			base = base.Column(util2.Ident(prioLeft, "description"))
+		case "created_at":
+			base = base.Column(util2.Ident(prioLeft, "created_at"))
+		case "updated_at":
+			base = base.Column(util2.Ident(prioLeft, "updated_at"))
+		case "created_by":
+			alias := "prcb"
+			joinCreatedBy(alias)
+			base = base.Column(fmt.Sprintf("%s.id created_by_id", alias))
+			base = base.Column(fmt.Sprintf("COALESCE(%s.name, %s.username) created_by_name", alias, alias))
+		case "updated_by":
+			alias := "prub"
+			joinUpdatedBy(alias)
+			base = base.Column(fmt.Sprintf("%s.id updated_by_id", alias))
+			base = base.Column(fmt.Sprintf("COALESCE(%s.name, %s.username) updated_by_name", alias, alias))
+		case "color":
+			base = base.Column(util2.Ident(prioLeft, "color"))
+		default:
+			return base, dberr.NewDBInternalError("postgres.priority.unknown_field", fmt.Errorf("unknown field: %s", field))
+		}
+	}
+	return base, nil
+}
+
 // Create implements store.PriorityStore.
-func (p *Priority) Create(rpc options.Creator, add *api.Priority) (*api.Priority, error) {
+func (p *Priority) Create(rpc options.Creator, add *model.Priority) (*model.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.create.database_connection_error", dbErr)
 	}
 
-	selectBuilder, plan, err := p.buildCreatePriorityQuery(rpc, add)
+	selectBuilder, err := p.buildCreatePriorityQuery(rpc, add)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.create.build_query_error", err)
 	}
@@ -40,21 +96,21 @@ func (p *Priority) Create(rpc options.Creator, add *api.Priority) (*api.Priority
 		return nil, dberr.NewDBInternalError("postgres.priority.create.query_build_error", err)
 	}
 	// temporary object for scanning
-	tempAdd := &api.Priority{}
-	scanArgs := convertToPriorityScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
+	var res model.Priority
+	err = pgxscan.Get(rpc, d, &res, query, args...)
+	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.create.execution_error", err)
 	}
 
-	return tempAdd, nil
+	return &res, nil
 }
 
 func (p *Priority) buildCreatePriorityQuery(
 	rpc options.Creator,
-	priority *api.Priority,
-) (sq.SelectBuilder, []PriorityScan, error) {
+	priority *model.Priority,
+) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
-	fields = util.EnsureIdField(rpc.GetFields())
+	fields = util.EnsureIdField(fields)
 	// Build the INSERT query with a RETURNING clause
 	insertBuilder := sq.Insert("cases.priority").
 		Columns("name", "dc", "created_at", "description", "created_by", "updated_at", "updated_by", "color").
@@ -74,67 +130,82 @@ func (p *Priority) buildCreatePriorityQuery(
 	// Convert the INSERT query into a CTE
 	insertSQL, args, err := insertBuilder.ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.priority.create.query_build_error", err)
+		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.priority.create.query_build_error", err)
 	}
 
 	// Use the INSERT query as a CTE (Common Table Expression)
 	cte := sq.Expr("WITH cp AS ("+insertSQL+")", args...)
 
 	// Dynamically build the SELECT query for the resulting row
-	selectBuilder, plan, err := buildPrioritySelectColumnsAndPlan(sq.Select(), fields)
+	selectBuilder, err := buildPrioritySelectColumns(sq.Select(), fields)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
 	// Combine the CTE with the SELECT query
 	selectBuilder = selectBuilder.PrefixExpr(cte).From(prioLeft)
 
-	return selectBuilder, plan, nil
+	return selectBuilder, nil
 }
 
-func (p *Priority) Delete(rpc options.Deleter) error {
+func (p *Priority) Delete(rpc options.Deleter) (*model.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
-		return dberr.NewDBInternalError("postgres.priority.delete.database_connection_error", dbErr)
+		return nil, dberr.NewDBInternalError("postgres.priority.delete.database_connection_error", dbErr)
 	}
 
-	deleteBuilder, err := p.buildDeletePriorityQuery(rpc)
+	selectBuilder, err := p.buildDeletePriorityQuery(rpc)
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.priority.delete.query_build_error", err)
+		return nil, dberr.NewDBInternalError("postgres.priority.delete.query_build_error", err)
 	}
 
-	query, args, err := deleteBuilder.ToSql()
+	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.priority.delete.query_to_sql_error", err)
+		return nil, dberr.NewDBInternalError("postgres.priority.delete.query_to_sql_error", err)
 	}
 
-	res, execErr := d.Exec(rpc, query, args...)
-	if execErr != nil {
-		return dberr.NewDBInternalError("postgres.priority.delete.execution_error", execErr)
+	var result model.Priority
+	err = pgxscan.Get(rpc, d, &result, query, args...)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.priority.delete.execution_error", err)
 	}
 
-	if res.RowsAffected() == 0 {
-		return dberr.NewDBNoRowsError("postgres.priority.delete.no_rows_affected")
-	}
-
-	return nil
+	return &result, nil
 }
 
 func (p *Priority) buildDeletePriorityQuery(
 	rpc options.Deleter,
-) (sq.DeleteBuilder, error) {
+) (sq.SelectBuilder, error) {
+	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by", "color"}
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
-		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.priority.delete.missing_ids", fmt.Errorf("no IDs provided for deletion"))
+		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.priority.delete.missing_ids", fmt.Errorf("no IDs provided for deletion"))
 	}
 
 	// Build the delete query
 	deleteBuilder := sq.Delete("cases.priority").
 		Where(sq.Eq{"id": rpc.GetIDs()}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
-		PlaceholderFormat(sq.Dollar)
+		PlaceholderFormat(sq.Dollar).
+		Suffix("RETURNING *") // RETURNING all columns for use in the next SELECT
 
-	return deleteBuilder, nil
+	deleteSQL, args, err := deleteBuilder.ToSql()
+	if err != nil {
+		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.priority.delete.query_to_sql_error", err)
+	}
+
+	cte := sq.Expr("WITH deleted AS ("+deleteSQL+")", args...)
+
+	selectBuilder, err := buildPrioritySelectColumns(
+		sq.Select().PrefixExpr(cte).From("deleted cp"),
+		fields,
+	)
+	if err != nil {
+		return sq.SelectBuilder{}, err
+	}
+	selectBuilder = selectBuilder.PlaceholderFormat(sq.Dollar)
+
+	return selectBuilder, nil
 }
 
 // List implements store.PriorityStore.
@@ -142,13 +213,13 @@ func (p *Priority) List(
 	rpc options.Searcher,
 	notInSla int64,
 	inSla int64,
-) (*api.PriorityList, error) {
+) (*model.PriorityList, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.database_connection_error", dbErr)
 	}
 
-	selectBuilder, plan, err := p.buildListPriorityQuery(rpc, notInSla, inSla)
+	selectBuilder, err := p.buildListPriorityQuery(rpc, notInSla, inSla)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.build_query_error", err)
 	}
@@ -159,36 +230,17 @@ func (p *Priority) List(
 	}
 	query = util2.CompactSQL(query)
 
-	rows, err := d.Query(rpc, query, args...)
+	var priorities []*model.Priority
+
+	err = pgxscan.Select(rpc, d, &priorities, query, args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.execution_error", err)
 	}
-	defer rows.Close()
 
-	var priorities []*api.Priority
-	lCount := 0
-	next := false
-	fetchAll := rpc.GetSize() == -1
+	priorities, next := util2.ResolvePaging(rpc.GetSize(), priorities)
 
-	for rows.Next() {
-		if !fetchAll && lCount >= int(rpc.GetSize()) {
-			next = true
-			break
-		}
-
-		priority := &api.Priority{}
-		scanArgs := convertToPriorityScanArgs(plan, priority)
-
-		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, dberr.NewDBInternalError("postgres.priority.list.row_scan_error", err)
-		}
-
-		priorities = append(priorities, priority)
-		lCount++
-	}
-
-	return &api.PriorityList{
-		Page:  int32(rpc.GetPage()),
+	return &model.PriorityList{
+		Page:  rpc.GetPage(),
 		Next:  next,
 		Items: priorities,
 	}, nil
@@ -198,7 +250,7 @@ func (p *Priority) buildListPriorityQuery(
 	rpc options.Searcher,
 	notInSla int64,
 	inSla int64,
-) (sq.SelectBuilder, []PriorityScan, error) {
+) (sq.SelectBuilder, error) {
 
 	queryBuilder := sq.Select().
 		From("cases.priority AS cp").
@@ -247,11 +299,6 @@ func (p *Priority) buildListPriorityQuery(
 		`, inSla, inSla))
 	}
 
-	// Filter by IDs
-	if len(rpc.GetIDs()) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cp.id": rpc.GetIDs()})
-	}
-
 	// -------- Apply sorting ----------
 	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, priorityDefaultSort)
 
@@ -259,22 +306,22 @@ func (p *Priority) buildListPriorityQuery(
 	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
-	queryBuilder, plan, err := buildPrioritySelectColumnsAndPlan(queryBuilder, rpc.GetFields())
+	queryBuilder, err := buildPrioritySelectColumns(queryBuilder, rpc.GetFields())
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.priority.search.query_build_error", err)
+		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.priority.search.query_build_error", err)
 	}
 
-	return queryBuilder, plan, nil
+	return queryBuilder, nil
 }
 
 // Update implements store.PriorityStore.
-func (p *Priority) Update(rpc options.Updator, update *api.Priority) (*api.Priority, error) {
+func (p *Priority) Update(rpc options.Updator, update *model.Priority) (*model.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.update.database_connection_error", dbErr)
 	}
 
-	selectBuilder, plan, err := p.buildUpdatePriorityQuery(rpc, update)
+	selectBuilder, err := p.buildUpdatePriorityQuery(rpc, update)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.update.build_query_error", err)
 	}
@@ -284,21 +331,21 @@ func (p *Priority) Update(rpc options.Updator, update *api.Priority) (*api.Prior
 		return nil, dberr.NewDBInternalError("postgres.priority.update.query_build_error", err)
 	}
 	// temporary object for scanning
-	tempAdd := &api.Priority{}
-	scanArgs := convertToPriorityScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
+	var res model.Priority
+	err = pgxscan.Get(rpc, d, &res, query, args...)
+	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.update.execution_error", err)
 	}
 
-	return tempAdd, nil
+	return &res, nil
 }
 
 func (p *Priority) buildUpdatePriorityQuery(
 	rpc options.Updator,
-	priority *api.Priority,
-) (sq.SelectBuilder, []PriorityScan, error) {
+	priority *model.Priority,
+) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
-	fields = util.EnsureIdField(rpc.GetFields())
+	fields = util.EnsureIdField(fields)
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.priority").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
@@ -326,86 +373,22 @@ func (p *Priority) buildUpdatePriorityQuery(
 	// Generate the CTE for the update operation
 	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.priority.update.query_build_error", err)
+		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.priority.update.query_build_error", err)
 	}
 
 	// Use the UPDATE query as a CTE
 	cte := sq.Expr("WITH cp AS ("+updateSQL+")", args...)
 
 	// Build select clause and scan plan dynamically using `buildPrioritySelectColumnsAndPlan`
-	selectBuilder, plan, err := buildPrioritySelectColumnsAndPlan(sq.Select(), fields)
+	selectBuilder, err := buildPrioritySelectColumns(sq.Select(), fields)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
 	// Combine the CTE with the SELECT query
-	selectBuilder = selectBuilder.PrefixExpr(cte).From("cp")
+	selectBuilder = selectBuilder.PrefixExpr(cte).From(prioLeft)
 
-	return selectBuilder, plan, nil
-}
-
-// Helper function to convert plan to scan arguments.
-func convertToPriorityScanArgs(plan []PriorityScan, priority *api.Priority) []any {
-	var scanArgs []any
-	for _, scan := range plan {
-		scanArgs = append(scanArgs, scan(priority))
-	}
-	return scanArgs
-}
-
-// Helper function to dynamically build select columns and plan.
-func buildPrioritySelectColumnsAndPlan(
-	base sq.SelectBuilder,
-	fields []string,
-) (sq.SelectBuilder, []PriorityScan, error) {
-	var plan []PriorityScan
-	for _, field := range fields {
-		switch field {
-		case "id":
-			base = base.Column(util2.Ident(prioLeft, "id"))
-			plan = append(plan, func(priority *api.Priority) any {
-				return &priority.Id
-			})
-		case "name":
-			base = base.Column(util2.Ident(prioLeft, "name"))
-			plan = append(plan, func(priority *api.Priority) any {
-				return &priority.Name
-			})
-		case "description":
-			base = base.Column(util2.Ident(prioLeft, "description"))
-			plan = append(plan, func(priority *api.Priority) any {
-				return scanner.ScanText(&priority.Description)
-			})
-		case "created_at":
-			base = base.Column(util2.Ident(prioLeft, "created_at"))
-			plan = append(plan, func(priority *api.Priority) any {
-				return scanner.ScanTimestamp(&priority.CreatedAt)
-			})
-		case "updated_at":
-			base = base.Column(util2.Ident(prioLeft, "updated_at"))
-			plan = append(plan, func(priority *api.Priority) any {
-				return scanner.ScanTimestamp(&priority.UpdatedAt)
-			})
-		case "created_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.created_by) created_by", prioLeft))
-			plan = append(plan, func(priority *api.Priority) any {
-				return scanner.ScanRowLookup(&priority.CreatedBy)
-			})
-		case "updated_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by", prioLeft))
-			plan = append(plan, func(priority *api.Priority) any {
-				return scanner.ScanRowLookup(&priority.UpdatedBy)
-			})
-		case "color":
-			base = base.Column(util2.Ident(prioLeft, "color"))
-			plan = append(plan, func(priority *api.Priority) any {
-				return &priority.Color
-			})
-		default:
-			return base, nil, dberr.NewDBInternalError("postgres.priority.unknown_field", fmt.Errorf("unknown field: %s", field))
-		}
-	}
-	return base, plan, nil
+	return selectBuilder, nil
 }
 
 func NewPriorityStore(store *Store) (store.PriorityStore, error) {
