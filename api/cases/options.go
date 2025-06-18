@@ -620,7 +620,7 @@ var WebitelAPI = WebitelServicesInfo{
 			"UpdateCase": WebitelMethod{
 				Access: 2,
 				Input:  "UpdateCaseRequest",
-				Output: "Case",
+				Output: "UpdateCaseResponse",
 				HttpBindings: []*HttpBinding{
 					{
 						Path:   "/cases/{input.etag}",

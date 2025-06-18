@@ -2027,6 +2027,8 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			tableAlias = caseLeft
 		}
 		switch field {
+		case "diff":
+			continue
 		case "id":
 			base = base.Column(storeutils.Ident(tableAlias, "id AS case_id"))
 			plan = append(plan, func(caseItem *_go.Case) any {

@@ -26,6 +26,118 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type FieldChange struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Field         string                 `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`                       // Name of the changed field, e.g., "status", "priority"
+	OldValue      *structpb.Value        `protobuf:"bytes,2,opt,name=old_value,json=oldValue,proto3" json:"old_value,omitempty"` // Old value (before the update)
+	NewValue      *structpb.Value        `protobuf:"bytes,3,opt,name=new_value,json=newValue,proto3" json:"new_value,omitempty"` // New value (after the update)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FieldChange) Reset() {
+	*x = FieldChange{}
+	mi := &file_case_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FieldChange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FieldChange) ProtoMessage() {}
+
+func (x *FieldChange) ProtoReflect() protoreflect.Message {
+	mi := &file_case_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FieldChange.ProtoReflect.Descriptor instead.
+func (*FieldChange) Descriptor() ([]byte, []int) {
+	return file_case_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *FieldChange) GetField() string {
+	if x != nil {
+		return x.Field
+	}
+	return ""
+}
+
+func (x *FieldChange) GetOldValue() *structpb.Value {
+	if x != nil {
+		return x.OldValue
+	}
+	return nil
+}
+
+func (x *FieldChange) GetNewValue() *structpb.Value {
+	if x != nil {
+		return x.NewValue
+	}
+	return nil
+}
+
+type UpdateCaseResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Case          *Case                  `protobuf:"bytes,1,opt,name=case,proto3" json:"case,omitempty"`       // Updated case object
+	Changes       []*FieldChange         `protobuf:"bytes,2,rep,name=changes,proto3" json:"changes,omitempty"` // List of changed fields with old and new values
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateCaseResponse) Reset() {
+	*x = UpdateCaseResponse{}
+	mi := &file_case_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateCaseResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateCaseResponse) ProtoMessage() {}
+
+func (x *UpdateCaseResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_case_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateCaseResponse.ProtoReflect.Descriptor instead.
+func (*UpdateCaseResponse) Descriptor() ([]byte, []int) {
+	return file_case_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *UpdateCaseResponse) GetCase() *Case {
+	if x != nil {
+		return x.Case
+	}
+	return nil
+}
+
+func (x *UpdateCaseResponse) GetChanges() []*FieldChange {
+	if x != nil {
+		return x.Changes
+	}
+	return nil
+}
+
 // Request message for searching cases with optional filters, pagination, and sorting.
 type SearchCasesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -43,7 +155,7 @@ type SearchCasesRequest struct {
 
 func (x *SearchCasesRequest) Reset() {
 	*x = SearchCasesRequest{}
-	mi := &file_case_proto_msgTypes[0]
+	mi := &file_case_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55,7 +167,7 @@ func (x *SearchCasesRequest) String() string {
 func (*SearchCasesRequest) ProtoMessage() {}
 
 func (x *SearchCasesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[0]
+	mi := &file_case_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -68,7 +180,7 @@ func (x *SearchCasesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchCasesRequest.ProtoReflect.Descriptor instead.
 func (*SearchCasesRequest) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{0}
+	return file_case_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SearchCasesRequest) GetPage() int32 {
@@ -138,7 +250,7 @@ type LocateCaseRequest struct {
 
 func (x *LocateCaseRequest) Reset() {
 	*x = LocateCaseRequest{}
-	mi := &file_case_proto_msgTypes[1]
+	mi := &file_case_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -150,7 +262,7 @@ func (x *LocateCaseRequest) String() string {
 func (*LocateCaseRequest) ProtoMessage() {}
 
 func (x *LocateCaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[1]
+	mi := &file_case_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -163,7 +275,7 @@ func (x *LocateCaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LocateCaseRequest.ProtoReflect.Descriptor instead.
 func (*LocateCaseRequest) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{1}
+	return file_case_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *LocateCaseRequest) GetEtag() string {
@@ -212,7 +324,7 @@ type InputCreateCase struct {
 
 func (x *InputCreateCase) Reset() {
 	*x = InputCreateCase{}
-	mi := &file_case_proto_msgTypes[2]
+	mi := &file_case_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -224,7 +336,7 @@ func (x *InputCreateCase) String() string {
 func (*InputCreateCase) ProtoMessage() {}
 
 func (x *InputCreateCase) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[2]
+	mi := &file_case_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -237,7 +349,7 @@ func (x *InputCreateCase) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InputCreateCase.ProtoReflect.Descriptor instead.
 func (*InputCreateCase) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{2}
+	return file_case_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *InputCreateCase) GetSubject() string {
@@ -398,7 +510,7 @@ type CreateCaseCloseInput struct {
 
 func (x *CreateCaseCloseInput) Reset() {
 	*x = CreateCaseCloseInput{}
-	mi := &file_case_proto_msgTypes[3]
+	mi := &file_case_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -410,7 +522,7 @@ func (x *CreateCaseCloseInput) String() string {
 func (*CreateCaseCloseInput) ProtoMessage() {}
 
 func (x *CreateCaseCloseInput) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[3]
+	mi := &file_case_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -423,7 +535,7 @@ func (x *CreateCaseCloseInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCaseCloseInput.ProtoReflect.Descriptor instead.
 func (*CreateCaseCloseInput) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{3}
+	return file_case_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CreateCaseCloseInput) GetCloseResult() string {
@@ -452,7 +564,7 @@ type CreateCaseRelatedCaseInput struct {
 
 func (x *CreateCaseRelatedCaseInput) Reset() {
 	*x = CreateCaseRelatedCaseInput{}
-	mi := &file_case_proto_msgTypes[4]
+	mi := &file_case_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -464,7 +576,7 @@ func (x *CreateCaseRelatedCaseInput) String() string {
 func (*CreateCaseRelatedCaseInput) ProtoMessage() {}
 
 func (x *CreateCaseRelatedCaseInput) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[4]
+	mi := &file_case_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -477,7 +589,7 @@ func (x *CreateCaseRelatedCaseInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCaseRelatedCaseInput.ProtoReflect.Descriptor instead.
 func (*CreateCaseRelatedCaseInput) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{4}
+	return file_case_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CreateCaseRelatedCaseInput) GetEtag() string {
@@ -512,7 +624,7 @@ type CreateCaseRequest struct {
 
 func (x *CreateCaseRequest) Reset() {
 	*x = CreateCaseRequest{}
-	mi := &file_case_proto_msgTypes[5]
+	mi := &file_case_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -524,7 +636,7 @@ func (x *CreateCaseRequest) String() string {
 func (*CreateCaseRequest) ProtoMessage() {}
 
 func (x *CreateCaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[5]
+	mi := &file_case_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -537,7 +649,7 @@ func (x *CreateCaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCaseRequest.ProtoReflect.Descriptor instead.
 func (*CreateCaseRequest) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{5}
+	return file_case_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateCaseRequest) GetInput() *InputCreateCase {
@@ -566,7 +678,7 @@ type UpdateCaseRequest struct {
 
 func (x *UpdateCaseRequest) Reset() {
 	*x = UpdateCaseRequest{}
-	mi := &file_case_proto_msgTypes[6]
+	mi := &file_case_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -578,7 +690,7 @@ func (x *UpdateCaseRequest) String() string {
 func (*UpdateCaseRequest) ProtoMessage() {}
 
 func (x *UpdateCaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[6]
+	mi := &file_case_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -591,7 +703,7 @@ func (x *UpdateCaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCaseRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCaseRequest) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{6}
+	return file_case_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UpdateCaseRequest) GetXJsonMask() []string {
@@ -626,7 +738,7 @@ type DeleteCaseRequest struct {
 
 func (x *DeleteCaseRequest) Reset() {
 	*x = DeleteCaseRequest{}
-	mi := &file_case_proto_msgTypes[7]
+	mi := &file_case_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -638,7 +750,7 @@ func (x *DeleteCaseRequest) String() string {
 func (*DeleteCaseRequest) ProtoMessage() {}
 
 func (x *DeleteCaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[7]
+	mi := &file_case_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -651,7 +763,7 @@ func (x *DeleteCaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteCaseRequest.ProtoReflect.Descriptor instead.
 func (*DeleteCaseRequest) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{7}
+	return file_case_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeleteCaseRequest) GetFields() []string {
@@ -680,7 +792,7 @@ type CaseList struct {
 
 func (x *CaseList) Reset() {
 	*x = CaseList{}
-	mi := &file_case_proto_msgTypes[8]
+	mi := &file_case_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -692,7 +804,7 @@ func (x *CaseList) String() string {
 func (*CaseList) ProtoMessage() {}
 
 func (x *CaseList) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[8]
+	mi := &file_case_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -705,7 +817,7 @@ func (x *CaseList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CaseList.ProtoReflect.Descriptor instead.
 func (*CaseList) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{8}
+	return file_case_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CaseList) GetPage() int64 {
@@ -783,7 +895,7 @@ type Case struct {
 
 func (x *Case) Reset() {
 	*x = Case{}
-	mi := &file_case_proto_msgTypes[9]
+	mi := &file_case_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -795,7 +907,7 @@ func (x *Case) String() string {
 func (*Case) ProtoMessage() {}
 
 func (x *Case) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[9]
+	mi := &file_case_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -808,7 +920,7 @@ func (x *Case) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Case.ProtoReflect.Descriptor instead.
 func (*Case) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{9}
+	return file_case_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Case) GetId() int64 {
@@ -1109,7 +1221,7 @@ type CloseInfo struct {
 
 func (x *CloseInfo) Reset() {
 	*x = CloseInfo{}
-	mi := &file_case_proto_msgTypes[10]
+	mi := &file_case_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1121,7 +1233,7 @@ func (x *CloseInfo) String() string {
 func (*CloseInfo) ProtoMessage() {}
 
 func (x *CloseInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[10]
+	mi := &file_case_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1134,7 +1246,7 @@ func (x *CloseInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseInfo.ProtoReflect.Descriptor instead.
 func (*CloseInfo) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{10}
+	return file_case_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CloseInfo) GetCloseResult() string {
@@ -1162,7 +1274,7 @@ type SourceTypeLookup struct {
 
 func (x *SourceTypeLookup) Reset() {
 	*x = SourceTypeLookup{}
-	mi := &file_case_proto_msgTypes[11]
+	mi := &file_case_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1174,7 +1286,7 @@ func (x *SourceTypeLookup) String() string {
 func (*SourceTypeLookup) ProtoMessage() {}
 
 func (x *SourceTypeLookup) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[11]
+	mi := &file_case_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1187,7 +1299,7 @@ func (x *SourceTypeLookup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SourceTypeLookup.ProtoReflect.Descriptor instead.
 func (*SourceTypeLookup) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{11}
+	return file_case_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SourceTypeLookup) GetId() int64 {
@@ -1222,7 +1334,7 @@ type RateInfo struct {
 
 func (x *RateInfo) Reset() {
 	*x = RateInfo{}
-	mi := &file_case_proto_msgTypes[12]
+	mi := &file_case_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1234,7 +1346,7 @@ func (x *RateInfo) String() string {
 func (*RateInfo) ProtoMessage() {}
 
 func (x *RateInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[12]
+	mi := &file_case_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1247,7 +1359,7 @@ func (x *RateInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RateInfo.ProtoReflect.Descriptor instead.
 func (*RateInfo) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{12}
+	return file_case_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RateInfo) GetRating() int64 {
@@ -1277,7 +1389,7 @@ type TimingInfo struct {
 
 func (x *TimingInfo) Reset() {
 	*x = TimingInfo{}
-	mi := &file_case_proto_msgTypes[13]
+	mi := &file_case_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1289,7 +1401,7 @@ func (x *TimingInfo) String() string {
 func (*TimingInfo) ProtoMessage() {}
 
 func (x *TimingInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[13]
+	mi := &file_case_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1302,7 +1414,7 @@ func (x *TimingInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TimingInfo.ProtoReflect.Descriptor instead.
 func (*TimingInfo) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{13}
+	return file_case_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *TimingInfo) GetResolvedAt() int64 {
@@ -1362,7 +1474,7 @@ type InputCase struct {
 
 func (x *InputCase) Reset() {
 	*x = InputCase{}
-	mi := &file_case_proto_msgTypes[14]
+	mi := &file_case_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1374,7 +1486,7 @@ func (x *InputCase) String() string {
 func (*InputCase) ProtoMessage() {}
 
 func (x *InputCase) ProtoReflect() protoreflect.Message {
-	mi := &file_case_proto_msgTypes[14]
+	mi := &file_case_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1387,7 +1499,7 @@ func (x *InputCase) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InputCase.ProtoReflect.Descriptor instead.
 func (*InputCase) Descriptor() ([]byte, []int) {
-	return file_case_proto_rawDescGZIP(), []int{14}
+	return file_case_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *InputCase) GetEtag() string {
@@ -1528,7 +1640,14 @@ var File_case_proto protoreflect.FileDescriptor
 const file_case_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"case.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\rservice.proto\x1a\x12case_comment.proto\x1a\x12related_case.proto\x1a\x0fcase_file.proto\x1a\x0fcase_link.proto\x1a\x0epriority.proto\x1a\x16status_condition.proto\x1a\fsource.proto\x1a\x13sla_condition.proto\x1a\x1bgoogle/api/visibility.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a,protoc-gen-openapiv2/options/openapiv2.proto\x1a\x1aproto/webitel/option.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xc1\x01\n" +
+	"case.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\rservice.proto\x1a\x12case_comment.proto\x1a\x12related_case.proto\x1a\x0fcase_file.proto\x1a\x0fcase_link.proto\x1a\x0epriority.proto\x1a\x16status_condition.proto\x1a\fsource.proto\x1a\x13sla_condition.proto\x1a\x1bgoogle/api/visibility.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a,protoc-gen-openapiv2/options/openapiv2.proto\x1a\x1aproto/webitel/option.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x8d\x01\n" +
+	"\vFieldChange\x12\x14\n" +
+	"\x05field\x18\x01 \x01(\tR\x05field\x123\n" +
+	"\told_value\x18\x02 \x01(\v2\x16.google.protobuf.ValueR\boldValue\x123\n" +
+	"\tnew_value\x18\x03 \x01(\v2\x16.google.protobuf.ValueR\bnewValue\"s\n" +
+	"\x12UpdateCaseResponse\x12'\n" +
+	"\x04case\x18\x01 \x01(\v2\x13.webitel.cases.CaseR\x04case\x124\n" +
+	"\achanges\x18\x02 \x03(\v2\x1a.webitel.cases.FieldChangeR\achanges\"\xc1\x01\n" +
 	"\x12SearchCasesRequest\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x12\n" +
 	"\x04size\x18\x02 \x01(\x05R\x04size\x12\f\n" +
@@ -1674,15 +1793,15 @@ const file_case_proto_rawDesc = "" +
 	"\x0erating_comment\x18\x10 \x01(\tR\rratingComment\x12I\n" +
 	"\x10status_condition\x18\x11 \x01(\v2\x1e.webitel.cases.StatusConditionR\x0fstatusCondition\x12'\n" +
 	"\x06userID\x18\x14 \x01(\v2\x0f.general.LookupR\x06userID\x12/\n" +
-	"\x06custom\x18d \x01(\v2\x17.google.protobuf.StructR\x06custom2\xbd\x04\n" +
+	"\x06custom\x18d \x01(\v2\x17.google.protobuf.StructR\x06custom2\xcb\x04\n" +
 	"\x05Cases\x12}\n" +
 	"\vSearchCases\x12!.webitel.cases.SearchCasesRequest\x1a\x17.webitel.cases.CaseList\"2\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02(Z\x1e\x12\x1c/contacts/{contact_id}/cases\x12\x06/cases\x12^\n" +
 	"\n" +
 	"LocateCase\x12 .webitel.cases.LocateCaseRequest\x1a\x13.webitel.cases.Case\"\x19\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/cases/{etag}\x12^\n" +
 	"\n" +
-	"CreateCase\x12 .webitel.cases.CreateCaseRequest\x1a\x13.webitel.cases.Case\"\x19\x90\xb5\x18\x00\x82\xd3\xe4\x93\x02\x0f:\x05input\"\x06/cases\x12\x89\x01\n" +
+	"CreateCase\x12 .webitel.cases.CreateCaseRequest\x1a\x13.webitel.cases.Case\"\x19\x90\xb5\x18\x00\x82\xd3\xe4\x93\x02\x0f:\x05input\"\x06/cases\x12\x97\x01\n" +
 	"\n" +
-	"UpdateCase\x12 .webitel.cases.UpdateCaseRequest\x1a\x13.webitel.cases.Case\"D\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02::\x05inputZ\x1c:\x05input2\x13/cases/{input.etag}\x1a\x13/cases/{input.etag}\x12^\n" +
+	"UpdateCase\x12 .webitel.cases.UpdateCaseRequest\x1a!.webitel.cases.UpdateCaseResponse\"D\x90\xb5\x18\x02\x82\xd3\xe4\x93\x02::\x05inputZ\x1c:\x05input2\x13/cases/{input.etag}\x1a\x13/cases/{input.etag}\x12^\n" +
 	"\n" +
 	"DeleteCase\x12 .webitel.cases.DeleteCaseRequest\x1a\x13.webitel.cases.Case\"\x19\x90\xb5\x18\x03\x82\xd3\xe4\x93\x02\x0f*\r/cases/{etag}\x1a\t\x8a\xb5\x18\x05casesB\x9d\x01\n" +
 	"\x11com.webitel.casesB\tCaseProtoP\x01Z(github.com/webitel/cases/api/cases;cases\xa2\x02\x03WCX\xaa\x02\rWebitel.Cases\xca\x02\rWebitel\\Cases\xe2\x02\x19Webitel\\Cases\\GPBMetadata\xea\x02\x0eWebitel::Casesb\x06proto3"
@@ -1699,107 +1818,114 @@ func file_case_proto_rawDescGZIP() []byte {
 	return file_case_proto_rawDescData
 }
 
-var file_case_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_case_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_case_proto_goTypes = []any{
-	(*SearchCasesRequest)(nil),         // 0: webitel.cases.SearchCasesRequest
-	(*LocateCaseRequest)(nil),          // 1: webitel.cases.LocateCaseRequest
-	(*InputCreateCase)(nil),            // 2: webitel.cases.InputCreateCase
-	(*CreateCaseCloseInput)(nil),       // 3: webitel.cases.CreateCaseCloseInput
-	(*CreateCaseRelatedCaseInput)(nil), // 4: webitel.cases.CreateCaseRelatedCaseInput
-	(*CreateCaseRequest)(nil),          // 5: webitel.cases.CreateCaseRequest
-	(*UpdateCaseRequest)(nil),          // 6: webitel.cases.UpdateCaseRequest
-	(*DeleteCaseRequest)(nil),          // 7: webitel.cases.DeleteCaseRequest
-	(*CaseList)(nil),                   // 8: webitel.cases.CaseList
-	(*Case)(nil),                       // 9: webitel.cases.Case
-	(*CloseInfo)(nil),                  // 10: webitel.cases.CloseInfo
-	(*SourceTypeLookup)(nil),           // 11: webitel.cases.SourceTypeLookup
-	(*RateInfo)(nil),                   // 12: webitel.cases.RateInfo
-	(*TimingInfo)(nil),                 // 13: webitel.cases.TimingInfo
-	(*InputCase)(nil),                  // 14: webitel.cases.InputCase
-	(*Lookup)(nil),                     // 15: general.Lookup
-	(*InputCaseLink)(nil),              // 16: webitel.cases.InputCaseLink
-	(*structpb.Struct)(nil),            // 17: google.protobuf.Struct
-	(RelationType)(0),                  // 18: webitel.cases.RelationType
-	(*ExtendedLookup)(nil),             // 19: general.ExtendedLookup
-	(*Priority)(nil),                   // 20: webitel.cases.Priority
-	(*StatusCondition)(nil),            // 21: webitel.cases.StatusCondition
-	(*CaseCommentList)(nil),            // 22: webitel.cases.CaseCommentList
-	(*RelatedCaseList)(nil),            // 23: webitel.cases.RelatedCaseList
-	(*CaseLinkList)(nil),               // 24: webitel.cases.CaseLinkList
-	(*CaseFileList)(nil),               // 25: webitel.cases.CaseFileList
-	(SourceType)(0),                    // 26: webitel.cases.SourceType
+	(*FieldChange)(nil),                // 0: webitel.cases.FieldChange
+	(*UpdateCaseResponse)(nil),         // 1: webitel.cases.UpdateCaseResponse
+	(*SearchCasesRequest)(nil),         // 2: webitel.cases.SearchCasesRequest
+	(*LocateCaseRequest)(nil),          // 3: webitel.cases.LocateCaseRequest
+	(*InputCreateCase)(nil),            // 4: webitel.cases.InputCreateCase
+	(*CreateCaseCloseInput)(nil),       // 5: webitel.cases.CreateCaseCloseInput
+	(*CreateCaseRelatedCaseInput)(nil), // 6: webitel.cases.CreateCaseRelatedCaseInput
+	(*CreateCaseRequest)(nil),          // 7: webitel.cases.CreateCaseRequest
+	(*UpdateCaseRequest)(nil),          // 8: webitel.cases.UpdateCaseRequest
+	(*DeleteCaseRequest)(nil),          // 9: webitel.cases.DeleteCaseRequest
+	(*CaseList)(nil),                   // 10: webitel.cases.CaseList
+	(*Case)(nil),                       // 11: webitel.cases.Case
+	(*CloseInfo)(nil),                  // 12: webitel.cases.CloseInfo
+	(*SourceTypeLookup)(nil),           // 13: webitel.cases.SourceTypeLookup
+	(*RateInfo)(nil),                   // 14: webitel.cases.RateInfo
+	(*TimingInfo)(nil),                 // 15: webitel.cases.TimingInfo
+	(*InputCase)(nil),                  // 16: webitel.cases.InputCase
+	(*structpb.Value)(nil),             // 17: google.protobuf.Value
+	(*Lookup)(nil),                     // 18: general.Lookup
+	(*InputCaseLink)(nil),              // 19: webitel.cases.InputCaseLink
+	(*structpb.Struct)(nil),            // 20: google.protobuf.Struct
+	(RelationType)(0),                  // 21: webitel.cases.RelationType
+	(*ExtendedLookup)(nil),             // 22: general.ExtendedLookup
+	(*Priority)(nil),                   // 23: webitel.cases.Priority
+	(*StatusCondition)(nil),            // 24: webitel.cases.StatusCondition
+	(*CaseCommentList)(nil),            // 25: webitel.cases.CaseCommentList
+	(*RelatedCaseList)(nil),            // 26: webitel.cases.RelatedCaseList
+	(*CaseLinkList)(nil),               // 27: webitel.cases.CaseLinkList
+	(*CaseFileList)(nil),               // 28: webitel.cases.CaseFileList
+	(SourceType)(0),                    // 29: webitel.cases.SourceType
 }
 var file_case_proto_depIdxs = []int32{
-	15, // 0: webitel.cases.InputCreateCase.assignee:type_name -> general.Lookup
-	15, // 1: webitel.cases.InputCreateCase.reporter:type_name -> general.Lookup
-	15, // 2: webitel.cases.InputCreateCase.impacted:type_name -> general.Lookup
-	15, // 3: webitel.cases.InputCreateCase.group:type_name -> general.Lookup
-	15, // 4: webitel.cases.InputCreateCase.status:type_name -> general.Lookup
-	15, // 5: webitel.cases.InputCreateCase.close_reason_group:type_name -> general.Lookup
-	15, // 6: webitel.cases.InputCreateCase.priority:type_name -> general.Lookup
-	15, // 7: webitel.cases.InputCreateCase.source:type_name -> general.Lookup
-	15, // 8: webitel.cases.InputCreateCase.service:type_name -> general.Lookup
-	15, // 9: webitel.cases.InputCreateCase.close_reason:type_name -> general.Lookup
-	15, // 10: webitel.cases.InputCreateCase.status_condition:type_name -> general.Lookup
-	16, // 11: webitel.cases.InputCreateCase.links:type_name -> webitel.cases.InputCaseLink
-	4,  // 12: webitel.cases.InputCreateCase.related:type_name -> webitel.cases.CreateCaseRelatedCaseInput
-	15, // 13: webitel.cases.InputCreateCase.userID:type_name -> general.Lookup
-	17, // 14: webitel.cases.InputCreateCase.custom:type_name -> google.protobuf.Struct
-	15, // 15: webitel.cases.CreateCaseCloseInput.close_reason:type_name -> general.Lookup
-	18, // 16: webitel.cases.CreateCaseRelatedCaseInput.relation_type:type_name -> webitel.cases.RelationType
-	2,  // 17: webitel.cases.CreateCaseRequest.input:type_name -> webitel.cases.InputCreateCase
-	14, // 18: webitel.cases.UpdateCaseRequest.input:type_name -> webitel.cases.InputCase
-	9,  // 19: webitel.cases.CaseList.items:type_name -> webitel.cases.Case
-	15, // 20: webitel.cases.Case.created_by:type_name -> general.Lookup
-	15, // 21: webitel.cases.Case.updated_by:type_name -> general.Lookup
-	15, // 22: webitel.cases.Case.status:type_name -> general.Lookup
-	15, // 23: webitel.cases.Case.close_reason_group:type_name -> general.Lookup
-	15, // 24: webitel.cases.Case.author:type_name -> general.Lookup
-	15, // 25: webitel.cases.Case.assignee:type_name -> general.Lookup
-	15, // 26: webitel.cases.Case.reporter:type_name -> general.Lookup
-	15, // 27: webitel.cases.Case.impacted:type_name -> general.Lookup
-	19, // 28: webitel.cases.Case.group:type_name -> general.ExtendedLookup
-	20, // 29: webitel.cases.Case.priority:type_name -> webitel.cases.Priority
-	11, // 30: webitel.cases.Case.source:type_name -> webitel.cases.SourceTypeLookup
-	21, // 31: webitel.cases.Case.status_condition:type_name -> webitel.cases.StatusCondition
-	15, // 32: webitel.cases.Case.close_reason:type_name -> general.Lookup
-	15, // 33: webitel.cases.Case.sla_condition:type_name -> general.Lookup
-	15, // 34: webitel.cases.Case.service:type_name -> general.Lookup
-	22, // 35: webitel.cases.Case.comments:type_name -> webitel.cases.CaseCommentList
-	23, // 36: webitel.cases.Case.related:type_name -> webitel.cases.RelatedCaseList
-	24, // 37: webitel.cases.Case.links:type_name -> webitel.cases.CaseLinkList
-	25, // 38: webitel.cases.Case.files:type_name -> webitel.cases.CaseFileList
-	15, // 39: webitel.cases.Case.sla:type_name -> general.Lookup
-	17, // 40: webitel.cases.Case.custom:type_name -> google.protobuf.Struct
-	15, // 41: webitel.cases.CloseInfo.close_reason:type_name -> general.Lookup
-	26, // 42: webitel.cases.SourceTypeLookup.type:type_name -> webitel.cases.SourceType
-	15, // 43: webitel.cases.InputCase.assignee:type_name -> general.Lookup
-	15, // 44: webitel.cases.InputCase.reporter:type_name -> general.Lookup
-	15, // 45: webitel.cases.InputCase.impacted:type_name -> general.Lookup
-	15, // 46: webitel.cases.InputCase.group:type_name -> general.Lookup
-	15, // 47: webitel.cases.InputCase.status:type_name -> general.Lookup
-	15, // 48: webitel.cases.InputCase.priority:type_name -> general.Lookup
-	15, // 49: webitel.cases.InputCase.source:type_name -> general.Lookup
-	15, // 50: webitel.cases.InputCase.service:type_name -> general.Lookup
-	15, // 51: webitel.cases.InputCase.close_reason:type_name -> general.Lookup
-	21, // 52: webitel.cases.InputCase.status_condition:type_name -> webitel.cases.StatusCondition
-	15, // 53: webitel.cases.InputCase.userID:type_name -> general.Lookup
-	17, // 54: webitel.cases.InputCase.custom:type_name -> google.protobuf.Struct
-	0,  // 55: webitel.cases.Cases.SearchCases:input_type -> webitel.cases.SearchCasesRequest
-	1,  // 56: webitel.cases.Cases.LocateCase:input_type -> webitel.cases.LocateCaseRequest
-	5,  // 57: webitel.cases.Cases.CreateCase:input_type -> webitel.cases.CreateCaseRequest
-	6,  // 58: webitel.cases.Cases.UpdateCase:input_type -> webitel.cases.UpdateCaseRequest
-	7,  // 59: webitel.cases.Cases.DeleteCase:input_type -> webitel.cases.DeleteCaseRequest
-	8,  // 60: webitel.cases.Cases.SearchCases:output_type -> webitel.cases.CaseList
-	9,  // 61: webitel.cases.Cases.LocateCase:output_type -> webitel.cases.Case
-	9,  // 62: webitel.cases.Cases.CreateCase:output_type -> webitel.cases.Case
-	9,  // 63: webitel.cases.Cases.UpdateCase:output_type -> webitel.cases.Case
-	9,  // 64: webitel.cases.Cases.DeleteCase:output_type -> webitel.cases.Case
-	60, // [60:65] is the sub-list for method output_type
-	55, // [55:60] is the sub-list for method input_type
-	55, // [55:55] is the sub-list for extension type_name
-	55, // [55:55] is the sub-list for extension extendee
-	0,  // [0:55] is the sub-list for field type_name
+	17, // 0: webitel.cases.FieldChange.old_value:type_name -> google.protobuf.Value
+	17, // 1: webitel.cases.FieldChange.new_value:type_name -> google.protobuf.Value
+	11, // 2: webitel.cases.UpdateCaseResponse.case:type_name -> webitel.cases.Case
+	0,  // 3: webitel.cases.UpdateCaseResponse.changes:type_name -> webitel.cases.FieldChange
+	18, // 4: webitel.cases.InputCreateCase.assignee:type_name -> general.Lookup
+	18, // 5: webitel.cases.InputCreateCase.reporter:type_name -> general.Lookup
+	18, // 6: webitel.cases.InputCreateCase.impacted:type_name -> general.Lookup
+	18, // 7: webitel.cases.InputCreateCase.group:type_name -> general.Lookup
+	18, // 8: webitel.cases.InputCreateCase.status:type_name -> general.Lookup
+	18, // 9: webitel.cases.InputCreateCase.close_reason_group:type_name -> general.Lookup
+	18, // 10: webitel.cases.InputCreateCase.priority:type_name -> general.Lookup
+	18, // 11: webitel.cases.InputCreateCase.source:type_name -> general.Lookup
+	18, // 12: webitel.cases.InputCreateCase.service:type_name -> general.Lookup
+	18, // 13: webitel.cases.InputCreateCase.close_reason:type_name -> general.Lookup
+	18, // 14: webitel.cases.InputCreateCase.status_condition:type_name -> general.Lookup
+	19, // 15: webitel.cases.InputCreateCase.links:type_name -> webitel.cases.InputCaseLink
+	6,  // 16: webitel.cases.InputCreateCase.related:type_name -> webitel.cases.CreateCaseRelatedCaseInput
+	18, // 17: webitel.cases.InputCreateCase.userID:type_name -> general.Lookup
+	20, // 18: webitel.cases.InputCreateCase.custom:type_name -> google.protobuf.Struct
+	18, // 19: webitel.cases.CreateCaseCloseInput.close_reason:type_name -> general.Lookup
+	21, // 20: webitel.cases.CreateCaseRelatedCaseInput.relation_type:type_name -> webitel.cases.RelationType
+	4,  // 21: webitel.cases.CreateCaseRequest.input:type_name -> webitel.cases.InputCreateCase
+	16, // 22: webitel.cases.UpdateCaseRequest.input:type_name -> webitel.cases.InputCase
+	11, // 23: webitel.cases.CaseList.items:type_name -> webitel.cases.Case
+	18, // 24: webitel.cases.Case.created_by:type_name -> general.Lookup
+	18, // 25: webitel.cases.Case.updated_by:type_name -> general.Lookup
+	18, // 26: webitel.cases.Case.status:type_name -> general.Lookup
+	18, // 27: webitel.cases.Case.close_reason_group:type_name -> general.Lookup
+	18, // 28: webitel.cases.Case.author:type_name -> general.Lookup
+	18, // 29: webitel.cases.Case.assignee:type_name -> general.Lookup
+	18, // 30: webitel.cases.Case.reporter:type_name -> general.Lookup
+	18, // 31: webitel.cases.Case.impacted:type_name -> general.Lookup
+	22, // 32: webitel.cases.Case.group:type_name -> general.ExtendedLookup
+	23, // 33: webitel.cases.Case.priority:type_name -> webitel.cases.Priority
+	13, // 34: webitel.cases.Case.source:type_name -> webitel.cases.SourceTypeLookup
+	24, // 35: webitel.cases.Case.status_condition:type_name -> webitel.cases.StatusCondition
+	18, // 36: webitel.cases.Case.close_reason:type_name -> general.Lookup
+	18, // 37: webitel.cases.Case.sla_condition:type_name -> general.Lookup
+	18, // 38: webitel.cases.Case.service:type_name -> general.Lookup
+	25, // 39: webitel.cases.Case.comments:type_name -> webitel.cases.CaseCommentList
+	26, // 40: webitel.cases.Case.related:type_name -> webitel.cases.RelatedCaseList
+	27, // 41: webitel.cases.Case.links:type_name -> webitel.cases.CaseLinkList
+	28, // 42: webitel.cases.Case.files:type_name -> webitel.cases.CaseFileList
+	18, // 43: webitel.cases.Case.sla:type_name -> general.Lookup
+	20, // 44: webitel.cases.Case.custom:type_name -> google.protobuf.Struct
+	18, // 45: webitel.cases.CloseInfo.close_reason:type_name -> general.Lookup
+	29, // 46: webitel.cases.SourceTypeLookup.type:type_name -> webitel.cases.SourceType
+	18, // 47: webitel.cases.InputCase.assignee:type_name -> general.Lookup
+	18, // 48: webitel.cases.InputCase.reporter:type_name -> general.Lookup
+	18, // 49: webitel.cases.InputCase.impacted:type_name -> general.Lookup
+	18, // 50: webitel.cases.InputCase.group:type_name -> general.Lookup
+	18, // 51: webitel.cases.InputCase.status:type_name -> general.Lookup
+	18, // 52: webitel.cases.InputCase.priority:type_name -> general.Lookup
+	18, // 53: webitel.cases.InputCase.source:type_name -> general.Lookup
+	18, // 54: webitel.cases.InputCase.service:type_name -> general.Lookup
+	18, // 55: webitel.cases.InputCase.close_reason:type_name -> general.Lookup
+	24, // 56: webitel.cases.InputCase.status_condition:type_name -> webitel.cases.StatusCondition
+	18, // 57: webitel.cases.InputCase.userID:type_name -> general.Lookup
+	20, // 58: webitel.cases.InputCase.custom:type_name -> google.protobuf.Struct
+	2,  // 59: webitel.cases.Cases.SearchCases:input_type -> webitel.cases.SearchCasesRequest
+	3,  // 60: webitel.cases.Cases.LocateCase:input_type -> webitel.cases.LocateCaseRequest
+	7,  // 61: webitel.cases.Cases.CreateCase:input_type -> webitel.cases.CreateCaseRequest
+	8,  // 62: webitel.cases.Cases.UpdateCase:input_type -> webitel.cases.UpdateCaseRequest
+	9,  // 63: webitel.cases.Cases.DeleteCase:input_type -> webitel.cases.DeleteCaseRequest
+	10, // 64: webitel.cases.Cases.SearchCases:output_type -> webitel.cases.CaseList
+	11, // 65: webitel.cases.Cases.LocateCase:output_type -> webitel.cases.Case
+	11, // 66: webitel.cases.Cases.CreateCase:output_type -> webitel.cases.Case
+	1,  // 67: webitel.cases.Cases.UpdateCase:output_type -> webitel.cases.UpdateCaseResponse
+	11, // 68: webitel.cases.Cases.DeleteCase:output_type -> webitel.cases.Case
+	64, // [64:69] is the sub-list for method output_type
+	59, // [59:64] is the sub-list for method input_type
+	59, // [59:59] is the sub-list for extension type_name
+	59, // [59:59] is the sub-list for extension extendee
+	0,  // [0:59] is the sub-list for field type_name
 }
 
 func init() { file_case_proto_init() }
@@ -1823,7 +1949,7 @@ func file_case_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_case_proto_rawDesc), len(file_case_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
