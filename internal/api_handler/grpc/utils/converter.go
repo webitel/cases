@@ -3,6 +3,7 @@ package utils
 import (
 	_go "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/model"
+	"reflect"
 	"time"
 )
 
@@ -23,6 +24,10 @@ func UnmarshalLookup[K model.Lookup](lp *_go.Lookup, lookup K) K {
 
 func MarshalLookup(lp model.Lookup) *_go.Lookup {
 	if lp == nil {
+		return nil
+	}
+	val := reflect.ValueOf(lp)
+	if val.Kind() == reflect.Ptr && val.IsNil() {
 		return nil
 	}
 	var res _go.Lookup

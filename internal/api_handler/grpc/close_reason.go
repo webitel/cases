@@ -98,7 +98,7 @@ func (s *CloseReasonService) ListCloseReasons(
 	if err != nil {
 		return nil, err
 	}
-	next, items := utils.GetListResult(req, items)
+	next, items := utils.GetListResult(searcher, items)
 
 	return &cases.CloseReasonList{
 		Page:  req.GetPage(),

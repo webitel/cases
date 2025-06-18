@@ -108,6 +108,7 @@ func TestMarshalLookup(t *testing.T) {
 	type args struct {
 		lp model.Lookup
 	}
+	var s *model.Author
 	tests := []struct {
 		name string
 		args args
@@ -145,6 +146,13 @@ func TestMarshalLookup(t *testing.T) {
 				Id:   1,
 				Name: "sup",
 			},
+		},
+		{
+			name: "nil with concrete type",
+			args: args{
+				lp: s,
+			},
+			want: nil,
 		},
 	}
 	for _, tt := range tests {

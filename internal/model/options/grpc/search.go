@@ -72,14 +72,17 @@ func WithFields(fielder shared.Fielder, md model.ObjectMetadatter, fieldModifier
 }
 
 func WithPagination(pager Pager) SearchOption {
-	return func(options *SearchOptions) error {
-		options.Page = int(pager.GetPage())
-		options.Size = int(pager.GetSize())
-		if options.Page == 0 {
-			options.Page = 1
+	return func(ops *SearchOptions) error {
+		ops.Page = int(pager.GetPage())
+		ops.Size = int(pager.GetSize())
+		if ops.Page == 0 {
+			ops.Page = 1
 		}
-		if options.Size < 0 {
-			options.Size = -1
+		if ops.Size < 0 {
+			ops.Size = -1
+		}
+		if ops.Size == 0 {
+			ops.Size = options.DefaultSearchSize
 		}
 		return nil
 	}

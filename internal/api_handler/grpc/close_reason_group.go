@@ -96,7 +96,7 @@ func (s *CloseReasonGroupService) ListCloseReasonGroups(
 	if err != nil {
 		return nil, err
 	}
-	res.Next, res.Items = utils.GetListResult(req, converted)
+	res.Next, res.Items = utils.GetListResult(searchOpts, converted)
 	res.Page = req.GetPage()
 
 	return &res, nil

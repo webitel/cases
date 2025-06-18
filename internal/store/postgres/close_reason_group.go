@@ -45,13 +45,13 @@ func buildCloseReasonGroupSelectColumns(
 			base = base.Column(util2.Ident(crgLeft, "updated_at"))
 		case "created_by":
 			alias := "crb"
-			if createdByAlias != "" {
+			if createdByAlias == "" {
 				base = util2.SetUserColumn(base, crgLeft, alias, field)
 			}
 			createdByAlias = alias
 		case "updated_by":
 			alias := "upb"
-			if updatedByAlias != "" {
+			if updatedByAlias == "" {
 				base = util2.SetUserColumn(base, crgLeft, alias, field)
 			}
 			updatedByAlias = alias
@@ -135,7 +135,7 @@ func (s *CloseReasonGroup) Create(rpc options.Creator, input *model.CloseReasonG
 
 func (s *CloseReasonGroup) buildUpdateCloseReasonGroupQuery(rpc options.Updator, input *model.CloseReasonGroup) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
-	fields = util.EnsureIdField(rpc.GetFields())//util.EnsureIdField(fields)???
+	fields = util.EnsureIdField(rpc.GetFields()) //util.EnsureIdField(fields)???
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.close_reason_group").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders

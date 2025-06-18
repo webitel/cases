@@ -102,7 +102,7 @@ func (s *StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusReq
 		slog.ErrorContext(ctx, err.Error())
 		return nil, grpcerror.ConversionError
 	}
-	res.Next, res.Items = utils.GetListResult(req, res.Items)
+	res.Next, res.Items = utils.GetListResult(searchOpts, res.Items)
 	res.Page = req.GetPage()
 	return &res, nil
 }

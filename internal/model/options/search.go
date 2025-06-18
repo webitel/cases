@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const DefaultSearchSize = 10
+
 type Searcher interface {
 	context.Context
 	GetAuthOpts() auth.Auther

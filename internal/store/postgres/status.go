@@ -44,13 +44,13 @@ func buildStatusSelectColumnsAndPlan(base sq.SelectBuilder, fields []string) (sq
 			base = base.Column(util2.Ident(statusLeft, "updated_at"))
 		case "created_by":
 			alias := "crb"
-			if createdByAlias != "" {
+			if createdByAlias == "" {
 				base = util2.SetUserColumn(base, statusLeft, alias, field)
 			}
 			createdByAlias = alias
 		case "updated_by":
 			alias := "upb"
-			if updatedByAlias != "" {
+			if updatedByAlias == "" {
 				base = util2.SetUserColumn(base, statusLeft, alias, field)
 			}
 			updatedByAlias = alias

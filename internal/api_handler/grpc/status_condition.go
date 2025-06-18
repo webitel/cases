@@ -107,7 +107,7 @@ func (s *StatusConditionService) ListStatusConditions(ctx context.Context, req *
 		slog.ErrorContext(ctx, err.Error())
 		return nil, grpcerror.ConversionError
 	}
-	res.Next, res.Items = utils.GetListResult(req, res.Items)
+	res.Next, res.Items = utils.GetListResult(searchOptions, res.Items)
 	res.Page = req.GetPage()
 	return &res, nil
 }

@@ -1,12 +1,12 @@
 package utils
 
 type Lister interface {
-	GetSize() int32
+	GetSize() int
 }
 
 // C type of items to filter
 func GetListResult[C any](s Lister, items []C) (bool, []C) {
-	if int32(len(items)-1) == s.GetSize() {
+	if len(items)-1 == s.GetSize() {
 		return true, items[0 : len(items)-1]
 	}
 	return false, items

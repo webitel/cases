@@ -91,7 +91,7 @@ func (s *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 		return nil, err
 	}
 
-	next, items := utils.GetListResult(req, items)
+	next, items := utils.GetListResult(searchOpts, items)
 
 	return &api.PriorityList{
 		Page:  req.GetPage(),
