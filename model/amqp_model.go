@@ -19,3 +19,7 @@ type CaseCommentAMQPMessage struct {
 type CaseFileAMQPMessage struct {
 	CaseFile *cases.File `json:"case_file"`
 }
+
+type RelatedCaseAMQPMessage struct {
+	RelatedCase *cases.RelatedCase `json:"related_case"`
+}
