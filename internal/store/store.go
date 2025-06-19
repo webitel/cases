@@ -176,24 +176,24 @@ type CloseReasonStore interface {
 
 type SourceStore interface {
 	// Create a new source lookup
-	Create(rpc options.Creator, add *_go.Source) (*_go.Source, error)
+	Create(rpc options.Creator, add *model.Source) (*model.Source, error)
 	// List source lookup
-	List(rpc options.Searcher) (*_go.SourceList, error)
+	List(rpc options.Searcher) ([]*model.Source, error)
 	// Delete source lookup
-	Delete(rpc options.Deleter) error
+	Delete(rpc options.Deleter) (*model.Source, error)
 	// Update source lookup
-	Update(rpc options.Updator, lookup *_go.Source) (*_go.Source, error)
+	Update(rpc options.Updator, lookup *model.Source) (*model.Source, error)
 }
 
 type PriorityStore interface {
-    // Create a new priority lookup
-    Create(rpc options.Creator, add *model.Priority) (*model.Priority, error)
-    // List priority lookup
-    List(rpc options.Searcher, notInSla int64, inSla int64) (*model.PriorityList, error)
-    // Delete priority lookup
-    Delete(rpc options.Deleter) (*model.Priority, error)
-    // Update priority lookup
-    Update(rpc options.Updator, lookup *model.Priority) (*model.Priority, error)
+	// Create a new priority lookup
+	Create(rpc options.Creator, add *model.Priority) (*model.Priority, error)
+	// List priority lookup
+	List(rpc options.Searcher, notInSla int64, inSla int64) (*model.PriorityList, error)
+	// Delete priority lookup
+	Delete(rpc options.Deleter) (*model.Priority, error)
+	// Update priority lookup
+	Update(rpc options.Updator, lookup *model.Priority) (*model.Priority, error)
 }
 
 type SLAStore interface {

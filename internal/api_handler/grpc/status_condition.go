@@ -28,10 +28,6 @@ type StatusConditionService struct {
 	objClassName string
 }
 
-const (
-	ErrStatusNameReq = "Status name is required"
-)
-
 var StatusConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{Name: "id", Default: true},
 	{Name: "name", Default: true},
@@ -48,7 +44,7 @@ var StatusConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "",
 func (s *StatusConditionService) CreateStatusCondition(ctx context.Context, req *_go.CreateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
 	if req.Input.Name == "" {
-		return nil, cerror.NewBadRequestError("status_condition.create_status_condition.name.required", ErrStatusNameReq)
+		return nil, grpcerror.NewBadRequestError(errors.New("status name is required"))
 	}
 
 	// Define create options
@@ -71,7 +67,7 @@ func (s *StatusConditionService) CreateStatusCondition(ctx context.Context, req 
 	// Create the status in the store
 	st, e := s.app.CreateStatusCondition(createOpts, status)
 	if e != nil {
-		return nil, cerror.NewInternalError("status_condition.create_status_condition.store.create.failed", e.Error())
+		return nil, e
 	}
 
 	return s.Marshal(st)
@@ -116,7 +112,7 @@ func (s *StatusConditionService) ListStatusConditions(ctx context.Context, req *
 func (s *StatusConditionService) UpdateStatusCondition(ctx context.Context, req *_go.UpdateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("status_condition.update_status_condition.id.required", "Status ID is required")
+		return nil, grpcerror.NewBadRequestError(errors.New("status id is required"))
 	}
 
 	// Define update options
@@ -203,31 +199,33 @@ func (s *StatusConditionService) DeleteStatusCondition(ctx context.Context, req 
 func (s *StatusConditionService) LocateStatusCondition(ctx context.Context, req *_go.LocateStatusConditionRequest) (*_go.LocateStatusConditionResponse, error) {
 	// Validate required fields
 	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("status_condition.locate_status_condition.id.required", "Status ID is required")
+		return nil, grpcerror.NewBadRequestError(errors.New("status ID is required"))
 	}
-
-	// Prepare a list request with necessary parameters
-	listReq := &_go.ListStatusConditionRequest{
-		Id:       []int64{req.Id},
-		Fields:   req.Fields,
-		Page:     1,
-		Size:     1, // We only need one item
-		StatusId: req.StatusId,
-	}
-
-	// Call the ListStatusConditions method
-	listResp, err := s.ListStatusConditions(ctx, listReq)
+	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithID(req.Id), grpcopts.WithFields(req, StatusConditionMetadata, util.EnsureIdField, util.DeduplicateFields))
 	if err != nil {
-		return nil, cerror.NewInternalError("status_condition.locate_status_condition.list_status_condition.error", err.Error())
+		return nil, grpcerror.NewBadRequestError(err)
+	}
+	// Call the ListStatusConditions method
+	items, err := s.app.ListStatusConditions(opts)
+	if err != nil {
+		return nil, err
 	}
 
 	// Check if the status condition was found
-	if len(listResp.Items) == 0 {
-		return nil, cerror.NewNotFoundError("status_condition.locate_status_condition.not_found", "Status condition not found")
+	if len(items) > 1 {
+		return nil, grpcerror.NewBadRequestError(errors.New("multiple rows found"))
+	}
+	if len(items) == 0 {
+		return nil, grpcerror.NewBadRequestError(errors.New("not found"))
 	}
 
 	// Return the found status condition
-	return &_go.LocateStatusConditionResponse{Status: listResp.Items[0]}, nil
+	var res _go.LocateStatusConditionResponse
+	res.Status, err = s.Marshal(items[0])
+	if err != nil {
+		return nil, grpcerror.ConversionError
+	}
+	return &res, nil
 }
 
 func (s *StatusConditionService) Marshal(model *model.StatusCondition) (*_go.StatusCondition, error) {

@@ -69,7 +69,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "CaseFiles",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewSourceService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewSourceService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterSourcesServer(s, svc.(cases.SourcesServer))
 			},
