@@ -8,7 +8,7 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	util2 "github.com/webitel/cases/internal/store/util"
+	storeUtil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/util"
 )
@@ -42,27 +42,27 @@ func buildCloseReasonGroupSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util2.Ident(crgLeft, "id"))
+			base = base.Column(storeUtil.Ident(crgLeft, "id"))
 			plan = append(plan, func(group *_go.CloseReasonGroup) any {
 				return &group.Id
 			})
 		case "name":
-			base = base.Column(util2.Ident(crgLeft, "name"))
+			base = base.Column(storeUtil.Ident(crgLeft, "name"))
 			plan = append(plan, func(group *_go.CloseReasonGroup) any {
 				return &group.Name
 			})
 		case "description":
-			base = base.Column(util2.Ident(crgLeft, "description"))
+			base = base.Column(storeUtil.Ident(crgLeft, "description"))
 			plan = append(plan, func(group *_go.CloseReasonGroup) any {
 				return scanner.ScanText(&group.Description)
 			})
 		case "created_at":
-			base = base.Column(util2.Ident(crgLeft, "created_at"))
+			base = base.Column(storeUtil.Ident(crgLeft, "created_at"))
 			plan = append(plan, func(group *_go.CloseReasonGroup) any {
 				return scanner.ScanTimestamp(&group.CreatedAt)
 			})
 		case "updated_at":
-			base = base.Column(util2.Ident(crgLeft, "updated_at"))
+			base = base.Column(storeUtil.Ident(crgLeft, "updated_at"))
 			plan = append(plan, func(group *_go.CloseReasonGroup) any {
 				return scanner.ScanTimestamp(&group.UpdatedAt)
 			})
@@ -258,16 +258,19 @@ func (s CloseReasonGroup) buildListCloseReasonGroupQuery(
 	}
 
 	// Add name filter if provided
-	nameFilter, found := rpc.GetFilter("name")
-	if found && len(nameFilter) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, nameFilter, "g.name")
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if f.Operator == "=" || f.Operator == "" {
+			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "g.name")
+		}
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, closeReasonGroupDefaultSort)
+	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, closeReasonGroupDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, plan, err := buildCloseReasonGroupSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
@@ -297,7 +300,7 @@ func (s CloseReasonGroup) List(rpc options.Searcher) (*_go.CloseReasonGroupList,
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.query_build_error", err)
 	}
-	query = util2.CompactSQL(query)
+	query = storeUtil.CompactSQL(query)
 
 	rows, err := d.Query(rpc, query, args...)
 	if err != nil {

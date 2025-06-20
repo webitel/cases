@@ -118,7 +118,7 @@ func fromDeleteOptions(req common.Deleter) options.SearchOption {
 
 		// RemoveFilter(string)
 		// AddFilter(string, any)
-		// GetFilter(string) any
+		// GetFilter1(string) any
 
 		// // If connection to parent object required
 		// GetParentID() int64

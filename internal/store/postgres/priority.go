@@ -8,7 +8,7 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	util2 "github.com/webitel/cases/internal/store/util"
+	storeUtil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	util "github.com/webitel/cases/util"
 )
@@ -158,7 +158,7 @@ func (p *Priority) List(
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.query_build_error", err)
 	}
-	query = util2.CompactSQL(query)
+	query = storeUtil.CompactSQL(query)
 
 	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
@@ -212,8 +212,12 @@ func (p *Priority) buildListPriorityQuery(
 	}
 
 	// Add name filter if provided
-	if nameFilter, found := rpc.GetFilter("name"); found && len(nameFilter) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, nameFilter, "cp.name")
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if f.Operator == "=" || f.Operator == "" {
+			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "cp.name")
+		}
 	}
 
 	// Add NOT IN SLA condition if `notInSla` is not 0
@@ -254,10 +258,10 @@ func (p *Priority) buildListPriorityQuery(
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, priorityDefaultSort)
+	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, priorityDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, plan, err := buildPrioritySelectColumnsAndPlan(queryBuilder, rpc.GetFields())
@@ -363,27 +367,27 @@ func buildPrioritySelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util2.Ident(prioLeft, "id"))
+			base = base.Column(storeUtil.Ident(prioLeft, "id"))
 			plan = append(plan, func(priority *api.Priority) any {
 				return &priority.Id
 			})
 		case "name":
-			base = base.Column(util2.Ident(prioLeft, "name"))
+			base = base.Column(storeUtil.Ident(prioLeft, "name"))
 			plan = append(plan, func(priority *api.Priority) any {
 				return &priority.Name
 			})
 		case "description":
-			base = base.Column(util2.Ident(prioLeft, "description"))
+			base = base.Column(storeUtil.Ident(prioLeft, "description"))
 			plan = append(plan, func(priority *api.Priority) any {
 				return scanner.ScanText(&priority.Description)
 			})
 		case "created_at":
-			base = base.Column(util2.Ident(prioLeft, "created_at"))
+			base = base.Column(storeUtil.Ident(prioLeft, "created_at"))
 			plan = append(plan, func(priority *api.Priority) any {
 				return scanner.ScanTimestamp(&priority.CreatedAt)
 			})
 		case "updated_at":
-			base = base.Column(util2.Ident(prioLeft, "updated_at"))
+			base = base.Column(storeUtil.Ident(prioLeft, "updated_at"))
 			plan = append(plan, func(priority *api.Priority) any {
 				return scanner.ScanTimestamp(&priority.UpdatedAt)
 			})
@@ -398,7 +402,7 @@ func buildPrioritySelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&priority.UpdatedBy)
 			})
 		case "color":
-			base = base.Column(util2.Ident(prioLeft, "color"))
+			base = base.Column(storeUtil.Ident(prioLeft, "color"))
 			plan = append(plan, func(priority *api.Priority) any {
 				return &priority.Color
 			})

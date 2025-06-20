@@ -3,7 +3,6 @@ package grpc
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/webitel/cases/auth"
@@ -195,28 +194,13 @@ func (s *SearchOptions) GetFilters() []string {
 	return s.Filters
 }
 
-func (s *SearchOptions) GetFilter(f string) (string, bool) {
-	prefix := f + "="
-	for _, filter := range s.Filters {
-		if strings.HasPrefix(filter, prefix) {
-			_, value, ok := strings.Cut(filter, "=")
-			if !ok {
-				return "", false
-			}
-			return value, true
-		}
-	}
-	return "", false
+// GetFilter returns all filters for a given field, with operator and value
+func (s *SearchOptions) GetFilter(f string) []util.FilterExpr {
+	return util.GetFilter(s.Filters, f)
 }
 
 func (s *SearchOptions) RemoveFilter(f string) {
-	var result []string
-	for _, filter := range s.Filters {
-		if filter != f {
-			result = append(result, filter)
-		}
-	}
-	s.Filters = result
+	s.Filters = util.RemoveSliceElement(s.Filters, f)
 }
 
 func (s *SearchOptions) GetCustomContext() map[string]any {

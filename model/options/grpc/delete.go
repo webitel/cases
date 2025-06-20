@@ -78,13 +78,7 @@ func (s *DeleteOptions) GetFilters() []string {
 }
 
 func (s *DeleteOptions) RemoveFilter(f string) {
-	var result []string
-	for _, filter := range s.Filters {
-		if filter != f {
-			result = append(result, filter)
-		}
-	}
-	s.Filters = result
+	s.Filters = util.RemoveSliceElement(s.Filters, f)
 }
 
 func (s *DeleteOptions) GetFilter(f string) (string, bool) {

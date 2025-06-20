@@ -10,7 +10,7 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	util2 "github.com/webitel/cases/internal/store/util"
+	storeUtil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/util"
 )
@@ -44,27 +44,27 @@ func (s *SLAStore) buildSLASelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util2.Ident(slaLeft, "id"))
+			base = base.Column(storeUtil.Ident(slaLeft, "id"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return &sla.Id
 			})
 		case "name":
-			base = base.Column(util2.Ident(slaLeft, "name"))
+			base = base.Column(storeUtil.Ident(slaLeft, "name"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return &sla.Name
 			})
 		case "description":
-			base = base.Column(util2.Ident(slaLeft, "description"))
+			base = base.Column(storeUtil.Ident(slaLeft, "description"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanText(&sla.Description)
 			})
 		case "valid_from":
-			base = base.Column(util2.Ident(slaLeft, "valid_from"))
+			base = base.Column(storeUtil.Ident(slaLeft, "valid_from"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanTimestamp(&sla.ValidFrom)
 			})
 		case "valid_to":
-			base = base.Column(util2.Ident(slaLeft, "valid_to"))
+			base = base.Column(storeUtil.Ident(slaLeft, "valid_to"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanTimestamp(&sla.ValidTo)
 			})
@@ -77,23 +77,23 @@ func (s *SLAStore) buildSLASelectColumnsAndPlan(
 			})
 		case "reaction_time":
 			base = base.
-				Column(util2.Ident(slaLeft, "reaction_time"))
+				Column(storeUtil.Ident(slaLeft, "reaction_time"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return &sla.ReactionTime
 			})
 		case "resolution_time":
 			base = base.
-				Column(util2.Ident(slaLeft, "resolution_time"))
+				Column(storeUtil.Ident(slaLeft, "resolution_time"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return &sla.ResolutionTime
 			})
 		case "created_at":
-			base = base.Column(util2.Ident(slaLeft, "created_at"))
+			base = base.Column(storeUtil.Ident(slaLeft, "created_at"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanTimestamp(&sla.CreatedAt)
 			})
 		case "updated_at":
-			base = base.Column(util2.Ident(slaLeft, "updated_at"))
+			base = base.Column(storeUtil.Ident(slaLeft, "updated_at"))
 			plan = append(plan, func(sla *cases.SLA) any {
 				return scanner.ScanTimestamp(&sla.UpdatedAt)
 			})
@@ -301,15 +301,19 @@ func (s *SLAStore) buildListSLAQuery(rpc options.Searcher) (sq.SelectBuilder, []
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.GetFilter("name"); ok && name != "" {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if (f.Operator == "=" || f.Operator == "") && len(f.Value) > 0 {
+			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "s.name")
+		}
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
+	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, plan, err := s.buildSLASelectColumnsAndPlan(queryBuilder, rpc.GetFields())
@@ -335,7 +339,7 @@ func (s *SLAStore) List(rpc options.Searcher) (*cases.SLAList, error) {
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.list.query_build_error", err)
 	}
-	query = util2.CompactSQL(query)
+	query = storeUtil.CompactSQL(query)
 
 	rows, err := db.Query(rpc, query, args...)
 	if err != nil {
@@ -354,7 +358,7 @@ func (s *SLAStore) List(rpc options.Searcher) (*cases.SLAList, error) {
 	}
 
 	// Resolve pagination
-	slas, next := util2.ResolvePaging(rpc.GetSize(), rawSLAs)
+	slas, next := storeUtil.ResolvePaging(rpc.GetSize(), rawSLAs)
 
 	return &cases.SLAList{
 		Page:  int32(rpc.GetPage()),

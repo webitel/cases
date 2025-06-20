@@ -8,7 +8,7 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	util2 "github.com/webitel/cases/internal/store/util"
+	storeUtil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/util"
 )
@@ -42,27 +42,27 @@ func buildStatusSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util2.Ident(statusLeft, "id"))
+			base = base.Column(storeUtil.Ident(statusLeft, "id"))
 			plan = append(plan, func(status *_go.Status) any {
 				return &status.Id
 			})
 		case "name":
-			base = base.Column(util2.Ident(statusLeft, "name"))
+			base = base.Column(storeUtil.Ident(statusLeft, "name"))
 			plan = append(plan, func(status *_go.Status) any {
 				return &status.Name
 			})
 		case "description":
-			base = base.Column(util2.Ident(statusLeft, "description"))
+			base = base.Column(storeUtil.Ident(statusLeft, "description"))
 			plan = append(plan, func(status *_go.Status) any {
 				return scanner.ScanText(&status.Description)
 			})
 		case "created_at":
-			base = base.Column(util2.Ident(statusLeft, "created_at"))
+			base = base.Column(storeUtil.Ident(statusLeft, "created_at"))
 			plan = append(plan, func(status *_go.Status) any {
 				return scanner.ScanTimestamp(&status.CreatedAt)
 			})
 		case "updated_at":
-			base = base.Column(util2.Ident(statusLeft, "updated_at"))
+			base = base.Column(storeUtil.Ident(statusLeft, "updated_at"))
 			plan = append(plan, func(status *_go.Status) any {
 				return scanner.ScanTimestamp(&status.UpdatedAt)
 			})
@@ -237,15 +237,19 @@ func (s *Status) buildListStatusQuery(
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.GetFilter("name"); ok && name != "" {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if f.Operator == "=" || f.Operator == "" {
+			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "s.name")
+		}
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
+	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, plan, err := buildStatusSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
@@ -271,7 +275,7 @@ func (s *Status) List(rpc options.Searcher) (*_go.StatusList, error) {
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.status.list.query_build_error", err)
 	}
-	query = util2.CompactSQL(query)
+	query = storeUtil.CompactSQL(query)
 
 	rows, err := d.Query(rpc, query, args...)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/util"
 )
 
 type Searcher interface {
@@ -21,8 +22,8 @@ type Searcher interface {
 	GetSort() string
 	// Filtering
 	AddFilter(string)
+	GetFilter(field string) []util.FilterExpr
 	GetFilters() []string
-	GetFilter(string) (string, bool)
 	RemoveFilter(string)
 	// shortcuts
 	GetIDs() []int64

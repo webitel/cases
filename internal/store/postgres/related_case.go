@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	util2 "github.com/webitel/cases/internal/store/util"
+	storeUtil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 
 	sq "github.com/Masterminds/squirrel"
@@ -14,7 +14,7 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	util "github.com/webitel/cases/util"
+	"github.com/webitel/cases/util"
 )
 
 type RelatedCaseStore struct {
@@ -51,7 +51,7 @@ func (r *RelatedCaseStore) Create(
 
 	// Convert queryBuilder to SQL
 	query, args, sqlErr := queryBuilder.ToSql()
-	query = util2.CompactSQL(query)
+	query = storeUtil.CompactSQL(query)
 
 	if sqlErr != nil {
 		return nil, dberr.NewDBInternalError("store.related_case.create.query_build_error", sqlErr)
@@ -156,7 +156,7 @@ func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc options.Deleter) (stri
 	return query, args, nil
 }
 
-var deleteRelatedCaseQuery = util2.CompactSQL(`
+var deleteRelatedCaseQuery = storeUtil.CompactSQL(`
 	DELETE FROM cases.related_case
 	WHERE id = ANY($1) AND dc = $2 AND (primary_case_id = $3 OR related_case_id = $3)
 `)
@@ -271,24 +271,27 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 		PlaceholderFormat(sq.Dollar)
 
 		// Filter by parent case if provided
-	filter, ok := rpc.GetFilter("case_id")
-	if !ok || filter == "" {
+	caseIDFilters := rpc.GetFilter("case_id")
+	if len(caseIDFilters) == 0 {
 		return queryBuilder, nil, dberr.NewDBError(
 			"postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id",
 			"case id required",
 		)
 	}
-	parentId, perr := strconv.ParseInt(filter, 10, 64)
-	if perr != nil || parentId == 0 {
-		return queryBuilder, nil, dberr.NewDBError(
-			"postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id",
-			"case id required",
-		)
+	f := caseIDFilters[0]
+	if (f.Operator == "=" || f.Operator == "") && f.Value != "" {
+		parentId, perr := strconv.ParseInt(f.Value, 10, 64)
+		if perr != nil || parentId == 0 {
+			return queryBuilder, nil, dberr.NewDBError(
+				"postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id",
+				"case id required",
+			)
+		}
+		queryBuilder = queryBuilder.Where(sq.Or{
+			sq.Eq{"rc.primary_case_id": parentId},
+			sq.Eq{"rc.related_case_id": parentId},
+		})
 	}
-	queryBuilder = queryBuilder.Where(sq.Or{
-		sq.Eq{"rc.primary_case_id": parentId},
-		sq.Eq{"rc.related_case_id": parentId},
-	})
 
 	if len(rpc.GetIDs()) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"rc.id": rpc.GetIDs()})
@@ -298,7 +301,7 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 	queryBuilder = queryBuilder.OrderBy("created_at ASC")
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Build columns dynamically using helper
 	queryBuilder, plan, err := buildRelatedCasesSelectColumnsAndPlan(queryBuilder, relatedCaseLeft, rpc.GetFields())
@@ -438,12 +441,12 @@ func buildRelatedCasesSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util2.Ident(left, "id"))
+			base = base.Column(storeUtil.Ident(left, "id"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return &rc.Id
 			})
 		case "ver":
-			base = base.Column(util2.Ident(left, "ver"))
+			base = base.Column(storeUtil.Ident(left, "ver"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return &rc.Ver
 			})
@@ -454,7 +457,7 @@ func buildRelatedCasesSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&rc.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(util2.Ident(left, "created_at"))
+			base = base.Column(storeUtil.Ident(left, "created_at"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanTimestamp(&rc.CreatedAt)
 			})
@@ -465,12 +468,12 @@ func buildRelatedCasesSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&rc.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(util2.Ident(left, "updated_at"))
+			base = base.Column(storeUtil.Ident(left, "updated_at"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanTimestamp(&rc.UpdatedAt)
 			})
 		case "relation":
-			base = base.Column(util2.Ident(left, "relation_type"))
+			base = base.Column(storeUtil.Ident(left, "relation_type"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return &rc.RelationType
 			})

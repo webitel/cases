@@ -159,7 +159,7 @@ func (s *CatalogService) ListCatalogs(
 		return nil, NewBadRequestError(err)
 	}
 	if req.State {
-		searchOptions.AddFilter(fmt.Sprintf("state=%d", req.State))
+		searchOptions.AddFilter(fmt.Sprintf("state=%t", req.State))
 	}
 
 	if !searchOptions.GetAuthOpts().HasSuperPermission(auth.SuperSelectPermission) { // if user doesn't have super select permission, then apply filters

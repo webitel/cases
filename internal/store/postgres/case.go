@@ -22,7 +22,6 @@ import (
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
-	dbutil "github.com/webitel/cases/internal/store/util"
 	storeutils "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/model/options"
@@ -272,13 +271,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 ) {
 
 	// Extract optional fields via helper utils
-	assignee := dbutil.IDPtr(input.GetAssignee())
-	closeReason := dbutil.IDPtr(input.GetCloseReason())
-	reporter := dbutil.IDPtr(input.GetReporter())
-	impacted := dbutil.IDPtr(input.GetImpacted())
-	group := dbutil.IDPtr(input.Group)
-	description := dbutil.StringPtr(input.Description)
-	closeResult := dbutil.StringPtr(input.GetCloseResult())
+	assignee := storeutils.IDPtr(input.GetAssignee())
+	closeReason := storeutils.IDPtr(input.GetCloseReason())
+	reporter := storeutils.IDPtr(input.GetReporter())
+	impacted := storeutils.IDPtr(input.GetImpacted())
+	group := storeutils.IDPtr(input.Group)
+	description := storeutils.StringPtr(input.Description)
+	closeResult := storeutils.StringPtr(input.GetCloseResult())
 
 	// Set fallback defaults for status and close reason group
 	defStatusID := input.Status.GetId()
