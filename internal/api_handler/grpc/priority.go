@@ -17,7 +17,7 @@ type PriorityHandler interface {
 	CreatePriority(options.Creator, *model.Priority) (*model.Priority, error)
 	UpdatePriority(options.Updator, *model.Priority) (*model.Priority, error)
 	DeletePriority(options.Deleter) (*model.Priority, error)
-	ListPriorities(options.Searcher, int64, int64) (*model.PriorityList, error)
+	ListPriorities(options.Searcher, int64, int64) ([]*model.Priority, error)
 	LocatePriority(options.Searcher) (*model.Priority, error)
 }
 
@@ -81,23 +81,20 @@ func (s *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 	}
 	searchOpts.AddFilter("name", req.Q)
 
-	prios, err := s.app.ListPriorities(searchOpts, req.NotInSla, req.InSlaCond)
+	items, err := s.app.ListPriorities(searchOpts, req.NotInSla, req.InSlaCond)
+	if err != nil {
+		return nil, err
+	}
+	var res api.PriorityList
+	converted, err := utils.ConvertToOutputBulk(items, s.Marshal)
 	if err != nil {
 		return nil, err
 	}
 
-	items, err := utils.ConvertToOutputBulk(prios.Items, s.Marshal)
-	if err != nil {
-		return nil, err
-	}
+	res.Next, res.Items = utils.GetListResult(searchOpts, converted)
+	res.Page = req.GetPage()
 
-	next, items := utils.GetListResult(searchOpts, items)
-
-	return &api.PriorityList{
-		Page:  req.GetPage(),
-		Next:  next,
-		Items: items,
-	}, nil
+	return &res, nil
 }
 
 func (s *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePriorityRequest) (*api.Priority, error) {

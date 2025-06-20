@@ -298,7 +298,7 @@ func (s *CloseReason) Update(updator options.Updator, input *model.CloseReason) 
 	return &result, nil
 }
 
-func (s *CloseReason) List(searcher options.Searcher, closeReasonId int64) (*model.CloseReasonList, error) {
+func (s *CloseReason) List(searcher options.Searcher, closeReasonId int64) ([]*model.CloseReason, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.list.database_connection_error", dbErr)
@@ -318,14 +318,7 @@ func (s *CloseReason) List(searcher options.Searcher, closeReasonId int64) (*mod
 	if err := pgxscan.Select(searcher, d, &items, query, args...); err != nil {
 		return nil, dberr.NewDBInternalError("postgres.close_reason.list.execution_error", err)
 	}
-
-	items, next := util2.ResolvePaging(searcher.GetSize(), items)
-
-	return &model.CloseReasonList{
-		Page:  searcher.GetPage(),
-		Next:  next,
-		Items: items,
-	}, nil
+	return items, nil
 }
 
 func (s *CloseReason) Delete(deleter options.Deleter) (*model.CloseReason, error) {

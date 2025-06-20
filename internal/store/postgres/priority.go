@@ -213,7 +213,7 @@ func (p *Priority) List(
 	rpc options.Searcher,
 	notInSla int64,
 	inSla int64,
-) (*model.PriorityList, error) {
+) ([]*model.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.database_connection_error", dbErr)
@@ -236,14 +236,7 @@ func (p *Priority) List(
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.priority.list.execution_error", err)
 	}
-
-	priorities, next := util2.ResolvePaging(rpc.GetSize(), priorities)
-
-	return &model.PriorityList{
-		Page:  rpc.GetPage(),
-		Next:  next,
-		Items: priorities,
-	}, nil
+	return priorities, nil
 }
 
 func (p *Priority) buildListPriorityQuery(

@@ -27,13 +27,13 @@ type CloseReasonGroupService struct {
 }
 
 var CloseReasonGroupMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{"id", true},
-	{"created_by", true},
-	{"created_at", true},
-	{"updated_by", false},
-	{"updated_at", false},
-	{"name", true},
-	{"description", true},
+	{Name: "id", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
 })
 
 func (s *CloseReasonGroupService) CreateCloseReasonGroup(

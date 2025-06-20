@@ -167,7 +167,7 @@ type CloseReasonStore interface {
 	// Create a new reason
 	Create(creator options.Creator, input *model.CloseReason) (*model.CloseReason, error)
 	// List reasons
-	List(searcher options.Searcher, closeReasonId int64) (*model.CloseReasonList, error)
+	List(searcher options.Searcher, closeReasonId int64) ([]*model.CloseReason, error)
 	// Delete reason
 	Delete(deleter options.Deleter) (*model.CloseReason, error)
 	// Update reason
@@ -189,7 +189,7 @@ type PriorityStore interface {
 	// Create a new priority lookup
 	Create(rpc options.Creator, add *model.Priority) (*model.Priority, error)
 	// List priority lookup
-	List(rpc options.Searcher, notInSla int64, inSla int64) (*model.PriorityList, error)
+	List(rpc options.Searcher, notInSla int64, inSla int64) ([]*model.Priority, error)
 	// Delete priority lookup
 	Delete(rpc options.Deleter) (*model.Priority, error)
 	// Update priority lookup

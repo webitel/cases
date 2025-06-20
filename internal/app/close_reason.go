@@ -22,7 +22,7 @@ func (s *App) CreateCloseReason(
 func (s *App) ListCloseReasons(
 	searcher options.Searcher,
 	closeReasonGroupId int64,
-) (*model.CloseReasonList, error) {
+) ([]*model.CloseReason, error) {
 	res, err := s.Store.CloseReason().List(searcher, closeReasonGroupId)
 	if err != nil {
 		return nil, cerror.NewInternalError("close_reason_service.list.store.list.failed", err.Error())
@@ -39,7 +39,7 @@ func (s *App) UpdateCloseReason(
 	if err != nil {
 		return nil, cerror.NewInternalError("close_reason_service.update.store.update.failed", err.Error())
 	}
-	return res, nil
+	return res, nil 
 }
 
 // DeleteCloseReason deletes a close reason from the store.
@@ -62,8 +62,8 @@ func (s *App) LocateCloseReason(
 	if err != nil {
 		return nil, cerror.NewInternalError("close_reason_service.locate.store.list.failed", err.Error())
 	}
-	if len(list.Items) == 0 {
+	if len(list) == 0 {
 		return nil, cerror.NewNotFoundError("close_reason_service.locate.not_found", "Close reason not found")
 	}
-	return list.Items[0], nil
+	return list[0], nil
 }

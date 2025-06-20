@@ -14,7 +14,7 @@ import (
 )
 
 type CloseReasonHandler interface {
-	ListCloseReasons(options.Searcher, int64) (*model.CloseReasonList, error)
+	ListCloseReasons(options.Searcher, int64) ([]*model.CloseReason, error)
 	LocateCloseReason(options.Searcher, int64) (*model.CloseReason, error)
 	CreateCloseReason(options.Creator, *model.CloseReason) (*model.CloseReason, error)
 	UpdateCloseReason(options.Updator, *model.CloseReason) (*model.CloseReason, error)
@@ -89,22 +89,20 @@ func (s *CloseReasonService) ListCloseReasons(
 	}
 	searcher.AddFilter("name", req.Q)
 
-	result, err := s.app.ListCloseReasons(searcher, req.GetCloseReasonGroupId())
+	items, err := s.app.ListCloseReasons(searcher, req.GetCloseReasonGroupId())
 	if err != nil {
 		return nil, err
 	}
 
-	items, err := utils.ConvertToOutputBulk(result.Items, s.Marshal)
+	var res cases.CloseReasonList
+	converted, err := utils.ConvertToOutputBulk(items, s.Marshal)
 	if err != nil {
 		return nil, err
 	}
-	next, items := utils.GetListResult(searcher, items)
+	res.Next, res.Items = utils.GetListResult(searcher, converted)
+	res.Page = req.GetPage()
 
-	return &cases.CloseReasonList{
-		Page:  req.GetPage(),
-		Next:  next,
-		Items: items,
-	}, nil
+	return &res, nil
 }
 
 func (s *CloseReasonService) UpdateCloseReason(

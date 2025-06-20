@@ -23,7 +23,7 @@ func (s *App) ListPriorities(
 	searcher options.Searcher,
 	notInSla int64,
 	inSla int64,
-) (*model.PriorityList, error) {
+) ([]*model.Priority, error) {
 	res, err := s.Store.Priority().List(searcher, notInSla, inSla)
 	if err != nil {
 		return nil, cerror.NewInternalError("priority_service.list.store.list.failed", err.Error())
@@ -62,8 +62,8 @@ func (s *App) LocatePriority(
 	if err != nil {
 		return nil, cerror.NewInternalError("priority_service.locate.store.list.failed", err.Error())
 	}
-	if len(list.Items) == 0 {
+	if len(list) == 0 {
 		return nil, cerror.NewNotFoundError("priority_service.locate.not_found", "Priority not found")
 	}
-	return list.Items[0], nil
+	return list[0], nil
 }

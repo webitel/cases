@@ -13,9 +13,3 @@ type CloseReason struct {
 	UpdatedAt          *time.Time `json:"updated_at" db:"updated_at"`
 	Dc                 int64     `json:"dc" db:"dc"`
 }
-
-type CloseReasonList struct {
-	Page  int
-	Next  bool
-	Items []*CloseReason
-}
