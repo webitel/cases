@@ -488,9 +488,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 			fmt.Sprintf("could not notify case update: %s", notifyErr.Error()), logAttributes)
 	}
 
-	// If diff was requested, build field changes
 	var changes []*cases.FieldChange
-	if original != nil {
+	if util.ContainsField(req.Fields, "diff") && original != nil {
 		changes = BuildCaseDiff(original, output)
 	}
 
