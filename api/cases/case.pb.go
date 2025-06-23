@@ -615,11 +615,17 @@ func (x *CreateCaseRelatedCaseInput) GetRelatedTo() string {
 
 // Request message for creating a case.
 type CreateCaseRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Input         *InputCreateCase       `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`   // Input data for creating the case.
-	Fields        []string               `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty"` // List of fields to include in the response.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Input  *InputCreateCase       `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`   // Input data for creating the case.
+	Fields []string               `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty"` // List of fields to include in the response.
+	// Indicates whether to disable the trigger after the application execution.
+	// Default is false (trigger **will** be executed).
+	// Set to true to explicitly prevent the trigger from running (e.g., when called from another trigger or internal flow).
+	// то
+	// [WTEL-7055]
+	DisableTrigger bool `protobuf:"varint,3,opt,name=disableTrigger,proto3" json:"disableTrigger,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CreateCaseRequest) Reset() {
@@ -666,14 +672,27 @@ func (x *CreateCaseRequest) GetFields() []string {
 	return nil
 }
 
+func (x *CreateCaseRequest) GetDisableTrigger() bool {
+	if x != nil {
+		return x.DisableTrigger
+	}
+	return false
+}
+
 // Request message for updating an existing case.
 type UpdateCaseRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	XJsonMask     []string               `protobuf:"bytes,1,rep,name=x_json_mask,json=xJsonMask,proto3" json:"x_json_mask,omitempty"` // List of JSON fields to update.
-	Fields        []string               `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty"`                          // List of fields to include in the response.
-	Input         *InputCase             `protobuf:"bytes,3,opt,name=input,proto3" json:"input,omitempty"`                            // Input data with updated fields.
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	XJsonMask []string               `protobuf:"bytes,1,rep,name=x_json_mask,json=xJsonMask,proto3" json:"x_json_mask,omitempty"` // List of JSON fields to update.
+	Fields    []string               `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty"`                          // List of fields to include in the response.
+	Input     *InputCase             `protobuf:"bytes,3,opt,name=input,proto3" json:"input,omitempty"`                            // Input data with updated fields.
+	// Indicates whether to disable the trigger after the application execution.
+	// Default is false (trigger **will** be executed).
+	// Set to true to explicitly prevent the trigger from running (e.g., when called from another trigger or internal flow).
+	//
+	// [WTEL-7055]
+	DisableTrigger bool `protobuf:"varint,4,opt,name=disableTrigger,proto3" json:"disableTrigger,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UpdateCaseRequest) Reset() {
@@ -725,6 +744,13 @@ func (x *UpdateCaseRequest) GetInput() *InputCase {
 		return x.Input
 	}
 	return nil
+}
+
+func (x *UpdateCaseRequest) GetDisableTrigger() bool {
+	if x != nil {
+		return x.DisableTrigger
+	}
+	return false
 }
 
 // Request message for deleting a case.
@@ -1691,14 +1717,16 @@ const file_case_proto_rawDesc = "" +
 	"\x04etag\x18\x01 \x01(\tR\x04etag\x12@\n" +
 	"\rrelation_type\x18\x03 \x01(\x0e2\x1b.webitel.cases.RelationTypeR\frelationType\x12\x1d\n" +
 	"\n" +
-	"related_to\x18\x04 \x01(\tR\trelatedTo\"a\n" +
+	"related_to\x18\x04 \x01(\tR\trelatedTo\"\x89\x01\n" +
 	"\x11CreateCaseRequest\x124\n" +
 	"\x05input\x18\x01 \x01(\v2\x1e.webitel.cases.InputCreateCaseR\x05input\x12\x16\n" +
-	"\x06fields\x18\x02 \x03(\tR\x06fields\"{\n" +
+	"\x06fields\x18\x02 \x03(\tR\x06fields\x12&\n" +
+	"\x0edisableTrigger\x18\x03 \x01(\bR\x0edisableTrigger\"\xa3\x01\n" +
 	"\x11UpdateCaseRequest\x12\x1e\n" +
 	"\vx_json_mask\x18\x01 \x03(\tR\txJsonMask\x12\x16\n" +
 	"\x06fields\x18\x02 \x03(\tR\x06fields\x12.\n" +
-	"\x05input\x18\x03 \x01(\v2\x18.webitel.cases.InputCaseR\x05input\"?\n" +
+	"\x05input\x18\x03 \x01(\v2\x18.webitel.cases.InputCaseR\x05input\x12&\n" +
+	"\x0edisableTrigger\x18\x04 \x01(\bR\x0edisableTrigger\"?\n" +
 	"\x11DeleteCaseRequest\x12\x16\n" +
 	"\x06fields\x18\x01 \x03(\tR\x06fields\x12\x12\n" +
 	"\x04etag\x18\x02 \x01(\tR\x04etag\"]\n" +

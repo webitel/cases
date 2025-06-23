@@ -347,17 +347,32 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
 	}
 
-	if notifyErr := c.app.watcherManager.Notify(
-		model.ScopeCases,
-		watcherkit.EventTypeCreate,
-		NewCaseWatcherData(
-			authOpts,
-			res,
-			id,
-			roleIds,
-		),
-	); notifyErr != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s", notifyErr.Error()), logAttributes)
+	message, _ := wlogger.NewMessage(
+		createOpts.GetAuthOpts().GetUserId(),
+		createOpts.GetAuthOpts().GetUserIp(),
+		wlogger.UpdateAction,
+		strconv.Itoa(int(res.GetId())),
+		req,
+	)
+
+	_, err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.DisableTrigger == false {
+		if notifyErr := c.app.watcherManager.Notify(
+			model.ScopeCases,
+			watcherkit.EventTypeCreate,
+			NewCaseWatcherData(
+				authOpts,
+				res,
+				id,
+				roleIds,
+			),
+		); notifyErr != nil {
+			slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s", notifyErr.Error()), logAttributes)
+		}
 	}
 
 	return res, nil
@@ -478,14 +493,29 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
 	}
 
-	if notifyErr := c.app.watcherManager.Notify(
-		model.ScopeCases,
-		watcherkit.EventTypeUpdate,
-		NewCaseWatcherData(authOpts, upd, output.Id, output.GetRoleIds()),
-	); notifyErr != nil {
-		slog.ErrorContext(
-			ctx,
-			fmt.Sprintf("could not notify case update: %s", notifyErr.Error()), logAttributes)
+	message, _ := wlogger.NewMessage(
+		updateOpts.GetAuthOpts().GetUserId(),
+		updateOpts.GetAuthOpts().GetUserIp(),
+		wlogger.UpdateAction,
+		strconv.Itoa(int(output.GetId())),
+		req,
+	)
+
+	_, err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.DisableTrigger == false {
+		if notifyErr := c.app.watcherManager.Notify(
+			model.ScopeCases,
+			watcherkit.EventTypeUpdate,
+			NewCaseWatcherData(authOpts, upd, output.Id, output.GetRoleIds()),
+		); notifyErr != nil {
+			slog.ErrorContext(
+				ctx,
+				fmt.Sprintf("could not notify case update: %s", notifyErr.Error()), logAttributes)
+		}
 	}
 
 	var changes []*cases.FieldChange
@@ -734,6 +764,7 @@ func evaluateDynamicCondition(caseMap map[string]any, condition string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -753,6 +784,7 @@ func evaluateSingleCondition(caseMap map[string]any, condition string) bool {
 		field, operator, value = strings.TrimSpace(parts[0]), "!=", strings.TrimSpace(parts[1])
 	} else {
 		fmt.Printf("Unsupported operator in condition: %s\n", condition)
+
 		return false
 	}
 
@@ -770,6 +802,7 @@ func evaluateSingleCondition(caseMap map[string]any, condition string) bool {
 		return fmt.Sprintf("%v", fieldValue) != value
 	default:
 		fmt.Printf("Unsupported operator: %s\n", operator)
+
 		return false
 	}
 }
@@ -831,6 +864,19 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		Etag: req.Etag,
 	}
 
+	message, _ := wlogger.NewMessage(
+		deleteOpts.GetAuthOpts().GetUserId(),
+		deleteOpts.GetAuthOpts().GetUserIp(),
+		wlogger.UpdateAction,
+		strconv.Itoa(int(tag.GetOid())),
+		req,
+	)
+
+	_, err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
 	if notifyErr := c.app.watcherManager.Notify(
 		model.ScopeCases,
 		watcherkit.EventTypeDelete,
@@ -843,6 +889,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case deletion: %s, ", notifyErr.Error()), logAttributes)
 	}
+
 	return nil, nil
 }
 
@@ -864,16 +911,16 @@ func NewCaseService(app *App) (*CaseService, error) {
 
 	watcher := watcherkit.NewDefaultWatcher()
 
-	if app.config.LoggerWatcher.Enabled {
-
-		obs, err := NewLoggerObserver(app.wtelLogger, caseObjScope, defaultLogTimeout)
-		if err != nil {
-			return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
-		}
-		watcher.Attach(watcherkit.EventTypeCreate, obs)
-		watcher.Attach(watcherkit.EventTypeUpdate, obs)
-		watcher.Attach(watcherkit.EventTypeDelete, obs)
-	}
+	//if app.config.LoggerWatcher.Enabled {
+	//
+	//	obs, err := NewLoggerObserver(app.wtelLogger, caseObjScope, defaultLogTimeout)
+	//	if err != nil {
+	//		return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
+	//	}
+	//	watcher.Attach(watcherkit.EventTypeCreate, obs)
+	//	watcher.Attach(watcherkit.EventTypeUpdate, obs)
+	//	watcher.Attach(watcherkit.EventTypeDelete, obs)
+	//}
 
 	if app.config.FtsWatcher.Enabled {
 		ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseObjScope, formCaseFtsModel)
@@ -898,8 +945,11 @@ func NewCaseService(app *App) (*CaseService, error) {
 		watcher.Attach(watcherkit.EventTypeUpdate, mq)
 		watcher.Attach(watcherkit.EventTypeDelete, mq)
 		watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
-		app.caseResolutionTimer = NewTimerTask[*App](time.Duration(app.config.TriggerWatcher.ResolutionCheckInterval)*time.Second,
-			service.scheduleResolutionTime, app)
+		app.caseResolutionTimer = NewTimerTask[*App](time.Duration(
+			app.config.TriggerWatcher.ResolutionCheckInterval)*time.Second,
+			service.scheduleResolutionTime,
+			app,
+		)
 
 		app.caseResolutionTimer.Start()
 	}
@@ -962,6 +1012,7 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) cerror.A
 	if input.Reporter.GetId() == 0 {
 		return cerror.NewBadRequestError("app.case.create_case.invalid_reporter", "Case reporter is required")
 	}
+
 	return nil
 }
 
