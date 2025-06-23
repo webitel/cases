@@ -10,7 +10,7 @@ import (
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
-	util2 "github.com/webitel/cases/internal/store/util"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 )
 
@@ -48,32 +48,32 @@ func buildSLASelectColumns(
 			return alias
 		}
 	)
-	base = base.Column(util2.Ident(slaLeft, "id"))
+	base = base.Column(storeutil.Ident(slaLeft, "id"))
 	for _, field := range fields {
 		switch field {
 		case "id":
 			// already set
 		case "name":
-			base = base.Column(util2.Ident(slaLeft, "name"))
+			base = base.Column(storeutil.Ident(slaLeft, "name"))
 		case "description":
-			base = base.Column(util2.Ident(slaLeft, "description"))
+			base = base.Column(storeutil.Ident(slaLeft, "description"))
 		case "valid_from":
-			base = base.Column(util2.Ident(slaLeft, "valid_from"))
+			base = base.Column(storeutil.Ident(slaLeft, "valid_from"))
 		case "valid_to":
-			base = base.Column(util2.Ident(slaLeft, "valid_to"))
+			base = base.Column(storeutil.Ident(slaLeft, "valid_to"))
 		case "calendar":
 			base = base.
 				LeftJoin("flow.calendar cal ON cal.id = s.calendar_id").
 				Column("cal.id as calendar_id").
 				Column("cal.name as calendar_name")
 		case "reaction_time":
-			base = base.Column(util2.Ident(slaLeft, "reaction_time"))
+			base = base.Column(storeutil.Ident(slaLeft, "reaction_time"))
 		case "resolution_time":
-			base = base.Column(util2.Ident(slaLeft, "resolution_time"))
+			base = base.Column(storeutil.Ident(slaLeft, "resolution_time"))
 		case "created_at":
-			base = base.Column(util2.Ident(slaLeft, "created_at"))
+			base = base.Column(storeutil.Ident(slaLeft, "created_at"))
 		case "updated_at":
-			base = base.Column(util2.Ident(slaLeft, "updated_at"))
+			base = base.Column(storeutil.Ident(slaLeft, "updated_at"))
 		case "created_by":
 			alias := "slacb"
 			joinCreatedBy(alias)
@@ -265,11 +265,11 @@ func (s *SLAStore) buildListSLAQuery(rpc options.Searcher) (sq.SelectBuilder, er
 	}
 
 	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
+		queryBuilder = storeutil.AddSearchTerm(queryBuilder, name, "s.name")
 	}
 
-	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	queryBuilder, err := buildSLASelectColumns(queryBuilder, rpc.GetFields())
 	if err != nil {
@@ -294,7 +294,7 @@ func (s *SLAStore) List(rpc options.Searcher) ([]*model.SLA, error) {
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.sla.list.query_build_error", err)
 	}
-	query = util2.CompactSQL(query)
+	query = storeutil.CompactSQL(query)
 
 	var slas []*model.SLA
 	err = pgxscan.Select(rpc, d, &slas, query, args...)
