@@ -198,13 +198,13 @@ type PriorityStore interface {
 
 type SLAStore interface {
 	// Create a new SLA lookup
-	Create(rpc options.Creator, input *_go.SLA) (*_go.SLA, error)
+	Create(rpc options.Creator, add *model.SLA) (*model.SLA, error)
 	// List SLA lookup
-	List(rpc options.Searcher) (*_go.SLAList, error)
+	List(rpc options.Searcher) ([]*model.SLA, error)
 	// Delete SLA lookup
-	Delete(rpc options.Deleter) error
+	Delete(rpc options.Deleter) (*model.SLA, error)
 	// Update SLA lookup
-	Update(rpc options.Updator, input *_go.SLA) (*_go.SLA, error)
+	Update(rpc options.Updator, input *model.SLA) (*model.SLA, error)
 }
 
 type SLAConditionStore interface {

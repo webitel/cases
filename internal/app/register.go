@@ -91,7 +91,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 		},
 		{
 			init: func(a *App) (interface{}, error) {
-				return grpchandler.NewCloseReasonService(a), nil
+				return grpchandler.NewCloseReasonService(a)
 			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCloseReasonsServer(s, svc.(cases.CloseReasonsServer))
@@ -109,7 +109,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 		},
 		{
 			init: func(a *App) (interface{}, error) {
-				return grpchandler.NewPriorityService(a), nil
+				return grpchandler.NewPriorityService(a)
 			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterPrioritiesServer(s, svc.(cases.PrioritiesServer))
@@ -117,7 +117,9 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "Priorities",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewSLAService(a) },
+			init: func(a *App) (interface{}, error) {
+				return grpchandler.NewSLAService(a)
+			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterSLAsServer(s, svc.(cases.SLAsServer))
 			},
