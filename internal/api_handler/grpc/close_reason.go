@@ -25,8 +25,11 @@ type CloseReasonService struct {
 	cases.UnimplementedCloseReasonsServer
 }
 
-func NewCloseReasonService(app CloseReasonHandler) *CloseReasonService {
-	return &CloseReasonService{app: app}
+func NewCloseReasonService(app CloseReasonHandler) (*CloseReasonService, error) {
+	if app == nil {
+		return nil, deferror.New("close reason handler is nil")
+	}
+	return &CloseReasonService{app: app}, nil
 }
 
 var CloseReasonMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{

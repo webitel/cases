@@ -54,3 +54,11 @@ func MarshalTime(t *time.Time) int64 {
 	}
 	return t.UnixMilli()
 }
+
+func TimePtr(ms int64) *time.Time {
+    if ms == 0 {
+        return nil
+    }
+    t := time.UnixMilli(ms)
+    return &t
+}
