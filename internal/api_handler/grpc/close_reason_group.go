@@ -4,17 +4,17 @@ import (
 	"context"
 	deferror "errors"
 	_go "github.com/webitel/cases/api/cases"
-	grpcerror "github.com/webitel/cases/internal/api_handler/grpc/errors"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
+	"google.golang.org/grpc/codes"
 )
 
 type CloseReasonGroupHandler interface {
 	ListCloseReasonGroup(options.Searcher) ([]*model.CloseReasonGroup, error)
-	LocateCloseReasonGroup(options.Searcher) (*model.CloseReasonGroup, error)
 	CreateCloseReasonGroup(options.Creator, *model.CloseReasonGroup) (*model.CloseReasonGroup, error)
 	UpdateCloseReasonGroup(options.Updator, *model.CloseReasonGroup) (*model.CloseReasonGroup, error)
 	DeleteCloseReasonGroup(options.Deleter) (*model.CloseReasonGroup, error)
@@ -40,17 +40,12 @@ func (s *CloseReasonGroupService) CreateCloseReasonGroup(
 	ctx context.Context,
 	req *_go.CreateCloseReasonGroupRequest,
 ) (*_go.CloseReasonGroup, error) {
-	// Validate required fields
-	if req.Input.Name == "" {
-		return nil, grpcerror.NewBadRequestError(deferror.New("lookup name is required"))
-	}
-
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
 		grpcopts.WithCreateFields(req, CloseReasonGroupMetadata),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	input := &model.CloseReasonGroup{
@@ -83,7 +78,7 @@ func (s *CloseReasonGroupService) ListCloseReasonGroups(
 		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	searchOpts.AddFilter("name", req.Q)
 
@@ -106,18 +101,14 @@ func (s *CloseReasonGroupService) UpdateCloseReasonGroup(
 	ctx context.Context,
 	req *_go.UpdateCloseReasonGroupRequest,
 ) (*_go.CloseReasonGroup, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, grpcerror.NewBadRequestError(deferror.New("lookup ID is required"))
-	}
-
 	updateOpts, err := grpcopts.NewUpdateOptions(
 		ctx,
 		grpcopts.WithUpdateFields(req, CloseReasonGroupMetadata),
 		grpcopts.WithUpdateMasker(req),
+		grpcopts.WithUpdateIDs([]int64{req.GetId()}),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	// Update lookup user_session
@@ -140,14 +131,9 @@ func (s *CloseReasonGroupService) DeleteCloseReasonGroup(
 	ctx context.Context,
 	req *_go.DeleteCloseReasonGroupRequest,
 ) (*_go.CloseReasonGroup, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, grpcerror.NewBadRequestError(deferror.New("lookup ID is required"))
-	}
-
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	// Delete the lookup in the store
@@ -163,27 +149,30 @@ func (s *CloseReasonGroupService) LocateCloseReasonGroup(
 	ctx context.Context,
 	req *_go.LocateCloseReasonGroupRequest,
 ) (*_go.LocateCloseReasonGroupResponse, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, grpcerror.NewBadRequestError(deferror.New("Lookup ID is required"))
-	}
 	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithFields(req, CloseReasonGroupMetadata,
 		util.DeduplicateFields,
 		util.EnsureIdField,
 	), grpcopts.WithID(req.Id))
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	// Call the ListCloseReasonGroups method
-	item, err := s.app.LocateCloseReasonGroup(opts)
+	items, err := s.app.ListCloseReasonGroup(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Return the found close reason group
-	res, err := s.Marshal(item)
-	if err != nil {
+	if len(items) == 0 {
+		return nil, errors.New("no records found", errors.WithCode(codes.NotFound))
+	}
+	if len(items) > 1 {
+		return nil, errors.New("too many records found", errors.WithCode(codes.InvalidArgument))
+	}
 
+	// Return the found close reason group
+	res, err := s.Marshal(items[0])
+	if err != nil {
+		return nil, err
 	}
 	return &_go.LocateCloseReasonGroupResponse{CloseReasonGroup: res}, nil
 }

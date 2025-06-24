@@ -209,13 +209,13 @@ type SLAStore interface {
 
 type SLAConditionStore interface {
 	// Create a new SLA сondition
-	Create(ctx options.Creator, add *_go.SLACondition, priorities []int64) (*_go.SLACondition, error)
+	Create(ctx options.Creator, add *model.SLACondition) (*model.SLACondition, error)
 	// List SLA сondition
-	List(ctx options.Searcher) (*_go.SLAConditionList, error)
+	List(ctx options.Searcher) ([]*model.SLACondition, error)
 	// Delete SLA сondition
-	Delete(ctx options.Deleter) error
+	Delete(ctx options.Deleter) (*model.SLACondition, error)
 	// Update SLA сondition
-	Update(ctx options.Updator, lookup *_go.SLACondition) (*_go.SLACondition, error)
+	Update(ctx options.Updator, lookup *model.SLACondition) (*model.SLACondition, error)
 }
 
 // CatalogStore is parent store managing service catalogs.

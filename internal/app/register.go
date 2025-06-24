@@ -124,7 +124,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "SLAs",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewSLAConditionService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewSLAConditionService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterSLAConditionsServer(s, svc.(cases.SLAConditionsServer))
 			},

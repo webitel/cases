@@ -106,7 +106,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 	logAttributes := slog.Group(
 		"context",

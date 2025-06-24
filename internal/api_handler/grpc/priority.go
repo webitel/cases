@@ -2,15 +2,14 @@ package grpc
 
 import (
 	"context"
-	"errors"
-
 	api "github.com/webitel/cases/api/cases"
-	grpcerror "github.com/webitel/cases/internal/api_handler/grpc/errors"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
+	"google.golang.org/grpc/codes"
 )
 
 type PriorityHandler interface {
@@ -18,7 +17,6 @@ type PriorityHandler interface {
 	UpdatePriority(options.Updator, *model.Priority) (*model.Priority, error)
 	DeletePriority(options.Deleter) (*model.Priority, error)
 	ListPriorities(options.Searcher, int64, int64) ([]*model.Priority, error)
-	LocatePriority(options.Searcher) (*model.Priority, error)
 }
 
 type PriorityService struct {
@@ -42,15 +40,12 @@ var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*mod
 })
 
 func (s *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePriorityRequest) (*api.Priority, error) {
-	if req.GetInput().GetName() == "" {
-		return nil, grpcerror.NewBadRequestError(errors.New("priority name is required"))
-	}
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
 		grpcopts.WithCreateFields(req, PriorityMetadata),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	input := &model.Priority{
 		Name:        req.Input.Name,
@@ -77,7 +72,7 @@ func (s *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	searchOpts.AddFilter("name", req.Q)
 
@@ -86,28 +81,26 @@ func (s *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 		return nil, err
 	}
 	var res api.PriorityList
-	converted, err := utils.ConvertToOutputBulk(items, s.Marshal)
+	res.Items, err = utils.ConvertToOutputBulk(items, s.Marshal)
 	if err != nil {
 		return nil, err
 	}
 
-	res.Next, res.Items = utils.GetListResult(searchOpts, converted)
+	res.Next, res.Items = utils.GetListResult(searchOpts, res.Items)
 	res.Page = req.GetPage()
 
 	return &res, nil
 }
 
 func (s *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePriorityRequest) (*api.Priority, error) {
-	if req.GetId() == 0 {
-		return nil, grpcerror.NewBadRequestError(errors.New("priority ID is required"))
-	}
 	updateOpts, err := grpcopts.NewUpdateOptions(
 		ctx,
 		grpcopts.WithUpdateFields(req, PriorityMetadata),
 		grpcopts.WithUpdateMasker(req),
+		grpcopts.WithUpdateIDs([]int64{req.GetId()}),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	input := &model.Priority{
 		Id:          req.Id,
@@ -123,12 +116,9 @@ func (s *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 }
 
 func (s *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePriorityRequest) (*api.Priority, error) {
-	if req.GetId() == 0 {
-		return nil, grpcerror.NewBadRequestError(errors.New("priority ID is required"))
-	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	item, err := s.app.DeletePriority(deleteOpts)
 	if err != nil {
@@ -138,21 +128,24 @@ func (s *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePri
 }
 
 func (s *PriorityService) LocatePriority(ctx context.Context, req *api.LocatePriorityRequest) (*api.LocatePriorityResponse, error) {
-	if req.Id == 0 {
-		return nil, grpcerror.NewBadRequestError(errors.New("priority ID is required"))
-	}
 	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithFields(req, PriorityMetadata,
 		util.DeduplicateFields,
 		util.EnsureIdField,
 	), grpcopts.WithID(req.Id))
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
-	item, err := s.app.LocatePriority(opts)
+	items, err := s.app.ListPriorities(opts, 0, 0)
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.Marshal(item)
+	if len(items) == 0 {
+		return nil, errors.New("no records found", errors.WithCode(codes.NotFound))
+	}
+	if len(items) > 1 {
+		return nil, errors.New("too many records found", errors.WithCode(codes.InvalidArgument))
+	}
+	res, err := s.Marshal(items[0])
 	if err != nil {
 		return nil, err
 	}

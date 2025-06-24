@@ -2,14 +2,13 @@ package grpc
 
 import (
 	"context"
-	"errors"
-	grpcerror "github.com/webitel/cases/internal/api_handler/grpc/errors"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model/options"
+	"google.golang.org/grpc/codes"
 	"strings"
 
 	_go "github.com/webitel/cases/api/cases"
-	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
@@ -44,20 +43,15 @@ func (s *SourceService) CreateSource(
 	ctx context.Context,
 	req *_go.CreateSourceRequest,
 ) (*_go.Source, error) {
-	// Validate required fields
-	if req.Input.Name == "" {
-		return nil, cerror.NewBadRequestError("source_service.create_source.name.required", "Source name is required")
-	}
 	if req.Input.Type == _go.SourceType_TYPE_UNSPECIFIED {
-		return nil, cerror.NewBadRequestError("source_service.create_source.type.required", "Source type is required")
+		return nil, errors.New("type is required", errors.WithCode(codes.InvalidArgument))
 	}
-
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
 		grpcopts.WithCreateFields(req, SourceMetadata),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	sourceType := req.Input.Type.String()
 	input := &model.Source{
@@ -69,7 +63,7 @@ func (s *SourceService) CreateSource(
 	// Create the source in the store
 	res, err := s.app.CreateSource(createOpts, input)
 	if err != nil {
-		return nil, cerror.NewInternalError("source_service.create_source.store.create.failed", err.Error())
+		return nil, err
 	}
 
 	return s.Marshal(res)
@@ -92,7 +86,7 @@ func (s *SourceService) ListSources(
 		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	if req.Q != "" {
 		searchOpts.AddFilter("name", req.Q)
@@ -103,7 +97,7 @@ func (s *SourceService) ListSources(
 
 	items, err := s.app.ListSources(searchOpts)
 	if err != nil {
-		return nil, cerror.NewInternalError("source_service.list_sources.store.list.failed", err.Error())
+		return nil, err
 	}
 
 	var res _go.SourceList
@@ -121,18 +115,14 @@ func (s *SourceService) UpdateSource(
 	ctx context.Context,
 	req *_go.UpdateSourceRequest,
 ) (*_go.Source, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("source_service.update_source.id.required", "Source ID is required")
-	}
-
 	updateOpts, err := grpcopts.NewUpdateOptions(
 		ctx,
 		grpcopts.WithUpdateFields(req, SourceMetadata),
 		grpcopts.WithUpdateMasker(req),
+		grpcopts.WithUpdateIDs([]int64{req.GetId()}),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	sourceType := req.Input.Type.String()
 	input := &model.Source{
@@ -145,7 +135,7 @@ func (s *SourceService) UpdateSource(
 	// Update the source in the store
 	res, err := s.app.UpdateSource(updateOpts, input)
 	if err != nil {
-		return nil, cerror.NewInternalError("source_service.update_source.store.update.failed", err.Error())
+		return nil, err
 	}
 
 	return s.Marshal(res)
@@ -156,14 +146,9 @@ func (s *SourceService) DeleteSource(
 	ctx context.Context,
 	req *_go.DeleteSourceRequest,
 ) (*_go.Source, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("source_service.delete_source.id.required", "Source ID is required")
-	}
-
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	deleteOpts.IDs = []int64{req.Id}
@@ -171,7 +156,7 @@ func (s *SourceService) DeleteSource(
 	// Delete the source in the store
 	_, err = s.app.DeleteSource(deleteOpts)
 	if err != nil {
-		return nil, cerror.NewInternalError("source_service.delete_source.store.delete.failed", err.Error())
+		return nil, err
 	}
 
 	return &(_go.Source{Id: req.Id}), nil
@@ -179,13 +164,9 @@ func (s *SourceService) DeleteSource(
 
 // LocateSource implements api.SourcesServer.
 func (s *SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceRequest) (*_go.LocateSourceResponse, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, grpcerror.NewBadRequestError(errors.New("source ID is required"))
-	}
 	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithID(req.Id), grpcopts.WithFields(req, StatusConditionMetadata, util.EnsureIdField, util.DeduplicateFields))
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	// Call the ListStatusConditions method
 	items, err := s.app.ListSources(opts)
@@ -194,18 +175,18 @@ func (s *SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceR
 	}
 
 	// Check if the status condition was found
-	if len(items) > 1 {
-		return nil, grpcerror.NewBadRequestError(errors.New("multiple rows found"))
-	}
 	if len(items) == 0 {
-		return nil, grpcerror.NewBadRequestError(errors.New("not found"))
+		return nil, errors.New("multiple rows found", errors.WithCode(codes.NotFound))
+	}
+	if len(items) > 1 {
+		return nil, errors.New("not found", errors.WithCode(codes.InvalidArgument))
 	}
 
 	// Return the found status condition
 	var res _go.LocateSourceResponse
 	res.Source, err = s.Marshal(items[0])
 	if err != nil {
-		return nil, grpcerror.ConversionError
+		return nil, err
 	}
 	return &res, nil
 }

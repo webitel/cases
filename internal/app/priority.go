@@ -1,9 +1,10 @@
 package app
 
 import (
-	cerror "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
+	"google.golang.org/grpc/codes"
 )
 
 // CreatePriority creates a new priority in the store.
@@ -11,9 +12,12 @@ func (s *App) CreatePriority(
 	creator options.Creator,
 	input *model.Priority,
 ) (*model.Priority, error) {
+	if input.Name == "" {
+		return nil, errors.New("priority name is required", errors.WithCode(codes.InvalidArgument))
+	}
 	res, err := s.Store.Priority().Create(creator, input)
 	if err != nil {
-		return nil, cerror.NewInternalError("priority_service.create.store.create.failed", err.Error())
+		return nil, err
 	}
 	return res, nil
 }
@@ -26,7 +30,7 @@ func (s *App) ListPriorities(
 ) ([]*model.Priority, error) {
 	res, err := s.Store.Priority().List(searcher, notInSla, inSla)
 	if err != nil {
-		return nil, cerror.NewInternalError("priority_service.list.store.list.failed", err.Error())
+		return nil, err
 	}
 	return res, nil
 }
@@ -36,9 +40,12 @@ func (s *App) UpdatePriority(
 	updator options.Updator,
 	input *model.Priority,
 ) (*model.Priority, error) {
+	if len(updator.GetIDs()) == 0 {
+		return nil, errors.New("priority ID is required", errors.WithCode(codes.InvalidArgument))
+	}
 	res, err := s.Store.Priority().Update(updator, input)
 	if err != nil {
-		return nil, cerror.NewInternalError("priority_service.update.store.update.failed", err.Error())
+		return nil, err
 	}
 	return res, nil
 }
@@ -47,23 +54,12 @@ func (s *App) UpdatePriority(
 func (s *App) DeletePriority(
 	deleter options.Deleter,
 ) (*model.Priority, error) {
+	if len(deleter.GetIDs()) == 0 {
+		return nil, errors.New("priority ID is required", errors.WithCode(codes.InvalidArgument))
+	}
 	item, err := s.Store.Priority().Delete(deleter)
 	if err != nil {
-		return nil, cerror.NewInternalError("priority_service.delete.store.delete.failed", err.Error())
+		return nil, err
 	}
 	return item, nil
-}
-
-// LocatePriority finds a priority by criteria.
-func (s *App) LocatePriority(
-	searcher options.Searcher,
-) (*model.Priority, error) {
-	list, err := s.Store.Priority().List(searcher, 0, 0)
-	if err != nil {
-		return nil, cerror.NewInternalError("priority_service.locate.store.list.failed", err.Error())
-	}
-	if len(list) == 0 {
-		return nil, cerror.NewNotFoundError("priority_service.locate.not_found", "Priority not found")
-	}
-	return list[0], nil
 }

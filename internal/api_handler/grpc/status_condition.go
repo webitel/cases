@@ -2,16 +2,14 @@ package grpc
 
 import (
 	"context"
-	"errors"
 	_go "github.com/webitel/cases/api/cases"
-	grpcerror "github.com/webitel/cases/internal/api_handler/grpc/errors"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
-	cerror "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"log/slog"
+	"google.golang.org/grpc/codes"
 )
 
 type StatusConditionHandler interface {
@@ -42,18 +40,13 @@ var StatusConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "",
 
 // CreateStatusCondition implements api.StatusConditionsServer.
 func (s *StatusConditionService) CreateStatusCondition(ctx context.Context, req *_go.CreateStatusConditionRequest) (*_go.StatusCondition, error) {
-	// Validate required fields
-	if req.Input.Name == "" {
-		return nil, grpcerror.NewBadRequestError(errors.New("status name is required"))
-	}
-
 	// Define create options
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
 		grpcopts.WithCreateFields(req, StatusConditionMetadata),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	statusId := int(req.StatusId)
@@ -86,7 +79,7 @@ func (s *StatusConditionService) ListStatusConditions(ctx context.Context, req *
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	searchOptions.AddFilter("parent_id", req.StatusId)
 	if req.Q != "" {
@@ -100,8 +93,7 @@ func (s *StatusConditionService) ListStatusConditions(ctx context.Context, req *
 	var res _go.StatusConditionList
 	res.Items, err = utils.ConvertToOutputBulk(statuses, s.Marshal)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
-		return nil, grpcerror.ConversionError
+		return nil, err
 	}
 	res.Next, res.Items = utils.GetListResult(searchOptions, res.Items)
 	res.Page = req.GetPage()
@@ -110,11 +102,6 @@ func (s *StatusConditionService) ListStatusConditions(ctx context.Context, req *
 
 // UpdateStatusCondition implements api.StatusConditionsServer.
 func (s *StatusConditionService) UpdateStatusCondition(ctx context.Context, req *_go.UpdateStatusConditionRequest) (*_go.StatusCondition, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, grpcerror.NewBadRequestError(errors.New("status id is required"))
-	}
-
 	// Define update options
 	updateOpts, err := grpcopts.NewUpdateOptions(
 		ctx,
@@ -122,7 +109,7 @@ func (s *StatusConditionService) UpdateStatusCondition(ctx context.Context, req 
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	statusId := int(req.StatusId)
 	// Update input user_session
@@ -143,22 +130,7 @@ func (s *StatusConditionService) UpdateStatusCondition(ctx context.Context, req 
 	// Update the input in the store
 	st, err := s.app.UpdateStatusCondition(updateOpts, input)
 	if err != nil {
-		switch err.(type) {
-		case *cerror.DBCheckViolationError:
-			return nil, cerror.NewBadRequestError(
-				"app.status_condition.update.initial_false_not_allowed",
-				"update not allowed: there must be at least one initial = TRUE for the given dc and status_id",
-			)
-		case *cerror.DBInternalError:
-			return nil, cerror.NewBadRequestError(
-				"app.status_condition.update.error",
-				err.Error(),
-			)
-		}
-		return nil, cerror.NewInternalError(
-			"app.status_condition.update.error",
-			err.Error(),
-		)
+		return nil, err
 	}
 
 	return s.Marshal(st)
@@ -166,30 +138,15 @@ func (s *StatusConditionService) UpdateStatusCondition(ctx context.Context, req 
 
 // DeleteStatusCondition implements api.StatusConditionsServer.
 func (s *StatusConditionService) DeleteStatusCondition(ctx context.Context, req *_go.DeleteStatusConditionRequest) (*_go.StatusCondition, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, grpcerror.NewBadRequestError(errors.New("status ID is required"))
-	}
-
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id), grpcopts.WithDeleteParentID(req.StatusId))
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	// Delete the status in the store
 	_, err = s.app.DeleteStatusCondition(deleteOpts)
 	if err != nil {
-		switch err.(type) {
-		case *cerror.DBNoRowsError:
-			return nil, cerror.NewBadRequestError(
-				"status_condition.delete_status_condition.not_found",
-				"delete not allowed",
-			)
-		}
-		return nil, cerror.NewInternalError(
-			"status_condition.delete_status_condition.error",
-			err.Error(),
-		)
+		return nil, err
 	}
 
 	return &(_go.StatusCondition{Id: req.Id}), nil
@@ -197,13 +154,9 @@ func (s *StatusConditionService) DeleteStatusCondition(ctx context.Context, req 
 
 // LocateStatusCondition implements api.StatusConditionsServer.
 func (s *StatusConditionService) LocateStatusCondition(ctx context.Context, req *_go.LocateStatusConditionRequest) (*_go.LocateStatusConditionResponse, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, grpcerror.NewBadRequestError(errors.New("status ID is required"))
-	}
 	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithID(req.Id), grpcopts.WithFields(req, StatusConditionMetadata, util.EnsureIdField, util.DeduplicateFields))
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	// Call the ListStatusConditions method
 	items, err := s.app.ListStatusConditions(opts)
@@ -213,17 +166,17 @@ func (s *StatusConditionService) LocateStatusCondition(ctx context.Context, req 
 
 	// Check if the status condition was found
 	if len(items) > 1 {
-		return nil, grpcerror.NewBadRequestError(errors.New("multiple rows found"))
+		return nil, errors.New("too many records found", errors.WithCode(codes.InvalidArgument))
 	}
 	if len(items) == 0 {
-		return nil, grpcerror.NewBadRequestError(errors.New("not found"))
+		return nil, errors.New("not found", errors.WithCode(codes.NotFound))
 	}
 
 	// Return the found status condition
 	var res _go.LocateStatusConditionResponse
 	res.Status, err = s.Marshal(items[0])
 	if err != nil {
-		return nil, grpcerror.ConversionError
+		return nil, err
 	}
 	return &res, nil
 }
@@ -245,7 +198,7 @@ func (s *StatusConditionService) Marshal(model *model.StatusCondition) (*_go.Sta
 
 func NewStatusConditionService(app StatusConditionHandler) (*StatusConditionService, error) {
 	if app == nil {
-		return nil, cerror.NewInternalError("api.config.new_status_condition_service.args_check.app_nil", "internal is nil")
+		return nil, errors.New("status condition handler is nil")
 	}
 	return &StatusConditionService{app: app, objClassName: model.ScopeDictionary}, nil
 }

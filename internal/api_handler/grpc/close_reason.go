@@ -2,10 +2,10 @@ package grpc
 
 import (
 	"context"
-	deferror "errors"
+	"github.com/webitel/cases/internal/errors"
+	"google.golang.org/grpc/codes"
 
 	"github.com/webitel/cases/api/cases"
-	grpcerror "github.com/webitel/cases/internal/api_handler/grpc/errors"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
@@ -15,7 +15,6 @@ import (
 
 type CloseReasonHandler interface {
 	ListCloseReasons(options.Searcher, int64) ([]*model.CloseReason, error)
-	LocateCloseReason(options.Searcher, int64) (*model.CloseReason, error)
 	CreateCloseReason(options.Creator, *model.CloseReason) (*model.CloseReason, error)
 	UpdateCloseReason(options.Updator, *model.CloseReason) (*model.CloseReason, error)
 	DeleteCloseReason(options.Deleter) (*model.CloseReason, error)
@@ -45,15 +44,12 @@ func (s *CloseReasonService) CreateCloseReason(
 	ctx context.Context,
 	req *cases.CreateCloseReasonRequest,
 ) (*cases.CloseReason, error) {
-	if req.GetInput().GetName() == "" {
-		return nil, grpcerror.NewBadRequestError(deferror.New("close reason name is required"))
-	}
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
 		grpcopts.WithCreateFields(req, CloseReasonMetadata),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	input := &model.CloseReason{
@@ -85,9 +81,10 @@ func (s *CloseReasonService) ListCloseReasons(
 		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	searcher.AddFilter("name", req.Q)
+	searcher.AddFilter("parent_id", req.CloseReasonGroupId)
 
 	items, err := s.app.ListCloseReasons(searcher, req.GetCloseReasonGroupId())
 	if err != nil {
@@ -109,17 +106,13 @@ func (s *CloseReasonService) UpdateCloseReason(
 	ctx context.Context,
 	req *cases.UpdateCloseReasonRequest,
 ) (*cases.CloseReason, error) {
-	if req.GetId() == 0 {
-		return nil, grpcerror.NewBadRequestError(deferror.New("close reason ID is required"))
-	}
-
 	updator, err := grpcopts.NewUpdateOptions(
 		ctx,
 		grpcopts.WithUpdateFields(req, CloseReasonMetadata),
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	input := &model.CloseReason{
@@ -140,16 +133,12 @@ func (s *CloseReasonService) DeleteCloseReason(
 	ctx context.Context,
 	req *cases.DeleteCloseReasonRequest,
 ) (*cases.CloseReason, error) {
-	if req.GetId() == 0 {
-		return nil, grpcerror.NewBadRequestError(deferror.New("close reason ID is required"))
-	}
-
 	deleteOpts, err := grpcopts.NewDeleteOptions(
 		ctx,
 		grpcopts.WithDeleteID(req.Id),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	item, err := s.app.DeleteCloseReason(deleteOpts)
@@ -163,24 +152,27 @@ func (s *CloseReasonService) LocateCloseReason(
 	ctx context.Context,
 	req *cases.LocateCloseReasonRequest,
 ) (*cases.LocateCloseReasonResponse, error) {
-	if req.Id == 0 {
-		return nil, grpcerror.NewBadRequestError(deferror.New("close reason ID is required"))
-	}
-
 	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithFields(req, CloseReasonMetadata,
 		util.DeduplicateFields,
 		util.EnsureIdField,
 	), grpcopts.WithID(req.Id))
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
-	item, err := s.app.LocateCloseReason(opts, req.GetCloseReasonGroupId())
+	items, err := s.app.ListCloseReasons(opts, req.GetCloseReasonGroupId())
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := s.Marshal(item)
+	if len(items) == 0 {
+		return nil, errors.New("no items found", errors.WithCode(codes.NotFound))
+	}
+	if len(items) > 1 {
+		return nil, errors.New("too many items found", errors.WithCode(codes.InvalidArgument))
+	}
+
+	res, err := s.Marshal(items[0])
 	if err != nil {
 		return nil, err
 	}

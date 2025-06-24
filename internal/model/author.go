@@ -1,8 +1,8 @@
 package model
 
 type Author struct {
-	Id   *int    `db:"created_by_id"`
-	Name *string `db:"created_by_name"`
+	Id   *int    `json:"id" db:"created_by_id"`
+	Name *string `json:"name" db:"created_by_name"`
 }
 
 func (a *Author) SetId(id int) {
