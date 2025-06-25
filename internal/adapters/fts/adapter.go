@@ -1,10 +1,10 @@
-package ftsclient
+package fts
 
 import (
+	"context"
 	"github.com/gammazero/deque"
-	"github.com/webitel/cases/rabbit"
-	client "github.com/webitel/webitel-go-kit/fts_client"
-	"time"
+	client "github.com/webitel/webitel-go-kit/infra/fts_client"
+	"github.com/webitel/webitel-go-kit/infra/pubsub/rabbitmq"
 )
 
 const DefaultQueueSize = 500
@@ -12,31 +12,29 @@ const DefaultQueueSize = 500
 var cl client.Publisher = &DefaultClient{}
 
 type message struct {
-	exchange string
-	rk       string
-	body     []byte
+	rk   string
+	body []byte
 }
 
 type DefaultClient struct {
-	channel *rabbit.RabbitBroker
+	channel rabbitmq.Publisher
 	queue   *deque.Deque[*message]
 }
 
 func (f *DefaultClient) Send(exchange string, rk string, body []byte) error {
-	err := f.channel.Publish(exchange, rk, body, "", time.Now())
+	err := f.channel.Publish(context.Background(), exchange, rk, body, nil)
 	if err != nil {
 		// Add message to the queue
 		f.queue.PushBack(&message{
-			exchange: exchange,
-			rk:       rk,
-			body:     body,
+			rk:   rk,
+			body: body,
 		})
 		return err
 	}
 	// Try to process the queue
 	if f.queue.Len() > 0 {
 		for el := f.queue.PopFront(); f.queue.Len() > 0; {
-			err = f.channel.Publish(el.exchange, el.rk, el.body, "", time.Now())
+			err = f.channel.Publish(context.Background(), exchange, el.rk, el.body, nil)
 			if err != nil {
 				// error occurred while clearing the queue
 				// push get back the element to the front
@@ -49,9 +47,8 @@ func (f *DefaultClient) Send(exchange string, rk string, body []byte) error {
 	return nil
 }
 
-func NewDefaultClient(rabbit *rabbit.RabbitBroker) (*client.Client, error) {
+func NewDefaultClient(pub rabbitmq.Publisher) (*DefaultClient, error) {
 	q := &deque.Deque[*message]{}
 	q.SetBaseCap(DefaultQueueSize)
-	c := &DefaultClient{channel: rabbit, queue: q}
-	return client.New(c), nil
+	return &DefaultClient{channel: pub, queue: q}, nil
 }

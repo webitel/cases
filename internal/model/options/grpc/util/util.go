@@ -1,6 +1,11 @@
 package util
 
-import "strings"
+import (
+	"context"
+	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/server/interceptor"
+	"strings"
+)
 
 func DeduplicateMaskPrefixes(mask []string) []string {
 	uniquePrefixes := make(map[string]struct{})
@@ -16,4 +21,13 @@ func DeduplicateMaskPrefixes(mask []string) []string {
 		}
 	}
 	return trimmedMask
+}
+
+const (
+	AppServiceName = "cases"
+	NamespaceName  = "webitel"
+)
+
+func GetAutherOutOfContext(ctx context.Context) auth.Auther {
+	return ctx.Value(interceptor.SessionHeader).(auth.Auther)
 }

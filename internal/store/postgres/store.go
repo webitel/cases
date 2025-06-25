@@ -6,9 +6,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	conf "github.com/webitel/cases/config"
-	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
-	otelpgx "github.com/webitel/webitel-go-kit/tracing/pgx"
+	otelpgx "github.com/webitel/webitel-go-kit/infra/otel/instrumentation/pgx"
 
 	custom "github.com/webitel/custom/store"
 )
@@ -238,18 +238,18 @@ func (s *Store) Service() store.ServiceStore {
 }
 
 // Database returns the database connection or a custom error if it is not opened.
-func (s *Store) Database() (*pgxpool.Pool, *dberr.DBError) { // Return custom DB error
+func (s *Store) Database() (*pgxpool.Pool, error) { // Return custom DB error
 	if s.conn == nil {
-		return nil, dberr.NewDBError("store.database.check.bad_arguments", "database connection is not opened")
+		return nil, errors.New("database connection is not opened")
 	}
 	return s.conn, nil
 }
 
 // Open establishes a connection to the database and returns a custom error if it fails.
-func (s *Store) Open() *dberr.DBError {
+func (s *Store) Open() error {
 	config, err := pgxpool.ParseConfig(s.config.Url)
 	if err != nil {
-		return dberr.NewDBError("store.open.parse_config.fail", err.Error())
+		return err
 	}
 
 	// Attach the OpenTelemetry tracer for pgx
@@ -257,7 +257,7 @@ func (s *Store) Open() *dberr.DBError {
 
 	conn, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
-		return dberr.NewDBError("store.open.connect.fail", err.Error())
+		return err
 	}
 	s.conn = conn
 	slog.Debug("cases.store.connection_opened", slog.String("message", "postgres: connection opened"))
@@ -265,7 +265,7 @@ func (s *Store) Open() *dberr.DBError {
 }
 
 // Close closes the database connection and returns a custom error if it fails.
-func (s *Store) Close() *dberr.DBError {
+func (s *Store) Close() error {
 	if s.conn != nil {
 		s.conn.Close()
 		slog.Debug("cases.store.connection_closed", slog.String("message", "postgres: connection closed"))

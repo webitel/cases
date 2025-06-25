@@ -2,21 +2,15 @@ package interceptor
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
-	"net/http"
 	"regexp"
 	"strings"
 
-	"go.opentelemetry.io/otel/trace"
-
 	api "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
-	cerror "github.com/webitel/cases/internal/errors"
+	errors "github.com/webitel/cases/internal/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 )
 
 // Define a header constant for the token
@@ -37,17 +31,31 @@ func AuthUnaryServerInterceptor(authManager auth.Manager) grpc.UnaryServerInterc
 		// Authorize session with the token
 		session, err := authManager.AuthorizeFromContext(ctx, objClass, action)
 		if err != nil {
-			return nil, cerror.NewUnauthorizedError("auth.session.invalid", fmt.Sprintf("Invalid session or expired token: %v", err))
+			return nil, errors.New(
+				"unauthorized",
+				errors.WithCause(err),
+				errors.WithCode(codes.Unauthenticated),
+				errors.WithID("auth.interceptor.unauthorized"),
+			)
 		}
-
 		//  License validation
 		if missingLicenses := checkLicenses(session, licenses); len(missingLicenses) > 0 {
-			return nil, cerror.NewPermissionForbiddenError("auth.license.missing", fmt.Sprintf("Missing required licenses: %v", missingLicenses))
+			return nil, errors.New(
+				"permission denied",
+				errors.WithCode(codes.PermissionDenied),
+				errors.WithCause(errors.New("missing required licenses "+strings.Join(missingLicenses, ", "))),
+				errors.WithID("auth.interceptor.license"),
+			)
 		}
 
 		// Permission validation
 		if ok := validateSessionPermission(session, objClass, action); !ok {
-			return nil, cerror.NewPermissionForbiddenError("auth.permission.denied", "Permission denied for the requested action")
+			return nil, errors.New(
+				"permission denied",
+				errors.WithCode(codes.PermissionDenied),
+				errors.WithCause(errors.New("missing required permissions "+objClass)),
+				errors.WithID("auth.interceptor.permission"),
+			)
 		}
 
 		ctx = context.WithValue(ctx, SessionHeader, session)
@@ -62,70 +70,23 @@ func AuthUnaryServerInterceptor(authManager auth.Manager) grpc.UnaryServerInterc
 	}
 }
 
-// logAndReturnGRPCError logs the error and converts it to a gRPC error response.
-func logAndReturnGRPCError(ctx context.Context, err error, info *grpc.UnaryServerInfo) error {
-	if err == nil {
-		return nil
-	}
-	slog.WarnContext(ctx, fmt.Sprintf("method %s, error: %v", info.FullMethod, err.Error()))
-	span := trace.SpanFromContext(ctx) // OpenTelemetry tracing
-	span.RecordError(err)
-
-	// Determine the correct gRPC error response
-	switch e := err.(type) {
-	case cerror.AppError:
-		return status.Error(httpCodeToGrpc(e.GetStatusCode()), e.ToJson())
-	case cerror.AuthError:
-		return status.Error(httpCodeToGrpc(e.GetStatusCode()), e.ToJson())
-	default:
-		slog.ErrorContext(ctx, fmt.Sprintf("not app err returned: %s", err.Error()))
-		return status.Error(codes.Internal, cerror.NewInternalError("app.interceptor.parse.error", http.StatusText(http.StatusInternalServerError)).ToJson())
-	}
-}
-
-// httpCodeToGrpc maps HTTP status codes to gRPC error codes.
-func httpCodeToGrpc(c int) codes.Code {
-	switch c {
-	case http.StatusOK:
-		return codes.OK
-	case http.StatusBadRequest:
-		return codes.InvalidArgument
-	case http.StatusUnauthorized:
-		return codes.Unauthenticated
-	case http.StatusForbidden:
-		return codes.PermissionDenied
-	case http.StatusNotFound:
-		return codes.NotFound
-	case http.StatusRequestTimeout:
-		return codes.DeadlineExceeded
-	case http.StatusConflict:
-		return codes.Aborted
-	case http.StatusGone:
-		return codes.NotFound
-	case http.StatusTooManyRequests:
-		return codes.ResourceExhausted
-	case http.StatusInternalServerError:
-		return codes.Internal
-	case http.StatusNotImplemented:
-		return codes.Unimplemented
-	case http.StatusServiceUnavailable:
-		return codes.Unavailable
-	case http.StatusGatewayTimeout:
-		return codes.DeadlineExceeded
-	default:
-		return codes.Unknown
-	}
-}
-
 // tokenFromContext extracts the authorization token from metadata.
 func tokenFromContext(ctx context.Context) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return "", cerror.NewUnauthorizedError("auth.metadata.missing", "Metadata is empty; authorization token required")
+		return "", errors.New(
+			"Metadata is empty; authorization token required",
+			errors.WithID("auth.metadata.missing"),
+			errors.WithCode(codes.Unauthenticated),
+		)
 	}
 	token := md.Get(hdrTokenAccess)
 	if len(token) < 1 || token[0] == "" {
-		return "", cerror.NewUnauthorizedError("auth.token.missing", "Authorization token is missing")
+		return "", errors.New(
+			"Authorization token is missing",
+			errors.WithID("auth.token.missing"),
+			errors.WithCode(codes.Unauthenticated),
+		)
 	}
 	return token[0], nil
 }

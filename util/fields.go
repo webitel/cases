@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/webitel/webitel-go-kit/etag"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
 )
 
 // InlineFields explodes an inline 'attr,attr2 attr3' selector into ['attr','attr2','attr3'].

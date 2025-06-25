@@ -9,7 +9,7 @@ import (
 
 	consulapi "github.com/hashicorp/consul/api"
 	conf "github.com/webitel/cases/config"
-	cerror "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/registry"
 )
 
@@ -25,22 +25,34 @@ func NewConsulRegistry(config *conf.ConsulConfig) (*ConsulRegistry, error) {
 	var err error
 	entity := ConsulRegistry{}
 	if config.Id == "" {
-		return nil, cerror.NewInternalError("consul.registry.new_consul.check_args.service_id", "service id is empty! (set it by '-id' flag)")
+		return nil, errors.Internal(
+			"service id is empty! (set it by '-id' flag)",
+			errors.WithID("consul.registry.new_consul.check_args.service_id"),
+		)
 	}
 	ip, port, err := net.SplitHostPort(config.PublicAddress)
 	if err != nil {
-		return nil, cerror.NewInternalError("consul.registry.new_consul.parse_address.error", "unable to parse address")
+		return nil, errors.Internal(
+			"unable to parse address",
+			errors.WithID("consul.registry.new_consul.parse_address.error"),
+		)
 	}
 	parsedPort, err := strconv.Atoi(port)
 	if err != nil {
-		return nil, cerror.NewInternalError("consul.registry.new_consul.parse_ip.error", "unable to parse ip")
+		return nil, errors.Internal(
+			"unable to parse ip",
+			errors.WithID("consul.registry.new_consul.parse_ip.error"),
+		)
 	}
 
 	consulConfig := consulapi.DefaultConfig()
 	consulConfig.Address = config.Address
 	entity.client, err = consulapi.NewClient(consulConfig)
 	if err != nil {
-		return nil, cerror.NewInternalError("consul.registry.new_consul_registry.consulapi_creation.error", err.Error())
+		return nil, errors.Internal(
+			err.Error(),
+			errors.WithID("consul.registry.new_consul_registry.consulapi_creation.error"),
+		)
 	}
 
 	entity.registrationConfig = &consulapi.AgentServiceRegistration{
@@ -50,8 +62,7 @@ func NewConsulRegistry(config *conf.ConsulConfig) (*ConsulRegistry, error) {
 		Address: ip,
 		Check: &consulapi.AgentServiceCheck{
 			DeregisterCriticalServiceAfter: registry.DeregisterCriticalServiceAfter.String(),
-			//CheckID:                        config.Id,
-			TTL: registry.CheckInterval.String(),
+			TTL:                            registry.CheckInterval.String(),
 		},
 	}
 	entity.stop = make(chan any)
@@ -63,11 +74,17 @@ func NewConsulRegistry(config *conf.ConsulConfig) (*ConsulRegistry, error) {
 func (c *ConsulRegistry) Register() error {
 	err := c.client.Agent().ServiceRegister(c.registrationConfig)
 	if err != nil {
-		return cerror.NewInternalError("consul.registry.consul.register.error", err.Error())
+		return errors.Internal(
+			err.Error(),
+			errors.WithID("consul.registry.consul.register.error"),
+		)
 	}
 	var checks map[string]*consulapi.AgentCheck
 	if checks, err = c.client.Agent().Checks(); err != nil {
-		return cerror.NewInternalError("consul.registry.consul.register.get_checks.error", err.Error())
+		return errors.Internal(
+			err.Error(),
+			errors.WithID("consul.registry.consul.register.get_checks.error"),
+		)
 	}
 
 	var serviceCheck *consulapi.AgentCheck
@@ -78,7 +95,10 @@ func (c *ConsulRegistry) Register() error {
 	}
 
 	if serviceCheck == nil {
-		return cerror.NewInternalError("consul.registry.consul.register.error", err.Error())
+		return errors.Internal(
+			"service check not found",
+			errors.WithID("consul.registry.consul.register.error"),
+		)
 	}
 	c.checkId = serviceCheck.CheckID
 	go c.RunServiceCheck()
@@ -88,7 +108,10 @@ func (c *ConsulRegistry) Register() error {
 func (c *ConsulRegistry) Deregister() error {
 	err := c.client.Agent().ServiceDeregister(c.registrationConfig.ID)
 	if err != nil {
-		return cerror.NewInternalError("consul.registry.consul.deregister.error", err.Error())
+		return errors.Internal(
+			err.Error(),
+			errors.WithID("consul.registry.consul.deregister.error"),
+		)
 	}
 	c.stop <- true
 	slog.Info(fmtConsulLog("service was deregistered"))

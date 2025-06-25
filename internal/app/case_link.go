@@ -6,16 +6,16 @@ import (
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	auth_util "github.com/webitel/cases/auth/util"
-	cerror "github.com/webitel/cases/internal/errors"
-	deferr "github.com/webitel/cases/internal/errors/defaults"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/internal/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
-	wlogger "github.com/webitel/logger/pkg/client/v2"
-	"github.com/webitel/webitel-go-kit/etag"
+	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
 	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
+	"strconv"
 )
 
 // In search options extract from context user
@@ -44,12 +44,12 @@ var CaseLinkMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
 func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkRequest) (*cases.CaseLink, error) {
 	// Validate required fields
 	if req.Etag == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.locate.check_args.etag", "Etag is required")
+		return nil, errors.InvalidArgument("Etag is required")
 	}
 
 	caseEtg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_case_etag.error", err.Error())
+		return nil, errors.InvalidArgument("invalid etag", errors.WithCause(err))
 	}
 
 	searchOpts, err := grpcopts.NewLocateOptions(
@@ -62,42 +62,31 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 		grpcopts.WithIDsAsEtags(etag.EtagCaseLink, req.GetEtag()),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 	searchOpts.AddFilter("case_id", caseEtg.GetOid())
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
-		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("id", searchOpts.IDs[0]),
-		slog.Int64("case_id", caseEtg.GetOid()),
-	)
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, caseEtg.GetOid())
 		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, err
 		}
 		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the case")
 		}
 	}
 	links, err := c.app.Store.CaseLink().List(searchOpts)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.DatabaseError
+		return nil, err
 	}
 	if len(links.Items) == 0 {
-		return nil, cerror.NewNotFoundError("app.case_link.locate.check_items.error", "not found")
+		return nil, errors.NotFound("not found")
 	}
 	res := links.Items[0]
 	// hide etag if needed
 	err = NormalizeResponseLink(res, req)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, err
 	}
 	return res, nil
 }
@@ -106,13 +95,13 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 
 	// Validate request
 	if req.CaseEtag == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.check_args.case_etag", "Case etag is required")
+		return nil, errors.InvalidArgument("Case etag is required")
 	} else if req.Input.GetUrl() == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.check_args.url", "Url is required for each link")
+		return nil, errors.InvalidArgument("Url is required for each link")
 	}
 	caseTid, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
+		return nil, errors.InvalidArgument("invalid etag", errors.WithCause(err))
 	}
 
 	createOpts, err := grpcopts.NewCreateOptions(
@@ -124,40 +113,26 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		grpcopts.WithCreateParentID(caseTid.GetOid()),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()),
-		slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("case_id", createOpts.ParentID),
-	)
 	accessMode := auth.Edit
 	if createOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
 		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, err
 		}
 		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the case")
 		}
 	}
-	res, dbErr := c.app.Store.CaseLink().Create(createOpts, req.Input)
-	if dbErr != nil {
-		slog.ErrorContext(ctx, dbErr.Error(), logAttributes)
-
-		return nil, deferr.DatabaseError
+	res, err := c.app.Store.CaseLink().Create(createOpts, req.Input)
+	if err != nil {
+		return nil, err
 	}
 
 	err = NormalizeResponseLink(res, req)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-
-		return nil, deferr.ResponseNormalizingError
+		return nil, err
 	}
 	authOpts := createOpts.GetAuthOpts()
 	if overrideID := req.Input.UserID.GetId(); overrideID != 0 {
@@ -168,10 +143,10 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 		createOpts.GetAuthOpts().GetUserId(),
 		createOpts.GetAuthOpts().GetUserIp(),
 		wlogger.UpdateAction,
-		res.GetId(),
+		strconv.FormatInt(res.GetId(), 10),
 		req,
 	)
-	err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
+	_, err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +160,7 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 			res.GetId(),
 			authOpts.GetDomainId(),
 		)); notifyErr != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify link create: %s, ", notifyErr.Error()), logAttributes)
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify link create: %s, ", notifyErr.Error()))
 	}
 
 	return res, nil
@@ -193,18 +168,18 @@ func (c *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 
 func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkRequest) (*cases.CaseLink, error) {
 	if req.Input == nil {
-		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.input", "input required")
+		return nil, errors.InvalidArgument("input required")
 	}
 	if req.Input.GetEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.id", "case ID required")
+		return nil, errors.InvalidArgument("case ID required")
 	}
 	linkTid, err := etag.EtagOrId(etag.EtagCaseLink, req.GetInput().GetEtag())
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.create.link_etag.parse.error", err.Error())
+		return nil, errors.InvalidArgument("invalid etag", errors.WithCause(err))
 	}
 	caseTid, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.create.case_etag.parse.error", err.Error())
+		return nil, errors.InvalidArgument("invalid etag", errors.WithCause(err))
 	}
 	updateOpts, err := grpcopts.NewUpdateOptions(
 		ctx,
@@ -214,26 +189,16 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()),
-		slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("id", linkTid.GetOid()),
-		slog.Int64("case_id", updateOpts.ParentID),
-	)
 	accessMode := auth.Edit
 	if updateOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), auth.Edit, updateOpts.ParentID)
 		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, err
 		}
 		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (EDIT) access to the case")
 		}
 	}
 	updated, err := c.app.Store.CaseLink().Update(updateOpts, req.Input)
@@ -243,8 +208,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 	}
 	err = NormalizeResponseLink(updated, req)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, err
 	}
 
 	authOpts := updateOpts.GetAuthOpts()
@@ -256,10 +220,10 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 		updateOpts.GetAuthOpts().GetUserId(),
 		updateOpts.GetAuthOpts().GetUserIp(),
 		wlogger.UpdateAction,
-		linkTid.GetOid(),
+		strconv.FormatInt(linkTid.GetOid(), 10),
 		req,
 	)
-	err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
+	_, err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +237,7 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 			updated.GetId(),
 			authOpts.GetDomainId(),
 		)); notifyErr != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify link update: %s, ", notifyErr.Error()), logAttributes)
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify link update: %s, ", notifyErr.Error()))
 	}
 
 	return updated, nil
@@ -281,49 +245,39 @@ func (c *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 
 func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkRequest) (*cases.CaseLink, error) {
 	if req.GetEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.update.check_args.etag", "case etag required")
+		return nil, errors.InvalidArgument("case etag required")
 	}
 	linkTID, err := etag.EtagOrId(etag.EtagCaseLink, req.GetEtag())
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.create.link_etag.parse.error", err.Error())
+		return nil, err
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(linkTID.GetOid()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()))
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()),
-		slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("id", linkTID.GetOid()),
-		slog.Int64("case_id", deleteOpts.ParentID),
-	)
 	accessMode := auth.Edit
 	if deleteOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), auth.Edit, deleteOpts.ParentID)
 		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, err
 		}
 		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (Edit) access to the case")
 		}
 	}
 	err = c.app.Store.CaseLink().Delete(deleteOpts)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.DatabaseError
+		return nil, err
 	}
 
 	message, err := wlogger.NewMessage(
 		deleteOpts.GetAuthOpts().GetUserId(),
 		deleteOpts.GetAuthOpts().GetUserIp(),
 		wlogger.UpdateAction,
-		linkTID.GetOid(),
+		strconv.FormatInt(linkTID.GetOid(), 10),
 		req,
 	)
-	err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
+	_, err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +291,7 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 			linkTID.GetOid(),
 			deleteOpts.GetAuthOpts().GetDomainId(),
 		)); notifyErr != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify link delete: %s, ", notifyErr.Error()), logAttributes)
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify link delete: %s, ", notifyErr.Error()))
 	}
 
 	return nil, nil
@@ -346,7 +300,7 @@ func (c *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksRequest) (*cases.CaseLinkList, error) {
 	// Validate required fields
 	if req.GetCaseEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.case_link.list.case_etag.check_args.etag", "case etag is required")
+		return nil, errors.InvalidArgument("case etag is required")
 	}
 
 	searchOpts, err := grpcopts.NewSearchOptions(
@@ -362,55 +316,47 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 	etg, err := etag.EtagOrId(etag.EtagCase, req.GetCaseEtag())
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
+		return nil, errors.InvalidArgument("invalid etag", errors.WithCause(err))
 	}
 	searchOpts.AddFilter("case_id", etg.GetOid())
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
-		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("case_id", etg.GetOid()),
-	)
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseLinkMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, etg.GetOid())
 		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, err
 		}
 		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the case")
 		}
 	}
 
 	links, err := c.app.Store.CaseLink().List(searchOpts)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.DatabaseError
+		return nil, err
 	}
 
 	err = NormalizeResponseLinks(links, req.GetFields())
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, err
 	}
 	//Return the located comment
 	return links, nil
 }
 
-func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
+func NewCaseLinkService(app *App) (*CaseLinkService, error) {
 	if app == nil {
-		return nil, cerror.NewBadRequestError(
-			"app.case.new_case_comment_service.check_args.app",
+		return nil, errors.New(
 			"unable to init service, app is nil",
 		)
 	}
-	logger := app.wtelLogger.GetObjectedLogger("cases")
+	logger, err := app.wtelLogger.GetObjectedLogger("cases")
+	if err != nil {
+		return nil, err
+	}
 	service := &CaseLinkService{
 		app:    app,
 		logger: logger,
@@ -418,13 +364,13 @@ func NewCaseLinkService(app *App) (*CaseLinkService, cerror.AppError) {
 	watcher := watcherkit.NewDefaultWatcher()
 
 	if app.config.TriggerWatcher.Enabled {
-		mq, err := NewTriggerObserver(app.rabbit, app.config.TriggerWatcher, formCaseLinkTriggerModel, slog.With(
+		mq, err := NewTriggerObserver(app.rabbitPublisher, app.config.TriggerWatcher, formCaseLinkTriggerModel, slog.With(
 			slog.Group("context",
 				slog.String("scope", "watcher")),
 		))
 
 		if err != nil {
-			return nil, cerror.NewInternalError("app.case.new_case_link_service.create_mq_observer.app", err.Error())
+			return nil, err
 		}
 		watcher.Attach(watcherkit.EventTypeCreate, mq)
 		watcher.Attach(watcherkit.EventTypeUpdate, mq)

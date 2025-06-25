@@ -2,12 +2,13 @@ package grpc
 
 import (
 	"context"
-	"errors"
 	"github.com/webitel/cases/auth"
-	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model/options"
+	optsutil "github.com/webitel/cases/internal/model/options/grpc/util"
 	"github.com/webitel/cases/util"
-	"github.com/webitel/webitel-go-kit/etag"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
+	"google.golang.org/grpc/codes"
 	"time"
 )
 
@@ -104,10 +105,10 @@ func NewDeleteOptions(ctx context.Context, opts ...DeleteOption) (*DeleteOptions
 		Filters:   map[string]any{},
 		createdAt: time.Now().UTC(),
 	}
-	if sess := model.GetAutherOutOfContext(ctx); sess != nil {
+	if sess := optsutil.GetAutherOutOfContext(ctx); sess != nil {
 		deleteOpts.Auth = sess
 	} else {
-		return nil, errors.New("can't authorize user")
+		return nil, errors.New("can't authorize user", errors.WithCode(codes.Unauthenticated))
 	}
 	for _, opt := range opts {
 		err := opt(deleteOpts)
@@ -116,7 +117,7 @@ func NewDeleteOptions(ctx context.Context, opts ...DeleteOption) (*DeleteOptions
 		}
 	}
 	if len(deleteOpts.IDs) == 0 {
-		return nil, errors.New("minimum one id required to delete")
+		return nil, errors.New("minimum one id required to delete", errors.WithCode(codes.InvalidArgument))
 	}
 
 	return deleteOpts, nil

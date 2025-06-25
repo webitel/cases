@@ -2,11 +2,11 @@ package grpc
 
 import (
 	"context"
-	deferror "errors"
+	"google.golang.org/grpc/codes"
 
 	"github.com/webitel/cases/api/cases"
-	grpcerror "github.com/webitel/cases/internal/api_handler/grpc/errors"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
@@ -29,7 +29,7 @@ type SLAService struct {
 
 func NewSLAService(app SLAHandler) (*SLAService, error) {
 	if app == nil {
-		return nil, deferror.New("sla handler is nil")
+		return nil, errors.New("sla handler is nil")
 	}
 	return &SLAService{app: app, objClassName: model.ScopeDictionary}, nil
 }
@@ -58,7 +58,7 @@ func (s *SLAService) CreateSLA(
 		grpcopts.WithCreateFields(req, SlaMetadata),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	input := &model.SLA{
@@ -94,7 +94,7 @@ func (s *SLAService) ListSLAs(
 		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 	searcher.AddFilter("name", req.GetQ())
 
@@ -119,7 +119,7 @@ func (s *SLAService) UpdateSLA(
 	req *cases.UpdateSLARequest,
 ) (*cases.SLA, error) {
 	if req.GetId() == 0 {
-		return nil, grpcerror.NewBadRequestError(deferror.New("SLA ID is required"))
+		return nil, errors.New("SLA ID is required", errors.WithCode(codes.InvalidArgument))
 	}
 
 	updator, err := grpcopts.NewUpdateOptions(
@@ -128,7 +128,7 @@ func (s *SLAService) UpdateSLA(
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	input := &model.SLA{
@@ -154,7 +154,7 @@ func (s *SLAService) DeleteSLA(
 	req *cases.DeleteSLARequest,
 ) (*cases.SLA, error) {
 	if req.GetId() == 0 {
-		return nil, grpcerror.NewBadRequestError(deferror.New("SLA ID is required"))
+		return nil, errors.New("SLA ID is required")
 	}
 
 	deleteOpts, err := grpcopts.NewDeleteOptions(
@@ -162,7 +162,7 @@ func (s *SLAService) DeleteSLA(
 		grpcopts.WithDeleteID(req.Id),
 	)
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	item, err := s.app.DeleteSLA(deleteOpts)
@@ -177,7 +177,7 @@ func (s *SLAService) LocateSLA(
 	req *cases.LocateSLARequest,
 ) (*cases.LocateSLAResponse, error) {
 	if req.Id == 0 {
-		return nil, grpcerror.NewBadRequestError(deferror.New("SLA ID is required"))
+		return nil, errors.New("SLA ID is required", errors.WithCode(codes.InvalidArgument))
 	}
 
 	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithFields(req, SlaMetadata,
@@ -185,7 +185,7 @@ func (s *SLAService) LocateSLA(
 		util.EnsureIdField,
 	), grpcopts.WithID(req.Id))
 	if err != nil {
-		return nil, grpcerror.NewBadRequestError(err)
+		return nil, err
 	}
 
 	item, err := s.app.LocateSLA(opts)

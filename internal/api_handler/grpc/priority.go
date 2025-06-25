@@ -14,7 +14,6 @@ import (
 
 type PriorityHandler interface {
 	ListPriorities(options.Searcher, int64, int64) ([]*model.Priority, error)
-	LocatePriority(options.Searcher) (*model.Priority, error)
 	CreatePriority(options.Creator, *model.Priority) (*model.Priority, error)
 	UpdatePriority(options.Updator, *model.Priority) (*model.Priority, error)
 	DeletePriority(options.Deleter) (*model.Priority, error)

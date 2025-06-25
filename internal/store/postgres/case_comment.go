@@ -41,9 +41,9 @@ func (c *CaseCommentStore) Publish(
 	input *_go.CaseComment,
 ) (*_go.CaseComment, error) {
 	// Establish database connection
-	d, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.publish.database_connection_error", dbErr)
+	d, err := c.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	// Build the insert and select query with RETURNING clause
@@ -52,12 +52,12 @@ func (c *CaseCommentStore) Publish(
 		UserID: input.CreatedBy,
 	})
 	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.publish.build_sqlizer_error", err)
+		return nil, err
 	}
 
 	query, args, err := sq.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.publish.query_to_sql_error", err)
+		return nil, err
 	}
 
 	// Convert plan to scanArgs
@@ -65,7 +65,7 @@ func (c *CaseCommentStore) Publish(
 
 	// Execute the query and scan the result directly into `input`
 	if err = d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.publish.scan_error", err)
+		return nil, ParseError(err)
 	}
 
 	for _, field := range rpc.GetFields() {
@@ -115,7 +115,7 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 	// Convert insertBuilder to SQL to use it within a CTE
 	insertSQL, insertArgs, err := insertBuilder.ToSql()
 	if err != nil {
-		return nil, nil, dberr.NewDBError("store.case_comment.build_publish_comments_sqlizer.insert_query_error", err.Error())
+		return nil, nil, err
 	}
 
 	// Use the insert SQL as a CTE prefix for the main select query
@@ -123,14 +123,14 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 
 	// Build select clause and scan plan dynamically using buildCommentSelectColumnsAndPlan
 	selectBuilder := sq.Select()
-	selectBuilder, plan, dbErr := buildCommentSelectColumnsAndPlan(
+	selectBuilder, plan, err := buildCommentSelectColumnsAndPlan(
 		selectBuilder,
 		caseCommentLeft,
 		fields,
 		rpc.GetAuthOpts(),
 	)
-	if dbErr != nil {
-		return nil, nil, dbErr
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Combine the CTE with the select query
@@ -154,16 +154,16 @@ func (c *CaseCommentStore) Delete(
 	// Build the delete query
 	base, err := c.buildDeleteCaseCommentQuery(rpc)
 	if err != nil {
-		return dberr.NewDBInternalError("store.case_comment.delete.query_build_error", dbErr)
+		return err
 	}
 	// Execute the query
 	query, args, err := base.ToSql()
 	if err != nil {
-		return dberr.NewDBInternalError("store.case_comment.delete.to_sql.err", err)
+		return err
 	}
 	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
-		return dberr.NewDBInternalError("store.case_comment.delete.exec_error", execErr)
+		return ParseError(execErr)
 	}
 
 	// Check if any rows were affected
@@ -205,19 +205,19 @@ func (c *CaseCommentStore) List(rpc options.Searcher) (*_go.CaseCommentList, err
 	// Build the query and plan builder using BuildListCaseCommentsSqlizer
 	queryBuilder, planBuilder, err := c.BuildListCaseCommentsSqlizer(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.list.query_build_error", err)
+		return nil, err
 	}
 
 	// Convert the query to SQL
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.list.query_to_sql_error", err)
+		return nil, err
 	}
 
 	// Execute the query
 	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.list.execution_error", err)
+		return nil, ParseError(err)
 	}
 	defer rows.Close()
 
@@ -239,7 +239,7 @@ func (c *CaseCommentStore) List(rpc options.Searcher) (*_go.CaseCommentList, err
 
 		// Scan row into the comment fields using the plan
 		if err := rows.Scan(plan...); err != nil {
-			return nil, dberr.NewDBInternalError("store.case_comment.list.row_scan_error", err)
+			return nil, ParseError(err)
 		}
 
 		commentList = append(commentList, comment)
@@ -347,7 +347,7 @@ func (c *CaseCommentStore) Update(
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.query_build_error", err)
+		return nil, err
 	}
 
 	// Convert plan to scanArgs
@@ -355,10 +355,9 @@ func (c *CaseCommentStore) Update(
 
 	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Explicitly indicate that the user is not the creator
 			return nil, dberr.NewDBNotFoundError("postgres.case_comment.update.scan_ver.not_found", "Comment not found")
 		}
-		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.execution_error", err)
+		return nil, ParseError(err)
 	}
 	for _, field := range rpc.GetFields() {
 		if field == "role_ids" {
@@ -384,8 +383,6 @@ func (c *CaseCommentStore) GetRolesById(
 	if err != nil {
 		return nil, err
 	}
-	//// Establish database connection
-	//query := "(SELECT ARRAY_AGG(DISTINCT subject) rbac_r FROM cases.case_acl WHERE object = ? AND access & ? = ?)"
 	query := sq.Select("ARRAY_AGG(DISTINCT subject)").From("cases.case_comment_acl").Where("object = ?", commentId).Where("access & ? = ?", uint8(access), uint8(access)).PlaceholderFormat(sq.Dollar)
 	sql, args, _ := query.ToSql()
 	row := db.QueryRow(ctx, sql, args...)
@@ -476,7 +473,7 @@ func buildCommentSelectColumnsAndPlan(
 	left string,
 	fields []string,
 	session auth.Auther,
-) (sq.SelectBuilder, []func(comment *_go.CaseComment) any, *dberr.DBError) {
+) (sq.SelectBuilder, []func(comment *_go.CaseComment) any, error) {
 	var (
 		plan           []func(link *_go.CaseComment) any
 		createdByAlias string
@@ -632,8 +629,7 @@ func addCaseCommentRbacConditionForUpdate(auth auth.Auther, access auth.AccessMo
 
 func NewCaseCommentStore(store *Store) (store.CaseCommentStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_case_comment.check.bad_arguments",
-			"error creating comment case interface to the case_comment table, main store is nil")
+		return nil, errors.New("error creating comment case interface to the case_comment table, main store is nil")
 	}
 	return &CaseCommentStore{storage: store}, nil
 }

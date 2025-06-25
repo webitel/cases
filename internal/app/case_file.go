@@ -4,12 +4,11 @@ import (
 	"context"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
-	cerror "github.com/webitel/cases/internal/errors"
-	deferr "github.com/webitel/cases/internal/errors/defaults"
+	errors "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"github.com/webitel/webitel-go-kit/etag"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"log/slog"
 )
 
@@ -31,7 +30,7 @@ var CaseFileMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
 
 func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesRequest) (*cases.CaseFileList, error) {
 	if req.CaseEtag == "" {
-		return nil, cerror.NewBadRequestError("app.case_file.list_files.case_etag_required", "Case Etag is required")
+		return nil, errors.InvalidArgument("Case Etag is required")
 	}
 
 	searchOpts, err := grpcopts.NewSearchOptions(
@@ -46,54 +45,43 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
+		return nil, errors.InvalidArgument("Invalid Case Etag", errors.WithCause(err))
 	}
 	searchOpts.AddFilter("case_id", tag.GetOid())
-	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
+
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseFileMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tag.GetOid())
 		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			slog.ErrorContext(ctx, err.Error())
+			return nil, err
 		}
 		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the case")
 		}
 	}
 	files, err := c.app.Store.CaseFile().List(searchOpts)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.DatabaseError
+		slog.ErrorContext(ctx, err.Error())
+		return nil, err
 	}
 	return files, nil
 }
 
 func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileRequest) (*cases.File, error) {
 	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("app.case_file.delete_file.file_id_required", "File ID is required")
+		return nil, errors.InvalidArgument("File ID is required")
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.GetId()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()))
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64(
-			"user_id",
-			deleteOpts.GetAuthOpts().GetUserId(),
-		),
-		slog.Int64(
-			"domain_id",
-			deleteOpts.GetAuthOpts().GetDomainId(),
-		))
 	// Check if the user has permission to delete the file
 	accessMode := auth.Delete
 	if deleteOpts.GetAuthOpts().IsRbacCheckRequired(CaseFileMetadata.GetParentScopeName(), accessMode) {
@@ -104,36 +92,26 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 			deleteOpts.ParentID,
 		)
 		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, err
 		}
 		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (DELETE) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (DELETE) access to the case")
 		}
 	}
 
 	// Delete the file from the database
 	err = c.app.Store.CaseFile().Delete(deleteOpts)
 	if err != nil {
-		switch err.(type) {
-		case *cerror.DBNoRowsError:
-			return nil, cerror.NewBadRequestError(
-				"app.case_file.delete.not_found",
-				"delete not allowed",
-			)
-		default:
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.DatabaseError
-		}
+		return nil, err
+
 	}
 
 	return &cases.File{}, nil
 }
 
-func NewCaseFileService(app *App) (*CaseFileService, cerror.AppError) {
+func NewCaseFileService(app *App) (*CaseFileService, error) {
 	if app == nil {
-		return nil, cerror.NewBadRequestError("app.case.new_case_file_service.check_args.app", "unable to init service, app is nil")
+		return nil, errors.New("unable to init service, app is nil")
 	}
 	return &CaseFileService{app: app}, nil
 }

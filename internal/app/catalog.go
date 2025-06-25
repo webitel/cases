@@ -5,7 +5,7 @@ import (
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/api/engine"
 	"github.com/webitel/cases/auth"
-	cerror "github.com/webitel/cases/internal/errors"
+	errors "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
@@ -47,19 +47,19 @@ const (
 func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCatalogRequest) (*cases.Catalog, error) {
 	// Validate required fields
 	if req.Input.Name == "" {
-		return nil, cerror.NewBadRequestError("catalog.create_catalog.name.required", "Catalog name is required")
+		return nil, errors.InvalidArgument("Catalog name is required")
 	}
 	if req.Input.Prefix == "" {
-		return nil, cerror.NewBadRequestError("catalog.create_catalog.prefix.required", "Catalog prefix is required")
+		return nil, errors.InvalidArgument("Catalog prefix is required")
 	}
 	if req.Input.Sla == nil || req.Input.Sla.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("catalog.create_catalog.sla.required", "SLA is required")
+		return nil, errors.InvalidArgument("SLA is required")
 	}
 	if req.Input.Status == nil || req.Input.Status.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("catalog.create_catalog.status.required", "Status is required")
+		return nil, errors.InvalidArgument("Status is required")
 	}
 	if req.Input.CloseReasonGroup == nil || req.Input.CloseReasonGroup.GetId() == 0 {
-		return nil, cerror.NewBadRequestError("catalog.create_catalog.close_reason_group.required", "Close reason group is required")
+		return nil, errors.InvalidArgument("Close reason group is required")
 	}
 	// Define create options
 	createOpts, err := grpcopts.NewCreateOptions(
@@ -67,7 +67,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		grpcopts.WithCreateFields(req, CatalogMetadata),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 
 	// Create a new Catalog user_session
@@ -94,27 +94,26 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	}
 
 	// Create the Catalog in the store
-	r, e := s.app.Store.Catalog().Create(createOpts, catalog)
-	if e != nil {
-		return nil, cerror.NewInternalError("catalog.create_catalog.store.create.failed", e.Error())
+	r, err := s.app.Store.Catalog().Create(createOpts, catalog)
+	if err != nil {
+		return nil, err
 	}
-
 	return r, nil
 }
 
 // DeleteCatalog implements cases.CatalogsServer.
 func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCatalogRequest) (*cases.CatalogList, error) {
 	if len(req.Id) == 0 {
-		return nil, cerror.NewBadRequestError("catalog.delete_catalog.id.required", "Catalog ID is required")
+		return nil, errors.InvalidArgument("Catalog ID is required")
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteIDs(req.Id))
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 
 	e := s.app.Store.Catalog().Delete(deleteOpts)
 	if e != nil {
-		return nil, cerror.NewInternalError("catalog.delete_catalog.store.delete.failed", e.Error())
+		return nil, e
 	}
 
 	deletedCatalogs := make([]*cases.Catalog, len(req.Id))
@@ -154,7 +153,7 @@ func (s *CatalogService) ListCatalogs(
 	}
 	searchOptions, err := grpcopts.NewSearchOptions(ctx, opts...)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 	if req.State {
 		searchOptions.AddFilter("state", req.State)
@@ -166,7 +165,7 @@ func (s *CatalogService) ListCatalogs(
 
 		info, ok = metadata.FromIncomingContext(ctx)
 		if !ok {
-			return nil, cerror.NewForbiddenError("internal.grpc.get_context", "Not found")
+			return nil, errors.Forbidden("internal.grpc.get_context: Not found")
 		}
 		newCtx := metadata.NewOutgoingContext(ctx, info)
 		res, err := s.app.engineAgentClient.SearchAgent(newCtx, &engine.SearchAgentRequest{
@@ -211,16 +210,15 @@ func (s *CatalogService) ListCatalogs(
 		req.HasSubservices,
 	)
 	if e != nil {
-		return nil, cerror.NewInternalError("catalog.list_catalogs.store.list.failed", e.Error())
+		return nil, e
 	}
-
 	return catalogs, nil
 }
 
 // LocateCatalog implements cases.CatalogsServer.
 func (s *CatalogService) LocateCatalog(ctx context.Context, req *cases.LocateCatalogRequest) (*cases.LocateCatalogResponse, error) {
 	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("catalog.locate_catalog.id.required", "Catalog ID is required")
+		return nil, errors.InvalidArgument("Catalog ID is required")
 	}
 
 	listReq := &cases.ListCatalogRequest{
@@ -233,11 +231,11 @@ func (s *CatalogService) LocateCatalog(ctx context.Context, req *cases.LocateCat
 
 	listResp, err := s.ListCatalogs(ctx, listReq)
 	if err != nil {
-		return nil, cerror.NewInternalError("catalog.locate_catalog.list_catalogs.error", err.Error())
+		return nil, err
 	}
 
 	if len(listResp.Items) == 0 {
-		return nil, cerror.NewNotFoundError("catalog.locate_catalog.not_found", "Catalog not found")
+		return nil, errors.NotFound("Catalog not found")
 	}
 
 	return &cases.LocateCatalogResponse{Catalog: listResp.Items[0]}, nil
@@ -246,7 +244,7 @@ func (s *CatalogService) LocateCatalog(ctx context.Context, req *cases.LocateCat
 // UpdateCatalog implements cases.CatalogsServer.
 func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCatalogRequest) (*cases.Catalog, error) {
 	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("catalog.update_catalog.id.required", "Catalog ID is required")
+		return nil, errors.InvalidArgument("Catalog ID is required")
 	}
 
 	// Build update options
@@ -256,7 +254,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 
 	// Build catalog from the request input
@@ -284,16 +282,15 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 	// Update the catalog
 	r, e := s.app.Store.Catalog().Update(updateOpts, catalog)
 	if e != nil {
-		return nil, cerror.NewInternalError("catalog.update_catalog.store.update.failed", e.Error())
+		return nil, e
 	}
-
 	return r, nil
 }
 
 // NewCatalogService creates a new CatalogService.
-func NewCatalogService(app *App) (*CatalogService, cerror.AppError) {
+func NewCatalogService(app *App) (*CatalogService, error) {
 	if app == nil {
-		return nil, cerror.NewInternalError("api.config.new_catalog.args_check.app_nil", "internal is nil")
+		return nil, errors.Internal("internal is nil")
 	}
 	return &CatalogService{app: app, objClassName: "dictionaries"}, nil
 }

@@ -8,11 +8,11 @@ import (
 
 	"github.com/bufbuild/protovalidate-go"
 	conf "github.com/webitel/cases/config"
-	grpcerr "github.com/webitel/cases/internal/errors"
+	errors "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/server/interceptor"
 	"github.com/webitel/cases/registry"
 	"github.com/webitel/cases/registry/consul"
-	otelgrpc "github.com/webitel/webitel-go-kit/tracing/grpc"
+	otelgrpc "github.com/webitel/webitel-go-kit/infra/otel/sdk/trace/otlp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -48,13 +48,19 @@ func BuildServer(config *conf.ConsulConfig, authManager auth.Manager, exitChan c
 	// Open a TCP listener on the configured address
 	listener, err := net.Listen("tcp", config.PublicAddress)
 	if err != nil {
-		return nil, grpcerr.NewInternalError("server.build.listen.error", err.Error())
+		return nil, errors.Internal(
+			err.Error(),
+			errors.WithID("server.build.listen.error"),
+		)
 	}
 
 	// Initialize Consul service registry
 	reg, err := consul.NewConsulRegistry(config)
 	if err != nil {
-		return nil, grpcerr.NewInternalError("server.build.consul_registry.error", err.Error())
+		return nil, errors.Internal(
+			err.Error(),
+			errors.WithID("server.build.consul_registry.error"),
+		)
 	}
 
 	// Register gRPC reflection for debugging
@@ -76,7 +82,10 @@ func (s *Server) Start() {
 		return
 	}
 	if err := s.Server.Serve(s.listener); err != nil {
-		s.exitChan <- grpcerr.NewInternalError("server.start.serve.error", err.Error())
+		s.exitChan <- errors.Internal(
+			err.Error(),
+			errors.WithID("server.start.serve.error"),
+		)
 	}
 }
 

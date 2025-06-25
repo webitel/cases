@@ -3,7 +3,7 @@ package options
 import (
 	"context"
 	"github.com/webitel/cases/auth"
-	"github.com/webitel/webitel-go-kit/etag"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"time"
 )
 

@@ -2,12 +2,14 @@ package grpc
 
 import (
 	"context"
-	"errors"
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/model/options/grpc/shared"
+	optsutil "github.com/webitel/cases/internal/model/options/grpc/util"
 	"github.com/webitel/cases/util"
+	"google.golang.org/grpc/codes"
 	"time"
 )
 
@@ -123,9 +125,9 @@ func NewCreateOptions(ctx context.Context, opts ...CreateOption) (*CreateOptions
 
 // setUpdateAuthOptions extracts authentication from context and sets it in options
 func setCreateAuthOptions(ctx context.Context, options *CreateOptions) error {
-	if sess := model.GetAutherOutOfContext(ctx); sess != nil {
+	if sess := optsutil.GetAutherOutOfContext(ctx); sess != nil {
 		options.Auth = sess
 		return nil
 	}
-	return errors.New("can't authorize user")
+	return errors.New("can't authorize user", errors.WithCode(codes.Unauthenticated))
 }

@@ -109,12 +109,12 @@ func ID(err error) string {
 // If err is nil, returns OK.
 func Code(err error) codes.Code {
 	if err == nil {
-		return 200
+		return codes.OK
 	}
 
 	code, _ := Value(err, ErrKeyCode).(codes.Code)
 	if code == 0 {
-		return 500
+		return codes.Internal
 	}
 
 	return code
@@ -200,14 +200,10 @@ func Lookup(err error, key interface{}) (interface{}, bool) {
 // If a key has been attached multiple times, the map will
 // contain the last value mapped.
 func Values(err error) map[interface{}]interface{} {
-	var values map[interface{}]interface{}
+	values := map[any]any{}
 	for err != nil {
 		if e, ok := err.(*errWithValue); ok {
 			if _, ok := values[e.key]; !ok {
-				if values == nil {
-					values = map[interface{}]interface{}{}
-				}
-
 				values[e.key] = e.value
 			}
 		}

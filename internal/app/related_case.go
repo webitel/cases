@@ -4,12 +4,11 @@ import (
 	"context"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
-	cerror "github.com/webitel/cases/internal/errors"
-	deferr "github.com/webitel/cases/internal/errors/defaults"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"github.com/webitel/webitel-go-kit/etag"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"log/slog"
 	"strconv"
 )
@@ -33,11 +32,11 @@ var RelatedCaseMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Fie
 
 func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.LocateRelatedCaseRequest) (*cases.RelatedCase, error) {
 	if req.GetEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.id_required", "ID is required")
+		return nil, errors.InvalidArgument("ID is required")
 	}
 	caseTid, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.related_case.locate_related_case.invalid_primary_id", "Invalid ID")
+		return nil, errors.InvalidArgument("Invalid primary case etag", errors.WithCause(err))
 	}
 	searchOpts, err := grpcopts.NewLocateOptions(
 		ctx,
@@ -50,7 +49,7 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 		grpcopts.WithIDsAsEtags(etag.EtagRelatedCase, req.GetEtag()),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, errors.InvalidArgument("Invalid search options", errors.WithCause(err))
 	}
 	searchOpts.AddFilter("case_id", caseTid.GetOid())
 	logAttributes := slog.Group(
@@ -64,11 +63,11 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 		access, err := r.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, caseTid.GetOid())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the case", errors.WithCause(err))
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the case")
 		}
 	}
 
@@ -77,38 +76,31 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 		return nil, err
 	}
 	if len(output.Data) == 0 {
-		return nil, cerror.NewNotFoundError("app.related_case.locate_related_case.not_found", "Related case not found")
+		return nil, errors.NotFound("Related case not found")
 	} else if len(output.Data) > 1 {
-		return nil, cerror.NewInternalError("app.related_case.locate_related_cases.multiple_found", "Multiple related cases found")
+		return nil, errors.Internal("Multiple related cases found")
 	}
 
 	// Normalize IDs and handle errors
 	if err := normalizeIDs(output.Data); err != nil {
-		return nil, cerror.NewInternalError("app.related_case.locate_related_cases.normalize_ids_error", err.Error())
+		return nil, errors.Internal("Failed to normalize related case IDs", errors.WithCause(err))
 	}
-
 	return output.Data[0], nil
 }
 
 func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.CreateRelatedCaseRequest) (*cases.RelatedCase, error) {
 	if req.GetPrimaryCaseEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.related_case.create_related_case.primary_case_id_required", "Primary case id required")
+		return nil, errors.InvalidArgument("Primary case id required")
 	}
 
 	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
 	if err != nil {
-		return nil, cerror.NewBadRequestError(
-			"app.related_case.created_related_case.invalid_etag",
-			"Invalid primary case etag",
-		)
+		return nil, errors.InvalidArgument("Invalid primary case etag", errors.WithCause(err))
 	}
 
 	relatedCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetRelatedCase().GetId())))
 	if err != nil {
-		return nil, cerror.NewBadRequestError(
-			"app.related_case.created_related_case.invalid_etag",
-			"Invalid relatedCase etag",
-		)
+		return nil, errors.InvalidArgument("Invalid related case etag", errors.WithCause(err))
 	}
 
 	createOpts, err := grpcopts.NewCreateOptions(
@@ -121,7 +113,7 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		grpcopts.WithCreateChildID(relatedCaseTag.GetOid()),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, errors.InvalidArgument("Invalid create options", errors.WithCause(err))
 	}
 
 	logAttributes := slog.Group(
@@ -136,11 +128,11 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), primaryAccessMode, createOpts.ParentID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (EDIT) access to the primary case", errors.WithCause(err))
 		}
 		if !primaryAccess {
 			slog.ErrorContext(ctx, "user doesn't have required access to the primary case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (EDIT) access to the primary case")
 		}
 	}
 	secondaryAccessMode := auth.Read
@@ -148,18 +140,17 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), secondaryAccessMode, createOpts.ChildID)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the secondary case", errors.WithCause(err))
 		}
 		if !secondaryAccess {
 			slog.ErrorContext(ctx, "user doesn't have required access to the secondary case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the secondary case")
 		}
 	}
 
 	relatedCase, err := r.app.Store.RelatedCase().Create(
 		createOpts,
 		&req.GetInput().RelationType,
-		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
 		req.Input.GetUserID().GetId(),
 	)
 	if err != nil {
@@ -169,32 +160,29 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 	relatedCase.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, relatedCase.GetId(), relatedCase.Ver)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, errors.Internal("Failed to encode related case etag", errors.WithCause(err))
 	}
 	relatedCase.RelatedCase.Etag, err = etag.EncodeEtag(etag.EtagCase, relatedCase.RelatedCase.GetId(), relatedCase.Ver)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, errors.Internal("Failed to encode related case etag", errors.WithCause(err))
 	}
 	relatedCase.PrimaryCase.Etag, err = etag.EncodeEtag(etag.EtagCase, relatedCase.PrimaryCase.GetId(), relatedCase.Ver)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, errors.Internal("Failed to encode primary case etag", errors.WithCause(err))
 	}
 	return relatedCase, nil
 }
 
 func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.UpdateRelatedCaseRequest) (*cases.RelatedCase, error) {
 	if req.GetEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.related_case.update_related_case.id_required", "ID required")
+		return nil, errors.InvalidArgument("ID required")
 	}
 
 	tag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetEtag())
 	if err != nil {
-		return nil, cerror.NewBadRequestError(
-			"app.related_case.created_related_case.invalid_etag",
-			"Invalid ID",
-		)
+		return nil, errors.InvalidArgument("Invalid related case etag", errors.WithCause(err))
 	}
 	updateOpts, err := grpcopts.NewUpdateOptions(
 		ctx,
@@ -203,30 +191,21 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		grpcopts.WithUpdateMasker(req),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, errors.InvalidArgument("Invalid update options", errors.WithCause(err))
 	}
 
 	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetPrimaryCase().GetId())))
 	if err != nil {
-		return nil, cerror.NewBadRequestError(
-			"app.related_case.created_related_case.invalid_etag",
-			"Invalid primary case etag",
-		)
+		return nil, errors.InvalidArgument("Invalid primary case etag", errors.WithCause(err))
 	}
 
 	relatedCaseTag, err := etag.EtagOrId(etag.EtagCase, strconv.Itoa(int(req.GetInput().GetRelatedCase().GetId())))
 	if err != nil {
-		return nil, cerror.NewBadRequestError(
-			"app.related_case.created_related_case.invalid_etag",
-			"Invalid relatedCase etag",
-		)
+		return nil, errors.InvalidArgument("Invalid related case etag", errors.WithCause(err))
 	}
 
 	if primaryCaseTag.GetOid() == relatedCaseTag.GetOid() {
-		return nil, cerror.NewBadRequestError(
-			"app.related_case.update_related_case.invalid_ids",
-			"A case cannot be related to itself",
-		)
+		return nil, errors.InvalidArgument("A case cannot be related to itself")
 	}
 
 	input := &cases.InputRelatedCase{
@@ -248,11 +227,11 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		primaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), primaryAccessMode, primaryId)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (EDIT) access to the primary case", errors.WithCause(err))
 		}
 		if !primaryAccess {
 			slog.ErrorContext(ctx, "user doesn't have required access to the primary case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (EDIT) access to the primary case")
 		}
 	}
 	secondaryAccessMode := auth.Read
@@ -260,18 +239,17 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		secondaryAccess, err := r.app.Store.Case().CheckRbacAccess(updateOpts, updateOpts.GetAuthOpts(), secondaryAccessMode, relatedId)
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the secondary case", errors.WithCause(err))
 		}
 		if !secondaryAccess {
 			slog.ErrorContext(ctx, "user doesn't have required access to the secondary case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the secondary case")
 		}
 	}
 
 	output, err := r.app.Store.RelatedCase().Update(
 		updateOpts,
 		input,
-		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
 		req.Input.GetUserID().GetId(),
 	)
 	if err != nil {
@@ -281,21 +259,21 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 	output.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, output.GetId(), output.GetVer())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, errors.Internal("Failed to encode related case etag", errors.WithCause(err))
 	}
 	return output, nil
 }
 
 func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.DeleteRelatedCaseRequest) (*cases.RelatedCase, error) {
 	if req.GetEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.id_required", "ID required")
+		return nil, errors.InvalidArgument("ID required")
 	}
 	if req.GetPrimaryCaseEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.related_case.delete_related_case.primary_id_required", "Primary case ID required")
+		return nil, errors.InvalidArgument("Primary case ID required")
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteIDsAsEtags(etag.EtagRelatedCase, req.GetEtag()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetPrimaryCaseEtag()))
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, errors.InvalidArgument("Invalid delete options", errors.WithCause(err))
 	}
 	logAttributes := slog.Group(
 		"context",
@@ -309,11 +287,11 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		access, err := r.app.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), accessMode, deleteOpts.GetParentID())
 		if err != nil {
 			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (EDIT) access to the case", errors.WithCause(err))
 		}
 		if !access {
 			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (EDIT) access to the case")
 		}
 
 	}
@@ -321,15 +299,14 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 	err = r.app.Store.RelatedCase().Delete(deleteOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.DatabaseError
+		return nil, err
 	}
-
 	return nil, nil
 }
 
 func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.ListRelatedCasesRequest) (*cases.RelatedCaseList, error) {
 	if req.GetPrimaryCaseEtag() == "" {
-		return nil, cerror.NewBadRequestError("app.related_case.list_related_case.id_required", "ID required")
+		return nil, errors.InvalidArgument("Primary case ID required")
 	}
 	searchOpts, err := grpcopts.NewSearchOptions(
 		ctx,
@@ -345,11 +322,11 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 		grpcopts.WithIDsAsEtags(etag.EtagRelatedCase, req.GetIds()...),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, errors.InvalidArgument("Invalid search options", errors.WithCause(err))
 	}
 	tag, err := etag.EtagOrId(etag.EtagCase, req.PrimaryCaseEtag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.related_case.list_related_cases.invalid_etag", "Invalid etag")
+		return nil, errors.InvalidArgument("Invalid primary case etag", errors.WithCause(err))
 	}
 	searchOpts.AddFilter("case_id", tag.GetOid())
 
@@ -360,7 +337,7 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 
 	// Normalize IDs and handle errors
 	if err := normalizeIDs(output.Data); err != nil {
-		return nil, cerror.NewInternalError("app.related_case.list_related_cases.normalize_ids_error", err.Error())
+		return nil, errors.Internal("Failed to normalize related case IDs", errors.WithCause(err))
 	}
 	return output, nil
 }
@@ -402,9 +379,9 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 	return nil
 }
 
-func NewRelatedCaseService(app *App) (*RelatedCaseService, cerror.AppError) {
+func NewRelatedCaseService(app *App) (*RelatedCaseService, error) {
 	if app == nil {
-		return nil, cerror.NewBadRequestError("app.case.new_related_case_service.check_args.app", "unable to init service, app is nil")
+		return nil, errors.InvalidArgument("unable to init service, app is nil")
 	}
 	return &RelatedCaseService{app: app}, nil
 }

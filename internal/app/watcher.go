@@ -4,43 +4,33 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	cfg "github.com/webitel/cases/config"
-	cerr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
-	"github.com/webitel/cases/rabbit"
-	wlogger "github.com/webitel/logger/pkg/client/v2"
-	"github.com/webitel/webitel-go-kit/fts_client"
+	"github.com/webitel/webitel-go-kit/infra/fts_client"
+	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 )
 
-type AMQPBroker interface {
-	QueueDeclare(queueName string, opts ...rabbit.QueueDeclareOption) (string, cerr.AppError)
-	ExchangeDeclare(exchangeName string, kind string, opts ...rabbit.ExchangeDeclareOption) cerr.AppError
-	QueueBind(exchangeName string, queueName string, routingKey string, noWait bool, args map[string]any) cerr.AppError
-	Publish(exchange string, routingKey string, body []byte, userId string, t time.Time) cerr.AppError
+type Publisher interface {
+	Publish(ctx context.Context, exchange string, routingKey string, body []byte, headers amqp091.Table) error
 }
 
 type TriggerObserver[T any, V any] struct {
 	id         string
-	amqpBroker AMQPBroker
+	amqpBroker Publisher
 	config     *cfg.TriggerWatcherConfig
 	logger     *slog.Logger
 	converter  func(T) (V, error)
 }
 
-func NewTriggerObserver[T any, V any](amqpBroker AMQPBroker, config *cfg.TriggerWatcherConfig, conv func(T) (V, error), log *slog.Logger) (*TriggerObserver[T, V], error) {
-	// declare exchange
-	opts := []rabbit.ExchangeDeclareOption{rabbit.ExchangeEnableDurable, rabbit.ExchangeEnableNoWait}
-
-	if err := amqpBroker.ExchangeDeclare(config.ExchangeName, rabbit.ExchangeTypeTopic, opts...); err != nil {
-		return nil, fmt.Errorf("could not create topic exchange %s: %w", config.ExchangeName, err)
-	}
-
+func NewTriggerObserver[T any, V any](amqpBroker Publisher, config *cfg.TriggerWatcherConfig, conv func(T) (V, error), log *slog.Logger) (*TriggerObserver[T, V], error) {
 	amqpObserver := &TriggerObserver[T, V]{
 		amqpBroker: amqpBroker,
 		config:     config,
@@ -99,7 +89,7 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 		routingKey = cao.getRoutingKeyByEventType("cases", "case", et, domainId)
 	}
 
-	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, "", time.Now())
+	return cao.amqpBroker.Publish(context.Background(), cao.config.ExchangeName, routingKey, data, nil)
 }
 
 func (cao *TriggerObserver[T, V]) getRoutingKeyByEventType(
@@ -123,10 +113,14 @@ type LoggerObserver struct {
 	timeout time.Duration
 }
 
-func NewLoggerObserver(logger *wlogger.LoggerClient, objclass string, timeout time.Duration) (*LoggerObserver, error) {
+func NewLoggerObserver(logger *wlogger.Logger, objclass string, timeout time.Duration) (*LoggerObserver, error) {
+	objectedLogger, err := logger.GetObjectedLogger(objclass)
+	if err != nil {
+		return nil, err
+	}
 	return &LoggerObserver{
 		id:      fmt.Sprintf("%s logger", objclass),
-		logger:  logger.GetObjectedLogger(objclass),
+		logger:  objectedLogger,
 		timeout: timeout,
 	}, nil
 }
@@ -155,13 +149,14 @@ func (l *LoggerObserver) Update(et watcher.EventType, args map[string]any) error
 	default:
 		return watcher.ErrUnknownType
 	}
-	message, err := wlogger.NewMessage(auth.GetUserId(), auth.GetUserIp(), tp, id, args["obj"])
+	message, err := wlogger.NewMessage(auth.GetUserId(), auth.GetUserIp(), tp, strconv.FormatInt(id, 10), args["obj"])
 	if err != nil {
 		return err
 	}
 	ctx, cancelFunc := context.WithTimeout(context.Background(), l.timeout)
 	defer cancelFunc()
-	return l.logger.SendContext(ctx, auth.GetDomainId(), message)
+	_, err = l.logger.SendContext(ctx, auth.GetDomainId(), message)
+	return err
 }
 
 type FullTextSearchObserver[T any, V any] struct {

@@ -24,13 +24,16 @@ func ValidateUnaryServerInterceptor(val *protovalidate.Validator) grpc.UnaryServ
 				// Check if the error is a ValidationError
 				if errors.As(err, &ve) && len(ve.Violations) > 0 {
 					violation := ve.Violations[0]
-					return nil, cerr.NewInternalError(
-						violation.GetConstraintId(),
+					return nil, cerr.Internal(
 						violation.GetMessage(),
+						cerr.WithID(violation.GetConstraintId()),
 					)
 				}
 				// Return generic validation error if no specific violations found
-				return nil, cerr.NewInternalError("unknown", err.Error())
+				return nil, cerr.Internal(
+					err.Error(),
+					cerr.WithID("unknown"),
+				)
 			}
 		}
 		// Proceed to api_handler if validation passes

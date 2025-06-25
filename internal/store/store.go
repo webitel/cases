@@ -7,7 +7,6 @@ import (
 	"github.com/webitel/cases/internal/model/options"
 
 	_go "github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 
 	custom "github.com/webitel/custom/store"
@@ -49,8 +48,8 @@ type Store interface {
 	Custom() custom.Catalog
 
 	// ------------ Database Management ------------ //
-	Open() *dberr.DBError  // Return custom DB error
-	Close() *dberr.DBError // Return custom DB error
+	Open() error  // Return custom DB error
+	Close() error // Return custom DB error
 }
 
 // ------------ Cases Stores ------------ //

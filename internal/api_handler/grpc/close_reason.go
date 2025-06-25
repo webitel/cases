@@ -27,7 +27,7 @@ type CloseReasonService struct {
 
 func NewCloseReasonService(app CloseReasonHandler) (*CloseReasonService, error) {
 	if app == nil {
-		return nil, deferror.New("close reason handler is nil")
+		return nil, errors.New("close reason handler is nil")
 	}
 	return &CloseReasonService{app: app}, nil
 }

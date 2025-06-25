@@ -2,14 +2,16 @@ package grpc
 
 import (
 	"context"
-	"errors"
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/model/options/defaults"
 	"github.com/webitel/cases/internal/model/options/grpc/shared"
+	optsutil "github.com/webitel/cases/internal/model/options/grpc/util"
 	"github.com/webitel/cases/util"
-	"github.com/webitel/webitel-go-kit/etag"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
+	"google.golang.org/grpc/codes"
 	"strings"
 	"time"
 )
@@ -221,10 +223,10 @@ func NewSearchOptions(ctx context.Context, opts ...SearchOption) (*SearchOptions
 		Context:   ctx,
 		Filters:   make(map[string]any),
 	}
-	if sess := model.GetAutherOutOfContext(ctx); sess != nil {
+	if sess := optsutil.GetAutherOutOfContext(ctx); sess != nil {
 		search.Auth = sess
 	} else {
-		return nil, errors.New("can't authorize user")
+		return nil, errors.New("can't authorize user", errors.WithCode(codes.Unauthenticated))
 	}
 	for _, opt := range opts {
 		err := opt(search)
@@ -241,10 +243,10 @@ func NewLocateOptions(ctx context.Context, opts ...SearchOption) (*SearchOptions
 		return nil, err
 	}
 	if len(locate.IDs) == 0 {
-		return nil, errors.New("locate options require id to locate")
+		return nil, errors.New("locate options require id to locate", errors.WithCode(codes.InvalidArgument))
 	}
 	if len(locate.IDs) > 1 {
-		return nil, errors.New("locate options require only one id")
+		return nil, errors.New("locate options require only one id", errors.WithCode(codes.InvalidArgument))
 	}
 
 	return locate, nil
