@@ -12,7 +12,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/errors"
+	errors "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/util"
 )
@@ -23,9 +23,9 @@ type ServiceStore struct {
 
 func (s *ServiceStore) Create(rpc options.Creator, add *cases.Service) (*cases.Service, error) {
 	// Establish a connection to the database
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.create.database_connection_error", dbErr)
+	db, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	// Build the combined query for inserting Service and related entities
@@ -38,7 +38,7 @@ func (s *ServiceStore) Create(rpc options.Creator, add *cases.Service) (*cases.S
 		assigneeLookup                              cases.Lookup
 	)
 
-	err := db.QueryRow(rpc, query, args...).Scan(
+	err = db.QueryRow(rpc, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Code, &add.State,
 		&createdAt, &updatedAt,
 		&slaLookup.Id, &slaLookup.Name,
@@ -49,7 +49,7 @@ func (s *ServiceStore) Create(rpc options.Creator, add *cases.Service) (*cases.S
 		&add.RootId, &add.CatalogId,
 	)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.create.scan_error", err)
+		return nil, err
 	}
 
 	// Prepare the Service to return
@@ -68,14 +68,14 @@ func (s *ServiceStore) Create(rpc options.Creator, add *cases.Service) (*cases.S
 // Delete implements store.ServiceStore.
 func (s *ServiceStore) Delete(rpc options.Deleter) error {
 	// Establish a connection to the database
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return dberr.NewDBInternalError("postgres.service.delete.db_connection_error", dbErr)
+	db, err := s.storage.Database()
+	if err != nil {
+		return err
 	}
 
 	// Ensure that there are IDs to delete
 	if len(rpc.GetIDs()) == 0 {
-		return dberr.NewDBError("postgres.service.delete.no_ids_provided", "No IDs provided for deletion")
+		return errors.InvalidArgument("no IDs provided for deletion")
 	}
 
 	// Build the delete query
@@ -84,12 +84,12 @@ func (s *ServiceStore) Delete(rpc options.Deleter) error {
 	// Execute the delete query
 	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.service.delete.execution_error", err)
+		return ParseError(err)
 	}
 
 	// Check how many rows were affected
 	if res.RowsAffected() == 0 {
-		return dberr.NewDBNoRowsError("postgres.service.delete.no_rows_deleted")
+		return errors.NotFound("no rows affected by delete operation")
 	}
 
 	return nil
@@ -98,21 +98,21 @@ func (s *ServiceStore) Delete(rpc options.Deleter) error {
 // List implements store.ServiceStore.
 func (s *ServiceStore) List(rpc options.Searcher) (*cases.ServiceList, error) {
 	// Establish a connection to the database
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.list.database_connection_error", dbErr)
+	db, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	// Build SQL query with filtering by root_id
 	query, args, err := s.buildSearchServiceQuery(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.list.query_build_error", err)
+		return nil, err
 	}
 
 	// Execute the query
 	rows, err := db.Query(rpc, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.list.query_execution_error", err)
+		return nil, ParseError(err)
 	}
 	defer rows.Close()
 
@@ -141,7 +141,7 @@ func (s *ServiceStore) List(rpc options.Searcher) (*cases.ServiceList, error) {
 
 		// Scan the row into the service object
 		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, dberr.NewDBInternalError("postgres.service.list.scan_error", err)
+			return nil, ParseError(err)
 		}
 
 		// Execute post-processing assignments (handle nullable fields properly)
@@ -166,15 +166,15 @@ func (s *ServiceStore) List(rpc options.Searcher) (*cases.ServiceList, error) {
 // Update implements store.ServiceStore.
 func (s *ServiceStore) Update(rpc options.Updator, lookup *cases.Service) (*cases.Service, error) {
 	// Establish a connection to the database
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.update.database_connection_error", dbErr)
+	db, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	// Build the update query for the Service
 	query, args, err := s.buildUpdateServiceQuery(rpc, lookup)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.update.query_build_error", err)
+		return nil, err
 	}
 
 	if lookup.Sla == nil {
@@ -196,7 +196,7 @@ func (s *ServiceStore) Update(rpc options.Updator, lookup *cases.Service) (*case
 		&createdAt, &updatedAt, &lookup.RootId,
 	)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.update.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	// Prepare the updated Service to return
@@ -372,7 +372,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 	// Build the query
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, dberr.NewDBInternalError("postgres.service.query_build_error", err)
+		return "", nil, errors.New("error building SQL query", errors.WithCause(err))
 	}
 
 	return util2.CompactSQL(query), args, nil
@@ -597,7 +597,7 @@ func safePgText(text pgtype.Text) string {
 
 func NewServiceStore(store *Store) (store.ServiceStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_service.check.bad_arguments",
+		return nil, errors.New(
 			"error creating Service interface to the service table, main store is nil")
 	}
 	return &ServiceStore{storage: store}, nil

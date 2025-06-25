@@ -5,12 +5,12 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
-	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
 	util2 "github.com/webitel/cases/internal/store/util"
-	util "github.com/webitel/cases/util"
+	"github.com/webitel/cases/util"
 )
 
 type Priority struct {
@@ -73,7 +73,7 @@ func buildPrioritySelectColumns(
 		case "color":
 			base = base.Column(util2.Ident(prioLeft, "color"))
 		default:
-			return base, dberr.NewDBInternalError("postgres.priority.unknown_field", fmt.Errorf("unknown field: %s", field))
+			return base, errors.New(fmt.Sprintf("unknown field: %s", field))
 		}
 	}
 	return base, nil
@@ -83,23 +83,23 @@ func buildPrioritySelectColumns(
 func (p *Priority) Create(rpc options.Creator, add *model.Priority) (*model.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.create.database_connection_error", dbErr)
+		return nil, dbErr
 	}
 
 	selectBuilder, err := p.buildCreatePriorityQuery(rpc, add)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.create.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.create.query_build_error", err)
+		return nil, ParseError(err)
 	}
 	// temporary object for scanning
 	var res model.Priority
 	err = pgxscan.Get(rpc, d, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.create.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return &res, nil
@@ -130,7 +130,7 @@ func (p *Priority) buildCreatePriorityQuery(
 	// Convert the INSERT query into a CTE
 	insertSQL, args, err := insertBuilder.ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.priority.create.query_build_error", err)
+		return sq.SelectBuilder{}, ParseError(err)
 	}
 
 	// Use the INSERT query as a CTE (Common Table Expression)
@@ -151,23 +151,23 @@ func (p *Priority) buildCreatePriorityQuery(
 func (p *Priority) Delete(rpc options.Deleter) (*model.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.delete.database_connection_error", dbErr)
+		return nil, dbErr
 	}
 
 	selectBuilder, err := p.buildDeletePriorityQuery(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.delete.query_build_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.delete.query_to_sql_error", err)
+		return nil, errors.Internal("priority.delete.query_to_sql_error", errors.WithCause(err))
 	}
 
 	var result model.Priority
 	err = pgxscan.Get(rpc, d, &result, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.delete.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return &result, nil
@@ -179,7 +179,7 @@ func (p *Priority) buildDeletePriorityQuery(
 	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by", "color"}
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.priority.delete.missing_ids", fmt.Errorf("no IDs provided for deletion"))
+		return sq.SelectBuilder{}, errors.InvalidArgument("no IDs provided for deletion")
 	}
 
 	// Build the delete query
@@ -191,7 +191,7 @@ func (p *Priority) buildDeletePriorityQuery(
 
 	deleteSQL, args, err := deleteBuilder.ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.priority.delete.query_to_sql_error", err)
+		return sq.SelectBuilder{}, errors.Internal("priority.delete.query_to_sql_error", errors.WithCause(err))
 	}
 
 	cte := sq.Expr("WITH deleted AS ("+deleteSQL+")", args...)
@@ -203,8 +203,6 @@ func (p *Priority) buildDeletePriorityQuery(
 	if err != nil {
 		return sq.SelectBuilder{}, err
 	}
-	selectBuilder = selectBuilder.PlaceholderFormat(sq.Dollar)
-
 	return selectBuilder, nil
 }
 
@@ -216,17 +214,17 @@ func (p *Priority) List(
 ) ([]*model.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.list.database_connection_error", dbErr)
+		return nil, dbErr
 	}
 
 	selectBuilder, err := p.buildListPriorityQuery(rpc, notInSla, inSla)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.list.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.list.query_build_error", err)
+		return nil, err
 	}
 	query = util2.CompactSQL(query)
 
@@ -234,7 +232,7 @@ func (p *Priority) List(
 
 	err = pgxscan.Select(rpc, d, &priorities, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.list.execution_error", err)
+		return nil, ParseError(err)
 	}
 	return priorities, nil
 }
@@ -301,7 +299,7 @@ func (p *Priority) buildListPriorityQuery(
 	// Add select columns and scan plan for requested fields
 	queryBuilder, err := buildPrioritySelectColumns(queryBuilder, rpc.GetFields())
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.priority.search.query_build_error", err)
+		return sq.SelectBuilder{}, errors.Internal("priority.search.query_build_error", errors.WithCause(err))
 	}
 
 	return queryBuilder, nil
@@ -311,23 +309,23 @@ func (p *Priority) buildListPriorityQuery(
 func (p *Priority) Update(rpc options.Updator, update *model.Priority) (*model.Priority, error) {
 	d, dbErr := p.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.update.database_connection_error", dbErr)
+		return nil, dbErr
 	}
 
 	selectBuilder, err := p.buildUpdatePriorityQuery(rpc, update)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.update.build_query_error", err)
+		return nil, errors.Internal("priority.update.build_query_error", errors.WithCause(err))
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.update.query_build_error", err)
+		return nil, ParseError(err)
 	}
 	// temporary object for scanning
 	var res model.Priority
 	err = pgxscan.Get(rpc, d, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.priority.update.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return &res, nil
@@ -366,7 +364,7 @@ func (p *Priority) buildUpdatePriorityQuery(
 	// Generate the CTE for the update operation
 	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.priority.update.query_build_error", err)
+		return sq.SelectBuilder{}, ParseError(err)
 	}
 
 	// Use the UPDATE query as a CTE
@@ -386,7 +384,7 @@ func (p *Priority) buildUpdatePriorityQuery(
 
 func NewPriorityStore(store *Store) (store.PriorityStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_priority.check.bad_arguments",
+		return nil, errors.Internal(
 			"error creating priority interface to the status_condition table, main store is nil")
 	}
 	return &Priority{storage: store}, nil

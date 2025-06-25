@@ -4,7 +4,7 @@ import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
-	dberr "github.com/webitel/cases/internal/errors"
+	errors "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
@@ -57,9 +57,8 @@ func buildCloseReasonGroupSelectColumns(
 			updatedByAlias = alias
 		default:
 			return base,
-				dberr.NewDBInternalError(
-					"postgres.close_reason_group.unknown_field",
-					fmt.Errorf("unknown field: %s", field),
+				errors.InvalidArgument(
+					fmt.Sprintf("unknown field: %s", field),
 				)
 		}
 	}
@@ -87,10 +86,7 @@ func (s *CloseReasonGroup) buildCreateCloseReasonGroupQuery(rpc options.Creator,
 	// Convert the INSERT query into a CTE
 	insertSQL, args, err := insertBuilder.ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError(
-			"postgres.close_reason_group.create.query_build_error",
-			err,
-		)
+		return sq.SelectBuilder{}, errors.Internal("error occurred while using to sql method", errors.WithCause(err))
 	}
 
 	// Use the INSERT query as a CTE (Common Table Expression)
@@ -109,25 +105,25 @@ func (s *CloseReasonGroup) buildCreateCloseReasonGroupQuery(rpc options.Creator,
 }
 
 func (s *CloseReasonGroup) Create(rpc options.Creator, input *model.CloseReasonGroup) (*model.CloseReasonGroup, error) {
-	d, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.database_connection_error", dbErr)
+	d, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	selectBuilder, err := s.buildCreateCloseReasonGroupQuery(rpc, input)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.query_build_error", err)
+		return nil, err
 	}
 	// temporary object for scanning
 	var res model.CloseReasonGroup
 	err = pgxscan.Get(rpc, d, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.create.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return &res, nil
@@ -157,11 +153,7 @@ func (s *CloseReasonGroup) buildUpdateCloseReasonGroupQuery(rpc options.Updator,
 	// Generate the CTE for the update operation
 	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
 	if err != nil {
-		return sq.SelectBuilder{},
-			dberr.NewDBInternalError(
-				"postgres.close_reason_group.update.query_build_error",
-				err,
-			)
+		return sq.SelectBuilder{}, errors.Internal("error occurred while using to sql method", errors.WithCause(err))
 	}
 
 	// Use the UPDATE query as a CTE
@@ -180,25 +172,25 @@ func (s *CloseReasonGroup) buildUpdateCloseReasonGroupQuery(rpc options.Updator,
 }
 
 func (s *CloseReasonGroup) Update(rpc options.Updator, input *model.CloseReasonGroup) (*model.CloseReasonGroup, error) {
-	d, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.input.database_connection_error", dbErr)
+	d, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	selectBuilder, err := s.buildUpdateCloseReasonGroupQuery(rpc, input)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.input.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.input.query_build_error", err)
+		return nil, err
 	}
 	// temporary object for scanning
 	var res model.CloseReasonGroup
 	err = pgxscan.Get(rpc, d, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.input.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return &res, nil
@@ -230,35 +222,32 @@ func (s *CloseReasonGroup) buildListCloseReasonGroupQuery(rpc options.Searcher) 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, err := buildCloseReasonGroupSelectColumns(queryBuilder, rpc.GetFields())
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError(
-			"postgres.close_reason_group.search.query_build_error",
-			err,
-		)
+		return sq.SelectBuilder{}, err
 	}
 
 	return queryBuilder, nil
 }
 
 func (s *CloseReasonGroup) List(rpc options.Searcher) ([]*model.CloseReasonGroup, error) {
-	d, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.database_connection_error", dbErr)
+	d, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	selectBuilder, err := s.buildListCloseReasonGroupQuery(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.query_build_error", err)
+		return nil, err
 	}
 	query = util2.CompactSQL(query)
 	var res []*model.CloseReasonGroup
 	err = pgxscan.Select(rpc, d, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.close_reason_group.list.execution_error", err)
+		return nil, err
 	}
 	return res, nil
 }
@@ -268,12 +257,8 @@ func (s *CloseReasonGroup) buildDeleteCloseReasonGroupQuery(
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
-		return sq.DeleteBuilder{},
-			dberr.NewDBInternalError(
-				"postgres.close_reason_group.delete.missing_ids",
-				fmt.Errorf("no IDs provided for deletion"))
+		return sq.DeleteBuilder{}, errors.InvalidArgument("ids must be provided for deletion")
 	}
-
 	// Build the delete query
 	deleteBuilder := sq.Delete("cases.close_reason_group").
 		Where(sq.Eq{"id": rpc.GetIDs()}).
@@ -284,28 +269,28 @@ func (s *CloseReasonGroup) buildDeleteCloseReasonGroupQuery(
 }
 
 func (s *CloseReasonGroup) Delete(rpc options.Deleter) error {
-	d, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return dberr.NewDBInternalError("postgres.close_reason_group.delete.database_connection_error", dbErr)
+	d, err := s.storage.Database()
+	if err != nil {
+		return err
 	}
 
 	deleteBuilder, err := s.buildDeleteCloseReasonGroupQuery(rpc)
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.close_reason_group.delete.query_build_error", err)
+		return err
 	}
 
 	query, args, err := deleteBuilder.ToSql()
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.close_reason_group.delete.query_to_sql_error", err)
+		return err
 	}
 
-	res, execErr := d.Exec(rpc, query, args...)
-	if execErr != nil {
-		return dberr.NewDBInternalError("postgres.close_reason_group.delete.execution_error", execErr)
+	res, err := d.Exec(rpc, query, args...)
+	if err != nil {
+		return ParseError(err)
 	}
 
 	if res.RowsAffected() == 0 {
-		return dberr.NewDBNoRowsError("postgres.close_reason_group.delete.no_rows_affected")
+		return errors.NotFound("no rows affected")
 	}
 
 	return nil
@@ -313,7 +298,7 @@ func (s *CloseReasonGroup) Delete(rpc options.Deleter) error {
 
 func NewCloseReasonGroupStore(store *Store) (store.CloseReasonGroupStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_close_reason_group.check.bad_arguments",
+		return nil, errors.New(
 			"error creating close_reason_group interface to the close_reason_group table, main store is nil")
 	}
 	return &CloseReasonGroup{storage: store}, nil

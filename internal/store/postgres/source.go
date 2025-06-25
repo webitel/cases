@@ -5,12 +5,13 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	_go "github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
 	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -46,7 +47,7 @@ func buildSourceSelectColumnsAndPlan(base sq.SelectBuilder, fields []string) (sq
 				"(SELECT ROW(id, COALESCE(name, username))::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by",
 				sourceLeft))
 		default:
-			return base, dberr.NewDBInternalError("postgres.source.unknown_field", fmt.Errorf("unknown field: %s", field))
+			return base, errors.New(fmt.Sprintf("unknown field: %s", field), errors.WithCode(codes.InvalidArgument))
 		}
 	}
 	return base, nil
@@ -72,7 +73,7 @@ func (s *Source) buildCreateSourceQuery(rpc options.Creator, source *model.Sourc
 
 	insertSQL, args, err := insertBuilder.ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.source.create.query_build_error", err)
+		return sq.SelectBuilder{}, ParseError(err)
 	}
 
 	cte := sq.Expr("WITH s AS ("+insertSQL+")", args...)
@@ -87,7 +88,7 @@ func (s *Source) buildCreateSourceQuery(rpc options.Creator, source *model.Sourc
 func (s *Source) Create(rpc options.Creator, source *model.Source) (*model.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.create.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.source.create.database_connection_error: %v", dbErr))
 	}
 
 	selectBuilder, err := s.buildCreateSourceQuery(rpc, source)
@@ -97,13 +98,13 @@ func (s *Source) Create(rpc options.Creator, source *model.Source) (*model.Sourc
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.create.query_build_error", err)
+		return nil, errors.Internal(fmt.Sprintf("postgres.source.create.query_build_error: %v", err))
 	}
 
 	item := model.Source{}
 	err = pgxscan.Get(rpc, d, &item, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.create.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return &item, nil
@@ -136,7 +137,7 @@ func (s *Source) buildUpdateSourceQuery(rpc options.Updator, source *model.Sourc
 
 	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.source.update.query_build_error", err)
+		return sq.SelectBuilder{}, ParseError(err)
 	}
 
 	cte := sq.Expr("WITH s AS ("+updateSQL+")", args...)
@@ -151,7 +152,7 @@ func (s *Source) buildUpdateSourceQuery(rpc options.Updator, source *model.Sourc
 func (s *Source) Update(rpc options.Updator, source *model.Source) (*model.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.update.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.source.update.database_connection_error: %v", dbErr))
 	}
 
 	selectBuilder, err := s.buildUpdateSourceQuery(rpc, source)
@@ -161,13 +162,13 @@ func (s *Source) Update(rpc options.Updator, source *model.Source) (*model.Sourc
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.update.query_build_error", err)
+		return nil, errors.Internal(fmt.Sprintf("postgres.source.update.query_build_error: %v", err))
 	}
 
 	temp := &model.Source{}
 	err = pgxscan.Get(rpc, d, temp, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.update.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return temp, nil
@@ -204,7 +205,7 @@ func (s *Source) buildListSourceQuery(rpc options.Searcher) (sq.SelectBuilder, e
 func (s *Source) List(rpc options.Searcher) ([]*model.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.list.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.source.list.database_connection_error: %v", dbErr))
 	}
 
 	selectBuilder, err := s.buildListSourceQuery(rpc)
@@ -214,20 +215,20 @@ func (s *Source) List(rpc options.Searcher) ([]*model.Source, error) {
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.list.query_build_error", err)
+		return nil, errors.Internal(fmt.Sprintf("postgres.source.list.query_build_error: %v", err))
 	}
 
 	var sources []*model.Source
 	err = pgxscan.Select(rpc, d, &sources, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.list.execution_error", err)
+		return nil, ParseError(err)
 	}
 	return sources, nil
 }
 
 func (s *Source) buildDeleteSourceQuery(rpc options.Deleter) (sq.DeleteBuilder, error) {
 	if len(rpc.GetIDs()) == 0 {
-		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.source.delete.missing_ids", fmt.Errorf("no IDs provided"))
+		return sq.DeleteBuilder{}, errors.InvalidArgument("no IDs provided for deletion")
 	}
 
 	return sq.Delete("cases.source").
@@ -239,7 +240,7 @@ func (s *Source) buildDeleteSourceQuery(rpc options.Deleter) (sq.DeleteBuilder, 
 func (s *Source) Delete(rpc options.Deleter) (*model.Source, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.delete.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.source.delete.database_connection_error: %v", dbErr))
 	}
 
 	deleteBuilder, err := s.buildDeleteSourceQuery(rpc)
@@ -249,16 +250,16 @@ func (s *Source) Delete(rpc options.Deleter) (*model.Source, error) {
 
 	query, args, err := deleteBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.delete.query_build_error", err)
+		return nil, errors.Internal(fmt.Sprintf("postgres.source.delete.query_build_error: %v", err))
 	}
 
 	res, err := d.Exec(rpc, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.source.delete.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	if res.RowsAffected() == 0 {
-		return nil, dberr.NewDBNoRowsError("postgres.source.delete.no_rows_affected")
+		return nil, errors.NotFound("postgres.source.delete.no_rows_affected")
 	}
 
 	return nil, nil
@@ -266,7 +267,7 @@ func (s *Source) Delete(rpc options.Deleter) (*model.Source, error) {
 
 func NewSourceStore(store *Store) (store.SourceStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.source.store.nil", "nil store instance")
+		return nil, errors.New("error creating source interface, main store is nil")
 	}
 	return &Source{storage: store}, nil
 }

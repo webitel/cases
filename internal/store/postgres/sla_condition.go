@@ -13,10 +13,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
-
 	"github.com/webitel/cases/util"
 )
 
@@ -31,7 +30,7 @@ type SLAConditionStore struct {
 func (s *SLAConditionStore) Create(rpc options.Creator, add *model.SLACondition) (*model.SLACondition, error) {
 	db, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.db_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.sla_condition.create.db_connection_error: %v", dbErr))
 	}
 
 	// Build the combined SLACondition and Priority insert query
@@ -41,12 +40,12 @@ func (s *SLAConditionStore) Create(rpc options.Creator, add *model.SLACondition)
 	}
 	query, args, err := sqlizer.ToSql()
 	if err != nil {
-		return nil, err
+		return nil, errors.Internal(fmt.Sprintf("postgres.sla_condition.create.query_build_error: %v", err))
 	}
 	var res model.SLACondition
 	err = pgxscan.Get(rpc, db, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.execution_error", err)
+		return nil, ParseError(err)
 	}
 	return &res, nil
 }
@@ -56,19 +55,19 @@ func (s *SLAConditionStore) Delete(rpc options.Deleter) (*model.SLACondition, er
 	// Establish a connection to the database
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.delete.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.sla_condition.delete.database_connection_error: %v", dbErr))
 	}
 
 	// Build the delete query for SLACondition
 	query, args, err := s.buildDeleteSLAConditionQuery(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.delete.query_build_error", err)
+		return nil, err
 	}
 
 	var res model.SLACondition
 	err = pgxscan.Get(rpc, d, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.execution_error", err)
+		return nil, ParseError(err)
 	}
 	return nil, nil
 }
@@ -78,19 +77,19 @@ func (s *SLAConditionStore) List(rpc options.Searcher) ([]*model.SLACondition, e
 	// Establish a connection to the database
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.list.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.sla_condition.list.database_connection_error: %v", dbErr))
 	}
 
 	// Build the search query for SLACondition
 	query, args, err := s.buildSearchSLAConditionQuery(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.list.query_build_error", err)
+		return nil, err
 	}
 
 	var res []*model.SLACondition
 	err = pgxscan.Select(rpc, d, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return res, nil
@@ -100,20 +99,19 @@ func (s *SLAConditionStore) List(rpc options.Searcher) ([]*model.SLACondition, e
 func (s *SLAConditionStore) Update(rpc options.Updator, l *model.SLACondition) (*model.SLACondition, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.sla_condition.update.database_connection_error: %v", dbErr))
 	}
 
 	// Begin a transaction
 	tx, err := d.Begin(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.transaction_begin_error", err)
+		return nil, errors.Internal(fmt.Sprintf("postgres.sla_condition.update.transaction_begin_error: %v", err))
 	}
 	defer tx.Rollback(rpc) // Ensure rollback on error
 
 	txManager := transaction.NewTxManager(tx)
 
 	// Update priorities first if there are any IDs
-
 	for _, fields := range rpc.GetMask() {
 		if fields == "priorities" {
 			priorityQuery, priorityArgs := s.buildUpdatePrioritiesQuery(rpc, l)
@@ -122,12 +120,12 @@ func (s *SLAConditionStore) Update(rpc options.Updator, l *model.SLACondition) (
 			var totalRowsAffected int
 			err = txManager.QueryRow(rpc, priorityQuery, priorityArgs...).Scan(&totalRowsAffected)
 			if err != nil {
-				return nil, dberr.NewDBInternalError("postgres.sla_condition.update.priorities_execution_error", err)
+				return nil, ParseError(err)
 			}
 
 			// Check if any rows were affected
 			if totalRowsAffected == 0 {
-				return nil, dberr.NewDBNoRowsError("postgres.sla_condition.update.no_priorities_affected")
+				return nil, errors.NotFound("no rows affected by priorities update")
 			}
 		}
 	}
@@ -135,17 +133,18 @@ func (s *SLAConditionStore) Update(rpc options.Updator, l *model.SLACondition) (
 	// Build and execute the update query for sla_condition and return priorities JSON in one query
 	query, args, err := s.buildUpdateSLAConditionQuery(rpc, l)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.query_build_error", err)
+		return nil, err
 	}
+
 	var res []*model.SLACondition
 	err = pgxscan.Select(rpc, txManager, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.create.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	// Commit the transaction
 	if err := tx.Commit(rpc); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla_condition.update.transaction_commit_error", err)
+		return nil, ParseError(err)
 	}
 	return l, nil
 }
@@ -288,7 +287,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, dberr.NewDBInternalError("postgres.sla_condition.query_build.sql_generation_error", err)
+		return "", nil, err
 	}
 
 	return storeutils.CompactSQL(query), args, nil
@@ -426,7 +425,7 @@ var deleteSLAConditionQuery = storeutils.CompactSQL(
 
 func NewSLAConditionStore(store *Store) (store.SLAConditionStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_sla_condition.check.bad_arguments",
+		return nil, errors.New(
 			"error creating SLACondition interface to the status_condition table, main store is nil")
 	}
 	return &SLAConditionStore{storage: store}, nil

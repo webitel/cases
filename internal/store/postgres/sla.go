@@ -6,7 +6,7 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 
-	dberr "github.com/webitel/cases/internal/errors"
+	errors "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
@@ -85,7 +85,7 @@ func buildSLASelectColumns(
 			base = base.Column(fmt.Sprintf("%s.id updated_by_id", alias))
 			base = base.Column(fmt.Sprintf("COALESCE(%s.name, %s.username) updated_by_name", alias, alias))
 		default:
-			return base, dberr.NewDBInternalError("postgres.sla.unknown_field", fmt.Errorf("unknown field: %s", field))
+			return base, errors.New(fmt.Sprintf("unknown field: %s", field))
 		}
 	}
 	return base, nil
@@ -122,7 +122,7 @@ func (s *SLAStore) buildCreateSLAQuery(rpc options.Creator, sla *model.SLA) (sq.
 	// Convert the INSERT query into a CTE
 	insertSQL, args, err := insertBuilder.ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.sla.create.query_build_error", err)
+		return sq.SelectBuilder{}, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
 
 	// Use the INSERT query as a CTE (Common Table Expression)
@@ -141,25 +141,25 @@ func (s *SLAStore) buildCreateSLAQuery(rpc options.Creator, sla *model.SLA) (sq.
 }
 
 func (s *SLAStore) Create(rpc options.Creator, input *model.SLA) (*model.SLA, error) {
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.database_connection_error", dbErr)
+	db, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	selectBuilder, err := s.buildCreateSLAQuery(rpc, input)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.query_to_sql_error", err)
+		return nil, err
 	}
 
 	var res model.SLA
 	err = pgxscan.Get(rpc, db, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return &res, nil
@@ -208,7 +208,7 @@ func (s *SLAStore) buildUpdateSLAQuery(
 	// Generate the CTE for the update operation
 	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.input.update.query_build_error", err)
+		return sq.SelectBuilder{}, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
 
 	// Use the UPDATE query as a CTE
@@ -227,9 +227,9 @@ func (s *SLAStore) buildUpdateSLAQuery(
 }
 
 func (s *SLAStore) Update(rpc options.Updator, input *model.SLA) (*model.SLA, error) {
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.input.database_connection_error", dbErr)
+	db, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	selectBuilder, err := s.buildUpdateSLAQuery(
@@ -237,18 +237,18 @@ func (s *SLAStore) Update(rpc options.Updator, input *model.SLA) (*model.SLA, er
 		input,
 	)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.input.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.input.query_to_sql_error", err)
+		return nil, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
 
 	var res model.SLA
 	err = pgxscan.Get(rpc, db, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.input.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return &res, nil
@@ -273,33 +273,33 @@ func (s *SLAStore) buildListSLAQuery(rpc options.Searcher) (sq.SelectBuilder, er
 
 	queryBuilder, err := buildSLASelectColumns(queryBuilder, rpc.GetFields())
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.sla.search.query_build_error", err)
+		return sq.SelectBuilder{}, err
 	}
 
 	return queryBuilder, nil
 }
 
 func (s *SLAStore) List(rpc options.Searcher) ([]*model.SLA, error) {
-	d, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.list.database_connection_error", dbErr)
+	d, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	selectBuilder, err := s.buildListSLAQuery(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.list.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.list.query_build_error", err)
+		return nil, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
 	query = storeutil.CompactSQL(query)
 
 	var slas []*model.SLA
 	err = pgxscan.Select(rpc, d, &slas, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.list.execution_error", err)
+		return nil, ParseError(err)
 	}
 	return slas, nil
 }
@@ -311,10 +311,8 @@ func (s *SLAStore) buildDeleteSLAQuery(
 
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError(
-			"postgres.sla.delete.missing_ids",
-			fmt.Errorf("no IDs provided for deletion"),
-		)
+		return sq.SelectBuilder{}, errors.InvalidArgument("no IDs provided for deletion")
+
 	}
 
 	// Build the delete query
@@ -326,7 +324,7 @@ func (s *SLAStore) buildDeleteSLAQuery(
 
 	deleteSQL, args, err := deleteBuilder.ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, dberr.NewDBInternalError("postgres.sla.delete.query_to_sql_error", err)
+		return sq.SelectBuilder{}, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
 
 	cte := sq.Expr("WITH deleted AS ("+deleteSQL+")", args...)
@@ -344,33 +342,33 @@ func (s *SLAStore) buildDeleteSLAQuery(
 }
 
 func (s *SLAStore) Delete(rpc options.Deleter) (*model.SLA, error) {
-	d, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.delete.database_connection_error", dbErr)
+	d, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	deleteBuilder, err := s.buildDeleteSLAQuery(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.delete.query_build_error", err)
+		return nil, err
 	}
 
 	query, args, err := deleteBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.delete.query_to_sql_error", err)
+		return nil, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
 
 	var result model.SLA
 
 	err = pgxscan.Get(rpc, d, &result, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.delete.execution_error", err)
+		return nil, ParseError(err)
 	}
 	return &result, nil
 }
 
 func NewSLAStore(store *Store) (store.SLAStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_sla.check.bad_arguments",
+		return nil, errors.New(
 			"error creating SLA interface, main store is nil")
 	}
 	return &SLAStore{storage: store}, nil

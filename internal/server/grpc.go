@@ -12,7 +12,6 @@ import (
 	"github.com/webitel/cases/internal/server/interceptor"
 	"github.com/webitel/cases/registry"
 	"github.com/webitel/cases/registry/consul"
-	otelgrpc "github.com/webitel/webitel-go-kit/infra/otel/sdk/trace/otlp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -35,9 +34,6 @@ func BuildServer(config *conf.ConsulConfig, authManager auth.Manager, exitChan c
 
 	// Create a new gRPC server with interceptors and tracing
 	s := grpc.NewServer(
-		grpc.StatsHandler(otelgrpc.NewServerHandler(
-			otelgrpc.WithMessageEvents(otelgrpc.SentEvents, otelgrpc.ReceivedEvents),
-		)),
 		grpc.ChainUnaryInterceptor(
 			interceptor.OuterInterceptor(),
 			interceptor.AuthUnaryServerInterceptor(authManager),
