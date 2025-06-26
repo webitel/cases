@@ -1,17 +1,10 @@
 package app
 
 import (
-	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 )
-
-type SLAService struct {
-	app *App
-	cases.UnimplementedSLAsServer
-	objClassName string
-}
 
 // CreateSLA implements cases.SLAsServer.
 func (s *App) CreateSLA(
@@ -42,6 +35,9 @@ func (s *App) CreateSLA(
 func (s *App) DeleteSLA(
 	deleter options.Deleter,
 ) (*model.SLA, error) {
+	if len(deleter.GetIDs()) == 0 {
+		return nil, errors.InvalidArgument("SLA ID is required")
+	}
 	item, err := s.Store.SLA().Delete(deleter)
 	if err != nil {
 		return nil, err
