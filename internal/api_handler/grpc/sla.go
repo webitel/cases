@@ -13,6 +13,7 @@ import (
 	"github.com/webitel/cases/util"
 )
 
+// SLAHandler defines the interface for managing SLAs.
 type SLAHandler interface {
 	ListSLAs(options.Searcher) ([]*model.SLA, error)
 	LocateSLA(options.Searcher) (*model.SLA, error)
@@ -21,12 +22,14 @@ type SLAHandler interface {
 	DeleteSLA(options.Deleter) (*model.SLA, error)
 }
 
+// SLAService implements the gRPC server for SLAs.
 type SLAService struct {
 	app SLAHandler
 	cases.UnimplementedSLAsServer
 	objClassName string
 }
 
+// NewSLAService constructs a new SLAService.
 func NewSLAService(app SLAHandler) (*SLAService, error) {
 	if app == nil {
 		return nil, errors.New("sla handler is nil")
@@ -34,6 +37,7 @@ func NewSLAService(app SLAHandler) (*SLAService, error) {
 	return &SLAService{app: app, objClassName: model.ScopeDictionary}, nil
 }
 
+// SlaMetadata defines the fields available for SLA objects.
 var SlaMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{Name: "id", Default: true},
 	{Name: "created_by", Default: true},
@@ -49,6 +53,7 @@ var SlaMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Fi
 	{Name: "resolution_time", Default: true},
 })
 
+// CreateSLA handles the gRPC request to create a new SLA.
 func (s *SLAService) CreateSLA(
 	ctx context.Context,
 	req *cases.CreateSLARequest,
@@ -78,6 +83,7 @@ func (s *SLAService) CreateSLA(
 	return s.Marshal(m)
 }
 
+// ListSLAs handles the gRPC request to list SLAs with filters and pagination.
 func (s *SLAService) ListSLAs(
 	ctx context.Context,
 	req *cases.ListSLARequest,
@@ -114,6 +120,7 @@ func (s *SLAService) ListSLAs(
 	return &res, nil
 }
 
+// UpdateSLA handles the gRPC request to update an existing SLA.
 func (s *SLAService) UpdateSLA(
 	ctx context.Context,
 	req *cases.UpdateSLARequest,
@@ -149,6 +156,7 @@ func (s *SLAService) UpdateSLA(
 	return s.Marshal(updated)
 }
 
+// DeleteSLA handles the gRPC request to delete an SLA.
 func (s *SLAService) DeleteSLA(
 	ctx context.Context,
 	req *cases.DeleteSLARequest,
@@ -172,6 +180,7 @@ func (s *SLAService) DeleteSLA(
 	return s.Marshal(item)
 }
 
+// LocateSLA finds an SLA by ID and returns it, or an error if not found or ambiguous.
 func (s *SLAService) LocateSLA(
 	ctx context.Context,
 	req *cases.LocateSLARequest,
@@ -199,6 +208,8 @@ func (s *SLAService) LocateSLA(
 	}
 	return &cases.LocateSLAResponse{Sla: res}, nil
 }
+
+// Marshal converts a model.SLA to its gRPC representation.
 func (s *SLAService) Marshal(in *model.SLA) (*cases.SLA, error) {
 	if in == nil {
 		return nil, nil

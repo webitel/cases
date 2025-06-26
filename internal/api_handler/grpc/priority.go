@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// PriorityHandler defines the interface for managing priorities.
 type PriorityHandler interface {
 	ListPriorities(options.Searcher, int64, int64) ([]*model.Priority, error)
 	CreatePriority(options.Creator, *model.Priority) (*model.Priority, error)
@@ -19,11 +20,13 @@ type PriorityHandler interface {
 	DeletePriority(options.Deleter) (*model.Priority, error)
 }
 
+// PriorityService implements the gRPC server for priorities.
 type PriorityService struct {
 	app PriorityHandler
 	api.UnimplementedPrioritiesServer
 }
 
+// NewPriorityService constructs a new PriorityService.
 func NewPriorityService(app PriorityHandler) (*PriorityService, error) {
 	if app == nil {
 		return nil, errors.New("priority handler is nil")
@@ -31,6 +34,7 @@ func NewPriorityService(app PriorityHandler) (*PriorityService, error) {
 	return &PriorityService{app: app}, nil
 }
 
+// PriorityMetadata defines the fields available for priority objects.
 var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{Name: "id", Default: true},
 	{Name: "created_by", Default: true},
@@ -42,6 +46,7 @@ var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*mod
 	{Name: "color", Default: true},
 })
 
+// CreatePriority handles the gRPC request to create a new priority.
 func (s *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePriorityRequest) (*api.Priority, error) {
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
@@ -62,6 +67,7 @@ func (s *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePri
 	return s.Marshal(m)
 }
 
+// ListPriorities handles the gRPC request to list priorities with filters and pagination.
 func (s *PriorityService) ListPriorities(ctx context.Context, req *api.ListPriorityRequest) (*api.PriorityList, error) {
 	searchOpts, err := grpcopts.NewSearchOptions(
 		ctx,
@@ -95,6 +101,7 @@ func (s *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 	return &res, nil
 }
 
+// UpdatePriority handles the gRPC request to update an existing priority.
 func (s *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePriorityRequest) (*api.Priority, error) {
 	updateOpts, err := grpcopts.NewUpdateOptions(
 		ctx,
@@ -118,6 +125,7 @@ func (s *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePri
 	return s.Marshal(m)
 }
 
+// DeletePriority handles the gRPC request to delete a priority.
 func (s *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePriorityRequest) (*api.Priority, error) {
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
@@ -130,6 +138,7 @@ func (s *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePri
 	return s.Marshal(item)
 }
 
+// LocatePriority finds a priority by ID and returns it, or an error if not found or ambiguous.
 func (s *PriorityService) LocatePriority(ctx context.Context, req *api.LocatePriorityRequest) (*api.LocatePriorityResponse, error) {
 	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithFields(req, PriorityMetadata,
 		util.DeduplicateFields,
@@ -155,6 +164,7 @@ func (s *PriorityService) LocatePriority(ctx context.Context, req *api.LocatePri
 	return &api.LocatePriorityResponse{Priority: res}, nil
 }
 
+// Marshal converts a model.Priority to its gRPC representation.
 func (s *PriorityService) Marshal(model *model.Priority) (*api.Priority, error) {
 	if model == nil {
 		return nil, nil

@@ -106,7 +106,7 @@ func TestDereference(t *testing.T) {
 
 func TestMarshalLookup(t *testing.T) {
 	type args struct {
-		lp model.Lookup
+		lp Lookup
 	}
 	var s *model.Author
 	tests := []struct {

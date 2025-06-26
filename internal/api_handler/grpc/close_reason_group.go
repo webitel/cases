@@ -2,7 +2,6 @@ package grpc
 
 import (
 	"context"
-	deferror "errors"
 	_go "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
@@ -13,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// CloseReasonGroupHandler defines the interface for managing close reason groups.
 type CloseReasonGroupHandler interface {
 	ListCloseReasonGroup(options.Searcher) ([]*model.CloseReasonGroup, error)
 	CreateCloseReasonGroup(options.Creator, *model.CloseReasonGroup) (*model.CloseReasonGroup, error)
@@ -20,12 +20,14 @@ type CloseReasonGroupHandler interface {
 	DeleteCloseReasonGroup(options.Deleter) (*model.CloseReasonGroup, error)
 }
 
+// CloseReasonGroupService implements the gRPC server for close reason groups.
 type CloseReasonGroupService struct {
 	app CloseReasonGroupHandler
 	_go.UnimplementedCloseReasonGroupsServer
 	objClassName string
 }
 
+// CloseReasonGroupMetadata defines the fields available for close reason group objects.
 var CloseReasonGroupMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{Name: "id", Default: true},
 	{Name: "created_by", Default: true},
@@ -36,6 +38,7 @@ var CloseReasonGroupMetadata = model.NewObjectMetadata(model.ScopeDictionary, ""
 	{Name: "description", Default: true},
 })
 
+// CreateCloseReasonGroup handles the gRPC request to create a new close reason group.
 func (s *CloseReasonGroupService) CreateCloseReasonGroup(
 	ctx context.Context,
 	req *_go.CreateCloseReasonGroupRequest,
@@ -62,6 +65,7 @@ func (s *CloseReasonGroupService) CreateCloseReasonGroup(
 	return s.Marshal(m)
 }
 
+// ListCloseReasonGroups handles the gRPC request to list close reason groups with filters and pagination.
 func (s *CloseReasonGroupService) ListCloseReasonGroups(
 	ctx context.Context,
 	req *_go.ListCloseReasonGroupsRequest,
@@ -97,6 +101,7 @@ func (s *CloseReasonGroupService) ListCloseReasonGroups(
 	return &res, nil
 }
 
+// UpdateCloseReasonGroup handles the gRPC request to update an existing close reason group.
 func (s *CloseReasonGroupService) UpdateCloseReasonGroup(
 	ctx context.Context,
 	req *_go.UpdateCloseReasonGroupRequest,
@@ -127,6 +132,7 @@ func (s *CloseReasonGroupService) UpdateCloseReasonGroup(
 	return s.Marshal(item)
 }
 
+// DeleteCloseReasonGroup handles the gRPC request to delete a close reason group.
 func (s *CloseReasonGroupService) DeleteCloseReasonGroup(
 	ctx context.Context,
 	req *_go.DeleteCloseReasonGroupRequest,
@@ -145,6 +151,7 @@ func (s *CloseReasonGroupService) DeleteCloseReasonGroup(
 	return s.Marshal(item)
 }
 
+// LocateCloseReasonGroup finds a close reason group by ID and returns it, or an error if not found or ambiguous.
 func (s *CloseReasonGroupService) LocateCloseReasonGroup(
 	ctx context.Context,
 	req *_go.LocateCloseReasonGroupRequest,
@@ -177,14 +184,16 @@ func (s *CloseReasonGroupService) LocateCloseReasonGroup(
 	return &_go.LocateCloseReasonGroupResponse{CloseReasonGroup: res}, nil
 }
 
+// NewCloseReasonGroupsService constructs a new CloseReasonGroupService.
 func NewCloseReasonGroupsService(app CloseReasonGroupHandler) (*CloseReasonGroupService, error) {
 	if app == nil {
-		return nil, deferror.New("close reason handler is required")
+		return nil, errors.New("close reason handler is required")
 	}
 
 	return &CloseReasonGroupService{app: app, objClassName: "dictionaries"}, nil
 }
 
+// Marshal converts a model.CloseReasonGroup to its gRPC representation.
 func (s *CloseReasonGroupService) Marshal(model *model.CloseReasonGroup) (*_go.CloseReasonGroup, error) {
 	return &_go.CloseReasonGroup{
 		Id:          int64(model.Id),

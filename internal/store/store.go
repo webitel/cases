@@ -232,11 +232,11 @@ type CatalogStore interface {
 // Service is child store managing services within catalogs.
 type ServiceStore interface {
 	// Create a new service
-	Create(rpc options.Creator, add *_go.Service) (*_go.Service, error)
+	Create(rpc options.Creator, add *model.Service) (*model.Service, error)
 	// List services
-	List(rpc options.Searcher) (*_go.ServiceList, error)
+	List(rpc options.Searcher) ([]*model.Service, error)
 	// Delete service
-	Delete(rpc options.Deleter) error
+	Delete(rpc options.Deleter) (*model.Service, error)
 	// Update service
-	Update(rpc options.Updator, lookup *_go.Service) (*_go.Service, error)
+	Update(rpc options.Updator, lookup *model.Service) (*model.Service, error)
 }

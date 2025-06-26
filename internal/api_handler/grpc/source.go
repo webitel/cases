@@ -14,6 +14,7 @@ import (
 	"github.com/webitel/cases/util"
 )
 
+// SourceHandler defines the interface for managing sources.
 type SourceHandler interface {
 	CreateSource(options.Creator, *model.Source) (*model.Source, error)
 	UpdateSource(options.Updator, *model.Source) (*model.Source, error)
@@ -21,12 +22,14 @@ type SourceHandler interface {
 	ListSources(options.Searcher) ([]*model.Source, error)
 }
 
+// SourceService implements the gRPC server for sources.
 type SourceService struct {
 	app SourceHandler
 	_go.UnimplementedSourcesServer
 	objClassName string
 }
 
+// SourceMetadata defines the fields available for source objects.
 var SourceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{"id", true},
 	{"created_by", true},
@@ -38,7 +41,7 @@ var SourceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model
 	{"type", true},
 })
 
-// CreateSource implements api.SourcesServer.
+// CreateSource handles the gRPC request to create a new source.
 func (s *SourceService) CreateSource(
 	ctx context.Context,
 	req *_go.CreateSourceRequest,
@@ -69,7 +72,7 @@ func (s *SourceService) CreateSource(
 	return s.Marshal(res)
 }
 
-// ListSources implements api.SourcesServer.
+// ListSources handles the gRPC request to list sources with filters and pagination.
 func (s *SourceService) ListSources(
 	ctx context.Context,
 	req *_go.ListSourceRequest,
@@ -110,7 +113,7 @@ func (s *SourceService) ListSources(
 	return &res, nil
 }
 
-// UpdateSource implements api.SourcesServer.
+// UpdateSource handles the gRPC request to update an existing source.
 func (s *SourceService) UpdateSource(
 	ctx context.Context,
 	req *_go.UpdateSourceRequest,
@@ -141,7 +144,7 @@ func (s *SourceService) UpdateSource(
 	return s.Marshal(res)
 }
 
-// DeleteSource implements api.SourcesServer.
+// DeleteSource handles the gRPC request to delete a source.
 func (s *SourceService) DeleteSource(
 	ctx context.Context,
 	req *_go.DeleteSourceRequest,
@@ -162,7 +165,7 @@ func (s *SourceService) DeleteSource(
 	return &(_go.Source{Id: req.Id}), nil
 }
 
-// LocateSource implements api.SourcesServer.
+// LocateSource finds a source by ID and returns it, or an error if not found or ambiguous.
 func (s *SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceRequest) (*_go.LocateSourceResponse, error) {
 	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithID(req.Id), grpcopts.WithFields(req, StatusConditionMetadata, util.EnsureIdField, util.DeduplicateFields))
 	if err != nil {
@@ -191,6 +194,7 @@ func (s *SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceR
 	return &res, nil
 }
 
+// Marshal converts a model.Source to its gRPC representation.
 func (s *SourceService) Marshal(in *model.Source) (*_go.Source, error) {
 	return &_go.Source{
 		Id:          int64(in.Id),
@@ -204,6 +208,7 @@ func (s *SourceService) Marshal(in *model.Source) (*_go.Source, error) {
 	}, nil
 }
 
+// NewSourceService constructs a new SourceService.
 func NewSourceService(app SourceHandler) (*SourceService, error) {
 	if app == nil {
 		return nil, errors.New("source handler is nil")
@@ -211,9 +216,7 @@ func NewSourceService(app SourceHandler) (*SourceService, error) {
 	return &SourceService{app: app, objClassName: model.ScopeDictionary}, nil
 }
 
-// StringToType converts a string into the corresponding Type enum value.
-//
-// Types are specified ONLY for Source dictionary and are ENUMS in API.
+// stringToType converts a string into the corresponding SourceType enum value.
 func stringToType(typeStr string) _go.SourceType {
 	switch strings.ToUpper(typeStr) {
 	case "CALL":

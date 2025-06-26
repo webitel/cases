@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// SLAConditionHandler defines the interface for managing SLA conditions.
 type SLAConditionHandler interface {
 	CreateSLACondition(options.Creator, *model.SLACondition) (*model.SLACondition, error)
 	UpdateSLACondition(options.Updator, *model.SLACondition) (*model.SLACondition, error)
@@ -19,12 +20,14 @@ type SLAConditionHandler interface {
 	ListSLAConditions(options.Searcher) ([]*model.SLACondition, error)
 }
 
+// SLAConditionService implements the gRPC server for SLA conditions.
 type SLAConditionService struct {
 	app SLAConditionHandler
 	cases.UnimplementedSLAConditionsServer
 	objClassName string
 }
 
+// SLAConditionMetadata defines the fields available for SLA condition objects.
 var SLAConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{Name: "id", Default: true},
 	{Name: "name", Default: true},
@@ -38,7 +41,9 @@ var SLAConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []
 	{Name: "sla_id", Default: true},
 })
 
-// CreateSLACondition implements cases.SLAConditionsServer.
+// CreateSLACondition handles the gRPC request to create a new SLA condition.
+// It validates the request, creates a new SLACondition model, and calls the
+// handler's CreateSLACondition method.
 func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases.CreateSLAConditionRequest) (*cases.SLACondition, error) {
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
@@ -73,7 +78,8 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 	return s.Marshal(r)
 }
 
-// DeleteSLACondition implements cases.SLAConditionsServer.
+// DeleteSLACondition handles the gRPC request to delete an SLA condition.
+// It validates the request and calls the handler's DeleteSLACondition method.
 func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases.DeleteSLAConditionRequest) (*cases.SLACondition, error) {
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
@@ -89,7 +95,8 @@ func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases
 	return &cases.SLACondition{Id: req.Id}, nil
 }
 
-// ListSLAConditions implements cases.SLAConditionsServer.
+// ListSLAConditions handles the gRPC request to list SLA conditions with filters and pagination.
+// It constructs search options based on the request and calls the handler's ListSLAConditions method.
 func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.ListSLAConditionRequest) (*cases.SLAConditionList, error) {
 	searchOptions, err := grpcopts.NewSearchOptions(
 		ctx,
@@ -130,7 +137,8 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 	return &res, nil
 }
 
-// LocateSLACondition implements cases.SLAConditionsServer.
+// LocateSLACondition finds an SLA condition by ID and returns it, or an error if not found.
+// It uses the ListSLAConditions method to retrieve the SLA condition.
 func (s *SLAConditionService) LocateSLACondition(ctx context.Context, req *cases.LocateSLAConditionRequest) (*cases.LocateSLAConditionResponse, error) {
 	// Prepare a list request with necessary parameters
 	listReq := &cases.ListSLAConditionRequest{
@@ -154,7 +162,9 @@ func (s *SLAConditionService) LocateSLACondition(ctx context.Context, req *cases
 	return &cases.LocateSLAConditionResponse{SlaCondition: listResp.Items[0]}, nil
 }
 
-// UpdateSLACondition implements cases.SLAConditionsServer.
+// UpdateSLACondition handles the gRPC request to update an existing SLA condition.
+// It validates the request, constructs an SLACondition model, and calls the
+// handler's UpdateSLACondition method.
 func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases.UpdateSLAConditionRequest) (*cases.SLACondition, error) {
 	// Convert []*cases.Lookup to []int64
 	var priorityIDs []int64
@@ -200,6 +210,7 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 	return s.Marshal(item)
 }
 
+// Marshal converts a model.SLACondition to its gRPC representation.
 func (s *SLAConditionService) Marshal(in *model.SLACondition) (*cases.SLACondition, error) {
 	if in == nil {
 		return nil, nil
@@ -224,6 +235,7 @@ func (s *SLAConditionService) Marshal(in *model.SLACondition) (*cases.SLAConditi
 	return res, nil
 }
 
+// NewSLAConditionService constructs a new SLAConditionService.
 func NewSLAConditionService(app SLAConditionHandler) (*SLAConditionService, error) {
 	if app == nil {
 		return nil, errors.New("sla condition handler is nil")

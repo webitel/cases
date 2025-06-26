@@ -13,6 +13,7 @@ import (
 	"github.com/webitel/cases/util"
 )
 
+// CloseReasonHandler defines the interface for managing close reasons.
 type CloseReasonHandler interface {
 	ListCloseReasons(options.Searcher, int64) ([]*model.CloseReason, error)
 	CreateCloseReason(options.Creator, *model.CloseReason) (*model.CloseReason, error)
@@ -20,11 +21,13 @@ type CloseReasonHandler interface {
 	DeleteCloseReason(options.Deleter) (*model.CloseReason, error)
 }
 
+// CloseReasonService implements the gRPC server for close reasons.
 type CloseReasonService struct {
 	app CloseReasonHandler
 	cases.UnimplementedCloseReasonsServer
 }
 
+// NewCloseReasonService constructs a new CloseReasonService.
 func NewCloseReasonService(app CloseReasonHandler) (*CloseReasonService, error) {
 	if app == nil {
 		return nil, errors.New("close reason handler is nil")
@@ -32,6 +35,7 @@ func NewCloseReasonService(app CloseReasonHandler) (*CloseReasonService, error) 
 	return &CloseReasonService{app: app}, nil
 }
 
+// CloseReasonMetadata defines the fields available for close reason objects.
 var CloseReasonMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{Name: "id", Default: true},
 	{Name: "created_by", Default: true},
@@ -43,6 +47,7 @@ var CloseReasonMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*
 	{Name: "close_reason_id", Default: false},
 })
 
+// CreateCloseReason handles the gRPC request to create a new close reason.
 func (s *CloseReasonService) CreateCloseReason(
 	ctx context.Context,
 	req *cases.CreateCloseReasonRequest,
@@ -68,6 +73,7 @@ func (s *CloseReasonService) CreateCloseReason(
 	return s.Marshal(m)
 }
 
+// ListCloseReasons handles the gRPC request to list close reasons with filters and pagination.
 func (s *CloseReasonService) ListCloseReasons(
 	ctx context.Context,
 	req *cases.ListCloseReasonRequest,
@@ -105,6 +111,7 @@ func (s *CloseReasonService) ListCloseReasons(
 	return &res, nil
 }
 
+// UpdateCloseReason handles the gRPC request to update an existing close reason.
 func (s *CloseReasonService) UpdateCloseReason(
 	ctx context.Context,
 	req *cases.UpdateCloseReasonRequest,
@@ -132,6 +139,7 @@ func (s *CloseReasonService) UpdateCloseReason(
 	return s.Marshal(updated)
 }
 
+// DeleteCloseReason handles the gRPC request to delete a close reason.
 func (s *CloseReasonService) DeleteCloseReason(
 	ctx context.Context,
 	req *cases.DeleteCloseReasonRequest,
@@ -151,6 +159,7 @@ func (s *CloseReasonService) DeleteCloseReason(
 	return s.Marshal(item)
 }
 
+// LocateCloseReason finds a close reason by ID and returns it, or an error if not found or ambiguous.
 func (s *CloseReasonService) LocateCloseReason(
 	ctx context.Context,
 	req *cases.LocateCloseReasonRequest,
@@ -182,6 +191,7 @@ func (s *CloseReasonService) LocateCloseReason(
 	return &cases.LocateCloseReasonResponse{CloseReason: res}, nil
 }
 
+// Marshal converts a model.CloseReason to its gRPC representation.
 func (s *CloseReasonService) Marshal(model *model.CloseReason) (*cases.CloseReason, error) {
 	if model == nil {
 		return nil, nil

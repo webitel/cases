@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// StatusHandler defines the interface for managing statuses.
 type StatusHandler interface {
 	ListStatus(options.Searcher) ([]*model.Status, error)
 	CreateStatus(options.Creator, *model.Status) (*model.Status, error)
@@ -20,12 +21,14 @@ type StatusHandler interface {
 	DeleteStatus(options.Deleter) (*model.Status, error)
 }
 
+// StatusService implements the gRPC server for statuses.
 type StatusService struct {
 	app StatusHandler
 	_go.UnimplementedStatusesServer
 	objClassName string
 }
 
+// StatusMetadata defines the fields available for status objects.
 var StatusMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{"id", true},
 	{"created_by", true},
@@ -36,12 +39,7 @@ var StatusMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model
 	{"description", true},
 })
 
-const (
-	ErrLookupNameReq    = "Lookup name is required"
-	statusDefaultFields = "id, name, description, created_by"
-)
-
-// CreateStatus implements api.StatusesServer.
+// CreateStatus handles the gRPC request to create a new status.
 func (s *StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRequest) (*_go.Status, error) {
 	createOpts, err := grpcopts.NewCreateOptions(
 		ctx,
@@ -66,7 +64,7 @@ func (s *StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusR
 	return s.Marshal(res)
 }
 
-// ListStatuses implements api.StatusesServer.
+// ListStatuses handles the gRPC request to list statuses with filters and pagination.
 func (s *StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
 	searchOpts, err := grpcopts.NewSearchOptions(
 		ctx,
@@ -98,7 +96,7 @@ func (s *StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusReq
 	return &res, nil
 }
 
-// UpdateStatus implements api.StatusesServer.
+// UpdateStatus handles the gRPC request to update an existing status.
 func (s *StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRequest) (*_go.Status, error) {
 	updateOpts, err := grpcopts.NewUpdateOptions(
 		ctx,
@@ -126,7 +124,7 @@ func (s *StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusR
 	return s.Marshal(res)
 }
 
-// DeleteStatus implements api.StatusesServer.
+// DeleteStatus handles the gRPC request to delete a status.
 func (s *StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRequest) (*_go.Status, error) {
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
 	if err != nil {
@@ -142,7 +140,7 @@ func (s *StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusR
 	return s.Marshal(item)
 }
 
-// LocateStatus implements api.StatusesServer.
+// LocateStatus finds a status by ID and returns it, or an error if not found or ambiguous.
 func (s *StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRequest) (*_go.LocateStatusResponse, error) {
 	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithFields(req, StatusMetadata))
 	if err != nil {
@@ -169,6 +167,7 @@ func (s *StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusR
 	return &_go.LocateStatusResponse{Status: res}, nil
 }
 
+// NewStatusService constructs a new StatusService.
 func NewStatusService(app StatusHandler) (*StatusService, error) {
 	if app == nil {
 		return nil, deferror.New("status handler is nil")
@@ -176,6 +175,7 @@ func NewStatusService(app StatusHandler) (*StatusService, error) {
 	return &StatusService{app: app}, nil
 }
 
+// Marshal converts a model.Status to its gRPC representation.
 func (s *StatusService) Marshal(input *model.Status) (*_go.Status, error) {
 	if input == nil {
 		return nil, nil

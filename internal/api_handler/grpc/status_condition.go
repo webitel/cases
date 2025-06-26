@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// StatusConditionHandler defines the interface for managing status conditions.
 type StatusConditionHandler interface {
 	ListStatusConditions(options.Searcher) ([]*model.StatusCondition, error)
 	LocateStatusCondition(options.Searcher) (*model.StatusCondition, error)
@@ -20,12 +21,14 @@ type StatusConditionHandler interface {
 	DeleteStatusCondition(options.Deleter) (*model.StatusCondition, error)
 }
 
+// StatusConditionService implements the gRPC server for status conditions.
 type StatusConditionService struct {
 	app StatusConditionHandler
 	_go.UnimplementedStatusConditionsServer
 	objClassName string
 }
 
+// StatusConditionMetadata defines the fields available for status condition objects.
 var StatusConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
 	{Name: "id", Default: true},
 	{Name: "name", Default: true},
@@ -38,7 +41,7 @@ var StatusConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "",
 	{Name: "updated_at", Default: false},
 })
 
-// CreateStatusCondition implements api.StatusConditionsServer.
+// CreateStatusCondition handles the gRPC request to create a new status condition.
 func (s *StatusConditionService) CreateStatusCondition(ctx context.Context, req *_go.CreateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Define create options
 	createOpts, err := grpcopts.NewCreateOptions(
@@ -66,7 +69,7 @@ func (s *StatusConditionService) CreateStatusCondition(ctx context.Context, req 
 	return s.Marshal(st)
 }
 
-// ListStatusConditions implements api.StatusConditionsServer.
+// ListStatusConditions handles the gRPC request to list status conditions with filters and pagination.
 func (s *StatusConditionService) ListStatusConditions(ctx context.Context, req *_go.ListStatusConditionRequest) (*_go.StatusConditionList, error) {
 	searchOptions, err := grpcopts.NewSearchOptions(
 		ctx,
@@ -100,7 +103,7 @@ func (s *StatusConditionService) ListStatusConditions(ctx context.Context, req *
 	return &res, nil
 }
 
-// UpdateStatusCondition implements api.StatusConditionsServer.
+// UpdateStatusCondition handles the gRPC request to update an existing status condition.
 func (s *StatusConditionService) UpdateStatusCondition(ctx context.Context, req *_go.UpdateStatusConditionRequest) (*_go.StatusCondition, error) {
 	// Define update options
 	updateOpts, err := grpcopts.NewUpdateOptions(
@@ -136,7 +139,7 @@ func (s *StatusConditionService) UpdateStatusCondition(ctx context.Context, req 
 	return s.Marshal(st)
 }
 
-// DeleteStatusCondition implements api.StatusConditionsServer.
+// DeleteStatusCondition handles the gRPC request to delete a status condition.
 func (s *StatusConditionService) DeleteStatusCondition(ctx context.Context, req *_go.DeleteStatusConditionRequest) (*_go.StatusCondition, error) {
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id), grpcopts.WithDeleteParentID(req.StatusId))
 	if err != nil {
@@ -152,7 +155,7 @@ func (s *StatusConditionService) DeleteStatusCondition(ctx context.Context, req 
 	return &(_go.StatusCondition{Id: req.Id}), nil
 }
 
-// LocateStatusCondition implements api.StatusConditionsServer.
+// LocateStatusCondition finds a status condition by ID and returns it, or an error if not found or ambiguous.
 func (s *StatusConditionService) LocateStatusCondition(ctx context.Context, req *_go.LocateStatusConditionRequest) (*_go.LocateStatusConditionResponse, error) {
 	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithID(req.Id), grpcopts.WithFields(req, StatusConditionMetadata, util.EnsureIdField, util.DeduplicateFields))
 	if err != nil {
@@ -181,6 +184,7 @@ func (s *StatusConditionService) LocateStatusCondition(ctx context.Context, req 
 	return &res, nil
 }
 
+// Marshal converts a model.StatusCondition to its gRPC representation.
 func (s *StatusConditionService) Marshal(model *model.StatusCondition) (*_go.StatusCondition, error) {
 	return &_go.StatusCondition{
 		Id:          int64(model.Id),
@@ -196,6 +200,7 @@ func (s *StatusConditionService) Marshal(model *model.StatusCondition) (*_go.Sta
 	}, nil
 }
 
+// NewStatusConditionService constructs a new StatusConditionService.
 func NewStatusConditionService(app StatusConditionHandler) (*StatusConditionService, error) {
 	if app == nil {
 		return nil, errors.New("status condition handler is nil")
