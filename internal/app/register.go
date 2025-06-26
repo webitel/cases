@@ -142,7 +142,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "Catalogs",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewServiceService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewServiceService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterServicesServer(s, svc.(cases.ServicesServer))
 			},
