@@ -106,9 +106,9 @@ type CaseCommunicationStore interface {
 
 type CaseFileStore interface {
 	// List files
-	List(rpc options.Searcher) (*_go.CaseFileList, error)
+	List(rpc options.Searcher) ([]*model.CaseFile, error)
 	// Delete Case | File association
-	Delete(req options.Deleter) error
+	Delete(req options.Deleter) (*model.CaseFile, error)
 }
 
 type RelatedCaseStore interface {

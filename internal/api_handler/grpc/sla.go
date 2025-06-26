@@ -16,7 +16,6 @@ import (
 // SLAHandler defines the interface for managing SLAs.
 type SLAHandler interface {
 	ListSLAs(options.Searcher) ([]*model.SLA, error)
-	LocateSLA(options.Searcher) (*model.SLA, error)
 	CreateSLA(options.Creator, *model.SLA) (*model.SLA, error)
 	UpdateSLA(options.Updator, *model.SLA) (*model.SLA, error)
 	DeleteSLA(options.Deleter) (*model.SLA, error)
@@ -197,12 +196,12 @@ func (s *SLAService) LocateSLA(
 		return nil, err
 	}
 
-	item, err := s.app.LocateSLA(opts)
+	items, err := s.app.ListSLAs(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	res, err := s.Marshal(item)
+	res, err := s.Marshal(items[0])
 	if err != nil {
 		return nil, err
 	}
