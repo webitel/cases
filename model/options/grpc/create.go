@@ -55,6 +55,15 @@ func WithCreateIDs(ids []int64) CreateOption {
 	}
 }
 
+func WithCreateTime(t time.Time) CreateOption {
+	return func(o *CreateOptions) error {
+		if !t.IsZero() {
+			o.Time = t
+		}
+		return nil
+	}
+}
+
 func WithCreateParentID(id int64) CreateOption {
 	return func(o *CreateOptions) error {
 		o.ParentID = id

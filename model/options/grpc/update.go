@@ -78,6 +78,15 @@ func WithUpdateParentID(parentID int64) UpdateOption {
 	}
 }
 
+func WithUpdateTime(t time.Time) UpdateOption {
+	return func(o *UpdateOptions) error {
+		if !t.IsZero() {
+			o.Time = t
+		}
+		return nil
+	}
+}
+
 func WithUpdateIDs(ids []int64) UpdateOption {
 	return func(o *UpdateOptions) error {
 		o.IDs = ids

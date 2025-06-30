@@ -15,6 +15,7 @@ import (
 	"github.com/webitel/webitel-go-kit/etag"
 	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
+	"time"
 )
 
 const caseCommentsObjScope = model.ScopeCaseComments
@@ -103,12 +104,17 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
 	}
 
-	updateOpts, err := grpcopts.NewUpdateOptions(
-		ctx,
+	opts := []grpcopts.UpdateOption{
 		grpcopts.WithUpdateFields(req, CaseCommentMetadata),
 		grpcopts.WithUpdateEtag(&tag),
 		grpcopts.WithUpdateMasker(req),
-	)
+	}
+
+	if ts := req.GetUpdatedAt(); ts != 0 {
+		opts = append(opts, grpcopts.WithUpdateTime(time.UnixMilli(ts)))
+	}
+
+	updateOpts, err := grpcopts.NewUpdateOptions(ctx, opts...)
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
@@ -242,13 +248,19 @@ func (c *CaseCommentService) PublishComment(
 		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
 	}
 
-	createOpts, err := grpcopts.NewCreateOptions(
-		ctx,
+	opts := []grpcopts.CreateOption{
 		grpcopts.WithCreateFields(req, CaseCommentMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
-			util.EnsureIdField),
-	)
+			util.EnsureIdField,
+		),
+	}
+
+	if ts := req.GetCreatedAt(); ts != 0 {
+		opts = append(opts, grpcopts.WithCreateTime(time.UnixMilli(ts)))
+	}
+
+	createOpts, err := grpcopts.NewCreateOptions(ctx, opts...)
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
