@@ -119,7 +119,9 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
+	if req.SlaId != 0 {
 	searchOptions.AddFilter(fmt.Sprintf("sla_id=%d", req.SlaId))
+	}
 	if req.PriorityId != 0 {
 		searchOptions.AddFilter(fmt.Sprintf("priority_id=%d", req.PriorityId))
 	}

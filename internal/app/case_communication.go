@@ -53,7 +53,9 @@ func (c *CaseCommunicationService) ListCommunications(
 			"Invalid case etag",
 		)
 	}
+	if tag.GetOid() != 0 {
 	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tag.GetOid()))
+	}
 	logAttributes := slog.Group("context", slog.Int64("case_id", tag.GetOid()), slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 
 	if searchOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {

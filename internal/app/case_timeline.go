@@ -59,7 +59,9 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 	if err != nil {
 		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline.check_args.invalid_etag", "Invalid case etag")
 	}
+	if tid.GetOid() != 0 {
 	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tid.GetOid()))
+	}
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),

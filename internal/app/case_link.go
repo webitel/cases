@@ -65,7 +65,9 @@ func (c *CaseLinkService) LocateLink(ctx context.Context, req *cases.LocateLinkR
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
+	if caseEtg.GetOid() != 0 {
 	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", caseEtg.GetOid()))
+	}
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
@@ -369,7 +371,9 @@ func (c *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_link.locate.parse_etag.error", err.Error())
 	}
+	if etg.GetOid() != 0 {
 	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", etg.GetOid()))
+	}
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),

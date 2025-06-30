@@ -55,7 +55,9 @@ func (c *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.case_file.list_files.invalid_case_etag", "Invalid Case Etag")
 	}
+	if tag.GetOid() != 0 {
 	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tag.GetOid()))
+	}
 	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseFileMetadata.GetParentScopeName(), accessMode) {

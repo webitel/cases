@@ -79,7 +79,9 @@ func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequ
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
+	if req.Q != "" {
 	searchOpts.AddFilter(fmt.Sprintf("name=%s", req.Q))
+	}
 
 	res, err := s.app.Store.Status().List(searchOpts)
 	if err != nil {

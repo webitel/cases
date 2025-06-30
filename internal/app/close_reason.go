@@ -81,8 +81,10 @@ func (s *CloseReasonService) ListCloseReasons(
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
+	if req.Q != "" {
 	searchOpts.AddFilter(fmt.Sprintf("name=%s", req.Q))
-
+	}
+	
 	res, err := s.app.Store.CloseReason().List(searchOpts, req.CloseReasonGroupId)
 	if err != nil {
 		return nil, cerror.NewInternalError("close_reason_service.list_close_reasons.store.list.failed", err.Error())

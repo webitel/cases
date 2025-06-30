@@ -116,7 +116,9 @@ func (s *SLAService) ListSLAs(ctx context.Context, req *cases.ListSLARequest) (*
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
+	if req.Q != "" {
 	searchOpts.AddFilter(fmt.Sprintf("name=%s", req.GetQ()))
+	}
 
 	res, err := s.app.Store.SLA().List(searchOpts)
 	if err != nil {

@@ -76,8 +76,10 @@ func (s CloseReasonGroupService) ListCloseReasonGroups(
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
+	if req.Q != "" {
 	searchOpts.AddFilter(fmt.Sprintf("name=%s", req.Q))
-
+	}
+	
 	res, err := s.app.Store.CloseReasonGroup().List(searchOpts)
 	if err != nil {
 		return nil, cerror.NewInternalError("close_reason_group_service.list_close_reason_groups.store.list.failed", err.Error())
