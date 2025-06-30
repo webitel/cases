@@ -369,6 +369,8 @@ type UpdateCommentRequest struct {
 	XJsonMask []string `protobuf:"bytes,1,rep,name=x_json_mask,json=xJsonMask,proto3" json:"x_json_mask,omitempty"`
 	// Fields to include in the response.
 	Fields []string `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty"`
+	// Optional updating timestamp. If not set, will be set default(current) time.
+	UpdatedAt int64 `protobuf:"varint,21,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	// Data for the comment to update.
 	Input         *InputCaseComment `protobuf:"bytes,4,opt,name=input,proto3" json:"input,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -417,6 +419,13 @@ func (x *UpdateCommentRequest) GetFields() []string {
 		return x.Fields
 	}
 	return nil
+}
+
+func (x *UpdateCommentRequest) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
 }
 
 func (x *UpdateCommentRequest) GetInput() *InputCaseComment {
@@ -590,6 +599,8 @@ type PublishCommentRequest struct {
 	Fields []string `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty"`
 	// Etag or ID of the case to which comments belong.
 	CaseEtag string `protobuf:"bytes,3,opt,name=case_etag,json=caseEtag,proto3" json:"case_etag,omitempty"`
+	// Optional creation timestamp. If not set, will be set default(current) time.
+	CreatedAt int64 `protobuf:"varint,21,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// Comment to publish.
 	Input         *InputCaseComment `protobuf:"bytes,4,opt,name=input,proto3" json:"input,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -647,6 +658,13 @@ func (x *PublishCommentRequest) GetCaseEtag() string {
 	return ""
 }
 
+func (x *PublishCommentRequest) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
 func (x *PublishCommentRequest) GetInput() *InputCaseComment {
 	if x != nil {
 		return x.Input
@@ -688,10 +706,12 @@ const file_case_comment_proto_rawDesc = "" +
 	"\x06userID\x18\x14 \x01(\v2\x0f.general.LookupR\x06userID:\x1e\x92A\x1b2\x19{\"text\":\"My new comment\"}\"B\n" +
 	"\x14LocateCommentRequest\x12\x12\n" +
 	"\x04etag\x18\x01 \x01(\tR\x04etag\x12\x16\n" +
-	"\x06fields\x18\x02 \x03(\tR\x06fields\"\xa0\x01\n" +
+	"\x06fields\x18\x02 \x03(\tR\x06fields\"\xbf\x01\n" +
 	"\x14UpdateCommentRequest\x129\n" +
 	"\vx_json_mask\x18\x01 \x03(\tB\x19\x92A\a@\x01\x8a\x01\x02^$\xfa\xd2\xe4\x93\x02\t\x12\aPREVIEWR\txJsonMask\x12\x16\n" +
-	"\x06fields\x18\x03 \x03(\tR\x06fields\x125\n" +
+	"\x06fields\x18\x03 \x03(\tR\x06fields\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x15 \x01(\x03R\tupdatedAt\x125\n" +
 	"\x05input\x18\x04 \x01(\v2\x1f.webitel.cases.InputCaseCommentR\x05input\"B\n" +
 	"\x14DeleteCommentRequest\x12\x12\n" +
 	"\x04etag\x18\x01 \x01(\tR\x04etag\x12\x16\n" +
@@ -703,11 +723,13 @@ const file_case_comment_proto_rawDesc = "" +
 	"\x03ids\x18\x04 \x03(\tR\x03ids\x12\x12\n" +
 	"\x04sort\x18\x05 \x01(\tR\x04sort\x12\x16\n" +
 	"\x06fields\x18\x06 \x03(\tR\x06fields\x12\x1b\n" +
-	"\tcase_etag\x18\t \x01(\tR\bcaseEtag\"\xbe\x01\n" +
+	"\tcase_etag\x18\t \x01(\tR\bcaseEtag\"\xdd\x01\n" +
 	"\x15PublishCommentRequest\x129\n" +
 	"\vx_json_mask\x18\x01 \x03(\tB\x19\x92A\a@\x01\x8a\x01\x02^$\xfa\xd2\xe4\x93\x02\t\x12\aPREVIEWR\txJsonMask\x12\x16\n" +
 	"\x06fields\x18\x02 \x03(\tR\x06fields\x12\x1b\n" +
-	"\tcase_etag\x18\x03 \x01(\tR\bcaseEtag\x125\n" +
+	"\tcase_etag\x18\x03 \x01(\tR\bcaseEtag\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x15 \x01(\x03R\tcreatedAt\x125\n" +
 	"\x05input\x18\x04 \x01(\v2\x1f.webitel.cases.InputCaseCommentR\x05input2\xa7\a\n" +
 	"\fCaseComments\x12\xa0\x01\n" +
 	"\rLocateComment\x12#.webitel.cases.LocateCommentRequest\x1a\x1a.webitel.cases.CaseComment\"N\x92A)\x12'Retrieve a specific comment by its etag\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02\x18\x12\x16/cases/comments/{etag}\x12\xd3\x01\n" +
