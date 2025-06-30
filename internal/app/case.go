@@ -347,9 +347,14 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
 	}
 
+	ip := createOpts.GetAuthOpts().GetUserIp()
+	if ip == "" {
+		ip = "unknown"
+	}
+
 	message, _ := wlogger.NewMessage(
 		createOpts.GetAuthOpts().GetUserId(),
-		createOpts.GetAuthOpts().GetUserIp(),
+		ip,
 		wlogger.UpdateAction,
 		strconv.Itoa(int(res.GetId())),
 		req,
@@ -493,9 +498,14 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
 	}
 
+	ip := updateOpts.GetAuthOpts().GetUserIp()
+	if ip == "" {
+		ip = "unknown"
+	}
+
 	message, _ := wlogger.NewMessage(
 		updateOpts.GetAuthOpts().GetUserId(),
-		updateOpts.GetAuthOpts().GetUserIp(),
+		ip,
 		wlogger.UpdateAction,
 		strconv.Itoa(int(output.GetId())),
 		req,
