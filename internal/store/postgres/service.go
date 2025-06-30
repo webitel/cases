@@ -2,9 +2,10 @@ package postgres
 
 import (
 	"fmt"
-	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
 	"time"
+
+	storeUtil "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 
 	"github.com/jackc/pgtype"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
@@ -283,7 +284,7 @@ FROM inserted_service
          LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_service.updated_by;
     `
 
-	return util2.CompactSQL(query), args
+	return storeUtil.CompactSQL(query), args
 }
 
 // Helper method to build the delete query for Service
@@ -297,7 +298,7 @@ func (s *ServiceStore) buildDeleteServiceQuery(rpc options.Deleter) (string, []i
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
-	return util2.CompactSQL(query), args
+	return storeUtil.CompactSQL(query), args
 }
 
 func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []interface{}, error) {
@@ -348,16 +349,21 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 	}
 
 	// Apply filters
-	if rootID, ok := rpc.GetFilter("root_id").(int64); ok && rootID > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"service.root_id": rootID})
+	if rootIDFilters := rpc.GetFilter("root_id"); len(rootIDFilters) > 0 {
+		queryBuilder = util.ApplyFiltersToQuery(queryBuilder, "service.root_id", rootIDFilters)
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "service.name")
+	// Updated name filter logic for consistency
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if (f.Operator == "=" || f.Operator == "") && len(f.Value) > 0 {
+			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "service.name")
+		}
 	}
 
-	if state := rpc.GetFilter("state"); state != nil {
-		queryBuilder = queryBuilder.Where(sq.Eq{"service.state": state})
+	if stateFilters := rpc.GetFilter("state"); len(stateFilters) > 0 {
+		queryBuilder = util.ApplyFiltersToQuery(queryBuilder, "service.state", stateFilters)
 	}
 
 	if len(rpc.GetIDs()) > 0 {
@@ -367,7 +373,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 	// Apply sorting dynamically
 	queryBuilder = applyServiceSorting(queryBuilder, rpc)
 
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Build the query
 	query, args, err := queryBuilder.ToSql()
@@ -375,7 +381,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 		return "", nil, dberr.NewDBInternalError("postgres.service.query_build_error", err)
 	}
 
-	return util2.CompactSQL(query), args, nil
+	return storeUtil.CompactSQL(query), args, nil
 }
 
 func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.Searcher) sq.SelectBuilder {
@@ -500,7 +506,7 @@ FROM updated_service AS service
 	`, updateSQL)
 
 	// Return the final combined query and arguments
-	return util2.CompactSQL(query), args, nil
+	return storeUtil.CompactSQL(query), args, nil
 }
 
 // buildServiceScanArgs builds scan arguments dynamically and returns a post-processing function.

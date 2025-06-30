@@ -2,8 +2,10 @@ package options
 
 import (
 	"context"
-	"github.com/webitel/cases/auth"
 	"time"
+
+	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/util"
 )
 
 type Searcher interface {
@@ -19,10 +21,12 @@ type Searcher interface {
 	// Sorting
 	GetSort() string
 	// Filtering
-	GetFilters() map[string]any
+	AddFilter(string)
+	GetFilter(field string) []util.FilterExpr
+	GetFilters() []string
 	RemoveFilter(string)
-	AddFilter(string, any)
-	GetFilter(string) any
 	// shortcuts
 	GetIDs() []int64
+	AddCustomContext(key string, value any)
+	GetCustomContext() map[string]any
 }

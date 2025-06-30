@@ -2,8 +2,11 @@ package postgres
 
 import (
 	"fmt"
+
 	"github.com/webitel/cases/internal/store/postgres/transaction"
-	"github.com/webitel/cases/internal/store/util"
+	storeUtil "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/util"
+
 	"github.com/webitel/cases/model/options"
 
 	"github.com/Masterminds/squirrel"
@@ -59,7 +62,7 @@ func (c *CaseCommunicationStore) Link(
 		return nil, dberr.NewDBError("postgres.case_communication.link.convert_to_sql.err", err.Error())
 	}
 
-	rows, err := txManager.Query(options, util.CompactSQL(sql), args...)
+	rows, err := txManager.Query(options, storeUtil.CompactSQL(sql), args...)
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case_communication.link.exec.error", err.Error())
 	}
@@ -125,7 +128,7 @@ func (c *CaseCommunicationStore) List(opts options.Searcher) (*cases.ListCommuni
 		return nil, dbErr
 	}
 	var res cases.ListCommunicationsResponse
-	res.Data, res.Next = util.ResolvePaging(opts.GetSize(), items)
+	res.Data, res.Next = storeUtil.ResolvePaging(opts.GetSize(), items)
 	res.Page = int32(opts.GetPage())
 	return &res, nil
 }
@@ -143,8 +146,8 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
 			"search options required",
 		)
 	}
-	parentId, ok := options.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
+	caseIDFilters := options.GetFilter("case_id")
+	if len(caseIDFilters) == 0 {
 		return nil, nil, dberr.NewDBError(
 			"postgres.case_communication.build_list_case_communication_sqlizer.check_args.case_id",
 			"case id required",
@@ -153,10 +156,11 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
 	alias := "s"
 	base := squirrel.Select().
 		From(fmt.Sprintf("%s %s", c.mainTable, alias)).
-		Where(fmt.Sprintf("%s = ?", util.Ident(alias, "case_id")), parentId).
-		Where(fmt.Sprintf("%s = ?", util.Ident(alias, "dc")), options.GetAuthOpts().GetDomainId()).
+		Where(fmt.Sprintf("%s = ?", storeUtil.Ident(alias, "dc")), options.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
-	base = util.ApplyPaging(options.GetPage(), options.GetSize(), base)
+	// Apply all case_id filters (with all supported operators)
+	base = util.ApplyFiltersToQuery(base, storeUtil.Ident(alias, "case_id"), caseIDFilters)
+	base = storeUtil.ApplyPaging(options.GetPage(), options.GetSize(), base)
 
 	return c.buildSelectColumnsAndPlan(base, alias, options.GetFields())
 }
@@ -317,7 +321,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 	}
 
 	insertAlias := "i"
-	insertCte, args, err := util.FormAsCTE(insert, insertAlias)
+	insertCte, args, err := storeUtil.FormAsCTE(insert, insertAlias)
 	if err != nil {
 		return nil, nil, dberr.NewDBError(
 			"postgres.case_communication.build_create_case_communication_sqlizer.form_cte.error",
@@ -362,12 +366,12 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util.Ident(left, "id"))
+			base = base.Column(storeUtil.Ident(left, "id"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return &comm.Id
 			})
 		case "ver":
-			base = base.Column(util.Ident(left, "ver"))
+			base = base.Column(storeUtil.Ident(left, "ver"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return &comm.Ver
 			})
@@ -383,7 +387,7 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&comm.CommunicationType)
 			})
 		case "communication_id":
-			base = base.Column(util.Ident(left, "communication_id"))
+			base = base.Column(storeUtil.Ident(left, "communication_id"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return scanner.ScanText(&comm.CommunicationId)
 			})

@@ -56,7 +56,7 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	searchOpts.AddFilter("case_id", caseTid.GetOid())
+	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", caseTid.GetOid()))
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
@@ -473,7 +473,7 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 	if err != nil {
 		return nil, cerror.NewBadRequestError("app.related_case.list_related_cases.invalid_etag", "Invalid etag")
 	}
-	searchOpts.AddFilter("case_id", tag.GetOid())
+	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tag.GetOid()))
 
 	output, err := r.app.Store.RelatedCase().List(searchOpts)
 	if err != nil {

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/webitel/cases/auth"
 	"log"
 	"maps"
 	"strconv"
@@ -18,11 +17,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/auth"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
-	dbutil "github.com/webitel/cases/internal/store/util"
 	storeutils "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/model/options"
@@ -272,13 +271,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 ) {
 
 	// Extract optional fields via helper utils
-	assignee := dbutil.IDPtr(input.GetAssignee())
-	closeReason := dbutil.IDPtr(input.GetCloseReason())
-	reporter := dbutil.IDPtr(input.GetReporter())
-	impacted := dbutil.IDPtr(input.GetImpacted())
-	group := dbutil.IDPtr(input.Group)
-	description := dbutil.StringPtr(input.Description)
-	closeResult := dbutil.StringPtr(input.GetCloseResult())
+	assignee := storeutils.IDPtr(input.GetAssignee())
+	closeReason := storeutils.IDPtr(input.GetCloseReason())
+	reporter := storeutils.IDPtr(input.GetReporter())
+	impacted := storeutils.IDPtr(input.GetImpacted())
+	group := storeutils.IDPtr(input.Group)
+	description := storeutils.StringPtr(input.Description)
+	closeResult := storeutils.StringPtr(input.GetCloseResult())
 
 	// Set fallback defaults for status and close reason group
 	defStatusID := input.Status.GetId()
@@ -483,7 +482,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 					search.UnknownFields, custom.fields..., // customFieldName,
 				)
 				// Chain prepared query context
-				search.Filters[customCtxState] = custom
+				search.CustomContext[customCtxState] = custom
 			}
 			return
 		}),
@@ -994,6 +993,610 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	return false, nil
 }
 
+type operator uint8
+
+const (
+	not             operator = 1 << iota // "!"
+	less                                 // "<"
+	greater                              // ">"
+	present                              // "*"
+	greaterOrEquals                      // ">="
+	equals          operator = 0         // "="
+)
+
+type fieldValue struct {
+	field    customrel.FieldDescriptor
+	vtype    customrel.Type // typeof( list[elem], lookup[rel.primary] )
+	value    customrel.Codec
+	operator // e.g.: ?field=[!|<|>|*]value
+}
+
+type customFilterContext struct {
+	ctx    *customCtx
+	joined bool
+}
+
+func parseFilterCondition(cond string) (field, op, value string, ok bool) {
+	cond = strings.TrimSpace(cond)
+
+	if strings.Contains(cond, "!=") {
+		parts := strings.SplitN(cond, "!=", 2)
+		return strings.TrimSpace(parts[0]), "!=", strings.TrimSpace(parts[1]), true
+	} else if strings.Contains(cond, "=") {
+		parts := strings.SplitN(cond, "=", 2)
+		return strings.TrimSpace(parts[0]), "=", strings.TrimSpace(parts[1]), true
+	}
+
+	return "", "", "", false
+}
+
+func (c *CaseStore) complexFilterNeedsCustomFields(expr string, opts options.Searcher) bool {
+	// Trim the filters= prefix from the expression if present
+	expr = strings.TrimPrefix(expr, "filters=")
+
+	orGroups := strings.Split(expr, "||")
+
+	for _, orGroup := range orGroups {
+		andGroups := strings.Split(orGroup, "&&")
+		for _, cond := range andGroups {
+			field, _, _, ok := parseFilterCondition(cond)
+			if !ok {
+				continue
+			}
+
+			// Use the same logic as needsCustomFieldsForFilter
+			if c.needsCustomFieldsForFilter("filters="+field+"=dummy", opts) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (c *CaseStore) parseComplexFilter(
+	expr string,
+	opts options.Searcher,
+	custom *customFilterContext,
+	errRef *error,
+) sq.Sqlizer {
+	orGroups := strings.Split(expr, "||")
+	var orExpr sq.Or
+
+	for _, orGroup := range orGroups {
+		andGroups := strings.Split(orGroup, "&&")
+		var andExpr sq.And
+
+		for _, cond := range andGroups {
+			field, op, value, ok := parseFilterCondition(cond)
+			if !ok {
+				continue
+			}
+
+			sqlizer := c.filterToSqlizer(fmt.Sprintf("%s%s%s", field, op, value), opts, custom, errRef)
+			if sqlizer != nil {
+				andExpr = append(andExpr, sqlizer)
+			}
+		}
+
+		if len(andExpr) > 0 {
+			orExpr = append(orExpr, andExpr)
+		}
+	}
+
+	return orExpr
+}
+
+func (c *CaseStore) needsCustomFieldsForFilter(filterStr string, opts options.Searcher) bool {
+	// Extract field name from filter
+	filterStr = strings.TrimPrefix(filterStr, "filters=")
+	var column string
+	if strings.Contains(filterStr, "!=") {
+		parts := strings.SplitN(filterStr, "!=", 2)
+		column = strings.TrimSpace(parts[0])
+	} else if strings.Contains(filterStr, "=") {
+		parts := strings.SplitN(filterStr, "=", 2)
+		column = strings.TrimSpace(parts[0])
+	}
+
+	// Remove .from/.to suffixes
+	column, _ = strings.CutSuffix(column, ".from")
+	column, _ = strings.CutSuffix(column, ".to")
+
+	// Check if it's a standard field
+	standardFields := []string{
+		"created_by", "updated_by", "assignee", "reporter", "source", "priority",
+		"status", "impacted", "close_reason", "service", "status_condition",
+		"sla_condition", "group", "sla", "status_condition.final", "author",
+		"communication_id", "rating", "reacted_at", "resolved_at",
+		"planned_reaction_at", "planned_resolve_at", "created_at", "attachments", "contact",
+	}
+
+	for _, std := range standardFields {
+		if column == std {
+			return false
+		}
+	}
+
+	// If it's not a standard field, it might be a custom field
+	return true
+}
+
+func (c *CaseStore) filterToSqlizer(
+	filterStr string,
+	opts options.Searcher,
+	custom *customFilterContext,
+	errRef *error,
+) sq.Sqlizer {
+
+	filterStr = strings.TrimPrefix(filterStr, "filters=")
+	var op string
+	var column, value string
+	if strings.Contains(filterStr, "!=") {
+		op = "!="
+		parts := strings.SplitN(filterStr, "!=", 2)
+		column, value = strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	} else if strings.Contains(filterStr, "=") {
+		op = "="
+		parts := strings.SplitN(filterStr, "=", 2)
+		column, value = strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	} else {
+		return nil
+	}
+
+	switch column {
+	case "created_by",
+		"updated_by",
+		"assignee",         // +
+		"reporter",         // +
+		"source",           // +
+		"priority",         // +
+		"status",           // +
+		"impacted",         // +
+		"close_reason",     // +
+		"service",          // +
+		"status_condition", // +
+		"sla_condition",
+		"group",
+		"sla": // +
+		dbColumn := column
+		switch column {
+		case "group":
+			dbColumn = "contact_group"
+		case "sla_condition":
+			dbColumn = "sla_condition_id"
+		}
+		values := strings.Split(value, ",")
+		var (
+			valuesInt []int64
+			isNull    bool
+			expr      sq.Or
+		)
+		for _, s := range values {
+			if s == "" {
+				continue
+			}
+			if s == "null" {
+				isNull = true
+				continue
+			}
+			converted, err := strconv.ParseInt(s, 10, 64)
+			if err != nil {
+				*errRef = dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
+				return nil
+			}
+			valuesInt = append(valuesInt, converted)
+		}
+		col := storeutils.Ident(caseLeft, dbColumn)
+		if len(valuesInt) > 0 {
+			if op == "=" {
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
+			} else {
+				var notExpr sq.And
+				for _, val := range valuesInt {
+					notExpr = append(notExpr, sq.Expr(fmt.Sprintf("%s != ?", col), val))
+				}
+				expr = append(expr, notExpr)
+			}
+		}
+		if isNull {
+			if op == "=" {
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
+			} else {
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s NOTNULL", col)))
+			}
+		}
+		if len(expr) > 0 {
+			return expr
+		}
+		return nil
+	case "status_condition.final":
+		var final bool
+		if value == "true" {
+			final = true
+		}
+		return sq.Expr(
+			fmt.Sprintf("EXISTS(SELECT id FROM cases.status_condition WHERE id = %s AND final = ?)",
+				storeutils.Ident(caseLeft, "status_condition"),
+			),
+			final,
+		)
+	case "author":
+		values := strings.Split(value, ",")
+		var (
+			valuesInt []int64
+			isNull    bool
+			expr      sq.Or
+		)
+		for _, s := range values {
+			if s == "" {
+				continue
+			}
+			if s == "null" {
+				isNull = true
+				continue
+			}
+			converted, err := strconv.ParseInt(s, 10, 64)
+			if err != nil {
+				*errRef = dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
+				return nil
+			}
+			valuesInt = append(valuesInt, converted)
+		}
+		col := storeutils.Ident(caseAuthorAlias, "id")
+		if len(valuesInt) > 0 {
+			if op == "=" {
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
+			} else {
+				var notExpr sq.And
+				for _, val := range valuesInt {
+					notExpr = append(notExpr, sq.Expr(fmt.Sprintf("%s != ?", col), val))
+				}
+				expr = append(expr, notExpr)
+			}
+		}
+		if isNull {
+			if op == "=" {
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
+			} else {
+				expr = append(expr, sq.Expr(fmt.Sprintf("%s NOTNULL", col)))
+			}
+		}
+		if len(expr) > 0 {
+			return expr
+		}
+		return nil
+	case "communication_id":
+		values := strings.Split(value, ",")
+		var (
+			communicationUUIDs []string
+			isNull             bool
+			expr               sq.Or
+		)
+		for _, s := range values {
+			if s == "" {
+				continue
+			}
+			if s == "null" {
+				isNull = true
+				continue
+			}
+			communicationUUIDs = append(communicationUUIDs, s)
+		}
+		if len(communicationUUIDs) > 0 {
+			if op == "=" {
+				expr = append(expr, sq.Expr(
+					fmt.Sprintf(`EXISTS (
+						SELECT 1 FROM cases.case_communication cc
+						WHERE cc.case_id = %s AND cc.communication_id = ANY(?::text[])
+					)`, storeutils.Ident(caseLeft, "id")),
+					communicationUUIDs,
+				))
+			} else {
+				expr = append(expr, sq.Expr(
+					fmt.Sprintf(`NOT EXISTS (
+						SELECT 1 FROM cases.case_communication cc
+						WHERE cc.case_id = %s AND cc.communication_id = ANY(?::text[])
+					)`, storeutils.Ident(caseLeft, "id")),
+					communicationUUIDs,
+				))
+			}
+		}
+		if isNull {
+			if op == "=" {
+				expr = append(expr, sq.Expr(
+					fmt.Sprintf(`NOT EXISTS (
+						SELECT 1 FROM cases.case_communication cc
+						WHERE cc.case_id = %s
+					)`, storeutils.Ident(caseLeft, "id")),
+				))
+			} else {
+				expr = append(expr, sq.Expr(
+					fmt.Sprintf(`EXISTS (
+						SELECT 1 FROM cases.case_communication cc
+						WHERE cc.case_id = %s
+					)`, storeutils.Ident(caseLeft, "id")),
+				))
+			}
+		}
+		if len(expr) > 0 {
+			return expr
+		}
+		return nil
+
+	case "rating.from":
+		cutted, _ := strings.CutSuffix(column, ".from")
+		if op == "=" {
+			return sq.Expr(fmt.Sprintf("%s >= ?::INT", storeutils.Ident(caseLeft, cutted)), value)
+		} else {
+			return sq.Expr(fmt.Sprintf("%s < ?::INT", storeutils.Ident(caseLeft, cutted)), value)
+		}
+
+	case "rating.to":
+		cutted, _ := strings.CutSuffix(column, ".to")
+		if op == "=" {
+			return sq.Expr(fmt.Sprintf("%s <= ?::INT", storeutils.Ident(caseLeft, cutted)), value)
+		} else {
+			return sq.Expr(fmt.Sprintf("%s > ?::INT", storeutils.Ident(caseLeft, cutted)), value)
+		}
+
+	case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolve_at.from", "created_at.from":
+		var stamp int64
+		cutted, _ := strings.CutSuffix(column, ".from")
+		stamp, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			*errRef = err
+			return nil
+		}
+		if op == "=" {
+			return sq.Expr(fmt.Sprintf("%s at time zone 'utc' >= ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp))
+		} else {
+			return sq.Expr(fmt.Sprintf("%s at time zone 'utc' < ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp))
+		}
+
+	case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolve_at.to", "created_at.to":
+		var stamp int64
+		cutted, _ := strings.CutSuffix(column, ".to")
+		stamp, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			*errRef = err
+			return nil
+		}
+		if op == "=" {
+			return sq.Expr(fmt.Sprintf("%s at time zone 'utc' <= ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp).UTC())
+		} else {
+			return sq.Expr(fmt.Sprintf("%s at time zone 'utc' > ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp).UTC())
+		}
+
+	case "attachments":
+		if (op == "=" && value == "true") || (op == "!=" && value == "false") {
+			return sq.Expr(fmt.Sprintf("EXISTS (SELECT id FROM storage.files WHERE uuid = %s::varchar UNION SELECT id FROM cases.case_link WHERE case_link.case_id = %[1]s)", storeutils.Ident(caseLeft, "id")))
+		}
+		if (op == "=" && value == "false") || (op == "!=" && value == "true") {
+			return sq.Expr(fmt.Sprintf("NOT EXISTS (SELECT id FROM storage.files WHERE uuid = %s::varchar UNION SELECT id FROM cases.case_link WHERE case_link.case_id = %[1]s)", storeutils.Ident(caseLeft, "id")))
+		}
+		return nil
+
+	case "contact":
+		if op == "=" {
+			return sq.Or{
+				sq.Expr(fmt.Sprintf("%s.reporter = ?", caseLeft), value),
+				sq.Expr(fmt.Sprintf("%s.assignee = ?", caseLeft), value),
+			}
+		} else {
+			return sq.And{
+				sq.Expr(fmt.Sprintf("%s.reporter != ?", caseLeft), value),
+				sq.Expr(fmt.Sprintf("%s.assignee != ?", caseLeft), value),
+			}
+		}
+	}
+
+	if custom.ctx == nil {
+		custom.ctx = c.custom(opts)
+		// if custom.ctx.refer != nil {
+		// 	custom.fields = make(map[string]any)
+		// }
+	}
+	if custom.ctx == nil || custom.ctx.refer == nil {
+		return nil // no configuration | table
+	}
+
+	if custom.ctx.table == "" {
+		custom.ctx.table = "x"
+	}
+
+	var assert fieldValue
+	// if !ok {
+	// find custom extension [field] descriptor
+	column, since := strings.CutSuffix(column, ".from")
+	column, until := strings.CutSuffix(column, ".to")
+	assert.field = custom.ctx.typof.Fields().ByName(column)
+	if assert.field == nil {
+		return nil // no such custom field
+	}
+	assert.vtype = assert.field.Type()
+	// list[elem] ?
+	if assert.vtype.Kind() == customrel.LIST {
+		if vs := value; vs != "" {
+			if n := len(vs); n > 2 && vs[0] == '[' && vs[n-1] == ']' {
+				// already array
+			} else {
+				// vs = strings.ReplaceAll(vs, "[", "\\[")
+				// vs = strings.ReplaceAll(vs, "]", "\\]")
+				vs = "[" + vs + "]"
+				value = vs
+			}
+		}
+	}
+	var isNotOperator bool
+	if op == "!=" {
+		isNotOperator = true
+	}
+
+	switch value {
+	case "":
+		if op == "=" {
+			assert.operator = (not | present)
+		} else {
+			assert.operator = (present)
+		}
+	case "*":
+		assert.operator = (present)
+	default:
+		var modifier bool
+		switch value[0] {
+		case '!':
+			assert.operator = (not | equals)
+			modifier = true
+		case '<':
+			assert.operator = (less | equals)
+			modifier = true
+		case '>':
+			assert.operator = (greater | equals)
+			modifier = true
+		case '\\':
+			assert.operator = (equals)
+			modifier = true
+		}
+		if modifier {
+			value = value[1:]
+		}
+
+		if isNotOperator {
+			if assert.operator == equals {
+				assert.operator = (not | equals)
+			} else if assert.operator == (less | equals) {
+				assert.operator = (greater | equals)
+			} else if assert.operator == (greater | equals) {
+				assert.operator = (less | equals)
+			} else if assert.operator == (not | equals) {
+				assert.operator = equals
+			}
+		}
+
+		assert.value = assert.vtype.New()
+		if re := assert.value.Decode(value); re != nil {
+			*errRef = re
+			return nil
+		}
+	}
+
+	if since && assert.operator == equals {
+		assert.operator = (greaterOrEquals)
+	} else if until && assert.operator == equals {
+		assert.operator = (less)
+	}
+
+	if custom.ctx.table == "" {
+		custom.ctx.table = "x"
+	}
+	columnIdent := storeutils.Ident(custom.ctx.table, custompgx.CustomSqlIdentifier(assert.field.Name()))
+
+	// [not] present
+	if (assert.operator & present) == present {
+		expr := "NOTNULL"
+		if (assert.operator & not) == not {
+			expr = "ISNULL"
+		}
+		return sq.Expr(fmt.Sprintf("%s %s", columnIdent, expr))
+	}
+
+	vs := assert.value.Interface()
+	vs, err := custompgx.CustomTypeSqlValue(assert.vtype, vs)
+	if err != nil {
+		*errRef = err
+		return nil
+	}
+	if vs == nil {
+		return sq.Expr(columnIdent + " ISNULL")
+	}
+
+	expr := "? = %s"
+	list, refx := (*customtyp.List)(nil), (*customtyp.Lookup)(nil)
+	elem := assert.field.Type()
+	kind := elem.Kind()
+	if kind == customrel.LIST {
+		list = elem.(*customtyp.List)
+		elem = list.Elem()
+		kind = elem.Kind()
+	}
+	if kind == customrel.LOOKUP {
+		refx = elem.(*customtyp.Lookup)
+		// ftyp = refx.Dictionary().Primary()
+		// dtyp = ftyp.Type()
+		// elem = dtyp
+		elem = refx.Dictionary().Primary().Type()
+		kind = elem.Kind()
+	}
+
+	// switch kind {
+	// case customrel.LIST:
+	// 	kind = assert.field.Type().(*customtyp.List).Elem().Kind()
+	// case customrel.LOOKUP:
+	// 	kind = assert.field.Type().(*customtyp.Lookup).Dictionary().Primary().Kind()
+	// }
+	switch kind {
+	// case customrel.LIST:
+	// 	{
+	// 		expr = "%s @> ?" // array[] contains
+	// 	}
+	case customrel.BOOL:
+		if (assert.operator & not) == not {
+			expr = "? != %s"
+		}
+		if list != nil {
+			expr = strings.Replace(expr, "%s", "ANY(%s)", 1)
+		}
+		// case customrel.LOOKUP:
+	case customrel.STRING, customrel.RICHTEXT:
+		// + flattened [LIST] value(s) support
+		expr = "(%s)::text ILIKE ? COLLATE \"default\""
+		if (assert.operator & not) == not {
+			expr = "(%s)::text NOT ILIKE ? COLLATE \"default\""
+		}
+		pattern := fmt.Sprintf("%s", vs)
+		// vs = util.Substring(pattern)[0]
+		// https://postgrespro.ru/docs/postgresql/12/functions-matching#FUNCTIONS-LIKE
+		const escape = "\\"
+		pattern = strings.ReplaceAll(pattern, "_", (escape + "_")) // escape control '_' (single char entry)
+		pattern = strings.ReplaceAll(pattern, "?", "_")            // propagate '?' char for PostgreSQL purpose
+		pattern = strings.ReplaceAll(pattern, "%", (escape + "%")) // escape control '%' (any char(s) or none)
+		pattern = strings.ReplaceAll(pattern, "*", "%")            // propagate '%' char for PostgreSQL purpose
+		vs = pattern
+	case customrel.DATETIME, customrel.DURATION,
+		customrel.INT, customrel.INT32, customrel.INT64,
+		customrel.UINT, customrel.UINT32, customrel.UINT64,
+		customrel.FLOAT, customrel.FLOAT32, customrel.FLOAT64:
+		if (assert.operator & not) == not {
+			expr = "? != %s" // "<>"
+		} else if (assert.operator & less) == less {
+			expr = "? > %s"
+		} else if (assert.operator & greater) == greater {
+			expr = "? < %s"
+		} else if (assert.operator & greaterOrEquals) == greaterOrEquals {
+			expr = "? <= %s"
+		}
+		if list != nil {
+			// // expr = strings.Replace(
+			// // 	expr, "?", "?::_int8", 1,
+			// // )
+			// expr = strings.Replace(
+			// 	expr, "%s", "ANY(%s)", 1,
+			// )
+			// expr = "? <@ %s" // [AND] "<@" Is the first array contained by the second ?
+			expr = "? && %s" // [OR]  "&&" Do the arrays overlap, that is, have any elements in common?
+		}
+	case customrel.BINARY:
+		return nil // not implemented
+	}
+
+	return sq.Expr(fmt.Sprintf(expr, columnIdent), vs)
+}
+
+func isComplexFilter(filterStr string) bool {
+	return strings.Contains(filterStr, "&&") || strings.Contains(filterStr, "||")
+}
+
 func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
 	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
@@ -1029,494 +1632,76 @@ func (c *CaseStore) buildListCaseSqlizer(opts options.Searcher) (sq.SelectBuilde
 		base = base.Where(fmt.Sprintf("%s = ANY(?)", storeutils.Ident(caseLeft, "id")), opts.GetIDs())
 	}
 	// region: custom fields
-	type operator uint8
-	const (
-		not             operator = 1 << iota // "!"
-		less                                 // "<"
-		greater                              // ">"
-		present                              // "*"
-		greaterOrEquals                      // ">="
-		equals          operator = 0         // "="
-	)
-	type fieldValue struct {
-		field    customrel.FieldDescriptor
-		vtype    customrel.Type // typeof( list[elem], lookup[rel.primary] )
-		value    customrel.Codec
-		operator // e.g.: ?field=[!|<|>|*]value
-	}
-	var custom = struct {
-		ctx *customCtx
-		// fields map[string]any // filter [AND] kind ; order doesn't matter ..
-		fields []fieldValue
-	}{}
-	// endregion: custom fields
-	for column, value := range opts.GetFilters() {
-		switch column {
-		case "created_by",
-			"updated_by",
-			"assignee",         // +
-			"reporter",         // +
-			"source",           // +
-			"priority",         // +
-			"status",           // +
-			"impacted",         // +
-			"close_reason",     // +
-			"service",          // +
-			"status_condition", // +
-			"sla_condition",
-			"group",
-			"sla": // +
-			dbColumn := column
-			switch column {
-			case "group":
-				dbColumn = "contact_group"
-			case "sla_condition":
-				dbColumn = "sla_condition_id"
-			}
-			switch typedValue := value.(type) {
-			case string:
-				values := strings.Split(typedValue, ",")
-				var (
-					valuesInt []int64
-					isNull    bool
-					expr      sq.Or
-				)
-				for _, s := range values {
-					if s == "" {
-						continue
-					}
-					if s == "null" {
-						isNull = true
-						continue
-					}
-					converted, err := strconv.ParseInt(s, 10, 64)
-					if err != nil {
-						return base, nil, dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
-					}
-					valuesInt = append(valuesInt, converted)
-				}
-				col := storeutils.Ident(caseLeft, dbColumn)
-				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
-				if isNull {
-					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
-				}
-				base = base.Where(expr)
-			}
-		case "status_condition.final":
-			var final bool
-			switch typedValue := value.(type) {
-			case string:
-				if typedValue == "true" {
-					final = true
-				}
-			}
-			base = base.Where(
-				fmt.Sprintf("EXISTS(SELECT id FROM cases.status_condition WHERE id = %s AND final = ?)",
-					storeutils.Ident(caseLeft, "status_condition"),
-				),
-				final,
-			)
-		case "author":
-			switch typedValue := value.(type) {
-			case string:
-				values := strings.Split(typedValue, ",")
-				var (
-					valuesInt []int64
-					isNull    bool
-					expr      sq.Or
-				)
-				for _, s := range values {
-					if s == "" {
-						continue
-					}
-					if s == "null" {
-						isNull = true
-						continue
-					}
-					converted, err := strconv.ParseInt(s, 10, 64)
-					if err != nil {
-						return base, nil, dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
-					}
-					valuesInt = append(valuesInt, converted)
-				}
-				col := storeutils.Ident(caseAuthorAlias, "id")
-				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
-				if isNull {
-					expr = append(expr, sq.Expr(fmt.Sprintf("%s ISNULL", col)))
-				}
-				base = base.Where(expr)
-			}
-		case "communication_id":
-			switch typedValue := value.(type) {
-			case string:
-				values := strings.Split(typedValue, ",")
-				var (
-					communicationUUIDs []string
-					isNull             bool
-					expr               sq.Or
-				)
-				for _, s := range values {
-					if s == "" {
-						continue
-					}
-					if s == "null" {
-						isNull = true
-						continue
-					}
-					communicationUUIDs = append(communicationUUIDs, s)
-				}
+	var custom customFilterContext
+	var simpleFilters []string
+	var complexFilters []string
 
-				if len(communicationUUIDs) > 0 {
-					expr = append(expr, sq.Expr(
-						fmt.Sprintf(`EXISTS (
-					SELECT 1 FROM cases.case_communication cc
-					WHERE cc.case_id = %s AND cc.communication_id = ANY(?::text[])
-				)`, storeutils.Ident(caseLeft, "id")),
-						communicationUUIDs,
-					))
-				}
-
-				if isNull {
-					expr = append(expr, sq.Expr(
-						fmt.Sprintf(`NOT EXISTS (
-					SELECT 1 FROM cases.case_communication cc
-					WHERE cc.case_id = %s
-				)`, storeutils.Ident(caseLeft, "id")),
-					))
-				}
-
-				if len(expr) > 0 {
-					base = base.Where(expr)
-				}
-			}
-		case "rating.from":
-			cutted, _ := strings.CutSuffix(column, ".from")
-			base = base.Where(fmt.Sprintf("%s >= ?::INT", storeutils.Ident(caseLeft, cutted)), value)
-		case "rating.to":
-			cutted, _ := strings.CutSuffix(column, ".to")
-			base = base.Where(fmt.Sprintf("%s <= ?::INT", storeutils.Ident(caseLeft, cutted)), value)
-		case "reacted_at.from", "resolved_at.from", "planned_reaction_at.from", "planned_resolve_at.from", "created_at.from":
-			var stamp int64
-			cutted, _ := strings.CutSuffix(column, ".from")
-			switch typedValue := value.(type) {
-			case string:
-				stamp, err = strconv.ParseInt(typedValue, 10, 64)
-				if err != nil {
-					return sq.SelectBuilder{}, nil, err
-				}
-			default:
-				return sq.SelectBuilder{}, nil, fmt.Errorf("%s: invalid type", column)
-			}
-			base = base.Where(fmt.Sprintf("%s at time zone 'utc' >= ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp))
-		case "reacted_at.to", "resolved_at.to", "planned_reaction_at.to", "planned_resolve_at.to", "created_at.to":
-			var stamp int64
-			cutted, _ := strings.CutSuffix(column, ".to")
-			switch typedValue := value.(type) {
-			case string:
-				stamp, err = strconv.ParseInt(typedValue, 10, 64)
-				if err != nil {
-					return sq.SelectBuilder{}, nil, err
-				}
-			default:
-				return sq.SelectBuilder{}, nil, fmt.Errorf("%s: invalid type", column)
-			}
-			base = base.Where(fmt.Sprintf("%s at time zone 'utc' <= ?", storeutils.Ident(caseLeft, cutted)), time.UnixMilli(stamp).UTC())
-		case "attachments":
-			var operator string
-			if value != "true" {
-				operator = "NOT "
-			}
-			base = base.Where(sq.Expr(fmt.Sprintf(operator+"EXISTS (SELECT id FROM storage.files WHERE uuid = %s::varchar UNION SELECT id FROM cases.case_link WHERE case_link.case_id = %[1]s)", storeutils.Ident(caseLeft, "id"))))
-		case "contact":
-			base = base.Where(sq.Or{
-				sq.Expr(fmt.Sprintf("%s.reporter = ?", caseLeft), value),
-				sq.Expr(fmt.Sprintf("%s.assignee = ?", caseLeft), value),
-			})
-		default:
-			{
-				if column == customCtxState {
-					break // internal usage ; omit
-				}
-				// init custom [extensions/cases] configuration ?!
-				if custom.ctx == nil {
-					custom.ctx = c.custom(opts)
-					// if custom.ctx.refer != nil {
-					// 	custom.fields = make(map[string]any)
-					// }
-				}
-				// found & available ?
-				if custom.ctx == nil || custom.ctx.refer == nil {
-					break // no configuration | table
-				}
-				// // filter [multi-]values ; list ?
-				// assert, ok := custom.fields[strings.ToLower(column)].(fieldValue)
-				var assert fieldValue
-				// if !ok {
-				// find custom extension [field] descriptor
-				column, since := strings.CutSuffix(column, ".from")
-				column, until := strings.CutSuffix(column, ".to")
-				assert.field = custom.ctx.typof.Fields().ByName(column)
-				if assert.field == nil {
-					// no such custom field ! skip ..
-					break
-				}
-				// default
-				assert.vtype = assert.field.Type()
-				// list[elem] ?
-				if assert.vtype.Kind() == customrel.LIST {
-					// assert.vtype = assert.vtype.(*customtyp.List).Elem()
-					if vs, is := value.(string); is {
-						if n := len(vs); n > 2 && vs[0] == '[' && vs[n-1] == ']' {
-							// [OK]: marked as array !
-						} else {
-							// vs = strings.ReplaceAll(vs, "[", "\\[")
-							// vs = strings.ReplaceAll(vs, "]", "\\]")
-							vs = "[" + vs + "]"
-							value = vs // normalized ; as inline JSON array of values
-						}
+	needsCustom := util.ContainsStringIgnoreCase(opts.GetFields(), "custom")
+	if !needsCustom {
+		// Check if any filters need custom fields
+		for _, filterStr := range opts.GetFilters() {
+			if filterStr != "" {
+				if isComplexFilter(filterStr) {
+					if c.complexFilterNeedsCustomFields(filterStr, opts) {
+						needsCustom = true
+						break
+					}
+				} else {
+					if c.needsCustomFieldsForFilter(filterStr, opts) {
+						needsCustom = true
+						break
 					}
 				}
-				// }
-				switch data := value.(type) {
-				case nil:
-					{
-						// break // skip ; no value to assert !
-						// break // [NOTE] value is missing !
-						// [FIXME]: -OR- match empty string ?
-						assert.operator = (not | present)
-					}
-				case string:
-					{
-						switch strings.ToLower(data) {
-						case "*":
-							{
-								// [NOTE]: "present" filter ! has value(s) !
-								assert.operator = (present)
-							}
-						case "": // , "nil", "null", "none":
-							{
-								// break // [NOTE] value is missing !
-								// [FIXME]: -OR- match empty string ?
-								assert.operator = (not | present)
-							}
-						default:
-							{
-								// assert.operand == (equals)
-								var modifier bool // operator modifier ?
-								switch data[0] {
-								case '!':
-									assert.operator = (not | equals)
-									modifier = true
-								case '<':
-									assert.operator = (less | equals)
-									modifier = true
-								case '>':
-									assert.operator = (greater | equals)
-									modifier = true
-								case '\\': // ESCAPE ; .. upper modifier(s) as a part of value !
-									assert.operator = (equals) // default
-									modifier = true            // unescape
-								}
-								// seen modifier ?
-								if modifier {
-									// crop modifier !
-									data = data[1:]
-									value = data
-								}
-								// if strings.ContainsAny(data, "*?") {
-								// 	// [NOTE]: "substring" filter ! match simple pattern
-								// }
-							}
-							// decode assertion from string value
-							assert.value = assert.vtype.New()
-							if re := assert.value.Decode(data); re != nil {
-								// invalid assertion value !
-								break // [FIXME] !!!
-							}
-						}
-					}
-				default:
-					{
-						// decode assertion from datatype value
-						assert.value = assert.vtype.New()
-						if re := assert.value.Decode(value); re != nil {
-							// invalid assertion value !
-							break // [FIXME] !!!
-						}
-					}
-				}
-				if since && assert.operator == equals {
-					assert.operator = (greaterOrEquals) // (greater | equals) // ">="
-				} else if until && assert.operator == equals {
-					assert.operator = (less) // "<"
-				}
-				// custom.fields[strings.ToLower(assert.field.Name())] = assert
-				custom.fields = append(custom.fields, assert)
 			}
 		}
 	}
-	if err != nil {
-		return base, nil, err
-	}
 
-	// region: apply custom filter(s)
-	if len(custom.fields) > 0 {
-		if custom.ctx.table == "" {
-			// LEFT JOIN custom.table AS alias ; IF NOT yet ..
-			base, custom.ctx.table = custom.ctx.refer.Join(
-				base, caseLeft, custom.ctx.table, "",
-			)
+	// Separate simple and complex filters
+	for _, filterStr := range opts.GetFilters() {
+		if filterStr == "" {
+			continue
 		}
-		// for _, e := range custom.fields {
-		// 	assert := e.(fieldValue)
-		for _, assert := range custom.fields {
-			column := storeutils.Ident(
-				custom.ctx.table, custompgx.CustomSqlIdentifier(assert.field.Name()),
-			)
-			// filter: [not] "present" ?
-			if (assert.operator & present) == present {
-				expr := "NOTNULL"
-				if (assert.operator & not) == not {
-					expr = "ISNULL"
-				}
-				base = base.Where(fmt.Sprintf(
-					"%s %s", column, expr,
-				))
-				continue // we are done here ..
-			}
-			// Cast assertion [Value] to [sql.Value] ..
-			vs := assert.value.Interface()
-			vs, err = custompgx.CustomTypeSqlValue(
-				assert.vtype, vs,
-			)
-			if err != nil {
-				// failed to cast to SQL value !
-				return base, nil, err
-			}
-			if vs == nil {
-				base = base.Where(column + " ISNULL")
-				break
-			}
-			var (
-				// expr = "%s = ?" // default: "equals"
-				// support [LIST] values ; "%s" will be replaced with "ANY(%s)"
-				// https://www.postgresql.org/docs/current/functions-comparisons.html#FUNCTIONS-COMPARISONS-ANY-SOME
-				expr = "? = %s" // default: "equals"
 
-				// ftyp = assert.field
-				// dtyp = ftyp.Type()
-
-				list *customtyp.List
-				refx *customtyp.Lookup
-
-				elem = assert.field.Type()
-				kind = elem.Kind()
-			)
-			if kind == customrel.LIST {
-				list = elem.(*customtyp.List)
-				elem = list.Elem()
-				kind = elem.Kind()
-			}
-			if kind == customrel.LOOKUP {
-				refx = elem.(*customtyp.Lookup)
-				// ftyp = refx.Dictionary().Primary()
-				// dtyp = ftyp.Type()
-				// elem = dtyp
-				elem = refx.Dictionary().Primary().Type()
-				kind = elem.Kind()
-			}
-
-			// switch kind {
-			// case customrel.LIST:
-			// 	kind = assert.field.Type().(*customtyp.List).Elem().Kind()
-			// case customrel.LOOKUP:
-			// 	kind = assert.field.Type().(*customtyp.Lookup).Dictionary().Primary().Kind()
-			// }
-			switch kind {
-			// case customrel.LIST:
-			// 	{
-			// 		expr = "%s @> ?" // array[] contains
-			// 	}
-			case customrel.BOOL:
-				{
-					if (assert.operator & not) == not {
-						expr = "? != %s"
-					}
-					if list != nil {
-						expr = strings.Replace(
-							expr, "%s", "ANY(%s)", 1,
-						)
-					}
-				}
-			// case customrel.LOOKUP:
-			case customrel.STRING, customrel.RICHTEXT:
-				{
-					// + flattened [LIST] value(s) support
-					expr = "(%s)::text ILIKE ? COLLATE \"default\""
-					if (assert.operator & not) == not {
-						expr = "(%s)::text NOT ILIKE ? COLLATE \"default\""
-					}
-					pattern := fmt.Sprintf("%s", vs)
-					// vs = util.Substring(pattern)[0]
-					// https://postgrespro.ru/docs/postgresql/12/functions-matching#FUNCTIONS-LIKE
-					const escape = "\\"
-					pattern = strings.ReplaceAll(pattern, "_", (escape + "_")) // escape control '_' (single char entry)
-					pattern = strings.ReplaceAll(pattern, "?", "_")            // propagate '?' char for PostgreSQL purpose
-					pattern = strings.ReplaceAll(pattern, "%", (escape + "%")) // escape control '%' (any char(s) or none)
-					pattern = strings.ReplaceAll(pattern, "*", "%")            // propagate '%' char for PostgreSQL purpose
-					vs = pattern
-
-					if list != nil {
-						// expr = strings.Replace(
-						// 	expr, "%s", "ANY(%s)", 1,
-						// )
-					}
-				}
-			case customrel.DATETIME, customrel.DURATION,
-				customrel.INT, customrel.INT32, customrel.INT64,
-				customrel.UINT, customrel.UINT32, customrel.UINT64,
-				customrel.FLOAT, customrel.FLOAT32, customrel.FLOAT64:
-				{
-					if (assert.operator & not) == not {
-						expr = "? != %s" // "<>"
-					} else if (assert.operator & less) == less {
-						expr = "? > %s"
-					} else if (assert.operator & greater) == greater {
-						expr = "? < %s"
-					} else if (assert.operator & greaterOrEquals) == greaterOrEquals {
-						expr = "? <= %s"
-					}
-					if list != nil {
-						// // expr = strings.Replace(
-						// // 	expr, "?", "?::_int8", 1,
-						// // )
-						// expr = strings.Replace(
-						// 	expr, "%s", "ANY(%s)", 1,
-						// )
-						// expr = "? <@ %s" // [AND] "<@" Is the first array contained by the second ?
-						expr = "? && %s" // [OR]  "&&" Do the arrays overlap, that is, have any elements in common?
-					}
-				}
-			case customrel.BINARY:
-				// not implemented !
-				continue
-			}
-			// if list != nil {
-			// 	switch reflect.ValueOf(vs).Len() {
-			// 	case 0:
-			// 	case 1:
-			// 	default: // multi( > 1 )
-			// 	}
-			// 	// [TODO]: swap operands "?" and "%s"
-			// 	expr = strings.ReplaceAll(expr, ">", "<")
-			// 	expr = strings.ReplaceAll(expr, "<", ">")
-			// 	expr = strings.ReplaceAll(expr, "?", "ANY(%s)")
-			// 	expr = strings.ReplaceAll(expr, "%s", "?")
-			// }
-			base = base.Where(fmt.Sprintf(expr, column), vs)
+		if isComplexFilter(filterStr) {
+			complexFilters = append(complexFilters, filterStr)
+		} else {
+			simpleFilters = append(simpleFilters, filterStr)
 		}
 	}
-	// endregion: apply custom filter(s)
+
+	// Initialize custom context and join if needed
+	if needsCustom {
+		custom.ctx = c.custom(opts)
+		if custom.ctx != nil && custom.ctx.refer != nil {
+			custom.ctx.table = "xc"
+			base = base.LeftJoin(fmt.Sprintf("%s %s ON %s.id = %s.id",
+				custom.ctx.refer.Table(),
+				custom.ctx.table,
+				caseLeft,
+				custom.ctx.table))
+			custom.joined = true
+		}
+	}
+
+	var errRef = &err
+	for _, filterStr := range simpleFilters {
+
+		sqlizer := c.filterToSqlizer(filterStr, opts, &custom, errRef)
+		if *errRef != nil {
+			return base, nil, *errRef
+		}
+		if sqlizer != nil {
+			base = base.Where(sqlizer)
+		}
+	}
+	for _, expr := range complexFilters {
+		sqlizer := c.parseComplexFilter(expr, opts, &custom, errRef)
+		if err != nil {
+			return base, nil, err
+		}
+		base = base.Where(sqlizer)
+
+	}
 
 	if sess := opts.GetAuthOpts(); sess != nil {
 		base = base.Where(storeutils.Ident(caseLeft, "dc = ?"), opts.GetAuthOpts().GetDomainId())
@@ -1920,7 +2105,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 				search.UnknownFields = append(
 					search.UnknownFields, custom.fields..., // customFieldName,
 				)
-				search.Filters[customCtxState] = &custom.customCtx
+				search.CustomContext[customCtxState] = &custom.customCtx
 				return
 			},
 		)
@@ -2571,7 +2756,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 					base, tableAlias, custom.table, "",
 				)
 				// Chain prepared query context for filtering stage next ...
-				req.AddFilter(customCtxState, custom)
+				req.AddCustomContext(customCtxState, custom)
 				var scan func(custompgx.RecordExtendable) sql.Scanner
 				base, scan, err = custom.refer.Columns(
 					base, custom.table, nested...,

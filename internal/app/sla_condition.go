@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+
 	"github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
@@ -117,13 +119,13 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	searchOptions.AddFilter("sla_id", req.SlaId)
+	searchOptions.AddFilter(fmt.Sprintf("sla_id=%d", req.SlaId))
 	if req.PriorityId != 0 {
-		searchOptions.AddFilter("priority_id", req.PriorityId)
+		searchOptions.AddFilter(fmt.Sprintf("priority_id=%d", req.PriorityId))
 	}
 
 	if req.Q != "" {
-		searchOptions.AddFilter("name", req.Q)
+		searchOptions.AddFilter(fmt.Sprintf("name=%s", req.Q))
 	}
 
 	slaConditions, e := s.app.Store.SLACondition().List(searchOptions)

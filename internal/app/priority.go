@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+
 	api "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
@@ -10,14 +12,14 @@ import (
 )
 
 var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{"id", true},
-	{"created_by", false},
-	{"created_at", false},
-	{"updated_by", false},
-	{"updated_at", false},
-	{"name", true},
-	{"description", true},
-	{"color", true},
+	{Name: "id", Default: true},
+	{Name: "created_by", Default: false},
+	{Name: "created_at", Default: false},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
+	{Name: "color", Default: true},
 })
 
 type PriorityService struct {
@@ -72,7 +74,7 @@ func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPrior
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	searchOpts.AddFilter("name", req.Q)
+	searchOpts.AddFilter(fmt.Sprintf("name=%s", req.Q))
 
 	prios, err := p.app.Store.Priority().List(searchOpts, req.NotInSla, req.InSlaCond)
 	if err != nil {

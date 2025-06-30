@@ -100,7 +100,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		ctx,
 		grpcopts.WithSearch(req),
 		grpcopts.WithPagination(req),
-		grpcopts.WithFilters(req),
+		grpcopts.WithFilters(req.GetFilters()),
 		grpcopts.WithFields(req, CaseMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
@@ -124,12 +124,10 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		),
 	)
 	if req.GetContactId() != "" {
-		contactId, err := strconv.ParseInt(req.GetContactId(), 10, 64)
-		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			contactId = 0
-		}
-		searchOpts.AddFilter("contact", contactId)
+		searchOpts.Filters = append(
+			searchOpts.Filters,
+			fmt.Sprintf("contact=%s", req.GetContactId()),
+		)
 	}
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {

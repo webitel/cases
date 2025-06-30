@@ -2,9 +2,10 @@ package postgres
 
 import (
 	"fmt"
-	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
 	"strings"
+
+	storeUtil "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 
 	sq "github.com/Masterminds/squirrel"
 	_go "github.com/webitel/cases/api/cases"
@@ -41,24 +42,24 @@ func buildSourceSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util2.Ident(sourceLeft, "id"))
+			base = base.Column(storeUtil.Ident(sourceLeft, "id"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanInt64(&s.Id) })
 		case "name":
-			base = base.Column(util2.Ident(sourceLeft, "name"))
+			base = base.Column(storeUtil.Ident(sourceLeft, "name"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanText(&s.Name) })
 		case "description":
-			base = base.Column(util2.Ident(sourceLeft, "description"))
+			base = base.Column(storeUtil.Ident(sourceLeft, "description"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanText(&s.Description) })
 		case "type":
-			base = base.Column(util2.Ident(sourceLeft, "type"))
+			base = base.Column(storeUtil.Ident(sourceLeft, "type"))
 			plan = append(plan, func(s *_go.Source) any {
 				return &scanner.SourceTypeScanner{SourceType: &s.Type}
 			})
 		case "created_at":
-			base = base.Column(util2.Ident(sourceLeft, "created_at"))
+			base = base.Column(storeUtil.Ident(sourceLeft, "created_at"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanTimestamp(&s.CreatedAt) })
 		case "updated_at":
-			base = base.Column(util2.Ident(sourceLeft, "updated_at"))
+			base = base.Column(storeUtil.Ident(sourceLeft, "updated_at"))
 			plan = append(plan, func(s *_go.Source) any { return scanner.ScanTimestamp(&s.UpdatedAt) })
 		case "created_by":
 			base = base.Column(fmt.Sprintf(
@@ -228,20 +229,35 @@ func (s *Source) buildListSourceQuery(rpc options.Searcher) (sq.SelectBuilder, [
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.GetIDs()})
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && name != "" {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
-	}
-
-	if types, ok := rpc.GetFilter("type").([]_go.SourceType); ok && len(types) > 0 {
-		var typeStrings []string
-		for _, t := range types {
-			typeStrings = append(typeStrings, t.String())
+	// Updated name filter logic for consistency
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if (f.Operator == "=" || f.Operator == "") && len(f.Value) > 0 {
+			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "s.name")
 		}
-		queryBuilder = queryBuilder.Where(sq.Eq{"s.type": typeStrings})
 	}
 
-	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	typeFilters := rpc.GetFilter("type")
+	if len(typeFilters) > 0 {
+		typeStr := strings.TrimSpace(typeFilters[0].Value)
+		if strings.HasPrefix(typeStr, "[") && strings.HasSuffix(typeStr, "]") {
+			typeStr = strings.TrimPrefix(typeStr, "[")
+			typeStr = strings.TrimSuffix(typeStr, "]")
+		}
+		var typeNames []string
+		for _, t := range strings.Fields(typeStr) {
+			if t != "" {
+				typeNames = append(typeNames, t)
+			}
+		}
+		if len(typeNames) > 0 {
+			queryBuilder = queryBuilder.Where(sq.Eq{"s.type": typeNames})
+		}
+	}
+
+	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, sourceDefaultSort)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return buildSourceSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 }

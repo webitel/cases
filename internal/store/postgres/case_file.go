@@ -3,10 +3,13 @@ package postgres
 import (
 	"errors"
 	"fmt"
-	"github.com/webitel/cases/internal/store/util"
+	"strconv"
+
+	storeUtil "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/util"
+
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/model/options/defaults"
-	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/api/cases"
@@ -98,8 +101,8 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 	rpc options.Searcher,
 ) (sq.Sqlizer, []func(file *cases.File) any, error) {
 
-	parentId, ok := rpc.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
+	caseIDFilters := rpc.GetFilter("case_id")
+	if len(caseIDFilters) == 0 {
 		return nil, nil, errors.New("case id required")
 	}
 	// Begin building the base query with alias `cf`
@@ -108,12 +111,14 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 		Where(
 			sq.And{
 				sq.Eq{"cf.domain_id": rpc.GetAuthOpts().GetDomainId()},
-				sq.Eq{"cf.uuid": strconv.Itoa(int(parentId))},
 				sq.Eq{"cf.channel": channel},
 				sq.Eq{"cf.removed": nil},
 			},
 		).
 		PlaceholderFormat(sq.Dollar)
+
+	// Apply all case_id filters (with all supported operators) to cf.uuid
+	queryBuilder = util.ApplyFiltersToQuery(queryBuilder, "cf.uuid", caseIDFilters)
 
 	// Build select columns and scan plan using buildFilesSelectColumnsAndPlan
 	queryBuilder, plan, err := buildFilesSelectColumnsAndPlan(queryBuilder, fileAlias, rpc.GetFields())
@@ -128,14 +133,14 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 
 	// ----------Apply search by name -----------------
 	if rpc.GetSearch() != "" {
-		queryBuilder = util.AddSearchTerm(queryBuilder, util.Ident(caseLeft, "name"))
+		queryBuilder = storeUtil.AddSearchTerm(queryBuilder, storeUtil.Ident(caseLeft, "name"))
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = util.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
+	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, plan, nil
 }
@@ -163,7 +168,7 @@ func (c *CaseFileStore) Delete(rpc options.Deleter) error {
 		PlaceholderFormat(sq.Dollar)
 
 	query, args, err := base.ToSql()
-	query = util.CompactSQL(query)
+	query = storeUtil.CompactSQL(query)
 
 	if err != nil {
 		return dberr.NewDBError("postgres.case_file.delete.parse_query.error", err.Error())
@@ -212,7 +217,7 @@ func buildFilesSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util.Ident(left, "id"))
+			base = base.Column(storeUtil.Ident(left, "id"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Id
 			})
@@ -223,22 +228,22 @@ func buildFilesSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&file.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(util.Ident(left, "uploaded_at"))
+			base = base.Column(storeUtil.Ident(left, "uploaded_at"))
 			plan = append(plan, func(file *cases.File) any {
 				return scanner.ScanTimestamp(&file.CreatedAt)
 			})
 		case "size":
-			base = base.Column(util.Ident(left, "size"))
+			base = base.Column(storeUtil.Ident(left, "size"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Size
 			})
 		case "mime":
-			base = base.Column(util.Ident(left, "mime_type"))
+			base = base.Column(storeUtil.Ident(left, "mime_type"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Mime
 			})
 		case "name":
-			base = base.Column(util.Ident(left, "view_name"))
+			base = base.Column(storeUtil.Ident(left, "view_name"))
 			plan = append(plan, func(file *cases.File) any {
 				return &file.Name
 			})
@@ -273,9 +278,9 @@ func buildFilesSelectAsSubquery(fields []string, caseAlias string) (sq.SelectBui
 	base := sq.
 		Select().
 		From("storage.files " + alias).
-		Where(fmt.Sprintf("%s = %s::text", util.Ident(alias, "uuid"), util.Ident(caseAlias, "id"))).
-		Where(fmt.Sprintf("%s = '%s'", util.Ident(alias, "channel"), channel))
-	base = util.ApplyPaging(1, defaults.DefaultSearchSize, base)
+		Where(fmt.Sprintf("%s = %s::text", storeUtil.Ident(alias, "uuid"), storeUtil.Ident(caseAlias, "id"))).
+		Where(fmt.Sprintf("%s = '%s'", storeUtil.Ident(alias, "channel"), channel))
+	base = storeUtil.ApplyPaging(1, defaults.DefaultSearchSize, base)
 
 	base, scanPlan, dbErr := buildFilesSelectColumnsAndPlan(base, alias, fields)
 	if dbErr != nil {

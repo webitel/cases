@@ -3,17 +3,18 @@ package postgres
 import (
 	"errors"
 	"fmt"
+	"net/url"
+
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	_go "github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	dbutil "github.com/webitel/cases/internal/store/util"
+	storeUtil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 	"github.com/webitel/cases/model/options/defaults"
 	"github.com/webitel/cases/util"
-	"net/url"
 )
 
 const (
@@ -57,7 +58,7 @@ func (l *CaseLinkStore) Create(rpc options.Creator, add *_go.InputCaseLink) (*_g
 	if goErr != nil {
 		return nil, dberr.NewDBError("postgres.case_link.create.convert_to_sql.error", goErr.Error())
 	}
-	row := db.QueryRow(rpc, dbutil.CompactSQL(query), args...)
+	row := db.QueryRow(rpc, storeUtil.CompactSQL(query), args...)
 	res, goErr := l.scanLink(row, plan)
 	if goErr != nil {
 		return nil, dberr.NewDBError("postgres.case_link.create.scan.error", goErr.Error())
@@ -109,10 +110,11 @@ func (l *CaseLinkStore) List(opts options.Searcher) (*_go.CaseLinkList, error) {
 		return nil, dberr.NewDBError("postgres.case_link.list.check_args.opts", "search options required")
 	}
 
-	parentId, ok := opts.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
+	filters := opts.GetFilter("case_id")
+	if len(filters) == 0 {
 		return nil, dberr.NewDBError("postgres.case_link.list.check_args.parent_id", "case id required")
 	}
+
 	db, dbErr := l.storage.Database()
 	if dbErr != nil {
 		return nil, dbErr
@@ -122,14 +124,17 @@ func (l *CaseLinkStore) List(opts options.Searcher) (*_go.CaseLinkList, error) {
 	base := squirrel.
 		Select().
 		From(l.mainTable).
-		Where(fmt.Sprintf("%s = ?", dbutil.Ident(l.mainTable, "dc")), opts.GetAuthOpts().GetDomainId()).
-		Where(fmt.Sprintf("%s = ?", dbutil.Ident(l.mainTable, "case_id")), parentId).
+		Where(fmt.Sprintf("%s = ?", storeUtil.Ident(l.mainTable, "dc")), opts.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
+
+	// Apply new filter logic for case_id
+	base = util.ApplyFiltersToQuery(base, storeUtil.Ident(l.mainTable, "case_id"), filters)
+
 	if len(opts.GetIDs()) != 0 {
-		base = base.Where(fmt.Sprintf("%s = any(?)", dbutil.Ident(l.mainTable, "id")), opts.GetIDs())
+		base = base.Where(fmt.Sprintf("%s = any(?)", storeUtil.Ident(l.mainTable, "id")), opts.GetIDs())
 	}
-	base = dbutil.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
-	base = dbutil.ApplyDefaultSorting(opts, base, linkDefaultSort)
+	base = storeUtil.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
+	base = storeUtil.ApplyDefaultSorting(opts, base, linkDefaultSort)
 	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, l.mainTable, opts.GetFields())
 	if dbErr != nil {
 		return nil, dbErr
@@ -235,12 +240,12 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(dbutil.Ident(left, "id"))
+			base = base.Column(storeUtil.Ident(left, "id"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return &link.Id
 			})
 		case "ver":
-			base = base.Column(dbutil.Ident(left, "ver"))
+			base = base.Column(storeUtil.Ident(left, "ver"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return &link.Ver
 			})
@@ -251,7 +256,7 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 				return scanner.ScanRowLookup(&link.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(dbutil.Ident(left, "created_at"))
+			base = base.Column(storeUtil.Ident(left, "created_at"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return scanner.ScanTimestamp(&link.CreatedAt)
 			})
@@ -262,17 +267,17 @@ func buildLinkSelectColumnsAndPlan(base squirrel.SelectBuilder, left string, fie
 				return scanner.ScanRowLookup(&link.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(dbutil.Ident(left, "updated_at"))
+			base = base.Column(storeUtil.Ident(left, "updated_at"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return scanner.ScanTimestamp(&link.UpdatedAt)
 			})
 		case "name":
-			base = base.Column(dbutil.Ident(left, "name"))
+			base = base.Column(storeUtil.Ident(left, "name"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return scanner.ScanText(&link.Name)
 			})
 		case "url":
-			base = base.Column(dbutil.Ident(left, "url"))
+			base = base.Column(storeUtil.Ident(left, "url"))
 			plan = append(plan, func(link *_go.CaseLink) any {
 				return &link.Url
 			})
@@ -315,7 +320,7 @@ func buildCreateLinkQuery(
 		Values(userID, userID, input.GetName(), input.GetUrl(), rpc.GetParentID(), rpc.GetAuthOpts().GetDomainId()).
 		Suffix("RETURNING *")
 	// select
-	query, args, _ := dbutil.FormAsCTE(insert, insertAlias)
+	query, args, _ := storeUtil.FormAsCTE(insert, insertAlias)
 	base := squirrel.Select().From(insertAlias).Prefix(query, args...).PlaceholderFormat(squirrel.Dollar)
 	// build plan from columns
 	return buildLinkSelectColumnsAndPlan(base, insertAlias, fields)
@@ -362,7 +367,7 @@ func buildUpdateLinkQuery(opts options.Updator, input *_go.InputCaseLink) (squir
 		}
 	}
 	prefixAlias := "upd"
-	prefix, args, err := dbutil.FormAsCTE(update, prefixAlias)
+	prefix, args, err := storeUtil.FormAsCTE(update, prefixAlias)
 	if err != nil {
 		return nil, nil, dberr.NewDBError("postgres.case_link.build_update_query.form_cte.error", err.Error())
 	}
@@ -406,13 +411,13 @@ func buildLinkSelectAsSubquery(fields []string, caseAlias string) (updatedBase s
 	base := squirrel.
 		Select().
 		From("cases.case_link " + alias).
-		Where(fmt.Sprintf("%s = %s", dbutil.Ident(alias, "case_id"), dbutil.Ident(caseAlias, "id")))
+		Where(fmt.Sprintf("%s = %s", storeUtil.Ident(alias, "case_id"), storeUtil.Ident(caseAlias, "id")))
 
 	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, alias, fields)
 	if dbErr != nil {
 		return base, nil, dbErr
 	}
-	base = dbutil.ApplyPaging(1, defaults.DefaultSearchSize, base)
+	base = storeUtil.ApplyPaging(1, defaults.DefaultSearchSize, base)
 
 	return base, plan, nil
 }

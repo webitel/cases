@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+
 	_go "github.com/webitel/cases/api/cases"
 	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/model"
@@ -80,7 +82,7 @@ func (s StatusConditionService) ListStatusConditions(ctx context.Context, req *_
 	}
 
 	if req.Q != "" {
-		searchOptions.AddFilter("name", req.Q)
+		searchOptions.AddFilter(fmt.Sprintf("name=%s", req.Q))
 	}
 
 	statuses, e := s.app.Store.StatusCondition().List(searchOptions, req.StatusId)

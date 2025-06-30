@@ -13,10 +13,10 @@ type Deleter interface {
 
 	// Additional filtering
 
-	GetFilters() map[string]any
+	GetFilter(string) (string, bool)
 	RemoveFilter(string)
-	AddFilter(string, any)
-	GetFilter(string) any
+	AddFilter(string)
+	GetFilters() []string
 
 	// If connection to parent object required
 	GetParentID() int64

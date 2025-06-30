@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"maps"
 	"slices"
 
 	common "github.com/webitel/cases/model/options"
@@ -60,7 +59,7 @@ func fromSearchOptions(opts common.Searcher) options.SearchOption {
 		search.UnknownFields = slices.Clone(opts.GetUnknownFields())
 
 		search.IDs = slices.Clone(opts.GetIDs())
-		search.Filters = maps.Clone(opts.GetFilters())
+		search.Filters = slices.Clone(opts.GetFilters())
 
 		search.Sort = opts.GetSort()
 		search.Page = opts.GetPage()
@@ -115,11 +114,11 @@ func fromDeleteOptions(req common.Deleter) options.SearchOption {
 		// search.createdAt = req.RequestTime()
 		search.Auth = req.GetAuthOpts()
 
-		search.Filters = maps.Clone(req.GetFilters())
+		search.Filters = slices.Clone(req.GetFilters())
 
 		// RemoveFilter(string)
 		// AddFilter(string, any)
-		// GetFilter(string) any
+		// GetFilter1(string) any
 
 		// // If connection to parent object required
 		// GetParentID() int64

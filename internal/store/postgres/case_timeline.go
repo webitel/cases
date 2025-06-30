@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/model/options"
 
@@ -64,8 +66,12 @@ func buildCaseTimelineSqlizer(rpc options.Searcher) (squirrel.Sqlizer, []func(ti
 	if rpc == nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.rpc", "search options required")
 	}
-	parentId, ok := rpc.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
+	filters := rpc.GetFilter("case_id")
+	if len(filters) == 0 || filters[0].Operator != "=" {
+		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id required and must be '='")
+	}
+	parentId, err := strconv.ParseInt(filters[0].Value, 10, 64)
+	if err != nil || parentId == 0 {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id required")
 	}
 	fields := rpc.GetFields()

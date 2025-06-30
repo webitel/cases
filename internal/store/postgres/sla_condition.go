@@ -4,10 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	util2 "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
 	"strings"
 	"time"
+
+	storeUtil "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/model/options"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
@@ -340,7 +341,7 @@ FROM inserted_sla
          LEFT JOIN inserted_priorities ON inserted_sla.id = inserted_priorities.sla_condition_id
          LEFT JOIN cases.priority p ON p.id = inserted_priorities.priority_id;`
 
-	return util2.CompactSQL(query), args
+	return storeUtil.CompactSQL(query), args
 }
 
 // Helper function to build the delete query for SLACondition
@@ -361,11 +362,17 @@ func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.Deleter) (s
 func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (string, []interface{}, error) {
 	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
+
 	queryBuilder := sq.Select().
 		From("cases.sla_condition AS g").
-		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId(), "g.sla_id": rpc.GetFilter("sla_id")}).
+		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId()}).
 		LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
 		PlaceholderFormat(sq.Dollar)
+
+	// Apply new filter logic for sla_id
+	if slaIdFilters := rpc.GetFilter("sla_id"); len(slaIdFilters) > 0 {
+		queryBuilder = util.ApplyFiltersToQuery(queryBuilder, "g.sla_id", slaIdFilters)
+	}
 
 	groupByFields := []string{"g.id"} // Start with the mandatory fields for GROUP BY
 
@@ -408,14 +415,17 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": ids})
 	}
 
-	if priorityId := rpc.GetFilter("priority_id"); priorityId != nil {
-		// Join cases.priority_sla_condition only if filtering by priority_id
-		queryBuilder = queryBuilder.
-			Where(sq.Eq{"ps.priority_id": priorityId})
+	// Move new filter logic for priority_id and name here, after the switch-case
+	if priorityIdFilters := rpc.GetFilter("priority_id"); len(priorityIdFilters) > 0 {
+		queryBuilder = util.ApplyFiltersToQuery(queryBuilder, "ps.priority_id", priorityIdFilters)
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "g.name")
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if (f.Operator == "=" || f.Operator == "") && len(f.Value) > 0 {
+			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "g.name")
+		}
 	}
 
 	// Adjust sort if calendar is present
@@ -435,11 +445,11 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 		queryBuilder = queryBuilder.OrderBy(s)
 	} else {
 		// -------- Apply sorting ----------
-		queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
+		queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
 	}
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Apply GROUP BY clause
 	queryBuilder = queryBuilder.GroupBy(groupByFields...)
@@ -449,7 +459,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 		return "", nil, dberr.NewDBInternalError("postgres.sla_condition.query_build.sql_generation_error", err)
 	}
 
-	return util2.CompactSQL(query), args, nil
+	return storeUtil.CompactSQL(query), args, nil
 }
 
 func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc options.Updator, l *cases.SLACondition) (string, []interface{}) {
@@ -615,7 +625,7 @@ func (s *SLAConditionStore) populatePriorities(
 	}
 }
 
-var deleteSLAConditionQuery = util2.CompactSQL(
+var deleteSLAConditionQuery = storeUtil.CompactSQL(
 	`DELETE FROM cases.sla_condition
 	 WHERE id = $1 AND dc = $2
 	`)
