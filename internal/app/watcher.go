@@ -11,8 +11,8 @@ import (
 	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/rabbit"
 	"github.com/webitel/webitel-go-kit/fts_client"
-	"github.com/webitel/webitel-go-kit/pkg/watcher"
 	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
+	"github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -49,6 +49,7 @@ func NewTriggerObserver[T any, V any](amqpBroker AMQPBroker, config *cfg.Trigger
 		logger:     log,
 		converter:  conv,
 	}
+
 	return amqpObserver, nil
 }
 
@@ -60,7 +61,7 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 	var domainId int64
 	obj, ok := args["obj"].(T)
 	if !ok {
-		return fmt.Errorf("could not convert to %d", obj)
+		return fmt.Errorf("could not convert to %v", obj)
 	}
 
 	session, ok := args["session"].(auth.Auther)
@@ -89,6 +90,11 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 		objStr = model.BrokerScopeCaseLinks
 	case *cases.CaseComment:
 		objStr = model.ScopeCaseComments
+	case *cases.File:
+		objStr = model.BrokerScopeFiles
+	case *cases.RelatedCase:
+		objStr = model.BrokerScopeRelatedCases
+
 	default:
 		return fmt.Errorf("unsupported object type %T", obj)
 	}
@@ -96,9 +102,9 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 	routingKey := cao.getRoutingKeyByEventType("cases", objStr, et, domainId)
 	cao.logger.Debug(fmt.Sprintf("Trying to publish message to %s", routingKey))
 
-	if objStr == model.ScopeCaseComments || objStr == model.BrokerScopeCaseLinks {
-		routingKey = cao.getRoutingKeyByEventType("cases", "case", et, domainId)
-	}
+	//if objStr == model.ScopeCaseComments || objStr == model.BrokerScopeCaseLinks {
+	//	routingKey = cao.getRoutingKeyByEventType("cases", "case", et, domainId)
+	//}
 
 	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, nil)
 }
@@ -129,6 +135,7 @@ func NewLoggerObserver(logger *wlogger.Logger, objclass string, timeout time.Dur
 	if err != nil {
 		return nil, err
 	}
+
 	return &LoggerObserver{
 		id:      fmt.Sprintf("%s logger", objclass),
 		logger:  objectedLogger,
@@ -160,7 +167,13 @@ func (l *LoggerObserver) Update(et watcher.EventType, args map[string]any) error
 	default:
 		return watcher.ErrUnknownType
 	}
-	message, err := wlogger.NewMessage(auth.GetUserId(), auth.GetUserIp(), tp, strconv.FormatInt(id, 10), args["obj"])
+
+	userIP := auth.GetUserIp()
+	if userIP != "" {
+		userIP = "unknown"
+	}
+
+	message, err := wlogger.NewMessage(auth.GetUserId(), userIP, tp, strconv.FormatInt(id, 10), args["obj"])
 	if err != nil {
 		return err
 	}
@@ -170,6 +183,7 @@ func (l *LoggerObserver) Update(et watcher.EventType, args map[string]any) error
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -204,7 +218,7 @@ func (l *FullTextSearchObserver[T, V]) Update(et watcher.EventType, args map[str
 	}
 	obj, ok := args["obj"].(T)
 	if !ok {
-		return fmt.Errorf("could not convert to %d", obj)
+		return fmt.Errorf("could not convert to %v", obj)
 	}
 
 	neededType, err := l.converter(obj, args)

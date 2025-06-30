@@ -76,6 +76,7 @@ func (s *CloseReasonService) ListCloseReasons(
 			util.EnsureIdField,
 		),
 		grpcopts.WithSort(req),
+		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
 		return nil, NewBadRequestError(err)

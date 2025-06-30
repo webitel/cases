@@ -537,7 +537,7 @@ SELECT usc.id,
        usc.created_by,
        COALESCE(c.name, '')                                    AS created_by_name,
        usc.updated_by,
-       u.name                                                  AS updated_by_name,
+       COALESCE(u.name, '')                                     AS updated_by_name,
        json_agg(json_build_object('id', p.id, 'name', p.name)) AS priorities_json
 FROM upd_condition usc
          LEFT JOIN directory.wbt_user c ON c.id = usc.created_by

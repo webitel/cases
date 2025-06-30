@@ -3,8 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
-
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	cerror "github.com/webitel/cases/internal/errors"
@@ -13,6 +11,8 @@ import (
 	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/etag"
+	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
+	"log/slog"
 )
 
 type CaseFileService struct {
@@ -81,7 +81,11 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 	if req.Id == 0 {
 		return nil, cerror.NewBadRequestError("app.case_file.delete_file.file_id_required", "File ID is required")
 	}
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.GetId()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()))
+	deleteOpts, err := grpcopts.NewDeleteOptions(
+		ctx,
+		grpcopts.WithDeleteID(req.GetId()),
+		grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()),
+	)
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
@@ -130,12 +134,91 @@ func (c *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 		}
 	}
 
+	if notifyErr := c.app.watcherManager.Notify(
+		filesObj,
+		watcherkit.EventTypeDelete,
+		NewFileWatcherData(
+			deleteOpts.GetAuthOpts(),
+			nil,
+			req.GetId(),
+			deleteOpts.GetAuthOpts().GetDomainId(),
+		),
+	); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case file delete: %s, ", notifyErr.Error()), logAttributes)
+	}
+
 	return &cases.File{}, nil
 }
 
+func NewFileWatcherData(session auth.Auther, file *cases.File, fileID int64, dc int64) *CaseFileWatcherData {
+	return &CaseFileWatcherData{
+		file: file,
+		Args: map[string]any{
+			"session":   session,
+			"obj":       file,
+			"id":        fileID,
+			"domain_id": dc,
+		},
+	}
+}
+
+type CaseFileWatcherData struct {
+	file *cases.File
+	Args map[string]any
+}
+
+func (wd *CaseFileWatcherData) GetArgs() map[string]any {
+	return wd.Args
+}
+
+// in DB directory.wbt_class `files` object is called `record_file`
+// overwritten for logger
+const (
+	filesObj = "record_file"
+)
+
 func NewCaseFileService(app *App) (*CaseFileService, cerror.AppError) {
 	if app == nil {
-		return nil, cerror.NewBadRequestError("app.case.new_case_file_service.check_args.app", "unable to init service, app is nil")
+		return nil, cerror.NewBadRequestError(
+			"app.case.new_case_file_service.check_args.app",
+			"unable to init service, app is nil",
+		)
 	}
+
+	watcher := watcherkit.NewDefaultWatcher()
+
+	if app.config.LoggerWatcher.Enabled {
+		obs, err := NewLoggerObserver(app.wtelLogger, filesObj, defaultLogTimeout)
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_file_service.create_observer.app", err.Error())
+		}
+		watcher.Attach(watcherkit.EventTypeCreate, obs)
+		watcher.Attach(watcherkit.EventTypeUpdate, obs)
+		watcher.Attach(watcherkit.EventTypeDelete, obs)
+	}
+
+	if app.config.TriggerWatcher.Enabled {
+		mq, err := NewTriggerObserver(
+			app.rabbit,
+			app.config.TriggerWatcher,
+			formCaseFiletriggerModel,
+			slog.With(
+				slog.Group("context",
+					slog.String("scope", "watcher")),
+			))
+
+		if err != nil {
+			return nil, cerror.NewInternalError("app.case.new_case_file_service.create_mq_observer.app", err.Error())
+		}
+		watcher.Attach(watcherkit.EventTypeCreate, mq)
+		watcher.Attach(watcherkit.EventTypeUpdate, mq)
+		watcher.Attach(watcherkit.EventTypeDelete, mq)
+		watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
+
+		app.caseResolutionTimer.Start()
+	}
+
+	app.watcherManager.AddWatcher(filesObj, watcher)
+
 	return &CaseFileService{app: app}, nil
 }

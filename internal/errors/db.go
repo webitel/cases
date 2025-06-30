@@ -22,6 +22,9 @@ func NewDBError(id, message string) *DBError {
 
 // Error implements the error interface for DBError.
 func (e *DBError) Error() string {
+	if e == nil {
+		return "unknown error"
+	}
 	return fmt.Sprintf("DBError [%s]: %s", e.ID, e.Message)
 }
 

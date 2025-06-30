@@ -9,5 +9,7 @@ const (
 
 // scope defaults for rabbit events
 const (
-	BrokerScopeCaseLinks = "case_links"
+	BrokerScopeCaseLinks    = "case_links"
+	BrokerScopeFiles        = "case_files"
+	BrokerScopeRelatedCases = "related_cases"
 )

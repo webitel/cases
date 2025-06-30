@@ -2,8 +2,6 @@ package postgres
 
 import (
 	"fmt"
-
-	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	storeUtil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
@@ -16,7 +14,6 @@ import (
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 )
 
 type CaseCommunicationStore struct {
@@ -47,7 +44,9 @@ func (c *CaseCommunicationStore) Link(
 
 	// Defer rollback, but ignore error if the transaction is already committed/rolled back
 	defer func() {
-		_ = tx.Rollback(options) // Will be a no-op if already committed
+		if err := recover(); err != nil {
+			_ = tx.Rollback(options) // Will be a no-op if already committed
+		}
 	}()
 
 	txManager := transaction.NewTxManager(tx)
@@ -73,10 +72,15 @@ func (c *CaseCommunicationStore) Link(
 		return nil, dbErr
 	}
 
-	// If Commit succeeds, rollback is now a no-op
-	if err := txManager.Commit(options); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case_communication.link.commit_error", err)
+	err = txManager.Commit(options)
+	if err != nil {
+		return nil, dbErr
 	}
+
+	//// If Commit succeeds, rollback is now a no-op
+	//if err := txManager.Commit(options); err != nil {
+	//	return nil, dberr.NewDBInternalError("postgres.case_communication.link.commit_error", err)
+	//}
 
 	return res, nil
 }
@@ -154,7 +158,7 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
 		Where(fmt.Sprintf("%s = ?", storeUtil.Ident(alias, "dc")), options.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
 	// Apply all case_id filters (with all supported operators)
-	base = util.ApplyFiltersToQuery(base, storeUtil.Ident(alias, "case_id"), caseIDFilters)
+	base = storeUtil.ApplyFiltersToQuery(base, storeUtil.Ident(alias, "case_id"), caseIDFilters)
 	base = storeUtil.ApplyPaging(options.GetPage(), options.GetSize(), base)
 
 	return c.buildSelectColumnsAndPlan(base, alias, options.GetFields())
@@ -210,10 +214,10 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 		Suffix("RETURNING *")
 
 	var (
-		caseId              = options.GetParentID()
-		dc, userId          *int64
-		roles               []int64
-		callsRbac, caseRbac bool
+		caseId     = options.GetParentID()
+		dc, userId *int64
+		//roles      []int64
+		//callsRbac, caseRbac bool
 	)
 
 	if session := options.GetAuthOpts(); session != nil {
@@ -221,21 +225,22 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 		dc = &d
 		u := session.GetUserId()
 		userId = &u
-		roles = session.GetRoles()
-		callsRbac = session.IsRbacCheckRequired(model.ScopeCalls, auth.Read)
-		caseRbac = session.IsRbacCheckRequired(model.ScopeCases, auth.Edit)
+		//roles = session.GetRoles()
+		//callsRbac = session.IsRbacCheckRequired(model.ScopeCalls, auth.Read)
+		//caseRbac = session.IsRbacCheckRequired(model.ScopeCases, auth.Edit)
 	}
 
 	var caseSubquery squirrel.Sqlizer
-	if caseRbac {
-		caseSubquery = squirrel.Expr(`(
-			SELECT object FROM cases.case_acl acl
-			WHERE acl.dc = ? AND acl.object = ? AND acl.subject = ANY(?::int[]) AND acl.access & ? = ?)`,
-			dc, caseId, roles, auth.Edit, auth.Edit,
-		)
-	} else {
-		caseSubquery = squirrel.Expr(`?`, caseId)
-	}
+	//if caseRbac {
+	//	caseSubquery = squirrel.Expr(`(
+	//		SELECT object FROM cases.case_acl acl
+	//		WHERE acl.dc = ? AND acl.object = ? AND acl.subject = ANY(?::int[]) AND acl.access & ? = ?)`,
+	//		dc, caseId, roles, auth.Edit, auth.Edit,
+	//	)
+	//}
+	//else {
+	caseSubquery = squirrel.Expr(`?`, caseId)
+	//}
 
 	for _, communication := range input {
 		var (
@@ -264,28 +269,36 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 
 		switch channel {
 		case store.CommunicationCall:
-			if callsRbac {
-				subquery = squirrel.Expr(`(
-					SELECT c.id::text FROM call_center.cc_calls_history c
-					WHERE c.id = ?::uuid AND (
-						c.user_id = ANY(call_center.cc_calls_rbac_users(?::int8, ?::int8) || ?::int[])
-						OR c.queue_id = ANY(call_center.cc_calls_rbac_queues(?::int8, ?::int8, ?::int[]))
-						OR (c.user_ids NOTNULL AND c.user_ids::int[] && call_center.rbac_users_from_group('calls', ?::int8, ?::int2, ?::int[]))
-						OR c.grantee_id = ANY(?::int[])
-					)
-				)`,
-					communication.CommunicationId,
-					dc, userId, roles,
-					dc, userId, roles,
-					dc, auth.Read, roles,
-					roles,
-				)
-			} else {
-				subquery = squirrel.Expr(
-					`(SELECT id FROM call_center.cc_calls_history WHERE id = ?)`,
-					communication.CommunicationId,
-				)
-			}
+			//Fixme rbac with active calls
+			//if callsRbac {
+			//	subquery = squirrel.Expr(`(
+			//		SELECT c.id::text FROM call_center.cc_calls_history c
+			//		WHERE c.id = ?::uuid AND (
+			//			c.user_id = ANY(call_center.cc_calls_rbac_users(?::int8, ?::int8) || ?::int[])
+			//			OR c.queue_id = ANY(call_center.cc_calls_rbac_queues(?::int8, ?::int8, ?::int[]))
+			//			OR (c.user_ids NOTNULL AND c.user_ids::int[] && call_center.rbac_users_from_group('calls', ?::int8, ?::int2, ?::int[]))
+			//			OR c.grantee_id = ANY(?::int[])
+			//		)
+			//	)`,
+			//		communication.CommunicationId,
+			//		dc, userId, roles,
+			//		dc, userId, roles,
+			//		dc, auth.Read, roles,
+			//		roles,
+			//	)
+			//}
+			//else {
+			subquery = squirrel.Expr(
+				`(
+		SELECT COALESCE(
+			(SELECT id FROM call_center.cc_calls_history WHERE id = ?),
+			(SELECT id FROM call_center.cc_calls WHERE id = ?)
+		)
+	)`,
+				communication.CommunicationId,
+				communication.CommunicationId,
+			)
+			//}
 		case store.CommunicationChat:
 			subquery = squirrel.Expr(
 				`(SELECT id FROM chat.conversation WHERE id = ?)`,
