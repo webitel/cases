@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	storeUtil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
@@ -158,7 +159,7 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
 		Where(fmt.Sprintf("%s = ?", storeUtil.Ident(alias, "dc")), options.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
 	// Apply all case_id filters (with all supported operators)
-	base = storeUtil.ApplyFiltersToQuery(base, storeUtil.Ident(alias, "case_id"), caseIDFilters)
+	base = util.ApplyFiltersToQuery(base, storeUtil.Ident(alias, "case_id"), caseIDFilters)
 	base = storeUtil.ApplyPaging(options.GetPage(), options.GetSize(), base)
 
 	return c.buildSelectColumnsAndPlan(base, alias, options.GetFields())
