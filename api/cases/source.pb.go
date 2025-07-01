@@ -503,23 +503,26 @@ func (x *DeleteSourceRequest) GetId() int64 {
 	return 0
 }
 
-// Request message for listing sources.
 type ListSourceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Page number of result dataset records. offset = (page*size)
+	// Page number of result dataset records. offset = (page * size)
+	// Default: 0
 	Page int32 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
 	// Size count of records on result page. limit = (size++)
+	// Default: 25
 	Size int32 `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
 	// Fields to be retrieved as a result.
+	// Default: [] (all fields)
 	Fields []string `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty"`
 	// Sort the result according to fields.
+	// Default: "id:desc"
 	Sort string `protobuf:"bytes,4,opt,name=sort,proto3" json:"sort,omitempty"`
 	// Filter by unique IDs.
 	Id []int64 `protobuf:"varint,5,rep,packed,name=id,proto3" json:"id,omitempty"`
 	// Search query string for filtering by name. Supports:
-	// - Wildcards (*) for substring matching
-	// - Placeholder (?) for single character substitution
-	// - Exact match for full names
+	// - Wildcards (*)
+	// - Placeholder (?)
+	// - Exact match
 	Q string `protobuf:"bytes,6,opt,name=q,proto3" json:"q,omitempty"`
 	// Filter by source type.
 	Type          []SourceType `protobuf:"varint,7,rep,packed,name=type,proto3,enum=webitel.cases.SourceType" json:"type,omitempty"`
@@ -738,11 +741,11 @@ const file_source_proto_rawDesc = "" +
 	"\x13CreateSourceRequest\x12\\\n" +
 	"\x05input\x18\x01 \x01(\v2\x1a.webitel.cases.InputSourceB*\x92A'2\x1dThe input data for the source\xd2\x01\x05inputR\x05input\x12L\n" +
 	"\x06fields\x18\x02 \x03(\tB4\x92A12&Specific fields to include in response\xa0\x012\xa8\x01\x01\xb0\x01\x01R\x06fields:\x8e\x01\x92A\x8a\x01\n" +
-	"\x87\x012DRequest for creating a new source with all available OpenAPI options:1{\"input\": {\"name\": \"New Source\", \"type\": \"CALL\"}}\xc0\x01\x03\xc8\x01\x01\xd2\x01\x05input\"\xfc\x02\n" +
+	"\x87\x012DRequest for creating a new source with all available OpenAPI options:1{\"input\": {\"name\": \"New Source\", \"type\": \"CALL\"}}\xc0\x01\x03\xc8\x01\x01\xd2\x01\x05input\"\xe3\x02\n" +
 	"\vInputSource\x12@\n" +
 	"\x04name\x18\x01 \x01(\tB,\x92A)2\x16The name of the source:\n" +
-	"New Sourcexd\x80\x01\x02R\x04name\x12d\n" +
-	"\vdescription\x18\x02 \x01(\tBB\x92A?2!A short description of the source:\x17No description providedx\xf4\x03R\vdescription\x12R\n" +
+	"New Sourcexd\x80\x01\x02R\x04name\x12K\n" +
+	"\vdescription\x18\x02 \x01(\tB)\x92A&2!A short description of the sourcex\xf4\x03R\vdescription\x12R\n" +
 	"\x04type\x18\x03 \x01(\x0e2\x19.webitel.cases.SourceTypeB#\x92A 2\x16The type of the source:\x06\"CALL\"R\x04type:q\x92An\n" +
 	"l2(The data structure representing a source:,{ \"name\": \"Default Source\", \"type\": \"CALL\" }\xc0\x01\x05\xc8\x01\x02\xd2\x01\x04name\xd2\x01\x04type\"\xb6\x01\n" +
 	"\x13UpdateSourceRequest\x12\x0e\n" +
@@ -755,12 +758,12 @@ const file_source_proto_rawDesc = "" +
 	"\x13DeleteSourceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id:\n" +
 	"\x92A\a\n" +
-	"\x05\xd2\x01\x02id\"\xb4\x01\n" +
-	"\x11ListSourceRequest\x12\x12\n" +
-	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x12\n" +
-	"\x04size\x18\x02 \x01(\x05R\x04size\x12\x16\n" +
-	"\x06fields\x18\x03 \x03(\tR\x06fields\x12\x12\n" +
-	"\x04sort\x18\x04 \x01(\tR\x04sort\x12\x0e\n" +
+	"\x05\xd2\x01\x02id\"\xd5\x01\n" +
+	"\x11ListSourceRequest\x12\x1a\n" +
+	"\x04page\x18\x01 \x01(\x05B\x06\x92A\x03:\x011R\x04page\x12\x1b\n" +
+	"\x04size\x18\x02 \x01(\x05B\a\x92A\x04:\x0220R\x04size\x12\x16\n" +
+	"\x06fields\x18\x03 \x03(\tR\x06fields\x12\"\n" +
+	"\x04sort\x18\x04 \x01(\tB\x0e\x92A\v:\tname:descR\x04sort\x12\x0e\n" +
 	"\x02id\x18\x05 \x03(\x03R\x02id\x12\f\n" +
 	"\x01q\x18\x06 \x01(\tR\x01q\x12-\n" +
 	"\x04type\x18\a \x03(\x0e2\x19.webitel.cases.SourceTypeR\x04type\"=\n" +

@@ -101,7 +101,9 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		grpcopts.WithSearch(req),
 		grpcopts.WithPagination(req),
 		grpcopts.WithFilters(req.GetFilters()),
-		grpcopts.WithFields(req, CaseMetadata,
+		grpcopts.WithFields(
+			req,
+			CaseMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
@@ -112,35 +114,69 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	if err != nil {
 		return nil, NewBadRequestError(err)
 	}
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64(
-			"user_id",
-			searchOpts.GetAuthOpts().GetUserId(),
-		),
-		slog.Int64(
-			"domain_id",
-			searchOpts.GetAuthOpts().GetDomainId(),
-		),
-	)
-	if req.GetContactId() != "" {
-		searchOpts.Filters = append(
-			searchOpts.Filters,
-			fmt.Sprintf("contact=%s", req.GetContactId()),
-		)
+
+	logAttrs := buildLogAttributes(searchOpts)
+
+	if contactID := req.GetContactId(); contactID != "" {
+		searchOpts.Filters = append(searchOpts.Filters, fmt.Sprintf("contact=%s", contactID))
 	}
-	list, err := c.app.Store.Case().List(searchOpts)
+
+	target := buildQueryTarget(req.QueryTarget)
+
+	list, err := c.app.Store.Case().List(searchOpts, target)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
+		slog.ErrorContext(ctx, err.Error(), logAttrs)
+
 		return nil, deferr.DatabaseError
 	}
-	err = c.NormalizeResponseCases(list, req)
-	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
+
+	if err := c.NormalizeResponseCases(list, req); err != nil {
+		slog.ErrorContext(ctx, err.Error(), logAttrs)
+
 		return nil, deferr.ResponseNormalizingError
 	}
 
 	return list, nil
+}
+
+func buildLogAttributes(searchOpts *grpcopts.SearchOptions) slog.Attr {
+	authOpts := searchOpts.GetAuthOpts()
+
+	return slog.Group("context",
+		slog.Int64("user_id", authOpts.GetUserId()),
+		slog.Int64("domain_id", authOpts.GetDomainId()),
+	)
+}
+
+func buildQueryTarget(input *cases.CaseQueryTarget) *model.CaseQueryTarget {
+	if input == nil {
+		return &model.CaseQueryTarget{
+			Full:        true,
+			Subject:     true,
+			Name:        true,
+			ContactInfo: true,
+			ID:          true,
+		}
+	}
+
+	target := &model.CaseQueryTarget{
+		Full:        input.Full,
+		Subject:     input.Subject,
+		Name:        input.Name,
+		ContactInfo: input.ContactInfo,
+		ID:          input.Id,
+	}
+
+	if !(target.Full || target.Subject || target.Name || target.ContactInfo || target.ID) {
+		// Enable all by default if none are true
+		target.Full = true
+		target.Subject = true
+		target.Name = true
+		target.ContactInfo = true
+		target.ID = true
+	}
+
+	return target
 }
 
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
@@ -168,7 +204,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 			"domain_id", searchOpts.GetAuthOpts().GetDomainId(),
 		),
 	)
-	list, err := c.app.Store.Case().List(searchOpts)
+	list, err := c.app.Store.Case().List(searchOpts, nil)
 	if err != nil {
 		return nil, err
 	}
