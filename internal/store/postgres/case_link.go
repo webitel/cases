@@ -49,9 +49,9 @@ func (l *CaseLinkStore) Create(rpc options.Creator, add *_go.InputCaseLink) (*_g
 	if dbErr != nil {
 		return nil, dbErr
 	}
-	db, dbErr := l.storage.Database()
-	if dbErr != nil {
-		return nil, dbErr
+	db, err := l.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 	query, args, goErr := base.ToSql()
 	if goErr != nil {
@@ -169,9 +169,9 @@ func (l *CaseLinkStore) Update(opts options.Updator, upd *_go.InputCaseLink) (*_
 	if dbErr != nil {
 		return nil, dbErr
 	}
-	db, dbErr := l.storage.Database()
-	if dbErr != nil {
-		return nil, dbErr
+	db, err := l.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 	slct, args, err := query.ToSql()
 	if err != nil {

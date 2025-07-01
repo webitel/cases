@@ -154,7 +154,7 @@ func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.Creator, sl
 	conditionCTEName := "inserted_condition"
 
 	// select of the inserted condition
-	base, err := s.buildSLAConditionColumns(sq.Select().From(conditionCTEName).PlaceholderFormat(sq.Dollar), rpc.GetFields(), conditionCTEName)
+	base, err := buildSLAConditionColumns(sq.Select().From(conditionCTEName).PlaceholderFormat(sq.Dollar), rpc.GetFields(), conditionCTEName)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.Deleter) (s
 	return query, args, nil
 }
 
-func (s *SLAConditionStore) buildSLAConditionColumns(queryBuilder sq.SelectBuilder, fields []string, tableAlias string) (sq.SelectBuilder, error) {
+func buildSLAConditionColumns(queryBuilder sq.SelectBuilder, fields []string, tableAlias string) (sq.SelectBuilder, error) {
 	for _, field := range fields {
 		switch field {
 		case "id", "name", "reaction_time", "resolution_time",
@@ -244,7 +244,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 	if f, ok := rpc.GetFilter("sla_id").(int); ok {
 		queryBuilder = queryBuilder.Where("g.sla_id = ?", f)
 	}
-	queryBuilder, err := s.buildSLAConditionColumns(queryBuilder, rpc.GetFields(), "g")
+	queryBuilder, err := buildSLAConditionColumns(queryBuilder, rpc.GetFields(), "g")
 	if err != nil {
 		return "", nil, err
 	}

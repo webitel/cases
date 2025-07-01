@@ -83,9 +83,9 @@ func (c *CaseCommunicationStore) Unlink(options options.Deleter) (int64, error) 
 	if dbErr != nil {
 		return 0, dbErr
 	}
-	db, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return 0, dbErr
+	db, err := c.storage.Database()
+	if err != nil {
+		return 0, err
 	}
 	sql, args, err := base.ToSql()
 	if err != nil {
@@ -103,9 +103,9 @@ func (c *CaseCommunicationStore) List(opts options.Searcher) (*cases.ListCommuni
 	if dbErr != nil {
 		return nil, dbErr
 	}
-	db, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dbErr
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 	sql, args, err := base.ToSql()
 	if err != nil {

@@ -579,7 +579,7 @@ func buildCommentSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlias string) (sq.SelectBuilder, []func(link *_go.CaseComment) any, *dberr.DBError) {
+func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlias string) (sq.SelectBuilder, []func(link *_go.CaseComment) any, error) {
 	alias := "comments"
 	if caseAlias == alias {
 		alias = "sub_" + alias

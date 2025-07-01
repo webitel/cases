@@ -292,7 +292,10 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	res.Etag = etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
+	res.Etag, err = etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
+	if err != nil {
+
+	}
 	// save before normalize
 	roleIds := res.GetRoleIds()
 	id := res.GetId()
@@ -406,8 +409,10 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	res.Etag = etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
-
+	res.Etag, err = etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
+	if err != nil {
+		return nil, err
+	}
 	// *Handle dynamic group update if applicable
 	res, err = c.handleDynamicGroup(ctx, res)
 	if err != nil {
