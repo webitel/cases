@@ -70,13 +70,13 @@ type CaseStore interface {
 // RelatedCases attribute attached to the case (n:1)
 type CaseLinkStore interface {
 	// Create link
-	Create(rpc options.Creator, add *_go.InputCaseLink) (*_go.CaseLink, error)
+	Create(rpc options.Creator, add *model.CaseLink) (*model.CaseLink, error)
 	// List links
-	List(rpc options.Searcher) (*_go.CaseLinkList, error)
+	List(rpc options.Searcher) ([]*model.CaseLink, error)
 	// Update link
-	Update(req options.Updator, upd *_go.InputCaseLink) (*_go.CaseLink, error)
+	Update(req options.Updator, upd *model.CaseLink) (*model.CaseLink, error)
 	// Delete link
-	Delete(req options.Deleter) error
+	Delete(req options.Deleter) (*model.CaseLink, error)
 }
 
 // Comments attribute attached to the case (n:1)

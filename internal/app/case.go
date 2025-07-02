@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/webitel/cases/auth"
-	auth_util "github.com/webitel/cases/auth/util"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -13,6 +11,10 @@ import (
 
 	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
+	"github.com/webitel/cases/auth"
+	auth_util "github.com/webitel/cases/auth/util"
+	"github.com/webitel/cases/internal/api_handler/grpc"
+	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
@@ -75,7 +77,7 @@ var (
 		{Name: "contact_info", Default: true},
 		{Name: "role_ids", Default: false},
 		{Name: "dc", Default: false},
-	}, CaseCommentMetadata, CaseLinkMetadata, RelatedCaseMetadata)
+	}, CaseCommentMetadata, grpc.CaseLinkMetadata, RelatedCaseMetadata)
 
 	resolutionTimeSO = &grpcopts.SearchOptions{
 		Context: context.Background(),
@@ -294,7 +296,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	}
 	res.Etag, err = etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
 	if err != nil {
-
+		return nil, err
 	}
 	// save before normalize
 	roleIds := res.GetRoleIds()
@@ -413,6 +415,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if err != nil {
 		return nil, err
 	}
+
 	// *Handle dynamic group update if applicable
 	res, err = c.handleDynamicGroup(ctx, res)
 	if err != nil {
@@ -778,7 +781,7 @@ func NewCaseService(app *App) (*CaseService, error) {
 	}
 
 	if app.config.TriggerWatcher.Enabled {
-		mq, err := NewTriggerObserver(app.rabbitConn, app.config.TriggerWatcher, formCaseTriggerModel, slog.With(
+		mq, err := NewTriggerObserver(app.rabbitPublisher, app.config.TriggerWatcher, formCaseTriggerModel, slog.With(
 			slog.Group("context",
 				slog.String("scope", "watcher")),
 		))
@@ -907,7 +910,7 @@ func (c *CaseService) NormalizeResponseCases(res *cases.CaseList, mainOpts share
 		if item.Related != nil {
 			for _, related := range item.Related.Data {
 				err = util.NormalizeEtags(
-					etag.Etag,
+					etag.EtagCase,
 					true,
 					false,
 					false,
@@ -1025,9 +1028,22 @@ func formCaseTriggerModel(item *cases.Case) (*model.CaseAMQPMessage, error) {
 	return m, nil
 }
 
-func formCaseLinkTriggerModel(item *cases.CaseLink) (*model.CaseLinkAMQPMessage, error) {
+func formCaseLinkTriggerModel(item *model.CaseLink) (*model.CaseLinkAMQPMessage, error) {
+	// Convert model.CaseLink to cases.CaseLink for AMQP message
+	protoLink := &cases.CaseLink{
+		Id:        item.Id,
+		Etag:      item.Etag,
+		Ver:       item.Ver,
+		Name:      *item.Name,
+		Url:       item.Url,
+		CreatedBy: utils.MarshalLookup(item.Author),
+		UpdatedBy: utils.MarshalLookup(item.Editor),
+		Author:    utils.MarshalLookup(item.Contact),
+		CreatedAt: utils.MarshalTime(item.CreatedAt),
+		UpdatedAt: utils.MarshalTime(item.UpdatedAt),
+	}
 	m := &model.CaseLinkAMQPMessage{
-		CaseLink: item,
+		CaseLink: protoLink,
 	}
 
 	return m, nil

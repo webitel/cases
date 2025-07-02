@@ -135,7 +135,7 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	if err != nil {
 		return nil, err
 	}
-	app.wtelLogger, err = wlogger.New(loggerAdapter, nil)
+	app.wtelLogger, err = wlogger.New(nil, wlogger.WithPublisher(loggerAdapter))
 	if err != nil {
 		return nil, errors.New("unable to create logger client", errors.WithCause(err))
 	}

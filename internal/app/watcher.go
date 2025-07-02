@@ -4,6 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
@@ -12,10 +17,6 @@ import (
 	"github.com/webitel/webitel-go-kit/infra/fts_client"
 	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"github.com/webitel/webitel-go-kit/pkg/watcher"
-	"log/slog"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type Publisher interface {
@@ -74,7 +75,7 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 	switch any(obj).(type) {
 	case *cases.Case:
 		objStr = model.ScopeCases
-	case *cases.CaseLink:
+	case *cases.CaseLink, *model.CaseLink:
 		objStr = model.BrokerScopeCaseLinks
 	case *cases.CaseComment:
 		objStr = model.ScopeCaseComments
