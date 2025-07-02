@@ -6,12 +6,14 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
+	_go "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/model/options/defaults"
 	"github.com/webitel/cases/internal/store"
-	dbutil "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
+	storeUtil "github.com/webitel/cases/internal/store/util"
 )
 
 const (
@@ -341,32 +343,132 @@ func buildListCaseLinkQuery(
 	fields []string,
 ) (sq.SelectBuilder, error) {
 	base := sq.Select().From("cases.case_link "+caseLinkLeft).
-		Where(fmt.Sprintf("%s = ?", dbutil.Ident(caseLinkLeft, "dc")), opts.GetAuthOpts().GetDomainId()).
-		Where(fmt.Sprintf("%s = ?", dbutil.Ident(caseLinkLeft, "case_id")), parentId).
+		Where(fmt.Sprintf("%s = ?", storeUtil.Ident(caseLinkLeft, "dc")), opts.GetAuthOpts().GetDomainId()).
+		Where(fmt.Sprintf("%s = ?", storeUtil.Ident(caseLinkLeft, "case_id")), parentId).
 		PlaceholderFormat(sq.Dollar)
 	if len(opts.GetIDs()) != 0 {
-		base = base.Where(fmt.Sprintf("%s = any(?)", dbutil.Ident(caseLinkLeft, "id")), opts.GetIDs())
+		base = base.Where(fmt.Sprintf("%s = any(?)", storeUtil.Ident(caseLinkLeft, "id")), opts.GetIDs())
 	}
-	base = dbutil.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
-	base = dbutil.ApplyDefaultSorting(opts, base, linkDefaultSort)
+	base = storeUtil.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
+	base = storeUtil.ApplyDefaultSorting(opts, base, linkDefaultSort)
 	return buildLinkSelectColumns(base, caseLinkLeft, fields)
 }
 
-func buildLinkSelectAsSubquery(fields []string, caseAlias string) (updatedBase sq.SelectBuilder, dbErr error) {//for cases service (need to refactor cases first)
+// Deprecated. Use until cases service is refactored.
+func buildLinkSelectAsSubquery(fields []string, caseAlias string) (updatedBase sq.SelectBuilder, scanPlan []func(link *_go.CaseLink) any, dbErr *errors.DBError) {
 	alias := "links"
 	if caseAlias == alias {
 		alias = "sub_" + alias
 	}
-	base := sq.Select().From("cases.case_link " + alias).
-		Where(fmt.Sprintf("%s = %s", dbutil.Ident(alias, "case_id"), dbutil.Ident(caseAlias, "id")))
+	base := sq.
+		Select().
+		From("cases.case_link " + alias).
+		Where(fmt.Sprintf("%s = %s", storeUtil.Ident(alias, "case_id"), storeUtil.Ident(caseAlias, "id")))
 
-	base, dbErr = buildLinkSelectColumns(base, alias, fields)
+	base, plan, dbErr := buildLinkSelectColumnsAndPlan(base, alias, fields)
 	if dbErr != nil {
-		return base, dbErr
+		return base, nil, dbErr
 	}
-	base = dbutil.ApplyPaging(1, defaults.DefaultSearchSize, base)
+	base = storeUtil.ApplyPaging(1, defaults.DefaultSearchSize, base)
 
-	return base, nil
+	return base, plan, nil
+}
+
+// Deprecated. Use until cases service is refactored.
+func buildLinkSelectColumnsAndPlan(base sq.SelectBuilder, left string, fields []string) (sq.SelectBuilder, []func(link *_go.CaseLink) any, *errors.DBError) {
+	var (
+		plan           []func(link *_go.CaseLink) any
+		createdByAlias string
+		joinCreatedBy  = func() {
+			if createdByAlias != "" {
+				return
+			}
+			createdByAlias = caseLinkCreatedByAlias
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.created_by", createdByAlias, left))
+			return
+		}
+		updatedByAlias string
+		joinUpdatedBy  = func() {
+			if updatedByAlias != "" {
+				return
+			}
+			updatedByAlias = caseLinkUpdatedByAlias
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %[1]s.id = %s.updated_by", updatedByAlias, left))
+			return
+		}
+		authorAlias string
+		joinAuthor  = func() {
+			if authorAlias != "" {
+				return
+			}
+			joinCreatedBy()
+			authorAlias = caseLinkAuthorAlias
+			base = base.LeftJoin(fmt.Sprintf("contacts.contact %s ON %[1]s.id = %s.contact_id", authorAlias, createdByAlias))
+			return
+		}
+	)
+	if len(fields) == 0 {
+		fields = CaseLinkFields
+	}
+
+	for _, field := range fields {
+		switch field {
+		case "id":
+			base = base.Column(storeUtil.Ident(left, "id"))
+			plan = append(plan, func(link *_go.CaseLink) any {
+				return &link.Id
+			})
+		case "ver":
+			base = base.Column(storeUtil.Ident(left, "ver"))
+			plan = append(plan, func(link *_go.CaseLink) any {
+				return &link.Ver
+			})
+		case "created_by":
+			joinCreatedBy()
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text created_by", createdByAlias))
+			plan = append(plan, func(link *_go.CaseLink) any {
+				return scanner.ScanRowLookup(&link.CreatedBy)
+			})
+		case "created_at":
+			base = base.Column(storeUtil.Ident(left, "created_at"))
+			plan = append(plan, func(link *_go.CaseLink) any {
+				return scanner.ScanTimestamp(&link.CreatedAt)
+			})
+		case "updated_by":
+			joinUpdatedBy()
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text updated_by", updatedByAlias))
+			plan = append(plan, func(link *_go.CaseLink) any {
+				return scanner.ScanRowLookup(&link.UpdatedBy)
+			})
+		case "updated_at":
+			base = base.Column(storeUtil.Ident(left, "updated_at"))
+			plan = append(plan, func(link *_go.CaseLink) any {
+				return scanner.ScanTimestamp(&link.UpdatedAt)
+			})
+		case "name":
+			base = base.Column(storeUtil.Ident(left, "name"))
+			plan = append(plan, func(link *_go.CaseLink) any {
+				return scanner.ScanText(&link.Name)
+			})
+		case "url":
+			base = base.Column(storeUtil.Ident(left, "url"))
+			plan = append(plan, func(link *_go.CaseLink) any {
+				return &link.Url
+			})
+		case "author":
+			joinAuthor()
+			base = base.Column(fmt.Sprintf(`ROW(%[1]s.id, %[1]s.common_name)::text author`, authorAlias))
+			plan = append(plan, func(link *_go.CaseLink) any {
+				return scanner.ScanRowLookup(&link.Author)
+			})
+		default:
+			return base, nil, errors.NewDBError("postgres.case_link.build_link_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))
+		}
+	}
+	if len(plan) == 0 {
+		return base, nil, errors.NewDBError("postgres.case_link.build_link_select.final_check.unknown", "no resulting columns")
+	}
+	return base, plan, nil
 }
 
 func ValidateLinkCreate(caseId int64, input *model.CaseLink) error {

@@ -2451,10 +2451,8 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				}
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
-		case "links": //this field uses already refactored method that doesnt have "plan" in it. 
-				      //need to refactor cases service first
-			continue
-/* 			linksFields := []string{"id", "ver", "name", "url", "created_by", "author", "created_at"}
+		case "links": //this field uses deprecated method with old scanning function
+			linksFields := []string{"id", "ver", "name", "url", "created_by", "author", "created_at"}
 			subquery, scanPlan, dbErr := buildLinkSelectAsSubquery(linksFields, caseLeft) //removed the scanplan parameter
 			if dbErr != nil {
 				return base, nil, dbErr
@@ -2473,7 +2471,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 					return nil
 				}
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
-			}) */
+			}) 
 		case "files":
 			filesFields := []string{
 				"id",
