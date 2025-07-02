@@ -1,7 +1,10 @@
 package app
 
 import (
+	"github.com/webitel/cases/internal/model"
+	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log"
+	"log/slog"
 
 	grpchandler "github.com/webitel/cases/internal/api_handler/grpc"
 
@@ -35,11 +38,27 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 		},
 		{
 			init: func(a *App) (interface{}, error) {
-				app, err := NewCaseLinkApp(a)
-				if err != nil {
-					return nil, err
+				if a.config.TriggerWatcher.Enabled {
+					watcher := watcherkit.NewDefaultWatcher()
+					mq, err := NewTriggerObserver(a.rabbitPublisher, a.config.TriggerWatcher, formCaseLinkTriggerModel, slog.With(
+						slog.Group("context",
+							slog.String("scope", "watcher")),
+					))
+
+					if err != nil {
+						return nil, err
+					}
+					watcher.Attach(watcherkit.EventTypeCreate, mq)
+					watcher.Attach(watcherkit.EventTypeUpdate, mq)
+					watcher.Attach(watcherkit.EventTypeDelete, mq)
+					watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
+
+					if a.caseResolutionTimer != nil {
+						a.caseResolutionTimer.Start()
+					}
+					a.watcherManager.AddWatcher(model.BrokerScopeCaseLinks, watcher)
 				}
-				return grpchandler.NewCaseLinkService(app), nil
+				return grpchandler.NewCaseLinkService(a), nil
 			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCaseLinksServer(s, svc.(cases.CaseLinksServer))

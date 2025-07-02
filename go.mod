@@ -22,13 +22,14 @@ require (
 
 require (
 	github.com/georgysavva/scany/v2 v2.1.4
+	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	github.com/webitel/webitel-go-kit/cmd/protoc-gen-go-webitel v0.0.0-20240829153325-0ae7f6059b52
 	github.com/webitel/webitel-go-kit/infra/fts_client v0.0.0-20250625090308-5d99e087fa32
-	github.com/webitel/webitel-go-kit/infra/logger_client v0.0.0-20250625095313-01c817ef50a5
+	github.com/webitel/webitel-go-kit/infra/logger_client v0.0.0-20250702140655-98a92d815fcb
 	github.com/webitel/webitel-go-kit/infra/otel v0.0.0-20250625090308-5d99e087fa32
 	github.com/webitel/webitel-go-kit/infra/pubsub/rabbitmq v0.0.0-20250625090308-5d99e087fa32
 	github.com/webitel/webitel-go-kit/pkg/errors v0.0.0-20250625095313-01c817ef50a5
@@ -47,8 +48,10 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/google/cel-go v0.22.1 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
