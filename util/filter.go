@@ -37,7 +37,7 @@ func GetFilter(filters []string, field string) []FilterExpr {
 	parsed := ParseFilters(filters)
 	var result []FilterExpr
 	for _, f := range parsed {
-		if f.Field == field {
+		if f.Field == field && f.Value != "" {
 			result = append(result, f)
 		}
 	}
