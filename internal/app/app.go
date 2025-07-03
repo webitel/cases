@@ -139,7 +139,6 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	if err != nil {
 		return nil, errors.New("unable to create logger client", errors.WithCause(err))
 	}
-
 	// --------- Session Manager Initialization ---------
 	app.sessionManager, err = webitel_app.New(app.webitelAppConn)
 	if err != nil {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"log/slog"
+	"strconv"
 
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/api_handler/grpc"
@@ -12,24 +13,21 @@ import (
 )
 
 func (a *App) ListCaseFiles(rpc options.Searcher) ([]*model.CaseFile, error) {
-	tag, ok := rpc.GetFilter("case_id").(int64)
-	if !ok || tag == 0 {
+	filters := rpc.GetFilter("case_id")
+	if len(filters) == 0 {
 		return nil, errors.New("case id required", errors.WithCode(codes.InvalidArgument))
 	}
 	accessMode := auth.Read
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64("user_id", rpc.GetAuthOpts().GetUserId()),
-		slog.Int64("domain_id", rpc.GetAuthOpts().GetDomainId()),
-	)
 	if rpc.GetAuthOpts().IsRbacCheckRequired(grpc.CaseFileMetadata.GetParentScopeName(), accessMode) {
-		access, err := a.Store.Case().CheckRbacAccess(rpc, rpc.GetAuthOpts(), accessMode, tag)
+		caseId, err := strconv.Atoi(filters[0].Value)
 		if err != nil {
-			slog.ErrorContext(rpc, err.Error(), logAttributes)
+			return nil, errors.InvalidArgument("invalid case id", errors.WithCause(err))
+		}
+		access, err := a.Store.Case().CheckRbacAccess(rpc, rpc.GetAuthOpts(), accessMode, int64(caseId))
+		if err != nil {
 			return nil, errors.New("unable access resource", errors.WithCode(codes.PermissionDenied))
 		}
 		if !access {
-			slog.ErrorContext(rpc, "user doesn't have required (READ) access to the case", logAttributes)
 			return nil, errors.New("unable access resource", errors.WithCode(codes.PermissionDenied))
 		}
 	}

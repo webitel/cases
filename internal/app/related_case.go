@@ -2,19 +2,23 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
+	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
+	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
 	"strconv"
 )
 
 type RelatedCaseService struct {
-	app *App
+	app    *App
+	logger *wlogger.ObjectedLogger
 	cases.UnimplementedRelatedCasesServer
 }
 
@@ -51,7 +55,9 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid search options", errors.WithCause(err))
 	}
-	searchOpts.AddFilter("case_id", caseTid.GetOid())
+	if caseTid.GetOid() != 0 {
+		searchOpts.AddFilter(fmt.Sprintf("case_id=%d", caseTid.GetOid()))
+	}
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
@@ -148,7 +154,7 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		}
 	}
 
-	relatedCase, err := r.app.Store.RelatedCase().Create(
+	output, err := r.app.Store.RelatedCase().Create(
 		createOpts,
 		&req.GetInput().RelationType,
 		req.Input.GetUserID().GetId(),
@@ -157,22 +163,53 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		return nil, err
 	}
 
-	relatedCase.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, relatedCase.GetId(), relatedCase.Ver)
+	userIP := createOpts.GetAuthOpts().GetUserIp()
+	if userIP == "" {
+		userIP = "unknown"
+	}
+
+	message, _ := wlogger.NewMessage(
+		createOpts.GetAuthOpts().GetUserId(),
+		userIP,
+		wlogger.UpdateAction,
+		strconv.Itoa(int(primaryCaseTag.GetOid())),
+		req,
+	)
+
+	_, err = r.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
+	if notifyErr := r.app.watcherManager.Notify(
+		model.BrokerScopeRelatedCases,
+		watcherkit.EventTypeCreate,
+		NewRelatedCaseWatcherData(
+			createOpts.GetAuthOpts(),
+			output,
+			output.GetId(),
+			createOpts.GetAuthOpts().GetDomainId(),
+		)); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify related case create: %s, ", notifyErr.Error()), logAttributes)
+	}
+
+	output.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, output.GetId(), output.Ver)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, errors.Internal("Failed to encode related case etag", errors.WithCause(err))
 	}
-	relatedCase.RelatedCase.Etag, err = etag.EncodeEtag(etag.EtagCase, relatedCase.RelatedCase.GetId(), relatedCase.Ver)
+	output.RelatedCase.Etag, err = etag.EncodeEtag(etag.EtagCase, output.RelatedCase.GetId(), output.Ver)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, errors.Internal("Failed to encode related case etag", errors.WithCause(err))
 	}
-	relatedCase.PrimaryCase.Etag, err = etag.EncodeEtag(etag.EtagCase, relatedCase.PrimaryCase.GetId(), relatedCase.Ver)
+	output.PrimaryCase.Etag, err = etag.EncodeEtag(etag.EtagCase, output.PrimaryCase.GetId(), output.Ver)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, errors.Internal("Failed to encode primary case etag", errors.WithCause(err))
 	}
-	return relatedCase, nil
+
+	return output, nil
 }
 
 func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.UpdateRelatedCaseRequest) (*cases.RelatedCase, error) {
@@ -256,6 +293,36 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		return nil, err
 	}
 
+	userIP := updateOpts.GetAuthOpts().GetUserIp()
+	if userIP == "" {
+		userIP = "unknown"
+	}
+
+	message, _ := wlogger.NewMessage(
+		updateOpts.GetAuthOpts().GetUserId(),
+		userIP,
+		wlogger.UpdateAction,
+		strconv.Itoa(int(primaryCaseTag.GetOid())),
+		req,
+	)
+
+	_, err = r.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
+	if notifyErr := r.app.watcherManager.Notify(
+		model.BrokerScopeRelatedCases,
+		watcherkit.EventTypeUpdate,
+		NewRelatedCaseWatcherData(
+			updateOpts.GetAuthOpts(),
+			output,
+			output.GetId(),
+			updateOpts.GetAuthOpts().GetDomainId(),
+		)); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify related case create: %s, ", notifyErr.Error()), logAttributes)
+	}
+
 	output.Etag, err = etag.EncodeEtag(etag.EtagRelatedCase, output.GetId(), output.GetVer())
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
@@ -271,10 +338,37 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 	if req.GetPrimaryCaseEtag() == "" {
 		return nil, errors.InvalidArgument("Primary case ID required")
 	}
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteIDsAsEtags(etag.EtagRelatedCase, req.GetEtag()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetPrimaryCaseEtag()))
+	deleteOpts, err := grpcopts.NewDeleteOptions(
+		ctx,
+		grpcopts.WithDeleteIDsAsEtags(
+			etag.EtagRelatedCase,
+			req.GetEtag()),
+		grpcopts.WithDeleteParentIDAsEtag(
+			etag.EtagCase,
+			req.GetPrimaryCaseEtag(),
+		),
+	)
+
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid delete options", errors.WithCause(err))
 	}
+
+	primaryCaseTag, err := etag.EtagOrId(etag.EtagCase, req.GetPrimaryCaseEtag())
+	if err != nil {
+		return nil, errors.InvalidArgument(
+
+			"Invalid primary case etag", errors.WithID("app.related_case.deleted_related_case.invalid_etag"),
+		)
+	}
+
+	objTag, err := etag.EtagOrId(etag.EtagRelatedCase, req.GetEtag())
+	if err != nil {
+		return nil, errors.InvalidArgument(
+
+			"Invalid relation etag", errors.WithID("app.related_case.deleted_related_case.invalid_etag"),
+		)
+	}
+
 	logAttributes := slog.Group(
 		"context",
 		slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()),
@@ -301,6 +395,37 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 		slog.ErrorContext(ctx, err.Error(), logAttributes)
 		return nil, err
 	}
+
+	userIP := deleteOpts.GetAuthOpts().GetUserIp()
+	if userIP == "" {
+		userIP = "unknown"
+	}
+
+	message, _ := wlogger.NewMessage(
+		deleteOpts.GetAuthOpts().GetUserId(),
+		userIP,
+		wlogger.UpdateAction,
+		strconv.Itoa(int(primaryCaseTag.GetOid())),
+		req,
+	)
+
+	_, err = r.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
+	if notifyErr := r.app.watcherManager.Notify(
+		model.BrokerScopeRelatedCases,
+		watcherkit.EventTypeDelete,
+		NewRelatedCaseWatcherData(
+			deleteOpts.GetAuthOpts(),
+			&cases.RelatedCase{},
+			objTag.GetOid(),
+			deleteOpts.GetAuthOpts().GetDomainId(),
+		)); notifyErr != nil {
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify related case create: %s, ", notifyErr.Error()), logAttributes)
+	}
+
 	return nil, nil
 }
 
@@ -328,7 +453,9 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid primary case etag", errors.WithCause(err))
 	}
-	searchOpts.AddFilter("case_id", tag.GetOid())
+	if tag.GetOid() != 0 {
+		searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tag.GetOid()))
+	}
 
 	output, err := r.app.Store.RelatedCase().List(searchOpts)
 	if err != nil {
@@ -383,5 +510,30 @@ func NewRelatedCaseService(app *App) (*RelatedCaseService, error) {
 	if app == nil {
 		return nil, errors.InvalidArgument("unable to init service, app is nil")
 	}
-	return &RelatedCaseService{app: app}, nil
+	logger, err := app.wtelLogger.GetObjectedLogger(model.ScopeCases)
+	if err != nil {
+		return nil, err
+	}
+	return &RelatedCaseService{app: app, logger: logger}, nil
+}
+
+type RelatedCaseWatcherData struct {
+	relCase *cases.RelatedCase
+	Args    map[string]any
+}
+
+func (wd *RelatedCaseWatcherData) GetArgs() map[string]any {
+	return wd.Args
+}
+
+func NewRelatedCaseWatcherData(session auth.Auther, relCase *cases.RelatedCase, relCaseID int64, dc int64) *RelatedCaseWatcherData {
+	return &RelatedCaseWatcherData{
+		relCase: relCase,
+		Args: map[string]any{
+			"session":   session,
+			"obj":       relCase,
+			"id":        relCaseID,
+			"domain_id": dc,
+		},
+	}
 }

@@ -80,7 +80,7 @@ func (s *StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusReq
 	if err != nil {
 		return nil, err
 	}
-	searchOpts.AddFilter("name", req.Q)
+	searchOpts.AddFilter(util.EqualFilter("name", req.Q))
 
 	items, err := s.app.ListStatus(searchOpts)
 	if err != nil {

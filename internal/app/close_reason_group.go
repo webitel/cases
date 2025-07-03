@@ -32,6 +32,7 @@ func (s *App) ListCloseReasonGroup(
 	if err != nil {
 		return nil, err
 	}
+
 	return res, nil
 }
 

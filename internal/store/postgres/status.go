@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	_go "github.com/webitel/cases/api/cases"
@@ -9,7 +10,7 @@ import (
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
-	util2 "github.com/webitel/cases/internal/store/util"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 	"google.golang.org/grpc/codes"
 )
@@ -34,25 +35,25 @@ func buildStatusSelectColumnsAndPlan(base sq.SelectBuilder, fields []string) (sq
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util2.Ident(statusLeft, "id"))
+			base = base.Column(storeutil.Ident(statusLeft, "id"))
 		case "name":
-			base = base.Column(util2.Ident(statusLeft, "name"))
+			base = base.Column(storeutil.Ident(statusLeft, "name"))
 		case "description":
-			base = base.Column(util2.Ident(statusLeft, "description"))
+			base = base.Column(storeutil.Ident(statusLeft, "description"))
 		case "created_at":
-			base = base.Column(util2.Ident(statusLeft, "created_at"))
+			base = base.Column(storeutil.Ident(statusLeft, "created_at"))
 		case "updated_at":
-			base = base.Column(util2.Ident(statusLeft, "updated_at"))
+			base = base.Column(storeutil.Ident(statusLeft, "updated_at"))
 		case "created_by":
 			alias := "crb"
 			if createdByAlias == "" {
-				base = util2.SetUserColumn(base, statusLeft, alias, field)
+				base = storeutil.SetUserColumn(base, statusLeft, alias, field)
 			}
 			createdByAlias = alias
 		case "updated_by":
 			alias := "upb"
 			if updatedByAlias == "" {
-				base = util2.SetUserColumn(base, statusLeft, alias, field)
+				base = storeutil.SetUserColumn(base, statusLeft, alias, field)
 			}
 			updatedByAlias = alias
 		default:
@@ -205,15 +206,19 @@ func (s *Status) buildListStatusQuery(rpc options.Searcher) (sq.SelectBuilder, e
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if f.Operator == "=" || f.Operator == "" {
+			queryBuilder = storeutil.AddSearchTerm(queryBuilder, f.Value, "s.name")
+		}
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
+	queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, err := buildStatusSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
@@ -239,7 +244,7 @@ func (s *Status) List(rpc options.Searcher) ([]*model.Status, error) {
 	if err != nil {
 		return nil, errors.Internal(fmt.Sprintf("postgres.status.list.query_build_error: %v", err))
 	}
-	query = util2.CompactSQL(query)
+	query = storeutil.CompactSQL(query)
 
 	var statuses []*model.Status
 	err = pgxscan.Select(rpc, d, &statuses, query, args...)

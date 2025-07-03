@@ -94,24 +94,24 @@ func (SourceType) EnumDescriptor() ([]byte, []int) {
 	return file_source_proto_rawDescGZIP(), []int{0}
 }
 
-// Represents a source entity in the contact system.
+// Represents a source entity in the contact management system.
 type Source struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Unique identifier of the source
+	// Unique identifier of the source.
 	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Name of the source
+	// Human-readable name of the source.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// Description of the source
+	// Optional detailed description of the source.
 	Description string `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
-	// Source type of the source
+	// Source type, representing the category of the data origin.
 	Type SourceType `protobuf:"varint,5,opt,name=type,proto3,enum=webitel.cases.SourceType" json:"type,omitempty"`
-	// CreatedAt timestamp of the source
+	// Timestamp of when the source record was created.
 	CreatedAt int64 `protobuf:"varint,20,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	// UpdatedAt timestamp of the source
+	// Timestamp of when the source record was last updated.
 	UpdatedAt int64 `protobuf:"varint,21,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	// CreatedBy user of the source
+	// User who created the source record.
 	CreatedBy *Lookup `protobuf:"bytes,22,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
-	// UpdatedBy user of the source
+	// User who last updated the source record.
 	UpdatedBy     *Lookup `protobuf:"bytes,23,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -267,11 +267,13 @@ func (x *SourceList) GetItems() []*Source {
 	return nil
 }
 
-// Request message for creating a new source.
+// Request message for creating a new Source entity with full JSONSchema OpenAPI options
 type CreateSourceRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Input         *InputSource           `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`
-	Fields        []string               `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Main input payload for the source being created
+	Input *InputSource `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`
+	// Optional list of specific fields to return after creation
+	Fields        []string `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -320,13 +322,14 @@ func (x *CreateSourceRequest) GetFields() []string {
 	return nil
 }
 
+// Input structure representing a new Source entity
 type InputSource struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The name of the source.
+	// Display name for the source
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// The description of the source.
+	// Optional short description for context
 	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	// The source type of the source.
+	// Type of the source; restrictable to a fixed set of allowed values
 	Type          SourceType `protobuf:"varint,3,opt,name=type,proto3,enum=webitel.cases.SourceType" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -500,23 +503,26 @@ func (x *DeleteSourceRequest) GetId() int64 {
 	return 0
 }
 
-// Request message for listing sources.
 type ListSourceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Page number of result dataset records. offset = (page*size)
+	// Page number of result dataset records. offset = (page * size)
+	// Default: 0
 	Page int32 `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
 	// Size count of records on result page. limit = (size++)
+	// Default: 25
 	Size int32 `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
 	// Fields to be retrieved as a result.
+	// Default: [] (all fields)
 	Fields []string `protobuf:"bytes,3,rep,name=fields,proto3" json:"fields,omitempty"`
 	// Sort the result according to fields.
+	// Default: "id:desc"
 	Sort string `protobuf:"bytes,4,opt,name=sort,proto3" json:"sort,omitempty"`
 	// Filter by unique IDs.
 	Id []int64 `protobuf:"varint,5,rep,packed,name=id,proto3" json:"id,omitempty"`
 	// Search query string for filtering by name. Supports:
-	// - Wildcards (*) for substring matching
-	// - Placeholder (?) for single character substitution
-	// - Exact match for full names
+	// - Wildcards (*)
+	// - Placeholder (?)
+	// - Exact match
 	Q string `protobuf:"bytes,6,opt,name=q,proto3" json:"q,omitempty"`
 	// Filter by source type.
 	Type          []SourceType `protobuf:"varint,7,rep,packed,name=type,proto3,enum=webitel.cases.SourceType" json:"type,omitempty"`
@@ -708,33 +714,40 @@ var File_source_proto protoreflect.FileDescriptor
 
 const file_source_proto_rawDesc = "" +
 	"\n" +
-	"\fsource.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\x1bgoogle/api/visibility.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1aproto/webitel/option.proto\"\x9b\x02\n" +
-	"\x06Source\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescription\x12-\n" +
-	"\x04type\x18\x05 \x01(\x0e2\x19.webitel.cases.SourceTypeR\x04type\x12\x1d\n" +
+	"\fsource.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\x1bgoogle/api/visibility.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1aproto/webitel/option.proto\"\xa8\a\n" +
+	"\x06Source\x12O\n" +
+	"\x02id\x18\x01 \x01(\x03B?\x92A<2:Unique identifier for the source, generated automatically.R\x02id\x12H\n" +
+	"\x04name\x18\x02 \x01(\tB4\x92A12*A unique, descriptive name for the source.xd\x80\x01\x03R\x04name\x12a\n" +
+	"\vdescription\x18\x04 \x01(\tB?\x92A<27An optional longer explanation of the source's purpose.x\xf4\x03R\vdescription\x12x\n" +
+	"\x04type\x18\x05 \x01(\x0e2\x19.webitel.cases.SourceTypeBI\x92AF22The type of data source represented by this entry.:\x10TYPE_UNSPECIFIEDR\x04type\x12\\\n" +
 	"\n" +
-	"created_at\x18\x14 \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"created_at\x18\x14 \x01(\x03B=\x92A:28Unix timestamp representing when the source was created.R\tcreatedAt\x12W\n" +
 	"\n" +
-	"updated_at\x18\x15 \x01(\x03R\tupdatedAt\x12.\n" +
+	"updated_at\x18\x15 \x01(\x03B8\x92A523Unix timestamp representing the most recent update.R\tupdatedAt\x12n\n" +
 	"\n" +
-	"created_by\x18\x16 \x01(\v2\x0f.general.LookupR\tcreatedBy\x12.\n" +
+	"created_by\x18\x16 \x01(\v2\x0f.general.LookupB>\x92A;29Reference to the user who originally created this source.R\tcreatedBy\x12r\n" +
 	"\n" +
-	"updated_by\x18\x17 \x01(\v2\x0f.general.LookupR\tupdatedBy\"a\n" +
+	"updated_by\x18\x17 \x01(\v2\x0f.general.LookupBB\x92A?2=Reference to the user who most recently modified this source.R\tupdatedBy:\x8a\x01\x92A\x86\x01\n" +
+	"\x83\x012:Represents a data source in the contact management system.\xd2\x01\x02id\xd2\x01\x04name\xd2\x01\x04type\xd2\x01\n" +
+	"created_at\xd2\x01\n" +
+	"updated_at\xd2\x01\n" +
+	"created_by\xd2\x01\n" +
+	"updated_by\"a\n" +
 	"\n" +
 	"SourceList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x12+\n" +
-	"\x05items\x18\x03 \x03(\v2\x15.webitel.cases.SourceR\x05items\"t\n" +
-	"\x13CreateSourceRequest\x120\n" +
-	"\x05input\x18\x01 \x01(\v2\x1a.webitel.cases.InputSourceR\x05input\x12\x16\n" +
-	"\x06fields\x18\x02 \x03(\tR\x06fields:\x13\x92A\x10\n" +
-	"\x0e\xd2\x01\x04name\xd2\x01\x04type\"r\n" +
-	"\vInputSource\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\x12-\n" +
-	"\x04type\x18\x03 \x01(\x0e2\x19.webitel.cases.SourceTypeR\x04type\"\xb6\x01\n" +
+	"\x05items\x18\x03 \x03(\v2\x15.webitel.cases.SourceR\x05items\"\xd2\x02\n" +
+	"\x13CreateSourceRequest\x12\\\n" +
+	"\x05input\x18\x01 \x01(\v2\x1a.webitel.cases.InputSourceB*\x92A'2\x1dThe input data for the source\xd2\x01\x05inputR\x05input\x12L\n" +
+	"\x06fields\x18\x02 \x03(\tB4\x92A12&Specific fields to include in response\xa0\x012\xa8\x01\x01\xb0\x01\x01R\x06fields:\x8e\x01\x92A\x8a\x01\n" +
+	"\x87\x012DRequest for creating a new source with all available OpenAPI options:1{\"input\": {\"name\": \"New Source\", \"type\": \"CALL\"}}\xc0\x01\x03\xc8\x01\x01\xd2\x01\x05input\"\xe3\x02\n" +
+	"\vInputSource\x12@\n" +
+	"\x04name\x18\x01 \x01(\tB,\x92A)2\x16The name of the source:\n" +
+	"New Sourcexd\x80\x01\x02R\x04name\x12K\n" +
+	"\vdescription\x18\x02 \x01(\tB)\x92A&2!A short description of the sourcex\xf4\x03R\vdescription\x12R\n" +
+	"\x04type\x18\x03 \x01(\x0e2\x19.webitel.cases.SourceTypeB#\x92A 2\x16The type of the source:\x06\"CALL\"R\x04type:q\x92An\n" +
+	"l2(The data structure representing a source:,{ \"name\": \"Default Source\", \"type\": \"CALL\" }\xc0\x01\x05\xc8\x01\x02\xd2\x01\x04name\xd2\x01\x04type\"\xb6\x01\n" +
 	"\x13UpdateSourceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x120\n" +
 	"\x05input\x18\x02 \x01(\v2\x1a.webitel.cases.InputSourceR\x05input\x12\x16\n" +
@@ -745,12 +758,12 @@ const file_source_proto_rawDesc = "" +
 	"\x13DeleteSourceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id:\n" +
 	"\x92A\a\n" +
-	"\x05\xd2\x01\x02id\"\xb4\x01\n" +
-	"\x11ListSourceRequest\x12\x12\n" +
-	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x12\n" +
-	"\x04size\x18\x02 \x01(\x05R\x04size\x12\x16\n" +
-	"\x06fields\x18\x03 \x03(\tR\x06fields\x12\x12\n" +
-	"\x04sort\x18\x04 \x01(\tR\x04sort\x12\x0e\n" +
+	"\x05\xd2\x01\x02id\"\xd5\x01\n" +
+	"\x11ListSourceRequest\x12\x1a\n" +
+	"\x04page\x18\x01 \x01(\x05B\x06\x92A\x03:\x011R\x04page\x12\x1b\n" +
+	"\x04size\x18\x02 \x01(\x05B\a\x92A\x04:\x0220R\x04size\x12\x16\n" +
+	"\x06fields\x18\x03 \x03(\tR\x06fields\x12\"\n" +
+	"\x04sort\x18\x04 \x01(\tB\x0e\x92A\v:\tname:descR\x04sort\x12\x0e\n" +
 	"\x02id\x18\x05 \x03(\x03R\x02id\x12\f\n" +
 	"\x01q\x18\x06 \x01(\tR\x01q\x12-\n" +
 	"\x04type\x18\a \x03(\x0e2\x19.webitel.cases.SourceTypeR\x04type\"=\n" +

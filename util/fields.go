@@ -264,6 +264,21 @@ func EnsureIdField(fields []string) []string {
 	return fields
 }
 
+func EnsureCustomField(fields []string) []string {
+	hadCustom := false
+	for _, field := range fields {
+		if field == "custom" {
+			hadCustom = true
+		}
+	}
+
+	if !hadCustom {
+		fields = append(fields, "custom")
+	}
+	return fields
+
+}
+
 // EnsureFields ensures that all specified fields are present in the list of fields.
 // If any field is missing, it will be added to the list.
 func EnsureFields(fields []string, requiredFields ...string) []string {

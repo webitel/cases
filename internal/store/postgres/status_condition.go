@@ -6,10 +6,12 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
-	util2 "github.com/webitel/cases/internal/store/util"
 	"log"
+	"strconv"
 	"strings"
 	"time"
+
+	storeUtil "github.com/webitel/cases/internal/store/util"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -61,13 +63,13 @@ func (s *StatusConditionStore) List(rpc options.Searcher) ([]*model.StatusCondit
 		return nil, err
 	}
 	var statusId int
-	switch v := rpc.GetFilter("parent_id").(type) {
-	case int:
-		statusId = v
-	case int64:
-		statusId = int(v)
-	default:
-		return nil, dberr.Internal("invalid filter type")
+	filters := rpc.GetFilter("parent_id")
+	if len(filters) == 0 {
+		return nil, dberr.InvalidArgument("parent_id filter is required for listing status conditions", dberr.WithID("postgres.status_condition.list.missing_parent_id"))
+	}
+	statusId, err = strconv.Atoi(filters[0].Value)
+	if err != nil {
+		return nil, dberr.InvalidArgument("parent_id filter must be an integer", dberr.WithID("postgres.status_condition.list.invalid_parent_id"))
 	}
 	query, args, err := s.buildListStatusConditionQuery(rpc, statusId)
 	if err != nil {
@@ -182,15 +184,19 @@ func (s *StatusConditionStore) buildListStatusConditionQuery(rpc options.Searche
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": ids})
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "s.name")
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if f.Operator == "=" || f.Operator == "" {
+			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "s.name")
+		}
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, statusConditionDefaultSort)
+	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, statusConditionDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Convert the query to SQL and arguments
 	query, args, err := queryBuilder.ToSql()
@@ -198,7 +204,7 @@ func (s *StatusConditionStore) buildListStatusConditionQuery(rpc options.Searche
 		return "", nil, err
 	}
 
-	return util2.CompactSQL(query), args, nil
+	return storeUtil.CompactSQL(query), args, nil
 }
 
 func (s *StatusConditionStore) buildDeleteStatusConditionQuery(ids []int64, domainId, statusId int64) (string, []interface{}, error) {
@@ -323,7 +329,7 @@ WHERE CASE
 	args = append(args, updArgs...)
 	// fmt.Printf("Executing SQL: %s\nWith args: %v\n", query, args)
 
-	return util2.CompactSQL(query), args
+	return storeUtil.CompactSQL(query), args
 }
 
 func (s *StatusConditionStore) getDBConnection() (*pgxpool.Pool, error) {
@@ -405,7 +411,7 @@ func (s *StatusConditionStore) containsField(fields []string, field string) bool
 
 // ---- STATIC SQL QUERIES ----
 var (
-	createStatusConditionQuery = util2.CompactSQL(`
+	createStatusConditionQuery = storeUtil.CompactSQL(`
 WITH existing_status AS (SELECT COUNT(*) AS count FROM cases.status_condition WHERE dc = $5 AND status_id = $6),
      default_values
          AS (SELECT CASE WHEN (SELECT count FROM existing_status) = 0 THEN TRUE ELSE FALSE END AS initial_default,
@@ -431,7 +437,7 @@ FROM ins
          LEFT JOIN directory.wbt_user u ON u.id = ins.updated_by
          LEFT JOIN directory.wbt_user c ON c.id = ins.created_by;`)
 
-	deleteStatusConditionQuery = util2.CompactSQL(`
+	deleteStatusConditionQuery = storeUtil.CompactSQL(`
 		 WITH
 			 to_check AS (
 				 SELECT id, initial, final

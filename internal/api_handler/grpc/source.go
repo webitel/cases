@@ -92,10 +92,10 @@ func (s *SourceService) ListSources(
 		return nil, err
 	}
 	if req.Q != "" {
-		searchOpts.AddFilter("name", req.Q)
+		searchOpts.AddFilter(util.EqualFilter("name", req.Q))
 	}
 	if len(req.Type) > 0 {
-		searchOpts.AddFilter("type", req.Type)
+		searchOpts.AddFilter(util.EqualFilter("type", req.Type))
 	}
 
 	items, err := s.app.ListSources(searchOpts)

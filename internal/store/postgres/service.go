@@ -9,7 +9,7 @@ import (
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
-	util2 "github.com/webitel/cases/internal/store/util"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 )
 
@@ -148,7 +148,7 @@ func (s *ServiceStore) buildCreateServiceQuery(rpc options.Creator, add *model.S
 		).
 		Suffix(`RETURNING *`).
 		PlaceholderFormat(sq.Dollar)
-	insertSQL, args, err := util2.FormAsCTE(insert, from)
+	insertSQL, args, err := storeutil.FormAsCTE(insert, from)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to form CTE for service insert: %w", err)
 	}
@@ -176,7 +176,7 @@ func (s *ServiceStore) buildDeleteServiceQuery(rpc options.Deleter) (string, []i
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
-	return util2.CompactSQL(query), args
+	return storeutil.CompactSQL(query), args
 }
 
 func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []interface{}, error) {
@@ -193,16 +193,21 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 	}
 
 	// Apply filters
-	if rootID, ok := rpc.GetFilter("root_id").(int64); ok && rootID > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"service.root_id": rootID})
+	if rootIDFilters := rpc.GetFilter("root_id"); len(rootIDFilters) > 0 {
+		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "service.root_id", rootIDFilters)
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "service.name")
+	// Updated name filter logic for consistency
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if (f.Operator == "=" || f.Operator == "") && len(f.Value) > 0 {
+			queryBuilder = storeutil.AddSearchTerm(queryBuilder, f.Value, "service.name")
+		}
 	}
 
-	if state := rpc.GetFilter("state"); state != nil {
-		queryBuilder = queryBuilder.Where(sq.Eq{"service.state": state})
+	if stateFilters := rpc.GetFilter("state"); len(stateFilters) > 0 {
+		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "service.state", stateFilters)
 	}
 
 	if len(rpc.GetIDs()) > 0 {
@@ -212,7 +217,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 	// Apply sorting dynamically
 	queryBuilder = applyServiceSorting(queryBuilder, rpc)
 
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Build the query
 	query, args, err := queryBuilder.ToSql()
@@ -220,7 +225,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 		return "", nil, fmt.Errorf("failed to build SQL query for service search: %w", err)
 	}
 
-	return util2.CompactSQL(query), args, nil
+	return storeutil.CompactSQL(query), args, nil
 }
 
 func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.Searcher) sq.SelectBuilder {
@@ -304,7 +309,7 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc options.Updator, input *model
 
 	// Convert the update query to SQL
 	from := "updated_service"
-	updateSQL, updateArgs, err := util2.FormAsCTE(updateQueryBuilder, from)
+	updateSQL, updateArgs, err := storeutil.FormAsCTE(updateQueryBuilder, from)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to form CTE for service update: %w", err)
 	}
@@ -331,23 +336,23 @@ func (s *ServiceStore) buildSelectColumns(base sq.SelectBuilder, fields []string
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util2.Ident(mainTableAlias, "id"))
+			base = base.Column(storeutil.Ident(mainTableAlias, "id"))
 		case "name":
-			base = base.Column(util2.Ident(mainTableAlias, "name"))
+			base = base.Column(storeutil.Ident(mainTableAlias, "name"))
 		case "description":
-			base = base.Column(util2.Ident(mainTableAlias, "description"))
+			base = base.Column(storeutil.Ident(mainTableAlias, "description"))
 		case "code":
-			base = base.Column(util2.Ident(mainTableAlias, "code"))
+			base = base.Column(storeutil.Ident(mainTableAlias, "code"))
 		case "state":
-			base = base.Column(util2.Ident(mainTableAlias, "state"))
+			base = base.Column(storeutil.Ident(mainTableAlias, "state"))
 		case "sla":
 			base = base.Column(`jsonb_build_object(
 				'id', sla.id,
 				'name', sla.name
 			) AS "sla"`)
 			base = base.LeftJoin(fmt.Sprintf("cases.sla AS sla ON sla.id = %s AND sla.dc = %s",
-				util2.Ident(mainTableAlias, "sla_id"),
-				util2.Ident(mainTableAlias, "dc")))
+				storeutil.Ident(mainTableAlias, "sla_id"),
+				storeutil.Ident(mainTableAlias, "dc")))
 		case "group":
 			base = base.Column(`jsonb_build_object(
 				'id', grp.id,
@@ -355,28 +360,28 @@ func (s *ServiceStore) buildSelectColumns(base sq.SelectBuilder, fields []string
 				'type', CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END
 			) AS "group"`)
 			base = base.LeftJoin(fmt.Sprintf("contacts.group AS grp ON grp.id = %s AND grp.dc = %s",
-				util2.Ident(mainTableAlias, "group_id"),
-				util2.Ident(mainTableAlias, "dc")))
+				storeutil.Ident(mainTableAlias, "group_id"),
+				storeutil.Ident(mainTableAlias, "dc")))
 		case "assignee":
 			base = base.Column(`jsonb_build_object(
 				'id', assignee.id,
 				'name', assignee.common_name
 			) AS "assignee"`)
 			base = base.LeftJoin(fmt.Sprintf("contacts.contact AS assignee ON assignee.id = %s AND assignee.dc = %s",
-				util2.Ident(mainTableAlias, "assignee_id"),
-				util2.Ident(mainTableAlias, "dc")))
+				storeutil.Ident(mainTableAlias, "assignee_id"),
+				storeutil.Ident(mainTableAlias, "dc")))
 		case "created_at":
-			base = base.Column(util2.Ident(mainTableAlias, "created_at"))
+			base = base.Column(storeutil.Ident(mainTableAlias, "created_at"))
 		case "updated_at":
-			base = base.Column(util2.Ident(mainTableAlias, "updated_at"))
+			base = base.Column(storeutil.Ident(mainTableAlias, "updated_at"))
 		case "created_by":
-			base = util2.SetUserColumn(base, mainTableAlias, "crb", "created_by")
+			base = storeutil.SetUserColumn(base, mainTableAlias, "crb", "created_by")
 		case "updated_by":
-			base = util2.SetUserColumn(base, mainTableAlias, "upb", "updated_by")
+			base = storeutil.SetUserColumn(base, mainTableAlias, "upb", "updated_by")
 		case "catalog_id":
-			base = base.Column(util2.Ident(mainTableAlias, "catalog_id"))
+			base = base.Column(storeutil.Ident(mainTableAlias, "catalog_id"))
 		case "root_id":
-			base = base.Column(util2.Ident(mainTableAlias, "root_id"))
+			base = base.Column(storeutil.Ident(mainTableAlias, "root_id"))
 		default:
 		}
 	}

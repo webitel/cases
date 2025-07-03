@@ -2,7 +2,10 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/jackc/pgx/v5"
+	"github.com/webitel/cases/util"
 	"net/url"
+	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
@@ -100,15 +103,16 @@ func (l *CaseLinkStore) List(opts options.Searcher) ([]*model.CaseLink, error) {
 	if opts == nil {
 		return nil, ParseError(errors.New("search options required"))
 	}
-	parentId, ok := opts.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
-		return nil, ParseError(errors.New("case id required"))
+
+	filters := opts.GetFilter("case_id")
+	if len(filters) == 0 {
+		return nil, errors.NewDBError("postgres.case_link.list.check_args.parent_id", "case id required")
 	}
-	fields := opts.GetFields()
-	if len(fields) == 0 {
-		fields = []string{"id", "ver", "created_by", "created_at", "updated_by", "updated_at", "author", "name", "url"}
+	parentId, err := strconv.ParseInt(filters[0].Value, 10, 64)
+	if err != nil {
+		return nil, errors.New("case id is not valid: %s", errors.WithCause(err))
 	}
-	selectBuilder, err := buildListCaseLinkQuery(opts, parentId, fields)
+	selectBuilder, err := buildListCaseLinkQuery(opts, parentId)
 	if err != nil {
 		return nil, ParseError(err)
 	}
@@ -340,7 +344,6 @@ func buildDeleteCaseLinkQuery(
 func buildListCaseLinkQuery(
 	opts options.Searcher,
 	parentId int64,
-	fields []string,
 ) (sq.SelectBuilder, error) {
 	base := sq.Select().From("cases.case_link "+caseLinkLeft).
 		Where(fmt.Sprintf("%s = ?", storeUtil.Ident(caseLinkLeft, "dc")), opts.GetAuthOpts().GetDomainId()).
@@ -351,7 +354,7 @@ func buildListCaseLinkQuery(
 	}
 	base = storeUtil.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
 	base = storeUtil.ApplyDefaultSorting(opts, base, linkDefaultSort)
-	return buildLinkSelectColumns(base, caseLinkLeft, fields)
+	return buildLinkSelectColumns(base, caseLinkLeft, opts.GetFields())
 }
 
 // Deprecated. Use until cases service is refactored.
@@ -471,6 +474,112 @@ func buildLinkSelectColumnsAndPlan(base sq.SelectBuilder, left string, fields []
 	return base, plan, nil
 }
 
+func buildCreateLinkQuery(
+	rpc options.Creator,
+	fields []string,
+	input *_go.InputCaseLink,
+) (
+	sq.Sqlizer,
+	[]func(link *_go.CaseLink) any,
+	error,
+) {
+	// Default user from token
+	userID := rpc.GetAuthOpts().GetUserId()
+
+	// Override if input.CreatedBy is explicitly provided
+	if createdBy := input.GetUserID(); createdBy != nil && createdBy.Id != 0 {
+		userID = createdBy.Id
+	}
+	insertAlias := "i"
+	insert := sq.
+		Insert("cases.case_link").
+		Columns("created_by", "updated_by", "name", "url", "case_id", "dc").
+		Values(userID, userID, input.GetName(), input.GetUrl(), rpc.GetParentID(), rpc.GetAuthOpts().GetDomainId()).
+		Suffix("RETURNING *")
+	// select
+	query, args, _ := storeUtil.FormAsCTE(insert, insertAlias)
+	base := sq.Select().From(insertAlias).Prefix(query, args...).PlaceholderFormat(sq.Dollar)
+	// build plan from columns
+	return buildLinkSelectColumnsAndPlan(base, insertAlias, fields)
+}
+
+func buildUpdateLinkQuery(opts options.Updator, input *_go.InputCaseLink) (sq.Sqlizer, []func(link *_go.CaseLink) any, error) {
+	base := sq.Select().From("cases.case_link cl")
+	if len(opts.GetEtags()) == 0 {
+		return base, nil, errors.InvalidArgument("link etag required", errors.WithID("postgres.case_link.update.etag.empty"))
+	}
+	if len(opts.GetMask()) == 0 {
+		return nil, nil, errors.InvalidArgument("link update mask required", errors.WithID("postgres.case_link.update.mask.empty"))
+	}
+	tid := opts.GetEtags()[0]
+
+	userID := opts.GetAuthOpts().GetUserId()
+	if util.ContainsField(opts.GetMask(), "userID") {
+		if updatedBy := input.GetUserID(); updatedBy != nil && updatedBy.Id != 0 {
+			userID = updatedBy.Id
+		}
+	}
+
+	// insert
+	update := sq.
+		Update("cases.case_link").
+		Set("updated_by", userID).
+		Set("updated_at", opts.RequestTime()).
+		Set("ver", sq.Expr("ver+1")).
+		Where("id = ?", tid.GetOid()).
+		Where("ver = ?", tid.GetVer()).
+		Where("dc = ?", opts.GetAuthOpts().GetDomainId()).
+		Where("case_id = ?", opts.GetParentID()).
+		Suffix("RETURNING *").
+		PlaceholderFormat(sq.Dollar)
+	for _, field := range opts.GetMask() {
+		switch field {
+		case "url":
+			_, err := url.Parse(input.Url)
+			if err != nil {
+				return nil, nil, errors.InvalidArgument(err.Error(), errors.WithID("postgres.case_link.build_update_query.url.validate.error"))
+			}
+			update = update.Set("url", input.Url)
+		case "name":
+			update = update.Set("name", input.Name)
+		}
+	}
+	prefixAlias := "upd"
+	prefix, args, err := storeUtil.FormAsCTE(update, prefixAlias)
+	if err != nil {
+		return nil, nil, errors.New(err.Error(), errors.WithID("postgres.case_link.build_update_query.form_cte.error"))
+	}
+	slct := sq.Select().Prefix(prefix, args...).From(prefixAlias)
+	// build plan from columns
+	return buildLinkSelectColumnsAndPlan(slct, prefixAlias, opts.GetFields())
+}
+
+func (l *CaseLinkStore) scanLinks(rows pgx.Rows, plan []func(link *_go.CaseLink) any) ([]*_go.CaseLink, error) {
+	var res []*_go.CaseLink
+
+	for rows.Next() {
+		link, err := l.scanLink(rows, plan)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, link)
+	}
+	return res, nil
+}
+
+func (l *CaseLinkStore) scanLink(row pgx.Row, plan []func(link *_go.CaseLink) any) (*_go.CaseLink, error) {
+	var link _go.CaseLink
+	var scanPlan []any
+	for _, scan := range plan {
+		scanPlan = append(scanPlan, scan(&link))
+	}
+	err := row.Scan(scanPlan...)
+	if err != nil {
+		return nil, err
+	}
+
+	return &link, nil
+}
 func ValidateLinkCreate(caseId int64, input *model.CaseLink) error {
 	if caseId <= 0 {
 		return errors.InvalidArgument("case id required")

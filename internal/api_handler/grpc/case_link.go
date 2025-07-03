@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
@@ -67,7 +68,7 @@ func (s *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 	if err != nil {
 		return nil, errors.InvalidArgument("invalid etag", errors.WithCause(err))
 	}
-	searchOpts.AddFilter("case_id", etg.GetOid())
+	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", etg.GetOid()))
 
 	links, err := s.app.ListCaseLinks(searchOpts)
 	if err != nil {
@@ -235,7 +236,7 @@ func (s *CaseLinkService) LocateLink(
 		if err != nil {
 			return nil, errors.InvalidArgument("invalid case etag", errors.WithCause(err))
 		}
-		searchOpts.AddFilter("case_id", caseEtg.GetOid())
+		searchOpts.AddFilter(util.EqualFilter("case_id", caseEtg.GetOid()))
 	}
 
 	// Call business logic

@@ -264,8 +264,13 @@ func (s *SLAStore) buildListSLAQuery(rpc options.Searcher) (sq.SelectBuilder, er
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.GetIDs()})
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = storeutil.AddSearchTerm(queryBuilder, name, "s.name")
+	// Add name filter if provided
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if (f.Operator == "=" || f.Operator == "") && len(f.Value) > 0 {
+			queryBuilder = storeutil.AddSearchTerm(queryBuilder, f.Value, "s.name")
+		}
 	}
 
 	queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)

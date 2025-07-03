@@ -116,15 +116,15 @@ func (s *ServiceService) ListServices(ctx context.Context, req *api.ListServiceR
 	}
 
 	if req.Q != "" {
-		searchOptions.AddFilter("name", req.Q)
+		searchOptions.AddFilter(util.EqualFilter("name", req.Q))
 	}
 
 	if req.RootId != 0 {
-		searchOptions.AddFilter("root_id", req.RootId)
+		searchOptions.AddFilter(util.EqualFilter("root_id", req.RootId))
 	}
 
 	if req.State {
-		searchOptions.AddFilter("state", req.State)
+		searchOptions.AddFilter(util.EqualFilter("state", req.State))
 	}
 
 	services, e := s.app.ListServices(searchOptions)

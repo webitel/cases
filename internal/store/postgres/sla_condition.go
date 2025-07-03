@@ -6,9 +6,11 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
-	storeutils "github.com/webitel/cases/internal/store/util"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"strings"
 	"time"
+
+	storeUtil "github.com/webitel/cases/internal/store/util"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
@@ -189,7 +191,7 @@ func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.Creator, sl
 		}
 		ctes[priorityCTEName] = conditionPriorityInsert
 	}
-	query, args, err := storeutils.FormAsCTEs(ctes)
+	query, args, err := storeutil.FormAsCTEs(ctes)
 	if err != nil {
 		return nil, err
 	}
@@ -216,11 +218,11 @@ func buildSLAConditionColumns(queryBuilder sq.SelectBuilder, fields []string, ta
 		switch field {
 		case "id", "name", "reaction_time", "resolution_time",
 			"sla_id", "created_at", "updated_at":
-			queryBuilder = queryBuilder.Column(storeutils.Ident(tableAlias, field))
+			queryBuilder = queryBuilder.Column(storeutil.Ident(tableAlias, field))
 		case "created_by":
-			queryBuilder = storeutils.SetUserColumn(queryBuilder, tableAlias, "created_by", field)
+			queryBuilder = storeutil.SetUserColumn(queryBuilder, tableAlias, "created_by", field)
 		case "updated_by":
-			queryBuilder = storeutils.SetUserColumn(queryBuilder, tableAlias, "updated_by", field)
+			queryBuilder = storeutil.SetUserColumn(queryBuilder, tableAlias, "updated_by", field)
 		case "priorities":
 			queryBuilder = queryBuilder.
 				Column(`priorities.priorities`).
@@ -228,7 +230,7 @@ func buildSLAConditionColumns(queryBuilder sq.SelectBuilder, fields []string, ta
              SELECT JSON_AGG(JSON_BUILD_OBJECT('id', p.id, 'name', p.name)) priorities
                              FROM cases.priority p
                                       INNER JOIN cases.priority_sla_condition ps ON p.id = ps.priority_id AND ps.sla_condition_id = %s
-             ) priorities ON true`, storeutils.Ident(tableAlias, "id")))
+             ) priorities ON true`, storeutil.Ident(tableAlias, "id")))
 		}
 	}
 	return queryBuilder, nil
@@ -241,8 +243,8 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId()}).
 		LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
 		PlaceholderFormat(sq.Dollar)
-	if f, ok := rpc.GetFilter("sla_id").(int); ok {
-		queryBuilder = queryBuilder.Where("g.sla_id = ?", f)
+	if slaIdFilters := rpc.GetFilter("sla_id"); len(slaIdFilters) > 0 {
+		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "g.sla_id", slaIdFilters)
 	}
 	queryBuilder, err := buildSLAConditionColumns(queryBuilder, rpc.GetFields(), "g")
 	if err != nil {
@@ -252,14 +254,17 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": rpc.GetIDs()})
 	}
 
-	if priorityId := rpc.GetFilter("priority_id"); priorityId != nil {
-		// Join cases.priority_sla_condition only if filtering by priority_id
-		queryBuilder = queryBuilder.
-			Where(sq.Eq{"ps.priority_id": priorityId})
+	// Move new filter logic for priority_id and name here, after the switch-case
+	if priorityIdFilters := rpc.GetFilter("priority_id"); len(priorityIdFilters) > 0 {
+		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "ps.priority_id", priorityIdFilters)
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = storeutils.AddSearchTerm(queryBuilder, name, "g.name")
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if (f.Operator == "=" || f.Operator == "") && len(f.Value) > 0 {
+			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "g.name")
+		}
 	}
 
 	// Adjust sort if calendar is present
@@ -279,18 +284,18 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 		queryBuilder = queryBuilder.OrderBy(s)
 	} else {
 		// -------- Apply sorting ----------
-		queryBuilder = storeutils.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
+		queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
 	}
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = storeutils.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
 		return "", nil, err
 	}
 
-	return storeutils.CompactSQL(query), args, nil
+	return storeutil.CompactSQL(query), args, nil
 }
 
 func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc options.Updator, l *model.SLACondition) (string, []interface{}) {
@@ -368,7 +373,7 @@ SELECT usc.id,
        usc.created_by,
        COALESCE(c.name, '')                                    AS created_by_name,
        usc.updated_by,
-       u.name                                                  AS updated_by_name,
+       COALESCE(u.name, '')                                     AS updated_by_name,
        json_agg(json_build_object('id', p.id, 'name', p.name)) AS priorities_json
 FROM upd_condition usc
          LEFT JOIN directory.wbt_user c ON c.id = usc.created_by
@@ -418,7 +423,7 @@ func (s *SLAConditionStore) populatePriorities(
 	}
 }
 
-var deleteSLAConditionQuery = storeutils.CompactSQL(
+var deleteSLAConditionQuery = storeutil.CompactSQL(
 	`DELETE FROM cases.sla_condition
 	 WHERE id = $1 AND dc = $2
 	`)

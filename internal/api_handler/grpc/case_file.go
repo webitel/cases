@@ -2,7 +2,6 @@ package grpc
 
 import (
 	"context"
-
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
@@ -65,7 +64,9 @@ func (s *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 	if err != nil {
 		return nil, errors.New("invalid case etag", errors.WithCode(codes.InvalidArgument))
 	}
-	searchOpts.AddFilter("case_id", tag.GetOid())
+	if tag.GetOid() != 0 {
+		searchOpts.AddFilter(util.EqualFilter("case_id", tag.GetOid()))
+	}
 
 	files, err := s.app.ListCaseFiles(searchOpts)
 	if err != nil {

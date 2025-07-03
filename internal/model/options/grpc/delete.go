@@ -22,7 +22,7 @@ type DeleteOptions struct {
 	IDs      []int64
 	ParentID int64
 	Auth     auth.Auther
-	Filters  map[string]any
+	Filters  []string
 }
 
 func WithDeleteIDs(ids []int64) DeleteOption {
@@ -70,19 +70,25 @@ func (s *DeleteOptions) RequestTime() time.Time {
 	return s.createdAt
 }
 
-func (s *DeleteOptions) RemoveFilter(key string) {
-	delete(s.Filters, key)
+func (s *DeleteOptions) AddFilter(f string) {
+	s.Filters = append(s.Filters, f)
 }
 
-func (s *DeleteOptions) AddFilter(key string, value any) {
-	s.Filters[key] = value
-}
-
-func (s *DeleteOptions) GetFilter(key string) any {
-	return s.Filters[key]
-}
-func (s *DeleteOptions) GetFilters() map[string]any {
+func (s *DeleteOptions) GetFilters() []string {
 	return s.Filters
+}
+
+func (s *DeleteOptions) RemoveFilter(f string) {
+	s.Filters = util.RemoveSliceElement(s.Filters, f)
+}
+
+func (s *DeleteOptions) GetFilter(f string) (string, bool) {
+	for _, filter := range s.Filters {
+		if filter == f {
+			return filter, true
+		}
+	}
+	return "", false
 }
 
 func (s *DeleteOptions) GetParentID() int64 {
@@ -102,7 +108,6 @@ func NewDeleteOptions(ctx context.Context, opts ...DeleteOption) (*DeleteOptions
 
 	deleteOpts := &DeleteOptions{
 		Context:   ctx,
-		Filters:   map[string]any{},
 		createdAt: time.Now().UTC(),
 	}
 	if sess := optsutil.GetAutherOutOfContext(ctx); sess != nil {

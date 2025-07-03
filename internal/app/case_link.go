@@ -181,13 +181,17 @@ func (a *App) DeleteCaseLink(deleter options.Deleter) (*model.CaseLink, error) {
 }
 
 func (a *App) ListCaseLinks(searcher options.Searcher) ([]*model.CaseLink, error) {
-	caseID, ok := searcher.GetFilter("case_id").(int64)
-	if !ok || caseID == 0 {
+	filters := searcher.GetFilter("case_id")
+	if len(filters) == 0 {
 		return nil, errors.InvalidArgument("case id required")
 	}
 	accessMode := auth.Read
 	if searcher.GetAuthOpts().IsRbacCheckRequired(grpc.CaseLinkMetadata.GetParentScopeName(), accessMode) {
-		access, err := a.Store.Case().CheckRbacAccess(searcher, searcher.GetAuthOpts(), accessMode, caseID)
+		caseID, err := strconv.Atoi(filters[0].Value)
+		if err != nil {
+			return nil, errors.InvalidArgument("invalid case id", errors.WithCause(err))
+		}
+		access, err := a.Store.Case().CheckRbacAccess(searcher, searcher.GetAuthOpts(), accessMode, int64(caseID))
 		if err != nil {
 			return nil, err
 		}

@@ -16,9 +16,9 @@ import (
 var CaseCommunicationMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
 	{Name: "etag", Default: true},
 	{Name: "ver", Default: false},
-	{"id", true},
-	{"communication_type", true},
-	{"communication_id", true},
+	{Name: "id", Default: true},
+	{Name: "communication_type", Default: true},
+	{Name: "communication_id", Default: true},
 })
 
 type CaseCommunicationService struct {
@@ -50,8 +50,9 @@ func (c *CaseCommunicationService) ListCommunications(
 			"Invalid case etag",
 		)
 	}
-	searchOpts.AddFilter("case_id", tag.GetOid())
-
+	if tag.GetOid() != 0 {
+		searchOpts.AddFilter(util.EqualFilter("case_id=%d", tag.GetOid()))
+	}
 	if searchOpts.GetAuthOpts().GetObjectScope(CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), auth.Read, tag.GetOid())
 		if err != nil {

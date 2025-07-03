@@ -84,7 +84,7 @@ func (s *CloseReasonGroupService) ListCloseReasonGroups(
 	if err != nil {
 		return nil, err
 	}
-	searchOpts.AddFilter("name", req.Q)
+	searchOpts.AddFilter(util.EqualFilter("name", req.Q))
 
 	items, err := s.app.ListCloseReasonGroup(searchOpts)
 	if err != nil {

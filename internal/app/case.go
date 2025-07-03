@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"google.golang.org/protobuf/types/known/structpb"
 	"log/slog"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 
 	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
@@ -20,7 +24,6 @@ import (
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/internal/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
-	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
 	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"google.golang.org/grpc/metadata"
@@ -77,6 +80,7 @@ var (
 		{Name: "contact_info", Default: true},
 		{Name: "role_ids", Default: false},
 		{Name: "dc", Default: false},
+		{Name: "diff", Default: false},
 	}, CaseCommentMetadata, grpc.CaseLinkMetadata, RelatedCaseMetadata)
 
 	resolutionTimeSO = &grpcopts.SearchOptions{
@@ -96,8 +100,10 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		ctx,
 		grpcopts.WithSearch(req),
 		grpcopts.WithPagination(req),
-		grpcopts.WithFilters(req),
-		grpcopts.WithFields(req, CaseMetadata,
+		grpcopts.WithFilters(req.GetFilters()),
+		grpcopts.WithFields(
+			req,
+			CaseMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
@@ -108,26 +114,14 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	if err != nil {
 		return nil, err
 	}
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64(
-			"user_id",
-			searchOpts.GetAuthOpts().GetUserId(),
-		),
-		slog.Int64(
-			"domain_id",
-			searchOpts.GetAuthOpts().GetDomainId(),
-		),
-	)
-	if req.GetContactId() != "" {
-		contactId, err := strconv.ParseInt(req.GetContactId(), 10, 64)
-		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			contactId = 0
-		}
-		searchOpts.AddFilter("contact", contactId)
+
+	if contactID := req.GetContactId(); contactID != "" {
+		searchOpts.Filters = append(searchOpts.Filters, fmt.Sprintf("contact=%s", contactID))
 	}
-	list, err := c.app.Store.Case().List(searchOpts)
+
+	target := buildQueryTarget(req.QueryTarget)
+
+	list, err := c.app.Store.Case().List(searchOpts, target)
 	if err != nil {
 		return nil, err
 	}
@@ -139,19 +133,61 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	return list, nil
 }
 
+func buildLogAttributes(searchOpts *grpcopts.SearchOptions) slog.Attr {
+	authOpts := searchOpts.GetAuthOpts()
+
+	return slog.Group("context",
+		slog.Int64("user_id", authOpts.GetUserId()),
+		slog.Int64("domain_id", authOpts.GetDomainId()),
+	)
+}
+
+func buildQueryTarget(input *cases.CaseQueryTarget) *model.CaseQueryTarget {
+	if input == nil {
+		return &model.CaseQueryTarget{
+			Full:        true,
+			Subject:     true,
+			Name:        true,
+			ContactInfo: true,
+			ID:          true,
+		}
+	}
+
+	target := &model.CaseQueryTarget{
+		Full:        input.Full,
+		Subject:     input.Subject,
+		Name:        input.Name,
+		ContactInfo: input.ContactInfo,
+		ID:          input.Id,
+	}
+
+	if !(target.Full || target.Subject || target.Name || target.ContactInfo || target.ID) {
+		// Enable all by default if none are true
+		target.Full = true
+		target.Subject = true
+		target.Name = true
+		target.ContactInfo = true
+		target.ID = true
+	}
+
+	return target
+}
+
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
 	searchOpts, err := grpcopts.NewLocateOptions(
 		ctx,
 		grpcopts.WithFields(req, CaseMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
-			util.EnsureIdField),
+			util.EnsureIdField,
+			util.EnsureCustomField,
+		),
 		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetEtag()),
 	)
 	if err != nil {
 		return nil, err
 	}
-	list, err := c.app.Store.Case().List(searchOpts)
+	list, err := c.app.Store.Case().List(searchOpts, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -191,8 +227,13 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if len(req.Input.Related) > 0 {
 		relatedItems := make([]*cases.RelatedCase, len(req.Input.Related))
 		for i, inputRelated := range req.Input.Related {
+			var relatedID int64
+			if inputRelated.GetRelatedTo() != "" {
+				relatedID, _ = strconv.ParseInt(inputRelated.GetRelatedTo(), 10, 64)
+			}
 			relatedItems[i] = &cases.RelatedCase{
-				Etag:         inputRelated.GetRelatedTo(),
+				Id:           relatedID,
+				Etag:         inputRelated.GetEtag(),
 				RelationType: inputRelated.RelationType,
 			}
 		}
@@ -263,16 +304,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			req,
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
-			util.ParseFieldsForEtag,
-			func(fields []string) []string {
-				for i, v := range fields {
-					if v == "related" {
-						fields = append(fields[:i], fields[i+1:]...)
-					}
-				}
-
-				return fields
-			}),
+			util.ParseFieldsForEtag),
 	)
 	if err != nil {
 		return nil, err
@@ -320,24 +352,57 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
 	}
 
-	if notifyErr := c.app.watcherManager.Notify(
-		model.ScopeCases,
-		watcherkit.EventTypeCreate,
-		NewCaseWatcherData(
-			authOpts,
-			res,
-			id,
-			roleIds,
-		),
-	); notifyErr != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s", notifyErr.Error()), logAttributes)
+	ip := createOpts.GetAuthOpts().GetUserIp()
+	if ip == "" {
+		ip = "unknown"
+	}
+
+	message, _ := wlogger.NewMessage(
+		createOpts.GetAuthOpts().GetUserId(),
+		ip,
+		wlogger.UpdateAction,
+		strconv.Itoa(int(res.GetId())),
+		req,
+	)
+
+	_, err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.DisableTrigger == false {
+		if notifyErr := c.app.watcherManager.Notify(
+			model.ScopeCases,
+			watcherkit.EventTypeCreate,
+			NewCaseWatcherData(
+				authOpts,
+				res,
+				id,
+				roleIds,
+			),
+		); notifyErr != nil {
+			slog.ErrorContext(ctx, fmt.Sprintf("could not notify case creation: %s", notifyErr.Error()), logAttributes)
+		}
 	}
 
 	return res, nil
 }
 
-func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.Case, error) {
-	// Validate input
+func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.UpdateCaseResponse, error) {
+	var original *cases.Case
+
+	// If diff is requested, get original case before update
+	if util.ContainsField(req.Fields, "diff") {
+		locateReq := &cases.LocateCaseRequest{
+			Etag: req.Input.Etag,
+		}
+		var err error
+		original, err = c.LocateCase(ctx, locateReq)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	appErr := c.ValidateUpdateInput(req.Input, req.XJsonMask)
 	if appErr != nil {
 		return nil, appErr
@@ -355,14 +420,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
-			func(fields []string) []string {
-				for i, v := range fields {
-					if v == "related" {
-						fields = append(fields[:i], fields[i+1:]...)
-					}
-				}
-				return fields
-			}),
+		),
 		grpcopts.WithUpdateEtag(&tag),
 		grpcopts.WithUpdateMasker(req),
 	)
@@ -370,7 +428,6 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, err
 	}
 
-	// if userID is set explicitly - log it else log userID extracted from token
 	userID := req.Input.UserID.GetId()
 	if userID == 0 {
 		userID = updateOpts.GetAuthOpts().GetUserId()
@@ -380,10 +437,10 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		"context",
 		slog.Int64("user_id", userID),
 		slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("case_id", tag.GetOid()))
+		slog.Int64("case_id", tag.GetOid()),
+	)
 
 	upd := &cases.Case{
-		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
 		UpdatedBy:        req.Input.GetUserID(),
 		Id:               tag.GetOid(),
 		Ver:              tag.GetVer(),
@@ -406,28 +463,26 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Service:          req.Input.GetService(),
 		Custom:           req.Input.GetCustom(),
 	}
+	if reporter := upd.Reporter; reporter != nil && reporter.GetId() == 0 {
+		upd.Reporter = nil
+	}
 
-	res, err := c.app.Store.Case().Update(updateOpts, upd)
+	output, err := c.app.Store.Case().Update(updateOpts, upd)
 	if err != nil {
 		return nil, err
 	}
-	res.Etag, err = etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
+	output.Etag, err = etag.EncodeEtag(etag.EtagCase, output.Id, output.Ver)
 	if err != nil {
 		return nil, err
 	}
 
-	// *Handle dynamic group update if applicable
-	res, err = c.handleDynamicGroup(ctx, res)
+	output, err = c.handleDynamicGroup(ctx, output)
 	if err != nil {
 		return nil, err
 	}
 
-	roleIds := res.GetRoleIds()
-	id := res.GetId()
-
-	// * Update  require all fields set to true incase we need to calculate dynamic condition
 	req.Fields = updateOpts.Fields
-	err = c.NormalizeResponseCase(res, req)
+	err = c.NormalizeResponseCase(output, req)
 	if err != nil {
 		return nil, err
 	}
@@ -437,19 +492,95 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
 	}
 
-	if notifyErr := c.app.watcherManager.Notify(
-		model.ScopeCases,
-		watcherkit.EventTypeUpdate,
-		NewCaseWatcherData(
-			authOpts,
-			upd,
-			id,
-			roleIds,
-		)); notifyErr != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case update: %s, ", notifyErr.Error()), logAttributes)
+	ip := updateOpts.GetAuthOpts().GetUserIp()
+	if ip == "" {
+		ip = "unknown"
 	}
 
-	return res, nil
+	message, _ := wlogger.NewMessage(
+		updateOpts.GetAuthOpts().GetUserId(),
+		ip,
+		wlogger.UpdateAction,
+		strconv.Itoa(int(output.GetId())),
+		req,
+	)
+
+	_, err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.DisableTrigger == false {
+		if notifyErr := c.app.watcherManager.Notify(
+			model.ScopeCases,
+			watcherkit.EventTypeUpdate,
+			NewCaseWatcherData(authOpts, upd, output.Id, output.GetRoleIds()),
+		); notifyErr != nil {
+			slog.ErrorContext(
+				ctx,
+				fmt.Sprintf("could not notify case update: %s", notifyErr.Error()), logAttributes)
+		}
+	}
+
+	var changes []*cases.FieldChange
+	if util.ContainsField(req.Fields, "diff") && original != nil {
+		changes = BuildCaseDiff(original, output)
+	}
+
+	return &cases.UpdateCaseResponse{
+		Case:    output,
+		Changes: changes,
+	}, nil
+}
+
+func BuildCaseDiff(original, updated *cases.Case) []*cases.FieldChange {
+	var changes []*cases.FieldChange
+
+	compare := func(field string, oldVal, newVal interface{}) {
+		if !reflect.DeepEqual(oldVal, newVal) {
+			changes = append(changes, &cases.FieldChange{
+				Field:    field,
+				OldValue: toProtoValue(oldVal),
+				NewValue: toProtoValue(newVal),
+			})
+		}
+	}
+
+	// Compare scalar fields
+	compare("etag", original.Etag, updated.Etag)
+	compare("subject", original.Subject, updated.Subject)
+	compare("description", original.Description, updated.Description)
+	compare("contact_info", original.ContactInfo, updated.ContactInfo)
+	compare("close_result", original.CloseResult, updated.CloseResult)
+	compare("rating", original.Rating, updated.Rating)
+	compare("rating_comment", original.RatingComment, updated.RatingComment)
+	compare("assignee", original.Assignee, updated.Assignee)
+	compare("reporter", original.Reporter, updated.Reporter)
+	compare("impacted", original.Impacted, updated.Impacted)
+	compare("group", original.Group, updated.Group)
+	compare("status", original.Status, updated.Status)
+	compare("priority", original.Priority, updated.Priority)
+	compare("source", original.Source, updated.Source)
+	compare("service", original.Service, updated.Service)
+	compare("close_reason", original.CloseReason, updated.CloseReason)
+	compare("userID", original.UpdatedBy, updated.UpdatedBy)
+	compare("status_condition", original.StatusCondition, updated.StatusCondition)
+
+	//-------- Custom -------- //
+	compare("custom", original.Custom, updated.Custom)
+
+	return changes
+}
+
+func toProtoValue(v interface{}) *structpb.Value {
+	val, err := structpb.NewValue(v)
+	if err != nil {
+		// Fallback to string representation if not convertible
+		strVal := fmt.Sprintf("%v", v)
+		val, _ = structpb.NewValue(strVal)
+	}
+
+	return val
 }
 
 // handleDynamicGroup checks if a dynamic group is needed and updates the case accordingly.
@@ -542,7 +673,7 @@ func (c *CaseService) resolveDynamicGroup(
 				return nil, err
 			}
 
-			return updCase, nil
+			return updCase.Case, nil
 		}
 	}
 
@@ -564,7 +695,7 @@ func (c *CaseService) resolveDynamicGroup(
 		return nil, err
 	}
 
-	return updCase, nil
+	return updCase.Case, nil
 }
 
 // Converts a Case object to map[string]interface{} with "case." prefixed keys and lowercase values (except case.etag).
@@ -636,6 +767,7 @@ func evaluateDynamicCondition(caseMap map[string]any, condition string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -655,6 +787,7 @@ func evaluateSingleCondition(caseMap map[string]any, condition string) bool {
 		field, operator, value = strings.TrimSpace(parts[0]), "!=", strings.TrimSpace(parts[1])
 	} else {
 		fmt.Printf("Unsupported operator in condition: %s\n", condition)
+
 		return false
 	}
 
@@ -672,6 +805,7 @@ func evaluateSingleCondition(caseMap map[string]any, condition string) bool {
 		return fmt.Sprintf("%v", fieldValue) != value
 	default:
 		fmt.Printf("Unsupported operator: %s\n", operator)
+
 		return false
 	}
 }
@@ -727,6 +861,19 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		Etag: req.Etag,
 	}
 
+	message, _ := wlogger.NewMessage(
+		deleteOpts.GetAuthOpts().GetUserId(),
+		deleteOpts.GetAuthOpts().GetUserIp(),
+		wlogger.UpdateAction,
+		strconv.Itoa(int(tag.GetOid())),
+		req,
+	)
+
+	_, err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
+	if err != nil {
+		return nil, err
+	}
+
 	if notifyErr := c.app.watcherManager.Notify(
 		model.ScopeCases,
 		watcherkit.EventTypeDelete,
@@ -739,6 +886,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify case deletion: %s, ", notifyErr.Error()), logAttributes)
 	}
+
 	return nil, nil
 }
 
@@ -759,16 +907,16 @@ func NewCaseService(app *App) (*CaseService, error) {
 
 	watcher := watcherkit.NewDefaultWatcher()
 
-	if app.config.LoggerWatcher.Enabled {
-
-		obs, err := NewLoggerObserver(app.wtelLogger, caseObjScope, defaultLogTimeout)
-		if err != nil {
-			return nil, err
-		}
-		watcher.Attach(watcherkit.EventTypeCreate, obs)
-		watcher.Attach(watcherkit.EventTypeUpdate, obs)
-		watcher.Attach(watcherkit.EventTypeDelete, obs)
-	}
+	//if app.config.LoggerWatcher.Enabled {
+	//
+	//	obs, err := NewLoggerObserver(app.wtelLogger, caseObjScope, defaultLogTimeout)
+	//	if err != nil {
+	//		return nil, cerror.NewInternalError("app.case.new_case_service.create_observer.app", err.Error())
+	//	}
+	//	watcher.Attach(watcherkit.EventTypeCreate, obs)
+	//	watcher.Attach(watcherkit.EventTypeUpdate, obs)
+	//	watcher.Attach(watcherkit.EventTypeDelete, obs)
+	//}
 
 	if app.config.FtsWatcher.Enabled {
 		ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseObjScope, formCaseFtsModel)
@@ -793,8 +941,11 @@ func NewCaseService(app *App) (*CaseService, error) {
 		watcher.Attach(watcherkit.EventTypeUpdate, mq)
 		watcher.Attach(watcherkit.EventTypeDelete, mq)
 		watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
-		app.caseResolutionTimer = NewTimerTask[*App](time.Duration(app.config.TriggerWatcher.ResolutionCheckInterval)*time.Second,
-			service.scheduleResolutionTime, app)
+		app.caseResolutionTimer = NewTimerTask[*App](time.Duration(
+			app.config.TriggerWatcher.ResolutionCheckInterval)*time.Second,
+			service.scheduleResolutionTime,
+			app,
+		)
 
 		app.caseResolutionTimer.Start()
 	}
@@ -824,10 +975,6 @@ func (c *CaseService) ValidateUpdateInput(
 			if input.Status.GetId() == 0 {
 				return errors.InvalidArgument("Status is required")
 			}
-		//case "close_reason":
-		//	if closeReason := input.GetCloseReason(); closeReason != nil && closeReason.GetId() == 0 {
-		//		return cerror.NewBadRequestError("app.case.update_case.close_reason_group_required", "Close Reason group is required")
-		//	}
 		case "priority":
 			if input.Priority.GetId() == 0 {
 				return errors.InvalidArgument("Priority is required")
@@ -840,10 +987,6 @@ func (c *CaseService) ValidateUpdateInput(
 			if input.Service.GetId() == 0 {
 				return errors.InvalidArgument("Service is required")
 			}
-			// default:
-			// 	if jpath, ok := strings.CutPrefix(field, "custom"); ok {
-
-			// 	}
 		}
 	}
 
@@ -865,6 +1008,7 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) error {
 	if input.Reporter.GetId() == 0 {
 		return errors.InvalidArgument("Case reporter is required")
 	}
+
 	return nil
 }
 
@@ -1052,6 +1196,14 @@ func formCaseLinkTriggerModel(item *model.CaseLink) (*model.CaseLinkAMQPMessage,
 func formCaseCommentTriggerModel(item *cases.CaseComment) (*model.CaseCommentAMQPMessage, error) {
 	m := &model.CaseCommentAMQPMessage{
 		CaseComment: item,
+	}
+
+	return m, nil
+}
+
+func formCaseFiletriggerModel(item *cases.File) (*model.CaseFileAMQPMessage, error) {
+	m := &model.CaseFileAMQPMessage{
+		CaseFile: item,
 	}
 
 	return m, nil

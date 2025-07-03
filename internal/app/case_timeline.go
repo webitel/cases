@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"fmt"
+
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/errors"
@@ -55,8 +57,9 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid case etag", errors.WithCause(err))
 	}
-	searchOpts.AddFilter("case_id", tid.GetOid())
-
+	if tid.GetOid() != 0 {
+		searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tid.GetOid()))
+	}
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseTimelineMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tid.GetOid())

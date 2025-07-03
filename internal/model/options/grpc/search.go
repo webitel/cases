@@ -12,7 +12,6 @@ import (
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"google.golang.org/grpc/codes"
-	"strings"
 	"time"
 )
 
@@ -25,12 +24,14 @@ type SearchOptions struct {
 	context.Context
 	// filters
 	IDs     []int64
-	Filters map[string]any
+	Filters []string
 	// search
 	Search string
 	// output
 	Fields        []string
 	UnknownFields []string
+	CustomContext map[string]any
+
 	// paging
 	Page int
 	Size int
@@ -90,17 +91,9 @@ func WithPagination(pager Pager) SearchOption {
 	}
 }
 
-func WithFilters(filterer Filterer) SearchOption {
+func WithFilters(filters []string) SearchOption {
 	return func(options *SearchOptions) error {
-		for _, s := range filterer.GetFilters() {
-			parts := strings.SplitN(s, "=", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			column := parts[0]
-			value := strings.TrimSpace(parts[1])
-			options.AddFilter(column, value)
-		}
+		options.Filters = filters
 		return nil
 	}
 }
@@ -197,31 +190,43 @@ func (s *SearchOptions) GetSort() string {
 	return s.Sort
 }
 
-func (s *SearchOptions) GetFilters() map[string]any {
+func (s *SearchOptions) AddFilter(f string) {
+	s.Filters = append(s.Filters, f)
+}
+
+func (s *SearchOptions) GetFilters() []string {
 	return s.Filters
 }
 
-func (s *SearchOptions) RemoveFilter(key string) {
-	delete(s.Filters, key)
+// GetFilter returns all filters for a given field, with operator and value
+func (s *SearchOptions) GetFilter(f string) []util.FilterExpr {
+	return util.GetFilter(s.Filters, f)
 }
 
-func (s *SearchOptions) AddFilter(key string, value any) {
-	s.Filters[key] = value
+func (s *SearchOptions) RemoveFilter(f string) {
+	s.Filters = util.RemoveSliceElement(s.Filters, f)
 }
 
-func (s *SearchOptions) GetFilter(key string) any {
-	return s.Filters[key]
+func (s *SearchOptions) GetCustomContext() map[string]any {
+	return s.CustomContext
 }
 
 func (s *SearchOptions) GetIDs() []int64 {
 	return s.IDs
 }
 
+func (s *SearchOptions) AddCustomContext(key string, value any) {
+	if s.CustomContext == nil {
+		s.CustomContext = make(map[string]any)
+	}
+	s.CustomContext[key] = value
+}
+
 func NewSearchOptions(ctx context.Context, opts ...SearchOption) (*SearchOptions, error) {
 	search := &SearchOptions{
-		createdAt: time.Now().UTC(),
-		Context:   ctx,
-		Filters:   make(map[string]any),
+		createdAt:     time.Now().UTC(),
+		Context:       ctx,
+		CustomContext: make(map[string]any),
 	}
 	if sess := optsutil.GetAutherOutOfContext(ctx); sess != nil {
 		search.Auth = sess

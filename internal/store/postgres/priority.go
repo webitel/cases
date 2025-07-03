@@ -9,7 +9,7 @@ import (
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
-	util2 "github.com/webitel/cases/internal/store/util"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 )
 
@@ -47,19 +47,19 @@ func buildPrioritySelectColumns(
 			return alias
 		}
 	)
-	base = base.Column(util2.Ident(prioLeft, "id"))
+	base = base.Column(storeutil.Ident(prioLeft, "id"))
 	for _, field := range fields {
 		switch field {
 		case "id":
 			// already set
 		case "name":
-			base = base.Column(util2.Ident(prioLeft, "name"))
+			base = base.Column(storeutil.Ident(prioLeft, "name"))
 		case "description":
-			base = base.Column(util2.Ident(prioLeft, "description"))
+			base = base.Column(storeutil.Ident(prioLeft, "description"))
 		case "created_at":
-			base = base.Column(util2.Ident(prioLeft, "created_at"))
+			base = base.Column(storeutil.Ident(prioLeft, "created_at"))
 		case "updated_at":
-			base = base.Column(util2.Ident(prioLeft, "updated_at"))
+			base = base.Column(storeutil.Ident(prioLeft, "updated_at"))
 		case "created_by":
 			alias := "prcb"
 			joinCreatedBy(alias)
@@ -71,7 +71,7 @@ func buildPrioritySelectColumns(
 			base = base.Column(fmt.Sprintf("%s.id updated_by_id", alias))
 			base = base.Column(fmt.Sprintf("COALESCE(%s.name, %s.username) updated_by_name", alias, alias))
 		case "color":
-			base = base.Column(util2.Ident(prioLeft, "color"))
+			base = base.Column(storeutil.Ident(prioLeft, "color"))
 		default:
 			return base, errors.New(fmt.Sprintf("unknown field: %s", field))
 		}
@@ -226,7 +226,7 @@ func (p *Priority) List(
 	if err != nil {
 		return nil, err
 	}
-	query = util2.CompactSQL(query)
+	query = storeutil.CompactSQL(query)
 
 	var priorities []*model.Priority
 
@@ -254,8 +254,12 @@ func (p *Priority) buildListPriorityQuery(
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "cp.name")
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if f.Operator == "=" || f.Operator == "" {
+			queryBuilder = storeutil.AddSearchTerm(queryBuilder, f.Value, "cp.name")
+		}
 	}
 
 	// Add NOT IN SLA condition if `notInSla` is not 0
@@ -291,10 +295,10 @@ func (p *Priority) buildListPriorityQuery(
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, priorityDefaultSort)
+	queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, priorityDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, err := buildPrioritySelectColumns(queryBuilder, rpc.GetFields())

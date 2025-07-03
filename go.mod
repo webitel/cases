@@ -28,10 +28,10 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
 	github.com/webitel/webitel-go-kit/cmd/protoc-gen-go-webitel v0.0.0-20240829153325-0ae7f6059b52
-	github.com/webitel/webitel-go-kit/infra/fts_client v0.0.0-20250625090308-5d99e087fa32
+	github.com/webitel/webitel-go-kit/infra/fts_client v0.0.0-20250702140655-98a92d815fcb
 	github.com/webitel/webitel-go-kit/infra/logger_client v0.0.0-20250702140655-98a92d815fcb
 	github.com/webitel/webitel-go-kit/infra/otel v0.0.0-20250625090308-5d99e087fa32
-	github.com/webitel/webitel-go-kit/infra/pubsub/rabbitmq v0.0.0-20250625090308-5d99e087fa32
+	github.com/webitel/webitel-go-kit/infra/pubsub/rabbitmq v0.0.0-20250702140655-98a92d815fcb
 	github.com/webitel/webitel-go-kit/pkg/errors v0.0.0-20250625095313-01c817ef50a5
 	github.com/webitel/webitel-go-kit/pkg/etag v0.0.0-20250625095313-01c817ef50a5
 	github.com/webitel/webitel-go-kit/pkg/watcher v0.0.0-20250625090308-5d99e087fa32

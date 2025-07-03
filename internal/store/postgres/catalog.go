@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/webitel/cases/internal/model/options"
-	util2 "github.com/webitel/cases/internal/store/util"
+	"strconv"
 	"strings"
 	"time"
+
+	storeUtil "github.com/webitel/cases/internal/store/util"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
@@ -179,7 +181,7 @@ FROM inserted_catalog
          LEFT JOIN skills_agg ON skills_agg.catalog_id = inserted_catalog.id;
 `
 
-	return util2.CompactSQL(query), args
+	return storeUtil.CompactSQL(query), args
 }
 
 // Delete implements store.CatalogStore.
@@ -226,7 +228,7 @@ func (s *CatalogStore) buildDeleteCatalogQuery(rpc options.Deleter) (string, []a
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
-	return util2.CompactSQL(query), args
+	return storeUtil.CompactSQL(query), args
 }
 
 // List implements store.CatalogStore.
@@ -629,7 +631,9 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		"services": false,
 	}
 
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
+	// Use new filter utility for 'name' (search mode)
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
 		selectFlags["search"] = true
 	}
 
@@ -719,32 +723,47 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	// AND JSONB_ARRAY_LENGTH(services_cte.services) > 0
 
 	// 7) State + ID filters
-	if state, ok := rpc.GetFilter("state").(bool); ok {
-		params["state"] = state
-		queryBuilder = queryBuilder.Where("catalog.state = :state")
+	stateFilters := rpc.GetFilter("state")
+	if len(stateFilters) > 0 {
+		f := stateFilters[0]
+		state, err := strconv.ParseBool(f.Value)
+		if err == nil {
+			params["state"] = state
+			queryBuilder = queryBuilder.Where("catalog.state = :state")
 
-		// Add EXISTS condition if hasSubservices is true
-		if hasSubservices && state {
-			queryBuilder = queryBuilder.Where(`EXISTS (
+			// Add EXISTS condition if hasSubservices is true
+			if hasSubservices && state {
+				queryBuilder = queryBuilder.Where(`EXISTS (
             SELECT 1
             FROM cases.service_catalog sc
             WHERE sc.root_id = catalog.id
               AND sc.state = :state
         )`)
+			}
 		}
 	}
 
-	teamFilter, teamFilterFound := rpc.GetFilter("team").(int64)
-	skillsFilter, skillFilterFound := rpc.GetFilter("skills").([]int64)
-	if teamFilterFound || skillFilterFound {
+	teamFilters := rpc.GetFilter("team")
+	skillsFilters := rpc.GetFilter("skills")
+	if len(teamFilters) > 0 || len(skillsFilters) > 0 {
 		or := sq.Or{}
-		if teamFilter > 0 {
-			or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.team_catalog WHERE team_id = :team)"))
-			params["team"] = teamFilter
+		if len(teamFilters) > 0 {
+			tf := teamFilters[0]
+			teamID, err := strconv.ParseInt(tf.Value, 10, 64)
+			if err == nil && teamID > 0 {
+				or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.team_catalog WHERE team_id = :team)"))
+				params["team"] = teamID
+			}
 		}
-		if len(skillsFilter) > 0 {
-			or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.skill_catalog WHERE skill_id = ANY(:skills))", skillsFilter))
-			params["skills"] = skillsFilter
+		if len(skillsFilters) > 0 {
+			sf := skillsFilters[0]
+			if sf.Value != "" {
+				var skillIDs []int64
+				if err := json.Unmarshal([]byte(sf.Value), &skillIDs); err == nil && len(skillIDs) > 0 {
+					or = append(or, sq.Expr("catalog.id IN (SELECT DISTINCT catalog_id FROM cases.skill_catalog WHERE skill_id = ANY(:skills))", skillIDs))
+					params["skills"] = skillIDs
+				}
+			}
 		}
 		or = append(or, sq.Expr("(NOT EXISTS(SELECT catalog_id FROM cases.team_catalog WHERE catalog_id = catalog.id) AND NOT EXISTS(SELECT catalog_id FROM cases.skill_catalog WHERE catalog_id = catalog.id))"))
 		queryBuilder = queryBuilder.Where(or)
@@ -773,8 +792,9 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 	}
 
 	if selectFlags["search"] {
-		if name, ok := rpc.GetFilter("name").(string); ok {
-			params["name"] = "%" + strings.Join(util.Substring(name), "%") + "%"
+		if len(nameFilters) > 0 {
+			f := nameFilters[0]
+			params["name"] = "%" + strings.Join(util.Substring(f.Value), "%") + "%"
 		}
 
 		searchQ = `
@@ -793,7 +813,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		searchCondition = "AND id IN (SELECT target_catalog_id FROM search_catalog)"
 	}
 
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Prefix query
 	prefixQuery := fmt.Sprintf(`
@@ -818,7 +838,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 
 	// 10) If we need CTE(s)
 	if selectFlags["teams"] || selectFlags["skills"] || selectFlags["services"] || selectFlags["search"] {
-		prefixQuery := buildCTEs(selectFlags, depth, subfields, rpc.GetFilters())
+		prefixQuery := buildCTEs(selectFlags, depth, subfields, rpc)
 		queryBuilder = queryBuilder.Prefix(prefixQuery)
 	}
 	// Add GROUP BY for catalog fields
@@ -834,12 +854,12 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		return "", nil, dberr.NewDBInternalError("postgres.catalog.query_build_error", err)
 	}
 
-	q, args, err := util2.BindNamed(sqlQuery, params)
+	q, args, err := storeUtil.BindNamed(sqlQuery, params)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to bind named parameters: %w", err)
 	}
 
-	return util2.CompactSQL(q), args, nil
+	return storeUtil.CompactSQL(q), args, nil
 }
 
 func buildServiceJSONBAgg(subfields []string, searched bool) string {
@@ -995,7 +1015,7 @@ func buildCTEs(
 	selectFlags map[string]bool,
 	depth int64,
 	subfields []string,
-	filter map[string]any,
+	rpc options.Searcher,
 ) string {
 	var prefixQuery strings.Builder
 	// prefixQuery.WriteString("WITH ")
@@ -1055,7 +1075,7 @@ func buildCTEs(
 	// Services Hierarchy CTE
 	if selectFlags["services"] {
 		anchorSQL := buildAnchorServiceSelect(subfields, selectFlags)
-		subserviceSQL := buildSubserviceSelect(subfields, depth, selectFlags, filter)
+		subserviceSQL := buildSubserviceSelect(subfields, depth, selectFlags, rpc)
 
 		prefixQuery.WriteString(fmt.Sprintf(`service_hierarchy AS (
 			WITH RECURSIVE recursive_hierarchy AS (
@@ -1209,7 +1229,7 @@ func buildSubserviceSelect(
 	serviceFields []string,
 	depth int64,
 	selectFlags map[string]bool,
-	filter map[string]any,
+	rpc options.Searcher,
 ) string {
 	var sb strings.Builder
 
@@ -1350,9 +1370,16 @@ WHERE parent.level < CASE WHEN `)
 	// Automatically increase by +1 to include the requested level
 	sb.WriteString(fmt.Sprintf(`%[1]d > 0 THEN %[1]d ELSE 3 END`, depth+1))
 
-	// Add state filter for subservices
-	if _, ok := filter["state"].(bool); ok {
-		sb.WriteString(` AND subservice.state = :state`)
+	// Add state filter(s) for subservices using new filter logic
+	stateFilters := rpc.GetFilter("state")
+	for _, f := range stateFilters {
+		if state, err := strconv.ParseBool(f.Value); err == nil {
+			op := f.Operator
+			if op == "" {
+				op = "="
+			}
+			sb.WriteString(fmt.Sprintf(" AND subservice.state %s %v", op, state))
+		}
 	}
 
 	sb.WriteString(`
@@ -1584,7 +1611,7 @@ FROM (
 ) AS total_affected;`
 
 	// Return the constructed query and arguments
-	return util2.CompactSQL(query), args
+	return storeUtil.CompactSQL(query), args
 }
 
 func (s *CatalogStore) buildUpdateCatalogQuery(
@@ -1693,7 +1720,7 @@ GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name,
 	`, checkRoot, updateSQL)
 
 	// Return the final combined query and arguments
-	return util2.CompactSQL(query), args, nil
+	return storeUtil.CompactSQL(query), args, nil
 }
 
 func NewCatalogStore(store *Store) (store.CatalogStore, error) {

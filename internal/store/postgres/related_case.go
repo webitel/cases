@@ -2,15 +2,20 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/lib/pq"
+	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
-	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/internal/model/options/defaults"
+	storeutil "github.com/webitel/cases/internal/store/util"
+	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	util "github.com/webitel/cases/util"
+	"github.com/webitel/cases/util"
 )
 
 type RelatedCaseStore struct {
@@ -18,13 +23,14 @@ type RelatedCaseStore struct {
 }
 
 const (
-	relatedCaseLeft           = "rc"
-	relatedCaseAlias          = "rca"
-	relatedCasePriorityAlias  = "rcpa"
-	primaryCaseAlias          = "pca"
-	primaryCasePriorityAlias  = "pcpa"
-	relatedCaseCreatedByAlias = "cb"
-	relatedCaseUpdatedByAlias = "ub"
+	relatedCaseLeft              = "rc"
+	relatedCaseAlias             = "rca"
+	relatedCasePriorityAlias     = "rcpa"
+	primaryCaseAlias             = "pca"
+	primaryCasePriorityAlias     = "pcpa"
+	relatedCaseCreatedByAlias    = "cb"
+	relatedCaseUpdatedByAlias    = "ub"
+	relatedCaseObjClassScopeName = model.ScopeCases
 )
 
 // Create implements store.RelatedCaseStore for creating a new related case.
@@ -47,7 +53,7 @@ func (r *RelatedCaseStore) Create(
 
 	// Convert queryBuilder to SQL
 	query, args, sqlErr := queryBuilder.ToSql()
-	query = util2.CompactSQL(query)
+	query = storeutil.CompactSQL(query)
 
 	if sqlErr != nil {
 		return nil, errors.New("error building create query", errors.WithCause(sqlErr))
@@ -152,7 +158,7 @@ func (c RelatedCaseStore) buildDeleteRelatedCaseQuery(rpc options.Deleter) (stri
 	return query, args, nil
 }
 
-var deleteRelatedCaseQuery = util2.CompactSQL(`
+var deleteRelatedCaseQuery = storeutil.CompactSQL(`
 	DELETE FROM cases.related_case
 	WHERE id = ANY($1) AND dc = $2 AND (primary_case_id = $3 OR related_case_id = $3)
 `)
@@ -267,15 +273,24 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 		PlaceholderFormat(sq.Dollar)
 
 	// Filter by parent case if provided
-	parentId, ok := rpc.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
+	caseIDFilters := rpc.GetFilter("case_id")
+	if len(caseIDFilters) == 0 {
 		return queryBuilder, nil, errors.InvalidArgument("case id required")
 	}
-
-	queryBuilder = queryBuilder.Where(sq.Or{
-		sq.Eq{"rc.primary_case_id": parentId},
-		sq.Eq{"rc.related_case_id": parentId},
-	})
+	f := caseIDFilters[0]
+	if (f.Operator == "=" || f.Operator == "") && f.Value != "" {
+		parentId, perr := strconv.ParseInt(f.Value, 10, 64)
+		if perr != nil || parentId == 0 {
+			return queryBuilder, nil, errors.InvalidArgument(
+				"case id required", errors.WithID(
+					"postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id"),
+			)
+		}
+		queryBuilder = queryBuilder.Where(sq.Or{
+			sq.Eq{"rc.primary_case_id": parentId},
+			sq.Eq{"rc.related_case_id": parentId},
+		})
+	}
 
 	if len(rpc.GetIDs()) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"rc.id": rpc.GetIDs()})
@@ -285,7 +300,7 @@ func (r *RelatedCaseStore) buildListRelatedCaseSqlizer(
 	queryBuilder = queryBuilder.OrderBy("created_at ASC")
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Build columns dynamically using helper
 	queryBuilder, plan, err := buildRelatedCasesSelectColumnsAndPlan(queryBuilder, relatedCaseLeft, rpc.GetFields())
@@ -422,41 +437,61 @@ func buildRelatedCasesSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(util2.Ident(left, "id"))
+			base = base.Column(storeutil.Ident(left, "id"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return &rc.Id
 			})
 		case "ver":
-			base = base.Column(util2.Ident(left, "ver"))
+			base = base.Column(storeutil.Ident(left, "ver"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return &rc.Ver
 			})
 		case "created_by":
 			joinCreatedBy()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text created_by", relatedCaseCreatedByAlias))
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, coalesce(%[1]s.name, %[1]s.username))::text created_by", relatedCaseCreatedByAlias))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanRowLookup(&rc.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(util2.Ident(left, "created_at"))
+			base = base.Column(storeutil.Ident(left, "created_at"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanTimestamp(&rc.CreatedAt)
 			})
 		case "updated_by":
 			joinUpdatedBy()
-			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, %[1]s.name)::text updated_by", relatedCaseUpdatedByAlias))
+			base = base.Column(fmt.Sprintf("ROW(%[1]s.id, coalesce(%[1]s.name, %[1]s.username))::text updated_by", relatedCaseUpdatedByAlias))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanRowLookup(&rc.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(util2.Ident(left, "updated_at"))
+			base = base.Column(storeutil.Ident(left, "updated_at"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
 				return scanner.ScanTimestamp(&rc.UpdatedAt)
 			})
+		//case "relation":
+		//	base = base.Column(util2.Ident(left, "relation_type"))
+		//	plan = append(plan, func(rc *cases.RelatedCase) any {
+		//		return scanner.TextDecoder(func(src []byte) error {
+		//			if len(src) == 0 {
+		//				rc.RelationType = 0
+		//
+		//				return nil
+		//			}
+		//			var relType int32
+		//			s := string(src)
+		//			_, err := fmt.Sscanf(s, "%d", &relType)
+		//			if err != nil {
+		//				return err
+		//			}
+		//			rc.RelationType = cases.RelationType(relType)
+		//			return nil
+		//		})
+		//	})
 		case "relation":
-			base = base.Column(util2.Ident(left, "relation_type"))
+			base = base.Column(storeutil.Ident(left, "relation_type"))
 			plan = append(plan, func(rc *cases.RelatedCase) any {
-				return &rc.RelationType
+				// Scan directly into int32 (handles NULL as 0 automatically)
+				return (*int32)(&rc.RelationType)
 			})
 		case "related_case":
 			joinRelatedCase()
@@ -500,4 +535,36 @@ func NewRelatedCaseStore(store *Store) (store.RelatedCaseStore, error) {
 		return nil, errors.Internal("postgres.new_related_case.check.bad_arguments: error creating related case interface, main store is nil")
 	}
 	return &RelatedCaseStore{storage: store}, nil
+}
+
+func buildRelatedCasesSelectAsSubquery(auther auth.Auther, fields []string, caseAlias string) (sq.SelectBuilder, []func(*cases.RelatedCase) any, error) {
+	alias := "related"
+	if caseAlias == alias {
+		alias = "sub_" + alias
+	}
+	base := sq.
+		Select().
+		From("cases.related_case " + alias).
+		Where(fmt.Sprintf("%s = %s", storeutil.Ident(alias, "primary_case_id"), storeutil.Ident(caseAlias, "id")))
+
+	base, err := addRelatedCaseRbacCondition(auther, auth.Read, base, storeutil.Ident(alias, "id"))
+	if err != nil {
+		return base, nil, err
+	}
+	base, plan, dbErr := buildRelatedCasesSelectColumnsAndPlan(base, alias, fields)
+	if dbErr != nil {
+		return base, nil, dbErr
+	}
+	base = storeutil.ApplyPaging(1, defaults.DefaultSearchSize, base)
+	return base, plan, nil
+}
+
+func addRelatedCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
+	if auth != nil && auth.IsRbacCheckRequired(relatedCaseObjClassScopeName, access) {
+		return query.Where(sq.Expr(fmt.Sprintf(
+			"EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)",
+			dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
+	}
+	return query, nil
 }

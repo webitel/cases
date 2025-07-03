@@ -101,7 +101,7 @@ func (s *SLAService) ListSLAs(
 	if err != nil {
 		return nil, err
 	}
-	searcher.AddFilter("name", req.GetQ())
+	searcher.AddFilter(util.EqualFilter("name", req.GetQ()))
 
 	items, err := s.app.ListSLAs(searcher)
 	if err != nil {

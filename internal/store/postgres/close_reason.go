@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/webitel/cases/internal/errors"
@@ -163,44 +164,7 @@ func (s *CloseReason) buildUpdateCloseReasonQuery(
 	return selectBuilder, nil, nil
 }
 
-func (s *CloseReason) buildListCloseReasonQuery(
-	searcher options.Searcher,
-	closeReasonId int64,
-) (sq.SelectBuilder, error) {
-	fields := searcher.GetFields()
-	if len(fields) == 0 {
-		fields = []string{"id", "name", "description", "close_reason_id", "created_at", "updated_at", "dc", "created_by", "updated_by"}
-	}
-
-	queryBuilder, err := buildCloseReasonSelectColumns(
-		sq.Select().From("cases.close_reason AS cr"),
-		fields,
-	)
-	if err != nil {
-		return sq.SelectBuilder{}, err
-	}
-
-	queryBuilder = queryBuilder.Where(sq.Eq{"cr.dc": searcher.GetAuthOpts().GetDomainId()})
-
-	if len(searcher.GetIDs()) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cr.id": searcher.GetIDs()})
-	}
-	if name, ok := searcher.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = storeutils.AddSearchTerm(queryBuilder, name, "cr.name")
-	}
-	if closeReasonId != 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cr.close_reason_id": closeReasonId})
-	}
-
-	queryBuilder = storeutils.ApplyDefaultSorting(searcher, queryBuilder, closeReasonDefaultSort)
-	queryBuilder = storeutils.ApplyPaging(searcher.GetPage(), searcher.GetSize(), queryBuilder)
-	queryBuilder = queryBuilder.PlaceholderFormat(sq.Dollar)
-
-	return queryBuilder, nil
-}
-
-func (s *CloseReason) buildDeleteCloseReasonQuery(
-	deleter options.Deleter) (sq.SelectBuilder, error) {
+func (s *CloseReason) buildDeleteCloseReasonQuery(deleter options.Deleter) (sq.SelectBuilder, error) {
 	if len(deleter.GetIDs()) == 0 {
 		return sq.SelectBuilder{}, errors.InvalidArgument("no IDs provided for deletion")
 	}
@@ -230,6 +194,45 @@ func (s *CloseReason) buildDeleteCloseReasonQuery(
 	return selectBuilder, nil
 }
 
+func (s *CloseReason) buildListCloseReasonQuery(
+	searcher options.Searcher,
+	closeReasonId int64,
+) (sq.SelectBuilder, error) {
+	fields := searcher.GetFields()
+	if len(fields) == 0 {
+		fields = []string{"id", "name", "description", "close_reason_id", "created_at", "updated_at", "dc", "created_by", "updated_by"}
+	}
+	queryBuilder, err := buildCloseReasonSelectColumns(
+		sq.Select().From("cases.close_reason AS cr"),
+		fields,
+	)
+	if err != nil {
+		return sq.SelectBuilder{}, err
+	}
+	// Add name filter if provided
+	nameFilters := searcher.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if f.Operator == "=" || f.Operator == "" {
+			queryBuilder = storeutils.AddSearchTerm(queryBuilder, f.Value, "cr.name")
+		}
+	}
+	queryBuilder = queryBuilder.Where(sq.Eq{"cr.dc": searcher.GetAuthOpts().GetDomainId()})
+
+	if len(searcher.GetIDs()) > 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cr.id": searcher.GetIDs()})
+	}
+	if closeReasonId != 0 {
+		queryBuilder = queryBuilder.Where(sq.Eq{"cr.close_reason_id": closeReasonId})
+	}
+
+	queryBuilder = storeutils.ApplyDefaultSorting(searcher, queryBuilder, closeReasonDefaultSort)
+	queryBuilder = storeutils.ApplyPaging(searcher.GetPage(), searcher.GetSize(), queryBuilder)
+	queryBuilder = queryBuilder.PlaceholderFormat(sq.Dollar)
+
+	return queryBuilder, nil
+}
+
 // --- CRUD Methods ---
 
 func (s *CloseReason) Create(creator options.Creator, input *model.CloseReason) (*model.CloseReason, error) {
@@ -247,6 +250,7 @@ func (s *CloseReason) Create(creator options.Creator, input *model.CloseReason) 
 	if err != nil {
 		return nil, err
 	}
+	query = storeutils.CompactSQL(query)
 
 	var result model.CloseReason
 	err = pgxscan.Get(creator, d, &result, query, args...)

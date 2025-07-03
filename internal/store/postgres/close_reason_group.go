@@ -2,13 +2,14 @@ package postgres
 
 import (
 	"fmt"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	errors "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
-	util2 "github.com/webitel/cases/internal/store/util"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 )
 
@@ -30,29 +31,29 @@ func buildCloseReasonGroupSelectColumns(
 		createdByAlias string
 		updatedByAlias string
 	)
-	base = base.Column(util2.Ident(crgLeft, "id"))
+	base = base.Column(storeutil.Ident(crgLeft, "id"))
 	for _, field := range fields {
 		switch field {
 		case "id":
 			// already set
 		case "name":
-			base = base.Column(util2.Ident(crgLeft, "name"))
+			base = base.Column(storeutil.Ident(crgLeft, "name"))
 		case "description":
-			base = base.Column(util2.Ident(crgLeft, "description"))
+			base = base.Column(storeutil.Ident(crgLeft, "description"))
 		case "created_at":
-			base = base.Column(util2.Ident(crgLeft, "created_at"))
+			base = base.Column(storeutil.Ident(crgLeft, "created_at"))
 		case "updated_at":
-			base = base.Column(util2.Ident(crgLeft, "updated_at"))
+			base = base.Column(storeutil.Ident(crgLeft, "updated_at"))
 		case "created_by":
 			alias := "crb"
 			if createdByAlias == "" {
-				base = util2.SetUserColumn(base, crgLeft, alias, field)
+				base = storeutil.SetUserColumn(base, crgLeft, alias, field)
 			}
 			createdByAlias = alias
 		case "updated_by":
 			alias := "upb"
 			if updatedByAlias == "" {
-				base = util2.SetUserColumn(base, crgLeft, alias, field)
+				base = storeutil.SetUserColumn(base, crgLeft, alias, field)
 			}
 			updatedByAlias = alias
 		default:
@@ -209,15 +210,19 @@ func (s *CloseReasonGroup) buildListCloseReasonGroupQuery(rpc options.Searcher) 
 	}
 
 	// Add name filter if provided
-	if name, ok := rpc.GetFilter("name").(string); ok && len(name) > 0 {
-		queryBuilder = util2.AddSearchTerm(queryBuilder, name, "g.name")
+	nameFilters := rpc.GetFilter("name")
+	if len(nameFilters) > 0 {
+		f := nameFilters[0]
+		if f.Operator == "=" || f.Operator == "" {
+			queryBuilder = storeutil.AddSearchTerm(queryBuilder, f.Value, "g.name")
+		}
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = util2.ApplyDefaultSorting(rpc, queryBuilder, closeReasonGroupDefaultSort)
+	queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, closeReasonGroupDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util2.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
 	queryBuilder, err := buildCloseReasonGroupSelectColumns(queryBuilder, rpc.GetFields())
@@ -243,11 +248,11 @@ func (s *CloseReasonGroup) List(rpc options.Searcher) ([]*model.CloseReasonGroup
 	if err != nil {
 		return nil, err
 	}
-	query = util2.CompactSQL(query)
+	query = storeutil.CompactSQL(query)
 	var res []*model.CloseReasonGroup
 	err = pgxscan.Select(rpc, d, &res, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, ParseError(err)
 	}
 	return res, nil
 }

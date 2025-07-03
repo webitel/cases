@@ -84,9 +84,9 @@ func (s *StatusConditionService) ListStatusConditions(ctx context.Context, req *
 	if err != nil {
 		return nil, err
 	}
-	searchOptions.AddFilter("parent_id", req.StatusId)
+	searchOptions.AddFilter(util.EqualFilter("parent_id", req.StatusId))
 	if req.Q != "" {
-		searchOptions.AddFilter("name", req.Q)
+		searchOptions.AddFilter(util.EqualFilter("name", req.Q))
 	}
 
 	statuses, err := s.app.ListStatusConditions(searchOptions)

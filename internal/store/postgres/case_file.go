@@ -9,7 +9,7 @@ import (
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/model/options/defaults"
-	"github.com/webitel/cases/internal/store/util"
+	storeutil "github.com/webitel/cases/internal/store/util"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/internal/store"
@@ -64,29 +64,30 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 		fields = []string{"id", "name", "size", "mime", "created_at", "created_by", "author"}
 	}
 
-	parentId, ok := rpc.GetFilter("case_id").(int64)
-	if !ok || parentId == 0 {
-		return sq.SelectBuilder{}, errors.InvalidArgument("case id required")
-	}
 	// Begin building the base query with alias `cf`
-	queryBuilder, err := buildCaseFileSelectColumns(
-		sq.Select().From("storage.files AS cf"),
-		fields,
-		fileAlias,
-	)
-	if err != nil {
-		return sq.SelectBuilder{}, err
-	}
-
-	queryBuilder = queryBuilder.Where(
-		sq.And{
-			sq.Eq{"cf.domain_id": rpc.GetAuthOpts().GetDomainId()},
-			sq.Eq{"cf.uuid": strconv.Itoa(int(parentId))},
-			sq.Eq{"cf.channel": channel},
-			sq.Eq{"cf.removed": nil},
-		},
-	).
+	queryBuilder := sq.Select().
+		From("storage.files AS cf").
+		Where(
+			sq.And{
+				sq.Eq{"cf.domain_id": rpc.GetAuthOpts().GetDomainId()},
+				sq.Eq{"cf.channel": channel},
+				sq.Eq{"cf.removed": nil},
+			},
+		).
 		PlaceholderFormat(sq.Dollar)
+
+	caseIDFilters := rpc.GetFilter("case_id")
+	if len(caseIDFilters) == 0 {
+		return queryBuilder, errors.New("case id required")
+	}
+	// Apply all case_id filters (with all supported operators) to cf.uuid
+	queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "cf.uuid", caseIDFilters)
+
+	// Build select columns and scan plan using buildFilesSelectColumnsAndPlan
+	queryBuilder, err := buildCaseFileSelectColumns(queryBuilder, rpc.GetFields(), fileAlias)
+	if err != nil {
+		return queryBuilder, err
+	}
 
 	// Apply additional filters, sorting, and pagination as needed
 	if len(rpc.GetIDs()) > 0 {
@@ -95,14 +96,14 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 
 	// ----------Apply search by name -----------------
 	if rpc.GetSearch() != "" {
-		queryBuilder = util.AddSearchTerm(queryBuilder, util.Ident(caseLeft, "name"))
+		queryBuilder = storeutil.AddSearchTerm(queryBuilder, storeutil.Ident(caseLeft, "name"))
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = util.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
+	queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, fileDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = util.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, nil
 }
@@ -139,7 +140,7 @@ func (c *CaseFileStore) Delete(rpc options.Deleter) (*model.CaseFile, error) {
 		PlaceholderFormat(sq.Dollar)
 
 	updateSQL, updateArgs, err := updateBuilder.ToSql()
-	updateSQL = util.CompactSQL(updateSQL)
+	updateSQL = storeutil.CompactSQL(updateSQL)
 
 	if err != nil {
 		return nil, ParseError(err)
@@ -160,7 +161,7 @@ func (c *CaseFileStore) Delete(rpc options.Deleter) (*model.CaseFile, error) {
 	if err != nil {
 		return nil, ParseError(err)
 	}
-	query = util.CompactSQL(query)
+	query = storeutil.CompactSQL(query)
 
 	db, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -231,7 +232,7 @@ func buildCaseFileSelectColumns(
 			base = base.Column(fmt.Sprintf("%s.id AS contact_id", au))
 			base = base.Column(fmt.Sprintf("%s.common_name AS contact_name", au))
 		default:
-			return base, errors.New("unknown field: "+field)
+			return base, errors.New("unknown field: " + field)
 		}
 	}
 	return base, nil
@@ -245,9 +246,9 @@ func buildFilesSelectAsSubquery(fields []string, caseAlias string) (sq.SelectBui
 	base := sq.
 		Select().
 		From("storage.files " + alias).
-		Where(fmt.Sprintf("%s = %s::text", util.Ident(alias, "uuid"), util.Ident(caseAlias, "id"))).
-		Where(fmt.Sprintf("%s = '%s'", util.Ident(alias, "channel"), channel))
-	base = util.ApplyPaging(1, defaults.DefaultSearchSize, base)
+		Where(fmt.Sprintf("%s = %s::text", storeutil.Ident(alias, "uuid"), storeutil.Ident(caseAlias, "id"))).
+		Where(fmt.Sprintf("%s = '%s'", storeutil.Ident(alias, "channel"), channel))
+	base = storeutil.ApplyPaging(1, defaults.DefaultSearchSize, base)
 
 	base, dbErr := buildCaseFileSelectColumns(base, fields, alias)
 	if dbErr != nil {

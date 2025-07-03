@@ -15,6 +15,7 @@ import (
 	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"google.golang.org/grpc/codes"
 	"log/slog"
+	"time"
 )
 
 const caseCommentsObjScope = model.ScopeCaseComments
@@ -100,12 +101,17 @@ func (c *CaseCommentService) UpdateComment(
 		return nil, errors.InvalidArgument("invalid Etag", errors.WithCause(err))
 	}
 
-	updateOpts, err := grpcopts.NewUpdateOptions(
-		ctx,
+	opts := []grpcopts.UpdateOption{
 		grpcopts.WithUpdateFields(req, CaseCommentMetadata),
 		grpcopts.WithUpdateEtag(&tag),
 		grpcopts.WithUpdateMasker(req),
-	)
+	}
+
+	if ts := req.GetUpdatedAt(); ts != 0 {
+		opts = append(opts, grpcopts.WithUpdateTime(time.UnixMilli(ts)))
+	}
+
+	updateOpts, err := grpcopts.NewUpdateOptions(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +210,9 @@ func (c *CaseCommentService) ListComments(
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid etag", errors.WithCause(err))
 	}
-	searchOpts.AddFilter("case_id", tag.GetOid())
+	if tag.GetOid() != 0 {
+		searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tag.GetOid()))
+	}
 	comments, err := c.app.Store.CaseComment().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
@@ -229,13 +237,19 @@ func (c *CaseCommentService) PublishComment(
 		return nil, errors.InvalidArgument("text is required")
 	}
 
-	createOpts, err := grpcopts.NewCreateOptions(
-		ctx,
+	opts := []grpcopts.CreateOption{
 		grpcopts.WithCreateFields(req, CaseCommentMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
-			util.EnsureIdField),
-	)
+			util.EnsureIdField,
+		),
+	}
+
+	if ts := req.GetCreatedAt(); ts != 0 {
+		opts = append(opts, grpcopts.WithCreateTime(time.UnixMilli(ts)))
+	}
+
+	createOpts, err := grpcopts.NewCreateOptions(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}

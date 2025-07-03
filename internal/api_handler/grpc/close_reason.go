@@ -92,8 +92,8 @@ func (s *CloseReasonService) ListCloseReasons(
 	if err != nil {
 		return nil, err
 	}
-	searcher.AddFilter("name", req.Q)
-	searcher.AddFilter("parent_id", req.CloseReasonGroupId)
+	searcher.AddFilter(util.EqualFilter("name", req.Q))
+	searcher.AddFilter(util.EqualFilter("parent_id", req.CloseReasonGroupId))
 
 	items, err := s.app.ListCloseReasons(searcher, req.GetCloseReasonGroupId())
 	if err != nil {

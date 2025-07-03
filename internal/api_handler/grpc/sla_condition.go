@@ -112,15 +112,15 @@ func (s *SLAConditionService) ListSLAConditions(ctx context.Context, req *cases.
 		return nil, err
 	}
 	if req.SlaId != 0 {
-		searchOptions.AddFilter("sla_id", int(req.SlaId))
+		searchOptions.AddFilter(util.EqualFilter("sla_id", int(req.SlaId)))
 
 	}
 	if req.PriorityId != 0 {
-		searchOptions.AddFilter("priority_id", req.PriorityId)
+		searchOptions.AddFilter(util.EqualFilter("priority_id", req.PriorityId))
 	}
 
 	if req.Q != "" {
-		searchOptions.AddFilter("name", req.Q)
+		searchOptions.AddFilter(util.EqualFilter("name", req.Q))
 	}
 
 	slaConditions, err := s.app.ListSLAConditions(searchOptions)
