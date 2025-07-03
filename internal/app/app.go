@@ -7,14 +7,15 @@ import (
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/auth/manager/webitel_app"
 	conf "github.com/webitel/cases/config"
-	ftspublisher "github.com/webitel/cases/fts_client"
+	ftsadapter "github.com/webitel/cases/internal/adapters/fts"
+	loggeradapter "github.com/webitel/cases/internal/adapters/logger"
 	"github.com/webitel/cases/internal/errors"
-	cerror "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/server"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres"
-	broker "github.com/webitel/cases/rabbit"
-	ftsclient "github.com/webitel/webitel-go-kit/fts_client"
+	ftsclient "github.com/webitel/webitel-go-kit/infra/fts_client"
+	rabbit "github.com/webitel/webitel-go-kit/infra/pubsub/rabbitmq"
+	brokeradapter "github.com/webitel/webitel-go-kit/infra/pubsub/rabbitmq/pkg/adapter/slog"
 	"github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
 
@@ -28,10 +29,6 @@ const (
 	AnonymousName = "Anonymous"
 )
 
-func NewBadRequestError(err error) errors.AppError {
-	return errors.NewBadRequestError("app.process_api.validation.error", err.Error())
-}
-
 type App struct {
 	config              *conf.AppConfig
 	Store               store.Store
@@ -42,8 +39,8 @@ type App struct {
 	webitelAppConn      *grpc.ClientConn
 	shutdown            func(ctx context.Context) error
 	log                 *slog.Logger
-	rabbit              *broker.RabbitBroker
-	rabbitExitChan      chan cerror.AppError
+	rabbitConn          *rabbit.Connection
+	rabbitPublisher     rabbit.Publisher
 	webitelgoClient     webitelgo.GroupsClient
 	engineConn          *grpc.ClientConn
 	engineAgentClient   engine.AgentServiceClient
@@ -53,6 +50,33 @@ type App struct {
 	caseResolutionTimer *TimerTask[*App]
 }
 
+func StartBroker(config *conf.AppConfig) (*rabbit.Connection, error) {
+	if config.Rabbit == nil {
+		return nil, errors.New("error creating broker, config is nil")
+	}
+
+	conf, err := rabbit.NewConfig(config.Rabbit.Url)
+	if err != nil {
+		return nil, errors.New("error creating broker config", errors.WithCause(err))
+	}
+
+	r, err := rabbit.NewConnection(conf, brokeradapter.NewSlogLogger(slog.Default()))
+	if err != nil {
+		return nil, errors.New("error creating rabbit connection", errors.WithCause(err))
+	}
+	exchangeConf, err := rabbit.NewExchangeConfig("cases", "topic")
+	if err != nil {
+		return nil, errors.New("error creating exchange config", errors.WithCause(err))
+	}
+
+	err = r.DeclareExchange(context.Background(), exchangeConf)
+	if err != nil {
+		return nil, errors.New("error declaring exchange", errors.WithCause(err))
+	}
+
+	return r, nil
+}
+
 func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App, error) {
 	// --------- App Initialization ---------
 	app := &App{config: config, shutdown: shutdown}
@@ -60,22 +84,22 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 
 	// --------- DB Initialization ---------
 	if config.Database == nil {
-		return nil, cerror.NewInternalError("internal.internal.new.database_config.bad_arguments", "error creating store, config is nil")
+		return nil, errors.New("error creating store, config is nil")
 	}
 	app.Store = BuildDatabase(config.Database)
 
 	// --------- Message Broker ( Rabbit ) Initialization ---------
-
-	r, appErr := broker.BuildRabbit(app.config.Rabbit, app.rabbitExitChan)
-	if appErr != nil {
-		return nil, appErr
+	app.rabbitConn, err = StartBroker(config)
+	if err != nil {
+		return nil, err
 	}
-	app.rabbit = r
-
-	// Start the Rabbit connection and consumers
-	appErr = app.rabbit.Start()
-	if appErr != nil {
-		return nil, cerror.NewInternalError("internal.internal.new_app.rabbit.start.error", appErr.Error())
+	publisherConf, err := rabbit.NewPublisherConfig()
+	if err != nil {
+		return nil, errors.New("error creating publisher config", errors.WithCause(err))
+	}
+	app.rabbitPublisher, err = rabbit.NewPublisher(app.rabbitConn, publisherConf, brokeradapter.NewSlogLogger(slog.Default()))
+	if err != nil {
+		return nil, err
 	}
 
 	// register watchers
@@ -91,7 +115,7 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	app.webitelgoClient = webitelgo.NewGroupsClient(app.webitelAppConn)
 
 	if err != nil {
-		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
+		return nil, errors.New("unable to create contact group client", errors.WithCause(err))
 	}
 
 	// --------- Webitel Engine gRPC Connection ---------
@@ -103,13 +127,17 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	app.engineAgentClient = engine.NewAgentServiceClient(app.engineConn)
 
 	if err != nil {
-		return nil, cerror.NewInternalError("internal.internal.new_engine.grpc_conn.error", err.Error())
+		return nil, errors.New("unable to create agent client", errors.WithCause(err))
 	}
 
 	// --------- Webitel Logger gRPC Connection ---------
-	app.wtelLogger, err = wlogger.New(wlogger.WithPublisher(NewLoggerAdapter(app.rabbit)))
+	loggerAdapter, err := loggeradapter.New(app.rabbitPublisher)
 	if err != nil {
 		return nil, err
+	}
+	app.wtelLogger, err = wlogger.New(loggerAdapter)
+	if err != nil {
+		return nil, errors.New("unable to create logger client", errors.WithCause(err))
 	}
 	// --------- Session Manager Initialization ---------
 	app.sessionManager, err = webitel_app.New(app.webitelAppConn)
@@ -118,10 +146,11 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 	}
 
 	// --------- Full Text Search Client ---------
-	app.ftsClient, err = ftspublisher.NewDefaultClient(app.rabbit)
+	ftsAdapter, err := ftsadapter.NewDefaultClient(app.rabbitPublisher)
 	if err != nil {
 		return nil, err
 	}
+	app.ftsClient = ftsclient.New(ftsAdapter)
 
 	// --------- gRPC Server Initialization ---------
 	s, err := server.BuildServer(app.config.Consul, app.sessionManager, app.exitChan)
@@ -139,7 +168,7 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		return nil, cerror.NewInternalError("internal.internal.new_app.grpc_conn.error", err.Error())
+		return nil, errors.New("unable to create storage client", errors.WithCause(err))
 	}
 
 	return app, nil

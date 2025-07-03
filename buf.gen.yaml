@@ -18,7 +18,7 @@ plugins:
     opt: paths=source_relative
 
   # Generate Webitel Service APIs specification (such as objclass, method permission access, ...)
-  - local: [ "go", "run", "github.com/webitel/webitel-go-kit/cmd/protoc-gen-go-webitel@v0.0.18" ]
+  - local: [ "go", "run", "github.com/webitel/webitel-go-kit/cmd/protoc-gen-go-webitel@v0.0.20" ]
     out: api/cases
 
 inputs:

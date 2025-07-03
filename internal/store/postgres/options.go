@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	common "github.com/webitel/cases/model/options"
-	options "github.com/webitel/cases/model/options/grpc"
+	common "github.com/webitel/cases/internal/model/options"
+	options "github.com/webitel/cases/internal/model/options/grpc"
 )
 
 func withSearchOptions(ctx context.Context, opts ...options.SearchOption) common.Searcher {

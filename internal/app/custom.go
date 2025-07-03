@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -33,7 +34,7 @@ func (app *App) initCustom() error {
 
 func subscribeCustomDatasetUpdates(app *App) {
 	config := app.config
-	rabbit := app.rabbit.GetChannel()
+	rabbit, _ := app.rabbitConn.Channel(context.Background())
 
 	var (
 		// err        error

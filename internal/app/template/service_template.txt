@@ -5,8 +5,8 @@ import (
 	"context"
 	"github.com/webitel/cases/api/cases"
 	errors "github.com/webitel/cases/internal/error"
-	"github.com/webitel/cases/model"
-	"github.com/webitel/webitel-go-kit/etag"
+	"github.com/webitel/cases/internal/model/"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
 )
 
 

@@ -1,187 +1,58 @@
 package app
 
 import (
-	"context"
-	"fmt"
-	"strings"
-
-	_go "github.com/webitel/cases/api/cases"
-	cerror "github.com/webitel/cases/internal/errors"
-	"github.com/webitel/cases/model"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
-	"github.com/webitel/cases/util"
-)
-
-type StatusService struct {
-	app *App
-	_go.UnimplementedStatusesServer
-	objClassName string
-}
-
-var StatusMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{Name: "id", Default: true},
-	{Name: "created_by", Default: true},
-	{Name: "created_at", Default: true},
-	{Name: "updated_by", Default: false},
-	{Name: "updated_at", Default: false},
-	{Name: "name", Default: true},
-	{Name: "description", Default: true},
-})
-
-const (
-	ErrLookupNameReq    = "Lookup name is required"
-	statusDefaultFields = "id, name, description, created_by"
+	"github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
+	"google.golang.org/grpc/codes"
 )
 
 // CreateStatus implements api.StatusesServer.
-func (s StatusService) CreateStatus(ctx context.Context, req *_go.CreateStatusRequest) (*_go.Status, error) {
-	// Validate required fields
-	if req.Input.Name == "" {
-		return nil, cerror.NewBadRequestError("status.create_status.input.name.required", ErrLookupNameReq)
+func (s *App) CreateStatus(opts options.Creator, req *model.Status) (*model.Status, error) {
+	if req.Name == nil || *req.Name == "" {
+		return nil, errors.New("lookup name is required", errors.WithCode(codes.InvalidArgument))
 	}
-
-	createOpts, err := grpcopts.NewCreateOptions(
-		ctx,
-		grpcopts.WithCreateFields(req, StatusMetadata),
-	)
-
+	res, err := s.Store.Status().Create(opts, req)
 	if err != nil {
-		return nil, NewBadRequestError(err)
-	}
-
-	// Create a new input user_session
-	input := &_go.Status{
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-	}
-
-	res, err := s.app.Store.Status().Create(createOpts, input)
-	if err != nil {
-		return nil, cerror.NewInternalError("status.create_status.store.create.failed", err.Error())
+		return nil, err
 	}
 
 	return res, nil
 }
 
 // ListStatuses implements api.StatusesServer.
-func (s StatusService) ListStatuses(ctx context.Context, req *_go.ListStatusRequest) (*_go.StatusList, error) {
-	searchOpts, err := grpcopts.NewSearchOptions(
-		ctx,
-		grpcopts.WithSearch(req),
-		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, StatusMetadata,
-			util.DeduplicateFields,
-			util.EnsureIdField,
-		),
-		grpcopts.WithSort(req),
-		grpcopts.WithIDs(req.GetId()),
-	)
+func (s *App) ListStatus(opts options.Searcher) ([]*model.Status, error) {
+	res, err := s.Store.Status().List(opts)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-	if req.Q != "" {
-	searchOpts.AddFilter(fmt.Sprintf("name=%s", req.Q))
-	}
-
-	res, err := s.app.Store.Status().List(searchOpts)
-	if err != nil {
-		return nil, cerror.NewInternalError("status.list_status.store.list.failed", err.Error())
-	}
-
 	return res, nil
 }
 
 // UpdateStatus implements api.StatusesServer.
-func (s StatusService) UpdateStatus(ctx context.Context, req *_go.UpdateStatusRequest) (*_go.Status, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("status.update_status.input.id.required", "Lookup ID is required")
+func (s *App) UpdateStatus(opts options.Updator, input *model.Status) (*model.Status, error) {
+	if len(opts.GetIDs()) == 0 {
+		return nil, errors.New("status id is required", errors.WithCode(codes.InvalidArgument))
 	}
-
-	updateOpts, err := grpcopts.NewUpdateOptions(
-		ctx,
-		grpcopts.WithUpdateFields(req, StatusMetadata),
-		grpcopts.WithUpdateMasker(req),
-	)
-	if err != nil {
-		return nil, NewBadRequestError(err)
-	}
-
-	// Update input user_session
-	input := &_go.Status{
-		Id:          req.Id,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-	}
-
 	// Update the input in the store
-	res, err := s.app.Store.Status().Update(updateOpts, input)
+	res, err := s.Store.Status().Update(opts, input)
 	if err != nil {
-		return nil, cerror.NewInternalError("status.update_status.store.update.failed", err.Error())
+		return nil, err
 	}
 
 	return res, nil
 }
 
 // DeleteStatus implements api.StatusesServer.
-func (s StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusRequest) (*_go.Status, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("status.delete_status.lookup.id.required", "Lookup ID is required")
+func (s *App) DeleteStatus(opts options.Deleter) (*model.Status, error) {
+	if len(opts.GetIDs()) == 0 {
+		return nil, errors.New("status id is required", errors.WithCode(codes.InvalidArgument))
 	}
-
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
+	// TODO: return deleted status
+	_, err := s.Store.Status().Delete(opts)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 
-	// Delete the lookup in the store
-	err = s.app.Store.Status().Delete(deleteOpts)
-	if err != nil {
-		return nil, cerror.NewInternalError("status.delete_status.store.delete.failed", err.Error())
-	}
-
-	return &(_go.Status{Id: req.Id}), nil
-}
-
-// LocateStatus implements api.StatusesServer.
-func (s StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRequest) (*_go.LocateStatusResponse, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("status.locate_status.lookup.id.required", "Lookup ID is required")
-	}
-
-	fields := util.FieldsFunc(req.Fields, util.InlineFields)
-	if len(fields) == 0 {
-		fields = strings.Split(statusDefaultFields, ",")
-	}
-
-	// Prepare a list request with necessary parameters
-	listReq := &_go.ListStatusRequest{
-		Id:     []int64{req.Id},
-		Fields: fields,
-		Page:   1,
-		Size:   1,
-	}
-
-	// Call the ListStatuses method
-	res, err := s.ListStatuses(ctx, listReq)
-	if err != nil {
-		return nil, cerror.NewInternalError("status.locate_status.list_status.error", err.Error())
-	}
-
-	// Check if the lookup was found
-	if len(res.Items) == 0 {
-		return nil, cerror.NewNotFoundError("status.locate_status.not_found", "Status lookup not found")
-	}
-
-	// Return the found status lookup
-	return &_go.LocateStatusResponse{Status: res.Items[0]}, nil
-}
-
-func NewStatusService(app *App) (*StatusService, cerror.AppError) {
-	if app == nil {
-		return nil, cerror.NewInternalError("api.config.new_status.args_check.app_nil", "internal is nil")
-	}
-	return &StatusService{app: app}, nil
+	return nil, nil
 }

@@ -6,7 +6,7 @@ import (
 	"context"
 	"github.com/webitel/cases/auth"
 	session "github.com/webitel/cases/auth/session/user_session"
-	autherror "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/errors"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -39,20 +39,20 @@ func (i *Manager) AuthorizeFromContext(ctx context.Context, mainObjClassName str
 	}
 
 	if !ok {
-		return nil, autherror.NewForbiddenError("internal.grpc.get_context", "Not found")
+		return nil, errors.Forbidden("internal.grpc.get_context: Not found")
 	} else {
 		token = info.Get(session.AuthTokenName)
 	}
 	newContext := metadata.NewOutgoingContext(ctx, info)
 	if len(token) < 1 {
-		return nil, autherror.NewInternalError("webitel_manager.authorize_from_from_context.search_token.not_found", "token not found")
+		return nil, errors.Internal("webitel_manager.authorize_from_from_context.search_token.not_found: token not found")
 	}
 	userToken := token[0]
 	sess, err, _ := i.Group.Do(userToken, func() (interface{}, error) {
 		return i.Client.UserInfo(newContext, nil)
 	})
 	if err != nil {
-		return nil, autherror.NewInternalError("webitel_manager.authorize_from_from_context.user_info.err", err.Error())
+		return nil, errors.Internal("webitel_manager.authorize_from_from_context.user_info.err", errors.WithCause(err))
 	}
 	return ConstructSessionFromUserInfo(sess.(*authmodel.Userinfo), mainObjClassName, mainAccessMode, getClientIp(ctx)), nil
 }

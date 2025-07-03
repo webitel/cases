@@ -2,19 +2,14 @@ package postgres
 
 import (
 	"fmt"
-	"time"
-
-	storeUtil "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
-
-	"github.com/jackc/pgtype"
-	"github.com/webitel/cases/internal/store/postgres/scanner"
-
 	sq "github.com/Masterminds/squirrel"
+	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/lib/pq"
-	"github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/errors"
+	errors "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 )
 
@@ -22,61 +17,37 @@ type ServiceStore struct {
 	storage *Store
 }
 
-func (s *ServiceStore) Create(rpc options.Creator, add *cases.Service) (*cases.Service, error) {
+func (s *ServiceStore) Create(rpc options.Creator, add *model.Service) (*model.Service, error) {
 	// Establish a connection to the database
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.create.database_connection_error", dbErr)
-	}
-
-	// Build the combined query for inserting Service and related entities
-	query, args := s.buildCreateServiceQuery(rpc, add)
-
-	var (
-		createdByLookup, updatedByLookup, slaLookup cases.Lookup
-		createdAt, updatedAt                        time.Time
-		groupLookup                                 cases.ExtendedLookup
-		assigneeLookup                              cases.Lookup
-	)
-
-	err := db.QueryRow(rpc, query, args...).Scan(
-		&add.Id, &add.Name, &add.Description, &add.Code, &add.State,
-		&createdAt, &updatedAt,
-		&slaLookup.Id, &slaLookup.Name,
-		&groupLookup.Id, &groupLookup.Name, &groupLookup.Type,
-		&assigneeLookup.Id, &assigneeLookup.Name,
-		&createdByLookup.Id, &createdByLookup.Name,
-		&updatedByLookup.Id, &updatedByLookup.Name,
-		&add.RootId, &add.CatalogId,
-	)
+	db, err := s.storage.Database()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.create.scan_error", err)
+		return nil, fmt.Errorf("failed to get database connection for service creation: %w", err)
 	}
-
-	// Prepare the Service to return
-	add.CreatedAt = util.Timestamp(createdAt)
-	add.UpdatedAt = util.Timestamp(updatedAt)
-	add.CreatedBy = &createdByLookup
-	add.UpdatedBy = &updatedByLookup
-	add.Group = &groupLookup
-	add.Assignee = &assigneeLookup
-	add.Sla = &slaLookup
-
+	// Build the combined query for inserting Service and related entities
+	query, args, err := s.buildCreateServiceQuery(rpc, add)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build create service query: %w", err)
+	}
+	var res model.Service
+	err = pgxscan.Get(rpc, db, &res, query, args...)
+	if err != nil {
+		return nil, ParseError(err)
+	}
 	// Return the created Service
-	return add, nil
+	return &res, nil
 }
 
 // Delete implements store.ServiceStore.
-func (s *ServiceStore) Delete(rpc options.Deleter) error {
+func (s *ServiceStore) Delete(rpc options.Deleter) (*model.Service, error) {
 	// Establish a connection to the database
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return dberr.NewDBInternalError("postgres.service.delete.db_connection_error", dbErr)
+	db, err := s.storage.Database()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database connection for service deletion: %w", err)
 	}
 
 	// Ensure that there are IDs to delete
 	if len(rpc.GetIDs()) == 0 {
-		return dberr.NewDBError("postgres.service.delete.no_ids_provided", "No IDs provided for deletion")
+		return nil, errors.InvalidArgument("no IDs provided for deletion")
 	}
 
 	// Build the delete query
@@ -85,206 +56,113 @@ func (s *ServiceStore) Delete(rpc options.Deleter) error {
 	// Execute the delete query
 	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.service.delete.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	// Check how many rows were affected
 	if res.RowsAffected() == 0 {
-		return dberr.NewDBNoRowsError("postgres.service.delete.no_rows_deleted")
+		return nil, errors.NotFound("no rows affected by delete operation")
 	}
 
-	return nil
+	return nil, nil
 }
 
 // List implements store.ServiceStore.
-func (s *ServiceStore) List(rpc options.Searcher) (*cases.ServiceList, error) {
+func (s *ServiceStore) List(rpc options.Searcher) ([]*model.Service, error) {
 	// Establish a connection to the database
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.list.database_connection_error", dbErr)
+	db, err := s.storage.Database()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database connection for service listing: %w", err)
 	}
 
 	// Build SQL query with filtering by root_id
 	query, args, err := s.buildSearchServiceQuery(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.list.query_build_error", err)
+		return nil, fmt.Errorf("failed to build search service query: %w", err)
 	}
 
 	// Execute the query
-	rows, err := db.Query(rpc, query, args...)
+	var services []*model.Service
+	err = pgxscan.Select(rpc, db, &services, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.list.query_execution_error", err)
-	}
-	defer rows.Close()
-
-	// Parse the result
-	var services []*cases.Service
-	lCount := 0
-	next := false
-	// Check if we want to fetch all records
-	//
-	// If the size is -1, we want to fetch all records
-	fetchAll := rpc.GetSize() == -1
-
-	for rows.Next() {
-		// If not fetching all records, check the size limit
-		if !fetchAll && lCount >= int(rpc.GetSize()) {
-			next = true
-			break
-		}
-
-		// Initialize service and related lookup objects conditionally
-		service := &cases.Service{}
-		var createdAt, updatedAt time.Time
-
-		// Build the scan arguments for the current row
-		scanArgs, postScanHandler := s.buildServiceScanArgs(service, &createdAt, &updatedAt, rpc.GetFields())
-
-		// Scan the row into the service object
-		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, dberr.NewDBInternalError("postgres.service.list.scan_error", err)
-		}
-
-		// Execute post-processing assignments (handle nullable fields properly)
-		postScanHandler()
-
-		// Assign the created and updated timestamp values
-		service.CreatedAt = util.Timestamp(createdAt)
-		service.UpdatedAt = util.Timestamp(updatedAt)
-
-		// Append the populated service object to the services slice
-		services = append(services, service)
-		lCount++
+		return nil, ParseError(err)
 	}
 
-	return &cases.ServiceList{
-		Page:  int32(rpc.GetPage()),
-		Next:  next,
-		Items: services,
-	}, nil
+	return services, nil
 }
 
 // Update implements store.ServiceStore.
-func (s *ServiceStore) Update(rpc options.Updator, lookup *cases.Service) (*cases.Service, error) {
+func (s *ServiceStore) Update(rpc options.Updator, lookup *model.Service) (*model.Service, error) {
 	// Establish a connection to the database
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.update.database_connection_error", dbErr)
+	db, err := s.storage.Database()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database connection for service update: %w", err)
 	}
 
 	// Build the update query for the Service
 	query, args, err := s.buildUpdateServiceQuery(rpc, lookup)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.update.query_build_error", err)
+		return nil, fmt.Errorf("failed to build update service query: %w", err)
 	}
 
-	if lookup.Sla == nil {
-		lookup.Sla = &cases.Lookup{}
-	}
-
-	var (
-		createdByLookup, updatedByLookup, assigneeLookup cases.Lookup
-		createdAt, updatedAt                             time.Time
-		groupLookup                                      cases.ExtendedLookup
-	)
-
-	err = db.QueryRow(rpc, query, args...).Scan(
-		&lookup.Id, &lookup.Name, &lookup.Description,
-		&lookup.Code, &lookup.State, &lookup.Sla.Id,
-		&lookup.Sla.Name, scanner.ScanInt64(&groupLookup.Id), scanner.ScanText(&groupLookup.Name), scanner.ScanText(&groupLookup.Type),
-		scanner.ScanInt64(&assigneeLookup.Id), scanner.ScanText(&assigneeLookup.Name), &createdByLookup.Id,
-		&createdByLookup.Name, &updatedByLookup.Id, &updatedByLookup.Name,
-		&createdAt, &updatedAt, &lookup.RootId,
-	)
+	var res model.Service
+	err = pgxscan.Get(rpc, db, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.service.update.execution_error", err)
+		return nil, ParseError(err)
 	}
-
-	// Prepare the updated Service to return
-	lookup.CreatedAt = util.Timestamp(createdAt)
-	lookup.UpdatedAt = util.Timestamp(updatedAt)
-	lookup.CreatedBy = &createdByLookup
-	lookup.UpdatedBy = &updatedByLookup
-	lookup.Group = &groupLookup
-	lookup.Assignee = &assigneeLookup
-
 	// Return the updated Service
-	return lookup, nil
+	return &res, nil
 }
 
-func (s *ServiceStore) buildCreateServiceQuery(rpc options.Creator, add *cases.Service) (string, []interface{}) {
-	var assignee, group, sla *int64
-	if add.Assignee != nil && add.Assignee.GetId() != 0 {
-		assignee = &add.Assignee.Id
+func (s *ServiceStore) buildCreateServiceQuery(rpc options.Creator, add *model.Service) (string, []interface{}, error) {
+	if add.Assignee == nil || add.Assignee.GetId() == nil || *add.Assignee.GetId() == 0 {
+		return "", nil, errors.InvalidArgument("assignee must be set for service creation")
 	}
-	if add.Group != nil && add.Group.GetId() != 0 {
-		group = &add.Group.Id
+	if add.Group == nil || add.Group.GetId() == nil || *add.Group.GetId() == 0 {
+		return "", nil, errors.InvalidArgument("group must be set for service creation")
 	}
-	if add.Sla != nil && add.Sla.GetId() != 0 {
-		sla = &add.Sla.Id
+	if add.Sla == nil || add.Sla.GetId() == nil || *add.Sla.GetId() == 0 {
+		return "", nil, errors.InvalidArgument("SLA must be set for service creation")
 	}
-	args := []interface{}{
-		add.Name,                        // $1: name
-		add.Description,                 // $2: description (can be null)
-		add.Code,                        // $3: code (can be null)
-		rpc.RequestTime(),               // $4: created_at, updated_at
-		rpc.GetAuthOpts().GetUserId(),   // $5: created_by, updated_by
-		sla,                             // $6: sla_id
-		group,                           // $7: group_id
-		assignee,                        // $8: assignee_id
-		add.State,                       // $9: state
-		rpc.GetAuthOpts().GetDomainId(), // $10: domain ID
-		add.RootId,                      // $11: root_id (can be null)
-		add.CatalogId,                   // $12: catalog_id
+	from := "inserted_service"
+	insert := sq.Insert("cases.service_catalog").
+		Columns(
+			"name", "description", "code", "created_at", "created_by", "updated_at",
+			"updated_by", "sla_id", "group_id", "assignee_id", "state", "dc", "root_id", "catalog_id",
+		).
+		Values(
+			add.Name,
+			add.Description,
+			add.Code,
+			rpc.RequestTime(),
+			rpc.GetAuthOpts().GetUserId(),
+			rpc.RequestTime(),
+			rpc.GetAuthOpts().GetUserId(),
+			add.Sla.Id,
+			add.Group.Id,
+			add.Assignee.Id,
+			add.State,
+			rpc.GetAuthOpts().GetDomainId(),
+			add.RootId,
+			add.CatalogId,
+		).
+		Suffix(`RETURNING *`).
+		PlaceholderFormat(sq.Dollar)
+	insertSQL, args, err := storeutil.FormAsCTE(insert, from)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to form CTE for service insert: %w", err)
 	}
-
-	query := `
-   WITH inserted_service AS (
-    INSERT INTO cases.service_catalog (
-                                       name, description, code, created_at, created_by, updated_at,
-                                       updated_by, sla_id, group_id, assignee_id, state, dc, root_id, catalog_id
-        ) VALUES ($1,
-                  COALESCE(NULLIF($2, ''), NULL), -- description (NULL if empty string)
-                  COALESCE(NULLIF($3, ''), NULL), -- code (NULL if empty string)
-                  $4, $5, $4, $5,
-                  COALESCE(NULLIF($6, 0), NULL), -- sla_id (NULL if 0)
-                  COALESCE(NULLIF($7, 0), NULL), -- group_id (NULL if 0)
-                  COALESCE(NULLIF($8, 0), NULL), -- assignee_id (NULL if 0)
-                  $9, $10,
-                  COALESCE(NULLIF($11, 0), NULL), -- root_id (NULL if 0)
-				  $12
-                 )
-        RETURNING id, name, description, code, state, sla_id, group_id, assignee_id,
-            created_by, updated_by, created_at, updated_at, root_id, catalog_id)
-SELECT inserted_service.id,
-       inserted_service.name,
-       COALESCE(inserted_service.description, '') AS description,     -- Return empty string if null
-       COALESCE(inserted_service.code, '')        AS code,            -- Return empty string if null
-       inserted_service.state,
-       inserted_service.created_at,
-       inserted_service.updated_at,
-       COALESCE(inserted_service.sla_id, 0)       AS sla_id,          -- Return 0 if null
-       COALESCE(sla.name, '')                     AS sla_name,        -- Return empty string if null
-       COALESCE(inserted_service.group_id, 0)     AS group_id,        -- Return 0 if null
-       COALESCE(grp.name, '')                     AS group_name,      -- Return empty string if null
-       CASE WHEN inserted_service.group_id NOTNULL THEN(CASE WHEN inserted_service.group_id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE '' END AS group_type,
-       COALESCE(inserted_service.assignee_id, 0)  AS assignee_id,     -- Return 0 if null
-       COALESCE(assignee.given_name, '')          AS assignee_name,   -- Return empty string if null
-       COALESCE(inserted_service.created_by, 0)   AS created_by,      -- Return 0 if null
-       COALESCE(created_by_user.name, '')         AS created_by_name, -- Return empty string if null
-       COALESCE(inserted_service.updated_by, 0)   AS updated_by,      -- Return 0 if null
-       COALESCE(updated_by_user.name, '')         AS updated_by_name, -- Return empty string if null
-       COALESCE(inserted_service.root_id, 0)      AS root_id,          -- Return 0 if null
-	   inserted_service.catalog_id
-FROM inserted_service
-         LEFT JOIN cases.sla ON sla.id = inserted_service.sla_id
-         LEFT JOIN contacts.group grp ON grp.id = inserted_service.group_id
-         LEFT JOIN contacts.contact assignee ON assignee.id = inserted_service.assignee_id
-         LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_service.created_by
-         LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_service.updated_by;
-    `
-
-	return storeUtil.CompactSQL(query), args
+	// Build the final query with a WITH clause to return the inserted service
+	slct := sq.Select().From("inserted_service").PlaceholderFormat(sq.Dollar).Prefix(insertSQL, args...)
+	slct, err = s.buildSelectColumns(slct, rpc.GetFields(), from)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to build select columns for service creation: %w", err)
+	}
+	query, args, err := slct.ToSql()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to generate SQL for service creation: %w", err)
+	}
+	return query, args, nil
 }
 
 // Helper method to build the delete query for Service
@@ -298,59 +176,25 @@ func (s *ServiceStore) buildDeleteServiceQuery(rpc options.Deleter) (string, []i
 		rpc.GetAuthOpts().GetDomainId(), // $2: domain ID to ensure proper scoping
 	}
 
-	return storeUtil.CompactSQL(query), args
+	return storeutil.CompactSQL(query), args
 }
 
 func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []interface{}, error) {
-	// Map of fields to their corresponding SQL expressions
-	fieldMap := map[string]string{
-		"id":          "service.id",
-		"name":        "service.name",
-		"description": "service.description",
-		"root_id":     "service.root_id",
-		"code":        "service.code",
-		"state":       "service.state",
-		"created_at":  "service.created_at",
-		"updated_at":  "service.updated_at",
-		"catalog_id":  "service.catalog_id",
-		"created_by":  "service.created_by",
-		"updated_by":  "service.updated_by",
-		"sla":         "service.sla_id AS sla_id, sla.name AS sla_name",
-		"group":       "service.group_id AS group_id, grp.name AS group_name, CASE WHEN service.group_id NOTNULL THEN (CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE NULL END AS group_type",
-		"assignee":    "service.assignee_id AS assignee_id, ass.common_name AS assignee_name",
-	}
-
 	// Initialize query builder
 	queryBuilder := sq.Select().From("cases.service_catalog AS service").
 		PlaceholderFormat(sq.Dollar).
-		Where("service.root_id IS NOT NULL")
+		Where("service.root_id IS NOT NULL").
+		Where(sq.Eq{"service.dc": rpc.GetAuthOpts().GetDomainId()})
 
 	// Include requested fields in the SELECT clause
-	for _, field := range rpc.GetFields() {
-		if column, ok := fieldMap[field]; ok {
-			queryBuilder = queryBuilder.Column(column)
-		}
-
-		// Add necessary JOINs for specific fields
-		switch field {
-		case "sla":
-			queryBuilder = queryBuilder.LeftJoin("cases.sla ON sla.id = service.sla_id")
-		case "group":
-			queryBuilder = queryBuilder.LeftJoin("contacts.group AS grp ON grp.id = service.group_id")
-		case "assignee":
-			queryBuilder = queryBuilder.LeftJoin("contacts.contact AS ass ON ass.id = service.assignee_id")
-		case "created_by":
-			queryBuilder = queryBuilder.LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by").
-				Column("COALESCE(created_by_user.name, '') AS created_by_name")
-		case "updated_by":
-			queryBuilder = queryBuilder.LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = service.updated_by").
-				Column("COALESCE(updated_by_user.name, '') AS updated_by_name")
-		}
+	queryBuilder, err := s.buildSelectColumns(queryBuilder, rpc.GetFields(), "service")
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to build select columns: %w", err)
 	}
 
 	// Apply filters
 	if rootIDFilters := rpc.GetFilter("root_id"); len(rootIDFilters) > 0 {
-		queryBuilder = util.ApplyFiltersToQuery(queryBuilder, "service.root_id", rootIDFilters)
+		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "service.root_id", rootIDFilters)
 	}
 
 	// Updated name filter logic for consistency
@@ -358,12 +202,12 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 	if len(nameFilters) > 0 {
 		f := nameFilters[0]
 		if (f.Operator == "=" || f.Operator == "") && len(f.Value) > 0 {
-			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "service.name")
+			queryBuilder = storeutil.AddSearchTerm(queryBuilder, f.Value, "service.name")
 		}
 	}
 
 	if stateFilters := rpc.GetFilter("state"); len(stateFilters) > 0 {
-		queryBuilder = util.ApplyFiltersToQuery(queryBuilder, "service.state", stateFilters)
+		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "service.state", stateFilters)
 	}
 
 	if len(rpc.GetIDs()) > 0 {
@@ -373,15 +217,15 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 	// Apply sorting dynamically
 	queryBuilder = applyServiceSorting(queryBuilder, rpc)
 
-	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Build the query
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, dberr.NewDBInternalError("postgres.service.query_build_error", err)
+		return "", nil, fmt.Errorf("failed to build SQL query for service search: %w", err)
 	}
 
-	return storeUtil.CompactSQL(query), args, nil
+	return storeutil.CompactSQL(query), args, nil
 }
 
 func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.Searcher) sq.SelectBuilder {
@@ -424,13 +268,14 @@ func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.Searcher) sq
 }
 
 // Helper method to build the combined update and select query for Service using Squirrel
-func (s *ServiceStore) buildUpdateServiceQuery(rpc options.Updator, input *cases.Service) (string, []interface{}, error) {
+func (s *ServiceStore) buildUpdateServiceQuery(rpc options.Updator, input *model.Service) (string, []interface{}, error) {
 	// Start the update query with Squirrel Update Builder
 	updateQueryBuilder := sq.Update("cases.service_catalog").
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.RequestTime()).
 		Set("updated_by", rpc.GetAuthOpts().GetUserId()).
-		Where(sq.Eq{"id": input.Id, "dc": rpc.GetAuthOpts().GetDomainId()})
+		Where(sq.Eq{"id": input.Id, "dc": rpc.GetAuthOpts().GetDomainId()}).
+		Suffix("RETURNING *")
 
 	// Dynamically set fields based on what the user wants to update
 	for _, field := range rpc.GetMask() {
@@ -439,27 +284,22 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc options.Updator, input *cases
 			updateQueryBuilder = updateQueryBuilder.Set("name", input.Name)
 		case "description":
 			// Use NULLIF to store NULL if description is an empty string
-			updateQueryBuilder = updateQueryBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
+			updateQueryBuilder = updateQueryBuilder.Set("description", input.Description)
 		case "code":
 			// Use NULLIF to store NULL if code is an empty string
-			updateQueryBuilder = updateQueryBuilder.Set("code", sq.Expr("NULLIF(?, '')", input.Code))
+			updateQueryBuilder = updateQueryBuilder.Set("code", input.Code)
 		case "sla":
 			// Use NULLIF to store NULL if sla_id is 0
-			updateQueryBuilder = updateQueryBuilder.Set("sla_id", sq.Expr("NULLIF(?, 0)", input.Sla.Id))
+			updateQueryBuilder = updateQueryBuilder.Set("sla_id", input.Sla.Id)
 		case "group":
-			var val *int64
-			if input.Group != nil {
-				val = &input.Group.Id
+			if input.Group != nil && input.Group.Id != nil {
+				updateQueryBuilder = updateQueryBuilder.Set("group_id", input.Group.Id)
 			}
-			// Use NULLIF to store NULL if group_id is 0
-			updateQueryBuilder = updateQueryBuilder.Set("group_id", sq.Expr("NULLIF(?, 0)", val))
+
 		case "assignee":
-			var val *int64
-			if input.Assignee != nil {
-				val = &input.Assignee.Id
+			if input.Assignee != nil && input.Assignee.Id != nil {
+				updateQueryBuilder = updateQueryBuilder.Set("assignee_id", input.Assignee.Id)
 			}
-			// Use NULLIF to store NULL if assignee_id is 0
-			updateQueryBuilder = updateQueryBuilder.Set("assignee_id", sq.Expr("NULLIF(?, 0)", val))
 		case "state":
 			updateQueryBuilder = updateQueryBuilder.Set("state", input.State)
 		case "root_id":
@@ -468,143 +308,89 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc options.Updator, input *cases
 	}
 
 	// Convert the update query to SQL
-	updateSQL, args, err := updateQueryBuilder.ToSql()
+	from := "updated_service"
+	updateSQL, updateArgs, err := storeutil.FormAsCTE(updateQueryBuilder, from)
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("failed to form CTE for service update: %w", err)
 	}
 
 	// Now build the select query with a static SQL using a WITH clause
-	// TODO: refactor group type
-	query := fmt.Sprintf(`
-WITH updated_service AS (%s
-			RETURNING id, name, description, code, state, sla_id, group_id, assignee_id, created_by, updated_by, created_at, updated_at, root_id)
-SELECT service.id,
-       service.name,
-       COALESCE(service.description, '') AS description,  -- Use COALESCE to return an empty string if description is NULL
-       COALESCE(service.code, '')        AS code,         -- Use COALESCE to return an empty string if code is NULL
-       service.state,
-       COALESCE(service.sla_id, 0)       AS sla_id,
-       COALESCE(sla.name, '')            AS sla_name,     -- Handle NULL SLA as empty string
-       service.group_id,
-       COALESCE(grp.name, '')            AS group_name,   -- Handle NULL group as empty string
-       CASE WHEN service.group_id NOTNULL THEN(CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE NULL END AS group_type,
-       service.assignee_id,
-       COALESCE(assignee.given_name, '') AS assignee_name, -- Handle NULL assignee as empty string
-       service.created_by,
-       COALESCE(created_by_user.name, created_by_user.username) AS created_by_name,  -- Handle NULL created_by as empty string
-       service.updated_by,
-       COALESCE(updated_by_user.name, updated_by_user.username) AS updated_by_name,
-       service.created_at,
-       service.updated_at,
-       service.root_id
-FROM updated_service AS service
-         LEFT JOIN cases.sla ON sla.id = service.sla_id
-         LEFT JOIN contacts.group AS grp ON grp.id = service.group_id
-         LEFT JOIN contacts.contact AS assignee ON assignee.id = service.assignee_id
-         LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = service.created_by
-         LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = service.updated_by;
-	`, updateSQL)
-
-	// Return the final combined query and arguments
-	return storeUtil.CompactSQL(query), args, nil
+	selectSQL, err := s.buildSelectColumns(sq.Select().From("cases.service_catalog AS service").
+		Where(sq.Eq{"service.dc": rpc.GetAuthOpts().GetDomainId()}).
+		PlaceholderFormat(sq.Dollar).Prefix(updateSQL, updateArgs...), rpc.GetFields(), from)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to build select columns for service update: %w", err)
+	}
+	query, args, err := selectSQL.ToSql()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to generate SQL for service update: %w", err)
+	}
+	return query, args, nil
 }
 
-// buildServiceScanArgs builds scan arguments dynamically and returns a post-processing function.
-func (s *ServiceStore) buildServiceScanArgs(
-	service *cases.Service, // The service object to populate
-	createdAt, updatedAt *time.Time, // Temporary variables for timestamps
-	rpcFields []string, // Fields to scan dynamically
-) ([]interface{}, func()) {
-	scanArgs := []interface{}{}
-
-	// Temporary variables for nullable fields
-	var slaID, assigneeID, groupID, createdByID, updatedByID pgtype.Int8
-	var slaName, assigneeName, groupName, groupType, createdByName, updatedByName pgtype.Text
-
-	// Field map for dynamic scanning
-	fieldMap := map[string][]any{
-		"id":          {&service.Id},
-		"name":        {&service.Name},
-		"description": {scanner.ScanText(&service.Description)},
-		"code":        {scanner.ScanText(&service.Code)},
-		"state":       {&service.State},
-		"created_at":  {createdAt},
-		"updated_at":  {updatedAt},
-		"root_id":     {&service.RootId},
-		"catalog_id":  {&service.CatalogId},
+func (s *ServiceStore) buildSelectColumns(base sq.SelectBuilder, fields []string, mainTableAlias string) (sq.SelectBuilder, error) {
+	if len(fields) == 0 {
+		return base, nil
 	}
-
-	// Lookup fields that require initialization
-	lookupFields := map[string]func(){
-		"sla":        func() { scanArgs = append(scanArgs, &slaID, &slaName) },
-		"group":      func() { scanArgs = append(scanArgs, &groupID, &groupName, &groupType) },
-		"assignee":   func() { scanArgs = append(scanArgs, &assigneeID, &assigneeName) },
-		"created_by": func() { scanArgs = append(scanArgs, &createdByID, &createdByName) },
-		"updated_by": func() { scanArgs = append(scanArgs, &updatedByID, &updatedByName) },
-	}
-
-	// Add scan arguments for regular fields
-	for _, field := range rpcFields {
-		if args, exists := fieldMap[field]; exists {
-			scanArgs = append(scanArgs, args...)
-		} else if initFunc, exists := lookupFields[field]; exists {
-			initFunc()
-		}
-	}
-
-	// Function to assign scanned values after scanning
-	postScanHandler := func() {
-		// Set Sla to nil if ID is 0 or absent
-		if slaID.Status == pgtype.Present && slaID.Int != 0 {
-			service.Sla = &cases.Lookup{Id: slaID.Int, Name: safePgText(slaName)}
-		} else {
-			service.Sla = nil
-		}
-
-		// Set Group to nil if ID is 0 or absent
-		if groupID.Status == pgtype.Present && groupID.Int != 0 {
-			service.Group = &cases.ExtendedLookup{Id: groupID.Int, Name: safePgText(groupName), Type: safePgText(groupType)}
-		} else {
-			service.Group = nil
-		}
-
-		// Set Assignee to nil if ID is 0 or absent
-		if assigneeID.Status == pgtype.Present && assigneeID.Int != 0 {
-			service.Assignee = &cases.Lookup{Id: assigneeID.Int, Name: safePgText(assigneeName)}
-		} else {
-			service.Assignee = nil
-		}
-
-		// Set CreatedBy to nil if ID is 0 or absent
-		if createdByID.Status == pgtype.Present && createdByID.Int != 0 {
-			service.CreatedBy = &cases.Lookup{Id: createdByID.Int, Name: safePgText(createdByName)}
-		} else {
-			service.CreatedBy = nil
-		}
-
-		// Set UpdatedBy to nil if ID is 0 or absent
-		if updatedByID.Status == pgtype.Present && updatedByID.Int != 0 {
-			service.UpdatedBy = &cases.Lookup{Id: updatedByID.Int, Name: safePgText(updatedByName)}
-		} else {
-			service.UpdatedBy = nil
+	fields = util.DeduplicateFields(fields)
+	for _, field := range fields {
+		switch field {
+		case "id":
+			base = base.Column(storeutil.Ident(mainTableAlias, "id"))
+		case "name":
+			base = base.Column(storeutil.Ident(mainTableAlias, "name"))
+		case "description":
+			base = base.Column(storeutil.Ident(mainTableAlias, "description"))
+		case "code":
+			base = base.Column(storeutil.Ident(mainTableAlias, "code"))
+		case "state":
+			base = base.Column(storeutil.Ident(mainTableAlias, "state"))
+		case "sla":
+			base = base.Column(`jsonb_build_object(
+				'id', sla.id,
+				'name', sla.name
+			) AS "sla"`)
+			base = base.LeftJoin(fmt.Sprintf("cases.sla AS sla ON sla.id = %s AND sla.dc = %s",
+				storeutil.Ident(mainTableAlias, "sla_id"),
+				storeutil.Ident(mainTableAlias, "dc")))
+		case "group":
+			base = base.Column(`jsonb_build_object(
+				'id', grp.id,
+				'name', grp.name,
+				'type', CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END
+			) AS "group"`)
+			base = base.LeftJoin(fmt.Sprintf("contacts.group AS grp ON grp.id = %s AND grp.dc = %s",
+				storeutil.Ident(mainTableAlias, "group_id"),
+				storeutil.Ident(mainTableAlias, "dc")))
+		case "assignee":
+			base = base.Column(`jsonb_build_object(
+				'id', assignee.id,
+				'name', assignee.common_name
+			) AS "assignee"`)
+			base = base.LeftJoin(fmt.Sprintf("contacts.contact AS assignee ON assignee.id = %s AND assignee.dc = %s",
+				storeutil.Ident(mainTableAlias, "assignee_id"),
+				storeutil.Ident(mainTableAlias, "dc")))
+		case "created_at":
+			base = base.Column(storeutil.Ident(mainTableAlias, "created_at"))
+		case "updated_at":
+			base = base.Column(storeutil.Ident(mainTableAlias, "updated_at"))
+		case "created_by":
+			base = storeutil.SetUserColumn(base, mainTableAlias, "crb", "created_by")
+		case "updated_by":
+			base = storeutil.SetUserColumn(base, mainTableAlias, "upb", "updated_by")
+		case "catalog_id":
+			base = base.Column(storeutil.Ident(mainTableAlias, "catalog_id"))
+		case "root_id":
+			base = base.Column(storeutil.Ident(mainTableAlias, "root_id"))
+		default:
 		}
 	}
-
-	return scanArgs, postScanHandler
-}
-
-// Helper function to safely extract pgtype.Text values
-func safePgText(text pgtype.Text) string {
-	if text.Status == pgtype.Present {
-		return text.String
-	}
-	return ""
+	return base, nil
 }
 
 func NewServiceStore(store *Store) (store.ServiceStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_service.check.bad_arguments",
-			"error creating Service interface to the service table, main store is nil")
+		return nil, fmt.Errorf("failed to create ServiceStore: main store is nil")
 	}
 	return &ServiceStore{storage: store}, nil
 }

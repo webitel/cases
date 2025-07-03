@@ -4,18 +4,15 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/georgysavva/scany/v2/pgxscan"
 
-	"github.com/webitel/cases/api/cases"
-	_go "github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/errors"
+	errors "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/postgres/scanner"
-	storeUtil "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 )
-
-type SLAScan func(sla *cases.SLA) any
 
 const (
 	slaLeft        = "s"
@@ -26,110 +23,77 @@ type SLAStore struct {
 	storage *Store
 }
 
-// Helper function to convert plan to scan arguments.
-func convertToSLAScanArgs(plan []SLAScan, sla *cases.SLA) []any {
-	var scanArgs []any
-	for _, scan := range plan {
-		scanArgs = append(scanArgs, scan(sla))
-	}
-	return scanArgs
-}
-
-// Helper function to dynamically build select columns and plan.
-func (s *SLAStore) buildSLASelectColumnsAndPlan(
+// Helper function to dynamically build select columns.
+func buildSLASelectColumns(
 	base sq.SelectBuilder,
 	fields []string,
-) (sq.SelectBuilder, []SLAScan, error) {
-	var plan []SLAScan
+) (sq.SelectBuilder, error) {
+	var (
+		createdByAlias string
+		joinCreatedBy  = func(alias string) string {
+			if createdByAlias != "" {
+				return createdByAlias
+			}
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %s.created_by = %s.id", alias, slaLeft, alias))
+			createdByAlias = alias
+			return alias
+		}
+		updatedByAlias string
+		joinUpdatedBy  = func(alias string) string {
+			if updatedByAlias != "" {
+				return updatedByAlias
+			}
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %s.updated_by = %s.id", alias, slaLeft, alias))
+			updatedByAlias = alias
+			return alias
+		}
+	)
+	base = base.Column(storeutil.Ident(slaLeft, "id"))
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(storeUtil.Ident(slaLeft, "id"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return &sla.Id
-			})
+			// already set
 		case "name":
-			base = base.Column(storeUtil.Ident(slaLeft, "name"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return &sla.Name
-			})
+			base = base.Column(storeutil.Ident(slaLeft, "name"))
 		case "description":
-			base = base.Column(storeUtil.Ident(slaLeft, "description"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return scanner.ScanText(&sla.Description)
-			})
+			base = base.Column(storeutil.Ident(slaLeft, "description"))
 		case "valid_from":
-			base = base.Column(storeUtil.Ident(slaLeft, "valid_from"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return scanner.ScanTimestamp(&sla.ValidFrom)
-			})
+			base = base.Column(storeutil.Ident(slaLeft, "valid_from"))
 		case "valid_to":
-			base = base.Column(storeUtil.Ident(slaLeft, "valid_to"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return scanner.ScanTimestamp(&sla.ValidTo)
-			})
+			base = base.Column(storeutil.Ident(slaLeft, "valid_to"))
 		case "calendar":
-			base = base.Column(
-				fmt.Sprintf(
-					"(SELECT ROW(id, name)::text FROM flow.calendar WHERE id = %s.calendar_id) calendar", slaLeft))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return scanner.ScanRowLookup(&sla.Calendar)
-			})
+			base = base.
+				LeftJoin("flow.calendar cal ON cal.id = s.calendar_id").
+				Column("cal.id as calendar_id").
+				Column("cal.name as calendar_name")
 		case "reaction_time":
-			base = base.
-				Column(storeUtil.Ident(slaLeft, "reaction_time"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return &sla.ReactionTime
-			})
+			base = base.Column(storeutil.Ident(slaLeft, "reaction_time"))
 		case "resolution_time":
-			base = base.
-				Column(storeUtil.Ident(slaLeft, "resolution_time"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return &sla.ResolutionTime
-			})
+			base = base.Column(storeutil.Ident(slaLeft, "resolution_time"))
 		case "created_at":
-			base = base.Column(storeUtil.Ident(slaLeft, "created_at"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return scanner.ScanTimestamp(&sla.CreatedAt)
-			})
+			base = base.Column(storeutil.Ident(slaLeft, "created_at"))
 		case "updated_at":
-			base = base.Column(storeUtil.Ident(slaLeft, "updated_at"))
-			plan = append(plan, func(sla *cases.SLA) any {
-				return scanner.ScanTimestamp(&sla.UpdatedAt)
-			})
+			base = base.Column(storeutil.Ident(slaLeft, "updated_at"))
 		case "created_by":
-			base = base.Column(
-				fmt.Sprintf(
-					"(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.created_by) created_by",
-					slaLeft,
-				),
-			)
-			plan = append(plan, func(sla *cases.SLA) any {
-				return scanner.ScanRowLookup(&sla.CreatedBy)
-			})
+			alias := "slacb"
+			joinCreatedBy(alias)
+			base = base.Column(fmt.Sprintf("%s.id created_by_id", alias))
+			base = base.Column(fmt.Sprintf("COALESCE(%s.name, %s.username) created_by_name", alias, alias))
 		case "updated_by":
-			base = base.Column(
-				fmt.Sprintf(
-					"(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by",
-					slaLeft,
-				),
-			)
-			plan = append(plan, func(sla *cases.SLA) any {
-				return scanner.ScanRowLookup(&sla.UpdatedBy)
-			})
+			alias := "slaub"
+			joinUpdatedBy(alias)
+			base = base.Column(fmt.Sprintf("%s.id updated_by_id", alias))
+			base = base.Column(fmt.Sprintf("COALESCE(%s.name, %s.username) updated_by_name", alias, alias))
 		default:
-			return base, nil, dberr.NewDBInternalError(
-				"postgres.sla.unknown_field",
-				fmt.Errorf("unknown field: %s", field),
-			)
+			return base, errors.New(fmt.Sprintf("unknown field: %s", field))
 		}
 	}
-	return base, plan, nil
+	return base, nil
 }
 
-func (s *SLAStore) buildCreateSLAQuery(rpc options.Creator, sla *_go.SLA) (sq.SelectBuilder, []SLAScan, error) {
+func (s *SLAStore) buildCreateSLAQuery(rpc options.Creator, sla *model.SLA) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
-	fields = util.EnsureIdField(rpc.GetFields())
+	fields = util.EnsureIdField(fields)
 	// Build the INSERT query with a RETURNING clause
 	insertBuilder := sq.Insert("cases.sla").
 		Columns(
@@ -146,11 +110,11 @@ func (s *SLAStore) buildCreateSLAQuery(rpc options.Creator, sla *_go.SLA) (sq.Se
 			rpc.GetAuthOpts().GetUserId(),
 			rpc.RequestTime(),
 			rpc.GetAuthOpts().GetUserId(),
-			util.LocalTime(sla.ValidFrom),
-			util.LocalTime(sla.ValidTo),
+			sla.ValidFrom,
+			sla.ValidTo,
 			sla.Calendar.Id,
-			sla.GetReactionTime(),
-			sla.GetResolutionTime(),
+			sla.ReactionTime,
+			sla.ResolutionTime,
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *") // RETURNING all columns for use in the next SELECT
@@ -158,54 +122,55 @@ func (s *SLAStore) buildCreateSLAQuery(rpc options.Creator, sla *_go.SLA) (sq.Se
 	// Convert the INSERT query into a CTE
 	insertSQL, args, err := insertBuilder.ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.sla.create.query_build_error", err)
+		return sq.SelectBuilder{}, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
 
 	// Use the INSERT query as a CTE (Common Table Expression)
 	cte := sq.Expr("WITH s AS ("+insertSQL+")", args...)
 
 	// Dynamically build the SELECT query for the resulting row
-	selectBuilder, plan, err := s.buildSLASelectColumnsAndPlan(sq.Select(), fields)
+	selectBuilder, err := buildSLASelectColumns(sq.Select(), fields)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
 	// Combine the CTE with the SELECT query
 	selectBuilder = selectBuilder.PrefixExpr(cte).From(slaLeft)
 
-	return selectBuilder, plan, nil
+	return selectBuilder, nil
 }
 
-func (s *SLAStore) Create(rpc options.Creator, input *cases.SLA) (*cases.SLA, error) {
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.database_connection_error", dbErr)
+func (s *SLAStore) Create(rpc options.Creator, input *model.SLA) (*model.SLA, error) {
+	db, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
-	selectBuilder, plan, err := s.buildCreateSLAQuery(rpc, input)
+	selectBuilder, err := s.buildCreateSLAQuery(rpc, input)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.query_to_sql_error", err)
+		return nil, err
 	}
 
-	scanArgs := convertToSLAScanArgs(plan, input)
-	if err := db.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.create.execution_error", err)
+	var res model.SLA
+	err = pgxscan.Get(rpc, db, &res, query, args...)
+	if err != nil {
+		return nil, ParseError(err)
 	}
 
-	return input, nil
+	return &res, nil
 }
 
 func (s *SLAStore) buildUpdateSLAQuery(
 	rpc options.Updator,
-	input *cases.SLA,
-) (sq.SelectBuilder, []SLAScan, error) {
+	input *model.SLA,
+) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
-	fields = util.EnsureIdField(rpc.GetFields())
+	fields = util.EnsureIdField(fields)
 	// Start the UPDATE query
 	updateBuilder := sq.Update("cases.sla").
 		PlaceholderFormat(sq.Dollar). // Use PostgreSQL-compatible placeholders
@@ -218,84 +183,83 @@ func (s *SLAStore) buildUpdateSLAQuery(
 	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
-			if input.Name != "" {
+			if input.Name != nil && *input.Name != "" {
 				updateBuilder = updateBuilder.Set("name", input.Name)
 			}
 		case "description":
 			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
 		case "valid_from":
-			updateBuilder = updateBuilder.Set("valid_from", util.LocalTime(input.ValidFrom))
+			updateBuilder = updateBuilder.Set("valid_from", input.ValidFrom)
 		case "valid_to":
-			updateBuilder = updateBuilder.Set("valid_to", util.LocalTime(input.ValidTo))
+			updateBuilder = updateBuilder.Set("valid_to", input.ValidTo)
 		case "calendar":
-			if input.Calendar.Id != 0 {
+			if input.Calendar != nil && input.Calendar.Id != nil {
 				updateBuilder = updateBuilder.Set("calendar_id", input.Calendar.Id)
 			}
 		case "reaction_time":
 			updateBuilder = updateBuilder.
-				Set("reaction_time", input.GetReactionTime())
+				Set("reaction_time", input.ReactionTime)
 		case "resolution_time":
 			updateBuilder = updateBuilder.
-				Set("resolution_time", input.GetResolutionTime())
+				Set("resolution_time", input.ResolutionTime)
 		}
 	}
 
 	// Generate the CTE for the update operation
 	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.input.update.query_build_error", err)
+		return sq.SelectBuilder{}, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
 
 	// Use the UPDATE query as a CTE
 	cte := sq.Expr("WITH s AS ("+updateSQL+")", args...)
 
 	// Build select clause and scan plan dynamically using buildSLASelectColumnsAndPlan
-	selectBuilder, plan, err := s.buildSLASelectColumnsAndPlan(sq.Select(), fields)
+	selectBuilder, err := buildSLASelectColumns(sq.Select(), fields)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
 	// Combine the CTE with the SELECT query
-	selectBuilder = selectBuilder.PrefixExpr(cte).From("s")
+	selectBuilder = selectBuilder.PrefixExpr(cte).From(slaLeft)
 
-	return selectBuilder, plan, nil
+	return selectBuilder, nil
 }
 
-func (s *SLAStore) Update(rpc options.Updator, input *cases.SLA) (*cases.SLA, error) {
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.input.database_connection_error", dbErr)
+func (s *SLAStore) Update(rpc options.Updator, input *model.SLA) (*model.SLA, error) {
+	db, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
-	selectBuilder, plan, err := s.buildUpdateSLAQuery(
+	selectBuilder, err := s.buildUpdateSLAQuery(
 		rpc,
 		input,
 	)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.input.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.input.query_to_sql_error", err)
+		return nil, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
 
-	scanArgs := convertToSLAScanArgs(plan, input)
-	if err := db.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.input.execution_error", err)
+	var res model.SLA
+	err = pgxscan.Get(rpc, db, &res, query, args...)
+	if err != nil {
+		return nil, ParseError(err)
 	}
 
-	return input, nil
+	return &res, nil
 }
 
-func (s *SLAStore) buildListSLAQuery(rpc options.Searcher) (sq.SelectBuilder, []SLAScan, error) {
-
+func (s *SLAStore) buildListSLAQuery(rpc options.Searcher) (sq.SelectBuilder, error) {
 	queryBuilder := sq.Select().
 		From("cases.sla AS s").
 		Where(sq.Eq{"s.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	// Add ID filter if provided
 	if len(rpc.GetIDs()) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"s.id": rpc.GetIDs()})
 	}
@@ -305,119 +269,111 @@ func (s *SLAStore) buildListSLAQuery(rpc options.Searcher) (sq.SelectBuilder, []
 	if len(nameFilters) > 0 {
 		f := nameFilters[0]
 		if (f.Operator == "=" || f.Operator == "") && len(f.Value) > 0 {
-			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "s.name")
+			queryBuilder = storeutil.AddSearchTerm(queryBuilder, f.Value, "s.name")
 		}
 	}
 
-	// -------- Apply sorting ----------
-	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
+	queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
-	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
-
-	// Add select columns and scan plan for requested fields
-	queryBuilder, plan, err := s.buildSLASelectColumnsAndPlan(queryBuilder, rpc.GetFields())
+	queryBuilder, err := buildSLASelectColumns(queryBuilder, rpc.GetFields())
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.sla.search.query_build_error", err)
+		return sq.SelectBuilder{}, err
 	}
 
-	return queryBuilder, plan, nil
+	return queryBuilder, nil
 }
 
-func (s *SLAStore) List(rpc options.Searcher) (*cases.SLAList, error) {
-	db, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.list.database_connection_error", dbErr)
+func (s *SLAStore) List(rpc options.Searcher) ([]*model.SLA, error) {
+	d, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
-	selectBuilder, plan, err := s.buildListSLAQuery(rpc)
+	selectBuilder, err := s.buildListSLAQuery(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.list.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.list.query_build_error", err)
+		return nil, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
-	query = storeUtil.CompactSQL(query)
+	query = storeutil.CompactSQL(query)
 
-	rows, err := db.Query(rpc, query, args...)
+	var slas []*model.SLA
+	err = pgxscan.Select(rpc, d, &slas, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.sla.list.execution_error", err)
+		return nil, ParseError(err)
 	}
-	defer rows.Close()
-
-	var rawSLAs []*cases.SLA
-	for rows.Next() {
-		sla := &cases.SLA{}
-		scanArgs := convertToSLAScanArgs(plan, sla)
-		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, dberr.NewDBInternalError("postgres.sla.list.row_scan_error", err)
-		}
-		rawSLAs = append(rawSLAs, sla)
-	}
-
-	// Resolve pagination
-	slas, next := storeUtil.ResolvePaging(rpc.GetSize(), rawSLAs)
-
-	return &cases.SLAList{
-		Page:  int32(rpc.GetPage()),
-		Next:  next,
-		Items: slas,
-	}, nil
+	return slas, nil
 }
 
 func (s *SLAStore) buildDeleteSLAQuery(
 	rpc options.Deleter,
-) (sq.DeleteBuilder, error) {
+) (sq.SelectBuilder, error) {
+	fields := []string{"id", "name", "description", "created_at", "updated_at", "created_by", "updated_by", "calendar", "reaction_time", "resolution_time", "valid_from", "valid_to"}
+
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
-		return sq.DeleteBuilder{}, dberr.NewDBInternalError(
-			"postgres.sla.delete.missing_ids",
-			fmt.Errorf("no IDs provided for deletion"),
-		)
+		return sq.SelectBuilder{}, errors.InvalidArgument("no IDs provided for deletion")
+
 	}
 
 	// Build the delete query
 	deleteBuilder := sq.Delete("cases.sla").
 		Where(sq.Eq{"id": rpc.GetIDs()}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
-		PlaceholderFormat(sq.Dollar)
+		PlaceholderFormat(sq.Dollar).
+		Suffix("RETURNING *")
 
-	return deleteBuilder, nil
+	deleteSQL, args, err := deleteBuilder.ToSql()
+	if err != nil {
+		return sq.SelectBuilder{}, errors.New("unable to convert to sql", errors.WithCause(err))
+	}
+
+	cte := sq.Expr("WITH deleted AS ("+deleteSQL+")", args...)
+
+	selectBuilder, err := buildSLASelectColumns(
+		sq.Select().PrefixExpr(cte).From("deleted s"),
+		fields,
+	)
+	if err != nil {
+		return sq.SelectBuilder{}, err
+	}
+	selectBuilder = selectBuilder.PlaceholderFormat(sq.Dollar)
+
+	return selectBuilder, nil
 }
 
-func (s *SLAStore) Delete(rpc options.Deleter) error {
-	d, dbErr := s.storage.Database()
-	if dbErr != nil {
-		return dberr.NewDBInternalError("postgres.sla.delete.database_connection_error", dbErr)
+func (s *SLAStore) Delete(rpc options.Deleter) (*model.SLA, error) {
+	d, err := s.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	deleteBuilder, err := s.buildDeleteSLAQuery(rpc)
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.sla.delete.query_build_error", err)
+		return nil, err
 	}
 
 	query, args, err := deleteBuilder.ToSql()
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.sla.delete.query_to_sql_error", err)
+		return nil, errors.New("unable to convert to sql", errors.WithCause(err))
 	}
 
-	res, execErr := d.Exec(rpc, query, args...)
-	if execErr != nil {
-		return dberr.NewDBInternalError("postgres.sla.delete.execution_error", execErr)
-	}
+	var result model.SLA
 
-	if res.RowsAffected() == 0 {
-		return dberr.NewDBNoRowsError("postgres.sla.delete.no_rows_affected")
+	err = pgxscan.Get(rpc, d, &result, query, args...)
+	if err != nil {
+		return nil, ParseError(err)
 	}
-
-	return nil
+	return &result, nil
 }
 
 func NewSLAStore(store *Store) (store.SLAStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_sla.check.bad_arguments",
+		return nil, errors.New(
 			"error creating SLA interface, main store is nil")
 	}
 	return &SLAStore{storage: store}, nil

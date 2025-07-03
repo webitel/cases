@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
-	cerror "github.com/webitel/cases/internal/errors"
-	deferr "github.com/webitel/cases/internal/errors/defaults"
-	"github.com/webitel/cases/model"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
-	"github.com/webitel/cases/model/options/grpc/shared"
+	"github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
+	"github.com/webitel/cases/internal/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
-	"github.com/webitel/webitel-go-kit/etag"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
 	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
+	"google.golang.org/grpc/codes"
 	"log/slog"
 	"time"
 )
@@ -46,7 +46,7 @@ func (c *CaseCommentService) LocateComment(
 	req *cases.LocateCommentRequest,
 ) (*cases.CaseComment, error) {
 	if req.Etag == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.locate_comment.etag_required", "Etag is required")
+		return nil, errors.InvalidArgument("Etag is required")
 	}
 
 	searchOpts, err := grpcopts.NewLocateOptions(
@@ -64,25 +64,22 @@ func (c *CaseCommentService) LocateComment(
 		grpcopts.WithIDsAsEtags(etag.EtagCaseComment, req.GetEtag()),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()))
-
 	commentList, err := c.app.Store.CaseComment().List(searchOpts)
 	if err != nil {
-		return nil, cerror.NewInternalError("app.case_comment.locate_comment.fetch_error", err.Error())
+		return nil, err
 	}
 
 	if len(commentList.Items) == 0 {
-		return nil, cerror.NewNotFoundError("app.case_comment.locate_comment.not_found", "Comment not found")
+		return nil, errors.NotFound("Comment not found")
 	} else if len(commentList.Items) > 1 {
-		return nil, deferr.InternalError
+		return nil, errors.New("too many items found", errors.WithCode(codes.AlreadyExists))
 	}
 
 	err = NormalizeCommentsResponse(commentList.Items[0], req)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, err
 	}
 
 	return commentList.Items[0], nil
@@ -93,15 +90,15 @@ func (c *CaseCommentService) UpdateComment(
 	req *cases.UpdateCommentRequest,
 ) (*cases.CaseComment, error) {
 	if req.Input.Etag == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.etag_required", "Etag is required")
+		return nil, errors.InvalidArgument("Etag is required")
 	}
 	if req.Input.Text == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.text_required", "Text is required")
+		return nil, errors.InvalidArgument("Text is required")
 	}
 
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.Input.Etag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.update_comment.invalid_etag", "Invalid etag")
+		return nil, errors.InvalidArgument("invalid Etag", errors.WithCause(err))
 	}
 
 	opts := []grpcopts.UpdateOption{
@@ -116,10 +113,8 @@ func (c *CaseCommentService) UpdateComment(
 
 	updateOpts, err := grpcopts.NewUpdateOptions(ctx, opts...)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-
-	logAttributes := slog.Group("context", slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()), slog.Int64("id", tag.GetOid()))
 
 	input := &cases.CaseComment{
 		// Used if explicitly set the case creator / updater instead of deriving it from the auth token.
@@ -131,8 +126,7 @@ func (c *CaseCommentService) UpdateComment(
 
 	updatedComment, err := c.app.Store.CaseComment().Update(updateOpts, input)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.DatabaseError
+		return nil, err
 	}
 
 	id := updatedComment.GetId()
@@ -141,8 +135,7 @@ func (c *CaseCommentService) UpdateComment(
 
 	err = NormalizeCommentsResponse(updatedComment, req)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, err
 	}
 
 	if notifyErr := c.app.watcherManager.Notify(
@@ -150,7 +143,7 @@ func (c *CaseCommentService) UpdateComment(
 		watcherkit.EventTypeUpdate,
 		NewCaseCommentWatcherData(updateOpts.GetAuthOpts(), updatedComment, id, parentId, roleIds),
 	); notifyErr != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify input update: %s, ", notifyErr.Error()), logAttributes)
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify input update: %s, ", notifyErr.Error()))
 	}
 
 	return updatedComment, nil
@@ -161,22 +154,19 @@ func (c *CaseCommentService) DeleteComment(
 	req *cases.DeleteCommentRequest,
 ) (*cases.CaseComment, error) {
 	if req.Etag == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.etag_required", "Etag is required")
+		return nil, errors.InvalidArgument("etag is required")
 	}
 	tag, err := etag.EtagOrId(etag.EtagCaseComment, req.GetEtag())
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.delete_comment.invalid_etag", "Invalid etag")
+		return nil, errors.InvalidArgument("invalid Etag", errors.WithCause(err))
 	}
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-	logAttributes := slog.Group("context", slog.Int64("user_id", deleteOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", deleteOpts.GetAuthOpts().GetDomainId()), slog.Int64("id", tag.GetOid()))
-
 	err = c.app.Store.CaseComment().Delete(deleteOpts)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.DatabaseError
+		return nil, err
 	}
 
 	if notifyErr := c.app.watcherManager.Notify(
@@ -184,7 +174,7 @@ func (c *CaseCommentService) DeleteComment(
 		watcherkit.EventTypeDelete,
 		NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, tag.GetOid(), 0, nil),
 	); notifyErr != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment delete: %s, ", notifyErr.Error()), logAttributes)
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment delete: %s, ", notifyErr.Error()))
 	}
 	return nil, nil
 }
@@ -194,7 +184,7 @@ func (c *CaseCommentService) ListComments(
 	req *cases.ListCommentsRequest,
 ) (*cases.CaseCommentList, error) {
 	if req.CaseEtag == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.case_etag_required", "Case etag is required")
+		return nil, errors.InvalidArgument("case etag is required")
 	}
 	searchOpts, err := grpcopts.NewSearchOptions(
 		ctx,
@@ -214,27 +204,24 @@ func (c *CaseCommentService) ListComments(
 		grpcopts.WithSort(req),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.list_comments.invalid_etag", "Invalid etag")
+		return nil, errors.InvalidArgument("Invalid etag", errors.WithCause(err))
 	}
 	if tag.GetOid() != 0 {
-	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tag.GetOid()))
+		searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tag.GetOid()))
 	}
-	logAttributes := slog.Group("context", slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
-
 	comments, err := c.app.Store.CaseComment().List(searchOpts)
 	if err != nil {
 		slog.ErrorContext(ctx, err.Error())
-		return nil, deferr.DatabaseError
+		return nil, err
 	}
 
 	err = NormalizeCommentsResponse(comments, req)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, err
 	}
 
 	return comments, nil
@@ -245,9 +232,9 @@ func (c *CaseCommentService) PublishComment(
 	req *cases.PublishCommentRequest,
 ) (*cases.CaseComment, error) {
 	if req.CaseEtag == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.case_etag_required", "Case etag is required")
+		return nil, errors.InvalidArgument("case etag is required")
 	} else if req.Input.Text == "" {
-		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.text_required", "Text is required")
+		return nil, errors.InvalidArgument("text is required")
 	}
 
 	opts := []grpcopts.CreateOption{
@@ -264,30 +251,26 @@ func (c *CaseCommentService) PublishComment(
 
 	createOpts, err := grpcopts.NewCreateOptions(ctx, opts...)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 
 	tag, err := etag.EtagOrId(etag.EtagCase, req.CaseEtag)
 	if err != nil {
-		return nil, cerror.NewBadRequestError("app.case_comment.publish_comment.invalid_etag", "Invalid etag")
+		return nil, errors.InvalidArgument("Invalid etag")
 	}
 	createOpts.ParentID = tag.GetOid()
-	logAttributes := slog.Group("context", slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()), slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()), slog.Int64("case_id", tag.GetOid()))
 
 	accessMode := auth.Read
 	if !createOpts.GetAuthOpts().CheckObacAccess(CaseCommentMetadata.GetParentScopeName(), accessMode) {
-		slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-		return nil, deferr.ForbiddenError
+		return nil, errors.New("user doesn't have required (EDIT) access to the case", errors.WithCode(codes.PermissionDenied))
 	}
 	if createOpts.GetAuthOpts().IsRbacCheckRequired(CaseCommentMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.ParentID)
 		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, err
 		}
 		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (EDIT) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.New("user doesn't have required (EDIT) access to the case", errors.WithCode(codes.PermissionDenied))
 		}
 	}
 	comment, err := c.app.Store.CaseComment().Publish(
@@ -299,8 +282,7 @@ func (c *CaseCommentService) PublishComment(
 		},
 	)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.DatabaseError
+		return nil, err
 	}
 
 	id := comment.GetId()
@@ -309,15 +291,14 @@ func (c *CaseCommentService) PublishComment(
 
 	err = NormalizeCommentsResponse(comment, req)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.ResponseNormalizingError
+		return nil, err
 	}
 	if notifyErr := c.app.watcherManager.Notify(
 		caseCommentsObjScope,
 		watcherkit.EventTypeCreate,
 		NewCaseCommentWatcherData(createOpts.GetAuthOpts(), comment, id, parentId, roleId),
 	); notifyErr != nil {
-		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment create: %s, ", notifyErr.Error()), logAttributes)
+		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment create: %s, ", notifyErr.Error()))
 	}
 
 	return comment, nil
@@ -383,9 +364,9 @@ func formCommentsFtsModel(comment *cases.CaseComment, params map[string]any) (*m
 	}, nil
 }
 
-func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
+func NewCaseCommentService(app *App) (*CaseCommentService, error) {
 	if app == nil {
-		return nil, cerror.NewInternalError("app.case_comment.new_case_comment_service.app_required", "Unable to initialize service, app is nil")
+		return nil, errors.New("Unable to initialize case comment service, app is nil")
 	}
 	watcher := watcherkit.NewDefaultWatcher()
 
@@ -397,7 +378,7 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 
 		obs, err := NewLoggerObserver(app.wtelLogger, caseCommentsObjScope, defaultLogTimeout)
 		if err != nil {
-			return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_observer.app", err.Error())
+			return nil, err
 		}
 		watcher.Attach(watcherkit.EventTypeCreate, obs)
 		watcher.Attach(watcherkit.EventTypeUpdate, obs)
@@ -407,7 +388,7 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 	if app.config.FtsWatcher.Enabled {
 		ftsObserver, err := NewFullTextSearchObserver(app.ftsClient, caseCommentsObjScope, formCommentsFtsModel)
 		if err != nil {
-			return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_observer.app", err.Error())
+			return nil, err
 		}
 		watcher.Attach(watcherkit.EventTypeCreate, ftsObserver)
 		watcher.Attach(watcherkit.EventTypeUpdate, ftsObserver)
@@ -415,17 +396,13 @@ func NewCaseCommentService(app *App) (*CaseCommentService, cerror.AppError) {
 	}
 
 	if app.config.TriggerWatcher.Enabled {
-		mq, err := NewTriggerObserver(
-			app.rabbit,
-			app.config.TriggerWatcher,
-			formCaseCommentTriggerModel,
-			slog.With(
-				slog.Group("context",
-					slog.String("scope", "watcher")),
-			))
+		mq, err := NewTriggerObserver(app.rabbitPublisher, app.config.TriggerWatcher, formCaseCommentTriggerModel, slog.With(
+			slog.Group("context",
+				slog.String("scope", "watcher")),
+		))
 
 		if err != nil {
-			return nil, cerror.NewInternalError("app.case.new_case_comment_service.create_mq_observer.app", err.Error())
+			return nil, err
 		}
 		watcher.Attach(watcherkit.EventTypeCreate, mq)
 		watcher.Attach(watcherkit.EventTypeUpdate, mq)
