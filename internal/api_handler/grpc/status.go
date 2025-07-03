@@ -142,7 +142,7 @@ func (s *StatusService) DeleteStatus(ctx context.Context, req *_go.DeleteStatusR
 
 // LocateStatus finds a status by ID and returns it, or an error if not found or ambiguous.
 func (s *StatusService) LocateStatus(ctx context.Context, req *_go.LocateStatusRequest) (*_go.LocateStatusResponse, error) {
-	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithFields(req, StatusMetadata))
+	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithFields(req, StatusMetadata), grpcopts.WithID(req.GetId()))
 	if err != nil {
 		return nil, err
 	}

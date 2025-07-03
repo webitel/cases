@@ -167,7 +167,7 @@ func (s *SourceService) DeleteSource(
 
 // LocateSource finds a source by ID and returns it, or an error if not found or ambiguous.
 func (s *SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceRequest) (*_go.LocateSourceResponse, error) {
-	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithID(req.Id), grpcopts.WithFields(req, StatusConditionMetadata, util.EnsureIdField, util.DeduplicateFields))
+	opts, err := grpcopts.NewLocateOptions(ctx, grpcopts.WithID(req.Id), grpcopts.WithFields(req, SourceMetadata, util.EnsureIdField, util.DeduplicateFields))
 	if err != nil {
 		return nil, err
 	}

@@ -39,13 +39,9 @@ func buildSourceSelectColumnsAndPlan(base sq.SelectBuilder, fields []string) (sq
 		case "updated_at":
 			base = base.Column(util2.Ident(sourceLeft, "updated_at"))
 		case "created_by":
-			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(id, COALESCE(name, username))::text FROM directory.wbt_user WHERE id = %s.created_by) created_by",
-				sourceLeft))
+			base = util2.SetUserColumn(base, sourceLeft, "crb", field)
 		case "updated_by":
-			base = base.Column(fmt.Sprintf(
-				"(SELECT ROW(id, COALESCE(name, username))::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by",
-				sourceLeft))
+			base = util2.SetUserColumn(base, sourceLeft, "upb", field)
 		default:
 			return base, errors.New(fmt.Sprintf("unknown field: %s", field), errors.WithCode(codes.InvalidArgument))
 		}

@@ -50,7 +50,7 @@ func WithDeleteIDsAsEtags(tag etag.EtagType, etags ...string) DeleteOption {
 }
 func WithDeleteParentID(id int64) DeleteOption {
 	return func(options *DeleteOptions) error {
-		options.IDs = []int64{id}
+		options.ParentID = id
 		return nil
 	}
 }

@@ -110,6 +110,7 @@ func (s *StatusConditionService) UpdateStatusCondition(ctx context.Context, req 
 		ctx,
 		grpcopts.WithUpdateFields(req, StatusConditionMetadata),
 		grpcopts.WithUpdateMasker(req),
+		grpcopts.WithUpdateIDs([]int64{req.GetId()}),
 	)
 	if err != nil {
 		return nil, err

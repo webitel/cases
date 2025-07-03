@@ -32,24 +32,24 @@ type StatusConditionStore struct {
 func (s *StatusConditionStore) Create(rpc options.Creator, input *model.StatusCondition) (*model.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.create.database_connection_error", err)
+		return nil, err
 	}
 
 	tx, err := db.BeginTx(rpc, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.create.transaction_begin_error", err)
+		return nil, ParseError(err)
 	}
 	defer s.handleTx(rpc, tx, &err)
 
 	query, args, err := s.buildCreateStatusConditionQuery(rpc, input)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.create.query_build_error", err)
+		return nil, err
 	}
 
 	var res model.StatusCondition
 	err = pgxscan.Get(rpc, db, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.create.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return &res, nil
@@ -58,7 +58,7 @@ func (s *StatusConditionStore) Create(rpc options.Creator, input *model.StatusCo
 func (s *StatusConditionStore) List(rpc options.Searcher) ([]*model.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.list.database_connection_error", err)
+		return nil, err
 	}
 	var statusId int
 	switch v := rpc.GetFilter("parent_id").(type) {
@@ -67,7 +67,7 @@ func (s *StatusConditionStore) List(rpc options.Searcher) ([]*model.StatusCondit
 	case int64:
 		statusId = int(v)
 	default:
-		return nil, dberr.NewDBBadRequestError("postgres.status_condition.list.database_param_error", "invalid filter type")
+		return nil, dberr.Internal("invalid filter type")
 	}
 	query, args, err := s.buildListStatusConditionQuery(rpc, statusId)
 	if err != nil {
@@ -76,7 +76,7 @@ func (s *StatusConditionStore) List(rpc options.Searcher) ([]*model.StatusCondit
 	var res []*model.StatusCondition
 	err = pgxscan.Select(rpc, db, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.list.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	return res, nil
@@ -87,17 +87,17 @@ func (s *StatusConditionStore) Delete(rpc options.Deleter) (*model.StatusConditi
 
 	query, args, err := s.buildDeleteStatusConditionQuery(rpc.GetIDs(), domainId, rpc.GetParentID())
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.delete.query_build_error", err)
+		return nil, err
 	}
 
 	db, err := s.getDBConnection()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.delete.database_connection_error", err)
+		return nil, err
 	}
 
 	res, err := db.Exec(rpc, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.delete.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	// Check if any rows were affected
@@ -110,12 +110,12 @@ func (s *StatusConditionStore) Delete(rpc options.Deleter) (*model.StatusConditi
 func (s *StatusConditionStore) Update(rpc options.Updator, input *model.StatusCondition) (*model.StatusCondition, error) {
 	db, err := s.getDBConnection()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.update.database_connection_error", err)
+		return nil, err
 	}
 
 	tx, err := db.BeginTx(rpc, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.update.transaction_begin_error", err)
+		return nil, err
 	}
 	defer s.handleTx(rpc, tx, &err)
 
@@ -123,17 +123,17 @@ func (s *StatusConditionStore) Update(rpc options.Updator, input *model.StatusCo
 		switch field {
 		case "initial":
 			if input.Initial == nil || !*input.Initial {
-				return nil, dberr.NewDBCheckViolationError("postgres.status_condition.update.initial_false_not_allowed", "update not allowed: there must be at least one initial = TRUE for the given dc and status_id")
+				return nil, dberr.InvalidArgument("update not allowed: there must be at least one initial = TRUE for the given dc and status_id", dberr.WithID("postgres.status_condition.update.initial_false_not_allowed"))
 			}
 		}
 	}
 
 	query, args := s.buildUpdateStatusConditionQuery(rpc, input)
-	var res *model.StatusCondition
+	var res model.StatusCondition
 
 	err = pgxscan.Get(rpc, tx, &res, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status_condition.update.execution_error", err)
+		return nil, ParseError(err)
 	}
 	return input, nil
 }
@@ -195,7 +195,7 @@ func (s *StatusConditionStore) buildListStatusConditionQuery(rpc options.Searche
 	// Convert the query to SQL and arguments
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return "", nil, dberr.NewDBInternalError("postgres.status_condition.list.query_build_error", err)
+		return "", nil, err
 	}
 
 	return util2.CompactSQL(query), args, nil

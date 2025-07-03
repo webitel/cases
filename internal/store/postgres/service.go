@@ -10,6 +10,7 @@ import (
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
 	util2 "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/util"
 )
 
 type ServiceStore struct {
@@ -326,7 +327,7 @@ func (s *ServiceStore) buildSelectColumns(base sq.SelectBuilder, fields []string
 	if len(fields) == 0 {
 		return base, nil
 	}
-	var slaJoined, groupJoined, assigneeJoined bool
+	fields = util.DeduplicateFields(fields)
 	for _, field := range fields {
 		switch field {
 		case "id":
@@ -340,33 +341,30 @@ func (s *ServiceStore) buildSelectColumns(base sq.SelectBuilder, fields []string
 		case "state":
 			base = base.Column(util2.Ident(mainTableAlias, "state"))
 		case "sla":
-			if !slaJoined {
-				base = base.Column("sla.id")
-				base = base.Column("sla.name")
-				base = base.LeftJoin(fmt.Sprintf("cases.sla AS sla ON sla.id = %s AND sla.dc = %s",
-					util2.Ident(mainTableAlias, "sla_id"),
-					util2.Ident(mainTableAlias, "dc")))
-				slaJoined = true
-			}
+			base = base.Column(`jsonb_build_object(
+				'id', sla.id,
+				'name', sla.name
+			) AS "sla"`)
+			base = base.LeftJoin(fmt.Sprintf("cases.sla AS sla ON sla.id = %s AND sla.dc = %s",
+				util2.Ident(mainTableAlias, "sla_id"),
+				util2.Ident(mainTableAlias, "dc")))
 		case "group":
-			if !groupJoined {
-				base = base.Column("grp.id")
-				base = base.Column("grp.name")
-				base = base.Column("CASE WHEN " + util2.Ident(mainTableAlias, "group_id") + " NOTNULL THEN (CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group WHERE dc = " + util2.Ident(mainTableAlias, "dc") + ") THEN 'DYNAMIC' ELSE 'STATIC' END) ELSE NULL END AS group_type")
-				base = base.LeftJoin(fmt.Sprintf("contacts.group AS grp ON grp.id = %s AND grp.dc = %s",
-					util2.Ident(mainTableAlias, "group_id"),
-					util2.Ident(mainTableAlias, "dc")))
-				groupJoined = true
-			}
+			base = base.Column(`jsonb_build_object(
+				'id', grp.id,
+				'name', grp.name,
+				'type', CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END
+			) AS "group"`)
+			base = base.LeftJoin(fmt.Sprintf("contacts.group AS grp ON grp.id = %s AND grp.dc = %s",
+				util2.Ident(mainTableAlias, "group_id"),
+				util2.Ident(mainTableAlias, "dc")))
 		case "assignee":
-			if !assigneeJoined {
-				base = base.Column("assignee.id")
-				base = base.Column("assignee.name")
-				base = base.LeftJoin(fmt.Sprintf("contacts.contact AS assignee ON assignee.id = %s AND assignee.dc = %s",
-					util2.Ident(mainTableAlias, "assignee_id"),
-					util2.Ident(mainTableAlias, "dc")))
-				assigneeJoined = true
-			}
+			base = base.Column(`jsonb_build_object(
+				'id', assignee.id,
+				'name', assignee.common_name
+			) AS "assignee"`)
+			base = base.LeftJoin(fmt.Sprintf("contacts.contact AS assignee ON assignee.id = %s AND assignee.dc = %s",
+				util2.Ident(mainTableAlias, "assignee_id"),
+				util2.Ident(mainTableAlias, "dc")))
 		case "created_at":
 			base = base.Column(util2.Ident(mainTableAlias, "created_at"))
 		case "updated_at":
@@ -375,10 +373,11 @@ func (s *ServiceStore) buildSelectColumns(base sq.SelectBuilder, fields []string
 			base = util2.SetUserColumn(base, mainTableAlias, "crb", "created_by")
 		case "updated_by":
 			base = util2.SetUserColumn(base, mainTableAlias, "upb", "updated_by")
+		case "catalog_id":
+			base = base.Column(util2.Ident(mainTableAlias, "catalog_id"))
 		case "root_id":
 			base = base.Column(util2.Ident(mainTableAlias, "root_id"))
 		default:
-			return base, fmt.Errorf("unknown field '%s' for service selection", field)
 		}
 	}
 	return base, nil
