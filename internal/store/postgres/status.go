@@ -4,13 +4,15 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/georgysavva/scany/v2/pgxscan"
 	_go "github.com/webitel/cases/api/cases"
-	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/postgres/scanner"
-	storeUtil "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
+	"google.golang.org/grpc/codes"
 )
 
 type StatusScan func(status *_go.Status) any
@@ -24,69 +26,44 @@ type Status struct {
 	storage *Store
 }
 
-// Helper function to convert plan to scan arguments.
-func convertToStatusScanArgs(plan []StatusScan, status *_go.Status) []any {
-	var scanArgs []any
-	for _, scan := range plan {
-		scanArgs = append(scanArgs, scan(status))
-	}
-	return scanArgs
-}
-
 // Helper function to dynamically build select columns and plan.
-func buildStatusSelectColumnsAndPlan(
-	base sq.SelectBuilder,
-	fields []string,
-) (sq.SelectBuilder, []StatusScan, error) {
-	var plan []StatusScan
+func buildStatusSelectColumnsAndPlan(base sq.SelectBuilder, fields []string) (sq.SelectBuilder, error) {
+	var (
+		createdByAlias string
+		updatedByAlias string
+	)
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(storeUtil.Ident(statusLeft, "id"))
-			plan = append(plan, func(status *_go.Status) any {
-				return &status.Id
-			})
+			base = base.Column(storeutil.Ident(statusLeft, "id"))
 		case "name":
-			base = base.Column(storeUtil.Ident(statusLeft, "name"))
-			plan = append(plan, func(status *_go.Status) any {
-				return &status.Name
-			})
+			base = base.Column(storeutil.Ident(statusLeft, "name"))
 		case "description":
-			base = base.Column(storeUtil.Ident(statusLeft, "description"))
-			plan = append(plan, func(status *_go.Status) any {
-				return scanner.ScanText(&status.Description)
-			})
+			base = base.Column(storeutil.Ident(statusLeft, "description"))
 		case "created_at":
-			base = base.Column(storeUtil.Ident(statusLeft, "created_at"))
-			plan = append(plan, func(status *_go.Status) any {
-				return scanner.ScanTimestamp(&status.CreatedAt)
-			})
+			base = base.Column(storeutil.Ident(statusLeft, "created_at"))
 		case "updated_at":
-			base = base.Column(storeUtil.Ident(statusLeft, "updated_at"))
-			plan = append(plan, func(status *_go.Status) any {
-				return scanner.ScanTimestamp(&status.UpdatedAt)
-			})
+			base = base.Column(storeutil.Ident(statusLeft, "updated_at"))
 		case "created_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.created_by) created_by", statusLeft))
-			plan = append(plan, func(status *_go.Status) any {
-				return scanner.ScanRowLookup(&status.CreatedBy)
-			})
+			alias := "crb"
+			if createdByAlias == "" {
+				base = storeutil.SetUserColumn(base, statusLeft, alias, field)
+			}
+			createdByAlias = alias
 		case "updated_by":
-			base = base.Column(fmt.Sprintf("(SELECT ROW(id, name)::text FROM directory.wbt_user WHERE id = %s.updated_by) updated_by", statusLeft))
-			plan = append(plan, func(status *_go.Status) any {
-				return scanner.ScanRowLookup(&status.UpdatedBy)
-			})
+			alias := "upb"
+			if updatedByAlias == "" {
+				base = storeutil.SetUserColumn(base, statusLeft, alias, field)
+			}
+			updatedByAlias = alias
 		default:
-			return base, nil, dberr.NewDBInternalError("postgres.status.unknown_field", fmt.Errorf("unknown field: %s", field))
+			return base, errors.New(fmt.Sprintf("unknown field: %s", field), errors.WithCode(codes.InvalidArgument))
 		}
 	}
-	return base, plan, nil
+	return base, nil
 }
 
-func (s *Status) buildCreateStatusQuery(
-	rpc options.Creator,
-	input *_go.Status,
-) (sq.SelectBuilder, []StatusScan, error) {
+func (s *Status) buildCreateStatusQuery(rpc options.Creator, input *model.Status) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
 	// Build the INSERT query with a RETURNING clause
@@ -107,53 +84,49 @@ func (s *Status) buildCreateStatusQuery(
 	// Convert the INSERT query into a CTE
 	insertSQL, args, err := insertBuilder.ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.input.create.query_build_error", err)
+		return sq.SelectBuilder{}, errors.Internal(fmt.Sprintf("postgres.input.create.query_build_error: %v", err))
 	}
 
 	// Use the INSERT query as a CTE (Common Table Expression)
 	cte := sq.Expr("WITH s AS ("+insertSQL+")", args...)
 
 	// Dynamically build the SELECT query for the resulting row
-	selectBuilder, plan, err := buildStatusSelectColumnsAndPlan(sq.Select(), fields)
+	selectBuilder, err := buildStatusSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
 	// Combine the CTE with the SELECT query
 	selectBuilder = selectBuilder.PrefixExpr(cte).From(statusLeft)
 
-	return selectBuilder, plan, nil
+	return selectBuilder, nil
 }
 
-func (s *Status) Create(rpc options.Creator, input *_go.Status) (*_go.Status, error) {
+func (s *Status) Create(rpc options.Creator, input *model.Status) (*model.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.create.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.status.create.database_connection_error: %v", dbErr))
 	}
 
-	selectBuilder, plan, err := s.buildCreateStatusQuery(rpc, input)
+	selectBuilder, err := s.buildCreateStatusQuery(rpc, input)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.create.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.create.query_build_error", err)
+		return nil, errors.Internal(fmt.Sprintf("postgres.status.create.query_build_error: %v", err))
 	}
-	// temporary object for scanning
-	tempAdd := &_go.Status{}
-	scanArgs := convertToStatusScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.create.execution_error", err)
+	res := model.Status{}
+	err = pgxscan.Get(rpc, d, &res, query, args...)
+	if err != nil {
+		return nil, ParseError(err)
 	}
 
-	return tempAdd, nil
+	return &res, nil
 }
 
-func (s *Status) buildUpdateStatusQuery(
-	rpc options.Updator,
-	input *_go.Status,
-) (sq.SelectBuilder, []StatusScan, error) {
+func (s *Status) buildUpdateStatusQuery(rpc options.Updator, input *model.Status) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
 	// Start the UPDATE query
@@ -168,63 +141,59 @@ func (s *Status) buildUpdateStatusQuery(
 	for _, field := range rpc.GetMask() {
 		switch field {
 		case "name":
-			if input.Name != "" {
-				updateBuilder = updateBuilder.Set("name", input.Name)
-			}
+			updateBuilder = updateBuilder.Set("name", input.Name)
 		case "description":
-			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
+			updateBuilder = updateBuilder.Set("description", input.Description)
 		}
 	}
 
 	// Generate the CTE for the update operation
 	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.input.update.query_build_error", err)
+		return sq.SelectBuilder{}, errors.Internal(fmt.Sprintf("postgres.input.update.query_build_error: %v", err))
 	}
 
 	// Use the UPDATE query as a CTE
 	cte := sq.Expr("WITH s AS ("+updateSQL+")", args...)
 
 	// Build select clause and scan plan dynamically using buildStatusSelectColumnsAndPlan
-	selectBuilder, plan, err := buildStatusSelectColumnsAndPlan(sq.Select(), fields)
+	selectBuilder, err := buildStatusSelectColumnsAndPlan(sq.Select(), fields)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
 	// Combine the CTE with the SELECT query
 	selectBuilder = selectBuilder.PrefixExpr(cte).From("s")
 
-	return selectBuilder, plan, nil
+	return selectBuilder, nil
 }
 
-func (s *Status) Update(rpc options.Updator, input *_go.Status) (*_go.Status, error) {
+func (s *Status) Update(rpc options.Updator, input *model.Status) (*model.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.input.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.status.input.database_connection_error: %v", dbErr))
 	}
 
-	selectBuilder, plan, err := s.buildUpdateStatusQuery(rpc, input)
+	selectBuilder, err := s.buildUpdateStatusQuery(rpc, input)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.input.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.input.query_build_error", err)
+		return nil, errors.Internal(fmt.Sprintf("postgres.status.input.query_build_error: %v", err))
 	}
 	// temporary object for scanning
-	tempAdd := &_go.Status{}
-	scanArgs := convertToStatusScanArgs(plan, tempAdd)
-	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.input.execution_error", err)
+	res := model.Status{}
+	err = pgxscan.Get(rpc, d, &res, query, args...)
+	if err != nil {
+		return nil, ParseError(err)
 	}
 
-	return tempAdd, nil
+	return &res, nil
 }
 
-func (s *Status) buildListStatusQuery(
-	rpc options.Searcher,
-) (sq.SelectBuilder, []StatusScan, error) {
+func (s *Status) buildListStatusQuery(rpc options.Searcher) (sq.SelectBuilder, error) {
 
 	queryBuilder := sq.Select().
 		From("cases.status AS s").
@@ -241,75 +210,48 @@ func (s *Status) buildListStatusQuery(
 	if len(nameFilters) > 0 {
 		f := nameFilters[0]
 		if f.Operator == "=" || f.Operator == "" {
-			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "s.name")
+			queryBuilder = storeutil.AddSearchTerm(queryBuilder, f.Value, "s.name")
 		}
 	}
 
 	// -------- Apply sorting ----------
-	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
+	queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, statusDefaultSort)
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	// Add select columns and scan plan for requested fields
-	queryBuilder, plan, err := buildStatusSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
+	queryBuilder, err := buildStatusSelectColumnsAndPlan(queryBuilder, rpc.GetFields())
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.status.search.query_build_error", err)
+		return sq.SelectBuilder{}, err
 	}
 
-	return queryBuilder, plan, nil
+	return queryBuilder, nil
 }
 
-func (s *Status) List(rpc options.Searcher) (*_go.StatusList, error) {
+func (s *Status) List(rpc options.Searcher) ([]*model.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.list.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.status.list.database_connection_error: %v", dbErr))
 	}
 
-	selectBuilder, plan, err := s.buildListStatusQuery(rpc)
+	selectBuilder, err := s.buildListStatusQuery(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.list.build_query_error", err)
+		return nil, err
 	}
 
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.list.query_build_error", err)
+		return nil, errors.Internal(fmt.Sprintf("postgres.status.list.query_build_error: %v", err))
 	}
-	query = storeUtil.CompactSQL(query)
+	query = storeutil.CompactSQL(query)
 
-	rows, err := d.Query(rpc, query, args...)
+	var statuses []*model.Status
+	err = pgxscan.Select(rpc, d, &statuses, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.status.list.execution_error", err)
+		return nil, ParseError(err)
 	}
-	defer rows.Close()
-
-	var statuses []*_go.Status
-	lCount := 0
-	next := false
-	fetchAll := rpc.GetSize() == -1
-
-	for rows.Next() {
-		if !fetchAll && lCount >= int(rpc.GetSize()) {
-			next = true
-			break
-		}
-
-		status := &_go.Status{}
-		scanArgs := convertToStatusScanArgs(plan, status)
-
-		if err := rows.Scan(scanArgs...); err != nil {
-			return nil, dberr.NewDBInternalError("postgres.status.list.row_scan_error", err)
-		}
-
-		statuses = append(statuses, status)
-		lCount++
-	}
-
-	return &_go.StatusList{
-		Page:  int32(rpc.GetPage()),
-		Next:  next,
-		Items: statuses,
-	}, nil
+	return statuses, nil
 }
 
 func (s *Status) buildDeleteStatusQuery(
@@ -317,7 +259,7 @@ func (s *Status) buildDeleteStatusQuery(
 ) (sq.DeleteBuilder, error) {
 	// Ensure IDs are provided
 	if len(rpc.GetIDs()) == 0 {
-		return sq.DeleteBuilder{}, dberr.NewDBInternalError("postgres.status.delete.missing_ids", fmt.Errorf("no IDs provided for deletion"))
+		return sq.DeleteBuilder{}, errors.InvalidArgument("no IDs provided for deletion")
 	}
 
 	// Build the delete query
@@ -329,38 +271,37 @@ func (s *Status) buildDeleteStatusQuery(
 	return deleteBuilder, nil
 }
 
-func (s *Status) Delete(rpc options.Deleter) error {
+func (s *Status) Delete(rpc options.Deleter) (*model.Status, error) {
 	d, dbErr := s.storage.Database()
 	if dbErr != nil {
-		return dberr.NewDBInternalError("postgres.status.delete.database_connection_error", dbErr)
+		return nil, errors.Internal(fmt.Sprintf("postgres.status.delete.database_connection_error: %v", dbErr))
 	}
 
 	deleteBuilder, err := s.buildDeleteStatusQuery(rpc)
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.status.delete.query_build_error", err)
+		return nil, err
 	}
 
 	query, args, err := deleteBuilder.ToSql()
 	if err != nil {
-		return dberr.NewDBInternalError("postgres.status.delete.query_to_sql_error", err)
+		return nil, errors.Internal(fmt.Sprintf("postgres.status.delete.query_to_sql_error: %v", err))
 	}
 
 	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
-		return dberr.NewDBInternalError("postgres.status.delete.execution_error", execErr)
+		return nil, ParseError(execErr)
 	}
 
 	if res.RowsAffected() == 0 {
-		return dberr.NewDBNoRowsError("postgres.status.delete.no_rows_affected")
+		return nil, errors.NotFound("postgres.status.delete.no_rows_affected")
 	}
 
-	return nil
+	return nil, nil
 }
 
 func NewStatusStore(store *Store) (store.StatusStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_status.check.bad_arguments",
-			"error creating status interface, main store is nil")
+		return nil, errors.New("error creating status interface, main store is nil")
 	}
 	return &Status{storage: store}, nil
 }

@@ -1,195 +1,65 @@
 package app
 
 import (
-	"context"
-	"fmt"
-
-	_go "github.com/webitel/cases/api/cases"
-	cerror "github.com/webitel/cases/internal/errors"
-	"github.com/webitel/cases/model"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
-	"github.com/webitel/cases/util"
+	"github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
+	"google.golang.org/grpc/codes"
 )
 
-type CloseReasonService struct {
-	app *App
-	_go.UnimplementedCloseReasonsServer
-	objClassName string
-}
-
-var CloseReasonMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{Name: "id", Default: true},
-	{Name: "created_by", Default: true},
-	{Name: "created_at", Default: true},
-	{Name: "updated_by", Default: false},
-	{Name: "updated_at", Default: false},
-	{Name: "name", Default: true},
-	{Name: "description", Default: true},
-	{Name: "close_reason_id", Default: false},
-})
-
-// CreateCloseReason implements api.CloseReasonsServer.
-func (s *CloseReasonService) CreateCloseReason(
-	ctx context.Context,
-	req *_go.CreateCloseReasonRequest,
-) (*_go.CloseReason, error) {
-	// Validate required fields
-	if req.Input.Name == "" {
-		return nil, cerror.NewBadRequestError("close_reason_service.create_close_reason.name.required", "Close reason name is required")
+// CreateCloseReason creates a new close reason in the store.
+func (s *App) CreateCloseReason(
+	creator options.Creator,
+	input *model.CloseReason,
+) (*model.CloseReason, error) {
+	if input.Name == "" {
+		return nil, errors.New("close reason name is required", errors.WithCode(codes.InvalidArgument))
 	}
-
-	createOpts, err := grpcopts.NewCreateOptions(
-		ctx,
-		grpcopts.WithCreateFields(req, CloseReasonMetadata),
-	)
+	res, err := s.Store.CloseReason().Create(creator, input)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-
-	input := &_go.CloseReason{
-		Name:               req.Input.Name,
-		Description:        req.Input.Description,
-		CloseReasonGroupId: req.CloseReasonGroupId,
-	}
-
-	// Create the close reason in the store
-	res, err := s.app.Store.CloseReason().Create(createOpts, input)
-	if err != nil {
-		return nil, cerror.NewInternalError("close_reason_service.create_close_reason.store.create.failed", err.Error())
-	}
-
 	return res, nil
 }
 
-// ListCloseReasons implements api.CloseReasonsServer.
-func (s *CloseReasonService) ListCloseReasons(
-	ctx context.Context,
-	req *_go.ListCloseReasonRequest,
-) (*_go.CloseReasonList, error) {
-
-	searchOpts, err := grpcopts.NewSearchOptions(
-		ctx,
-		grpcopts.WithSearch(req),
-		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, CloseReasonMetadata,
-			util.DeduplicateFields,
-			util.EnsureIdField,
-		),
-		grpcopts.WithSort(req),
-		grpcopts.WithIDs(req.GetId()),
-	)
+// ListCloseReasons lists close reasons for a group.
+func (s *App) ListCloseReasons(
+	searcher options.Searcher,
+	closeReasonGroupId int64,
+) ([]*model.CloseReason, error) {
+	res, err := s.Store.CloseReason().List(searcher, closeReasonGroupId)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-	if req.Q != "" {
-	searchOpts.AddFilter(fmt.Sprintf("name=%s", req.Q))
-	}
-	
-	res, err := s.app.Store.CloseReason().List(searchOpts, req.CloseReasonGroupId)
-	if err != nil {
-		return nil, cerror.NewInternalError("close_reason_service.list_close_reasons.store.list.failed", err.Error())
-	}
-
 	return res, nil
 }
 
-// UpdateCloseReason implements api.CloseReasonsServer.
-func (s *CloseReasonService) UpdateCloseReason(
-	ctx context.Context,
-	req *_go.UpdateCloseReasonRequest,
-) (*_go.CloseReason, error) {
+// UpdateCloseReason updates a close reason in the store.
+func (s *App) UpdateCloseReason(
+	updator options.Updator,
+	input *model.CloseReason,
+) (*model.CloseReason, error) {
 	// Validate required fields
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("close_reason_service.update_close_reason.id.required", "Close reason ID is required")
+	if len(updator.GetIDs()) == 0 {
+		return nil, errors.New("reason ID is required", errors.WithCode(codes.InvalidArgument))
 	}
-
-	updateOpts, err := grpcopts.NewUpdateOptions(
-		ctx,
-		grpcopts.WithUpdateFields(req, CloseReasonMetadata),
-		grpcopts.WithUpdateMasker(req),
-	)
+	res, err := s.Store.CloseReason().Update(updator, input)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-
-	// Update close reason user_session
-	input := &_go.CloseReason{
-		Id:                 req.Id,
-		CloseReasonGroupId: req.CloseReasonGroupId,
-		Name:               req.Input.Name,
-		Description:        req.Input.Description,
-	}
-
-	// Update the close reason in the store
-	res, err := s.app.Store.CloseReason().Update(updateOpts, input)
-	if err != nil {
-		return nil, cerror.NewInternalError("close_reason_service.update_close_reason.store.update.failed", err.Error())
-	}
-
 	return res, nil
 }
 
-// DeleteCloseReason implements api.CloseReasonsServer.
-func (s *CloseReasonService) DeleteCloseReason(
-	ctx context.Context,
-	req *_go.DeleteCloseReasonRequest,
-) (*_go.CloseReason, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("close_reason_service.delete_close_reason.id.required", "Close reason ID is required")
+// DeleteCloseReason deletes a close reason from the store.
+func (s *App) DeleteCloseReason(
+	deleter options.Deleter,
+) (*model.CloseReason, error) {
+	if len(deleter.GetIDs()) == 0 {
+		return nil, errors.New("reason ID is required", errors.WithCode(codes.InvalidArgument))
 	}
-
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
+	item, err := s.Store.CloseReason().Delete(deleter)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-
-	// Delete the close reason in the store
-	err = s.app.Store.CloseReason().Delete(deleteOpts)
-	if err != nil {
-		return nil, cerror.NewInternalError("close_reason_service.delete_close_reason.store.delete.failed", err.Error())
-	}
-
-	return &(_go.CloseReason{Id: req.Id}), nil
-}
-
-// LocateCloseReason implements api.CloseReasonsServer.
-func (s *CloseReasonService) LocateCloseReason(
-	ctx context.Context,
-	req *_go.LocateCloseReasonRequest,
-) (*_go.LocateCloseReasonResponse, error) {
-	// Validate required fields
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("close_reason_service.locate_close_reason.id.required", "Close reason ID is required")
-	}
-
-	// Prepare a list request with necessary parameters
-	listReq := &_go.ListCloseReasonRequest{
-		Id:                 []int64{req.Id},
-		Fields:             req.Fields,
-		Page:               1,
-		Size:               1,
-		CloseReasonGroupId: req.GetCloseReasonGroupId(),
-	}
-
-	// Call the ListCloseReasons method
-	res, err := s.ListCloseReasons(ctx, listReq)
-	if err != nil {
-		return nil, cerror.NewInternalError("close_reason_service.locate_close_reason.list_close_reasons.error", err.Error())
-	}
-
-	// Check if the close reason was found
-	if len(res.Items) == 0 {
-		return nil, cerror.NewNotFoundError("close_reason_service.locate_close_reason.not_found", "Close reason not found")
-	}
-
-	// Return the found close reason
-	return &_go.LocateCloseReasonResponse{CloseReason: res.Items[0]}, nil
-}
-
-func NewCloseReasonService(app *App) (*CloseReasonService, cerror.AppError) {
-	if app == nil {
-		return nil, cerror.NewInternalError("api.config.new_close_reason_service.args_check.app_nil", "internal is nil")
-	}
-	return &CloseReasonService{app: app, objClassName: model.ScopeDictionary}, nil
+	return item, nil
 }

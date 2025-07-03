@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	cerr "github.com/webitel/cases/internal/errors"
+	errors "github.com/webitel/cases/internal/errors"
 )
 
 const defaultResolutionIntervalSec int64 = 5
@@ -112,9 +112,7 @@ func loadFromFile(path string) error {
 	viper.SetConfigFile(path)
 	viper.SetConfigType("json")
 	if err := viper.ReadInConfig(); err != nil {
-		return cerr.NewInternalError(
-			"cases.main.load_config",
-			fmt.Sprintf("could not load config file: %s", err.Error()))
+		return errors.New(fmt.Sprintf("could not load config file: %s", err.Error()))
 	}
 
 	return nil
@@ -144,19 +142,19 @@ func buildAppConfig(file string) *AppConfig {
 
 func validateConfig(cfg *AppConfig) error {
 	if cfg.Database.Url == "" {
-		return cerr.NewInternalError("cases.main.missing_data_source", "Data source is required")
+		return errors.New("Data source is required")
 	}
 	if cfg.Consul.Id == "" {
-		return cerr.NewInternalError("cases.main.missing_id", "Service id is required")
+		return errors.New("Service id is required")
 	}
 	if cfg.Consul.Address == "" {
-		return cerr.NewInternalError("cases.main.missing_consul", "Consul address is required")
+		return errors.New("Consul address is required")
 	}
 	if cfg.Consul.PublicAddress == "" {
-		return cerr.NewInternalError("cases.main.missing_grpc_addr", "gRPC address is required")
+		return errors.New("gRPC address is required")
 	}
 	if cfg.Rabbit.Url == "" {
-		return cerr.NewInternalError("cases.main.missing_rabbit_url", "Rabbit URL is required")
+		return errors.New("Rabbit URL is required")
 	}
 
 	return nil

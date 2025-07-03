@@ -2,19 +2,15 @@ package postgres
 
 import (
 	"fmt"
-
-	"github.com/webitel/cases/internal/store/postgres/transaction"
-	storeUtil "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/util"
-
-	"github.com/webitel/cases/model/options"
-
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
+	"github.com/webitel/cases/internal/store/postgres/transaction"
+	storeutil "github.com/webitel/cases/internal/store/util"
 )
 
 type CaseCommunicationStore struct {
@@ -62,7 +58,7 @@ func (c *CaseCommunicationStore) Link(
 		return nil, dberr.NewDBError("postgres.case_communication.link.convert_to_sql.err", err.Error())
 	}
 
-	rows, err := txManager.Query(options, storeUtil.CompactSQL(sql), args...)
+	rows, err := txManager.Query(options, storeutil.CompactSQL(sql), args...)
 	if err != nil {
 		return nil, dberr.NewDBError("postgres.case_communication.link.exec.error", err.Error())
 	}
@@ -91,9 +87,9 @@ func (c *CaseCommunicationStore) Unlink(options options.Deleter) (int64, error) 
 	if dbErr != nil {
 		return 0, dbErr
 	}
-	db, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return 0, dbErr
+	db, err := c.storage.Database()
+	if err != nil {
+		return 0, err
 	}
 	sql, args, err := base.ToSql()
 	if err != nil {
@@ -111,9 +107,9 @@ func (c *CaseCommunicationStore) List(opts options.Searcher) (*cases.ListCommuni
 	if dbErr != nil {
 		return nil, dbErr
 	}
-	db, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dbErr
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 	sql, args, err := base.ToSql()
 	if err != nil {
@@ -128,7 +124,7 @@ func (c *CaseCommunicationStore) List(opts options.Searcher) (*cases.ListCommuni
 		return nil, dbErr
 	}
 	var res cases.ListCommunicationsResponse
-	res.Data, res.Next = storeUtil.ResolvePaging(opts.GetSize(), items)
+	res.Data, res.Next = storeutil.ResolvePaging(opts.GetSize(), items)
 	res.Page = int32(opts.GetPage())
 	return &res, nil
 }
@@ -156,11 +152,11 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
 	alias := "s"
 	base := squirrel.Select().
 		From(fmt.Sprintf("%s %s", c.mainTable, alias)).
-		Where(fmt.Sprintf("%s = ?", storeUtil.Ident(alias, "dc")), options.GetAuthOpts().GetDomainId()).
+		Where(fmt.Sprintf("%s = ?", storeutil.Ident(alias, "dc")), options.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
 	// Apply all case_id filters (with all supported operators)
-	base = util.ApplyFiltersToQuery(base, storeUtil.Ident(alias, "case_id"), caseIDFilters)
-	base = storeUtil.ApplyPaging(options.GetPage(), options.GetSize(), base)
+	base = storeutil.ApplyFiltersToQuery(base, storeutil.Ident(alias, "case_id"), caseIDFilters)
+	base = storeutil.ApplyPaging(options.GetPage(), options.GetSize(), base)
 
 	return c.buildSelectColumnsAndPlan(base, alias, options.GetFields())
 }
@@ -321,7 +317,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 	}
 
 	insertAlias := "i"
-	insertCte, args, err := storeUtil.FormAsCTE(insert, insertAlias)
+	insertCte, args, err := storeutil.FormAsCTE(insert, insertAlias)
 	if err != nil {
 		return nil, nil, dberr.NewDBError(
 			"postgres.case_communication.build_create_case_communication_sqlizer.form_cte.error",
@@ -366,12 +362,12 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(storeUtil.Ident(left, "id"))
+			base = base.Column(storeutil.Ident(left, "id"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return &comm.Id
 			})
 		case "ver":
-			base = base.Column(storeUtil.Ident(left, "ver"))
+			base = base.Column(storeutil.Ident(left, "ver"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return &comm.Ver
 			})
@@ -387,7 +383,7 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&comm.CommunicationType)
 			})
 		case "communication_id":
-			base = base.Column(storeUtil.Ident(left, "communication_id"))
+			base = base.Column(storeutil.Ident(left, "communication_id"))
 			plan = append(plan, func(comm *cases.CaseCommunication) any {
 				return scanner.ScanText(&comm.CommunicationId)
 			})

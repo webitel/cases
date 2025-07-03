@@ -2,18 +2,17 @@ package postgres
 
 import (
 	"fmt"
-	"strconv"
-
+	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
+	"strconv"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/webitel/cases/api/cases"
 	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 )
 
 var CaseTimelineFields = []string{
@@ -33,9 +32,9 @@ func (c *CaseTimelineStore) Get(rpc options.Searcher) (*cases.GetTimelineRespons
 	if err != nil {
 		return nil, err
 	}
-	db, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dbErr
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	rows, err := db.Query(rpc, util.CompactSQL(sql), args...)
@@ -640,9 +639,9 @@ func (c *CaseTimelineStore) GetCounter(rpc options.Searcher) ([]*model.TimelineC
 	if err != nil {
 		return nil, err
 	}
-	db, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dbErr
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 	rows, err := db.Query(rpc, util.CompactSQL(sql), args...)
 	if err != nil {

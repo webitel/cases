@@ -4,44 +4,34 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/auth"
-	cfg "github.com/webitel/cases/config"
-	cerr "github.com/webitel/cases/internal/errors"
-	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/rabbit"
-	"github.com/webitel/webitel-go-kit/fts_client"
-	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
-	"github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log/slog"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rabbitmq/amqp091-go"
+	"github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/auth"
+	cfg "github.com/webitel/cases/config"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/webitel-go-kit/infra/fts_client"
+	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
+	"github.com/webitel/webitel-go-kit/pkg/watcher"
 )
 
-type AMQPBroker interface {
-	QueueDeclare(queueName string, opts ...rabbit.QueueDeclareOption) (string, cerr.AppError)
-	ExchangeDeclare(exchangeName string, kind string, opts ...rabbit.ExchangeDeclareOption) cerr.AppError
-	QueueBind(exchangeName string, queueName string, routingKey string, noWait bool, args map[string]any) cerr.AppError
-	Publish(exchange string, routingKey string, body []byte, headers map[string]any) error
+type Publisher interface {
+	Publish(ctx context.Context, exchange string, routingKey string, body []byte, headers amqp091.Table) error
 }
 
 type TriggerObserver[T any, V any] struct {
 	id         string
-	amqpBroker AMQPBroker
+	amqpBroker Publisher
 	config     *cfg.TriggerWatcherConfig
 	logger     *slog.Logger
 	converter  func(T) (V, error)
 }
 
-func NewTriggerObserver[T any, V any](amqpBroker AMQPBroker, config *cfg.TriggerWatcherConfig, conv func(T) (V, error), log *slog.Logger) (*TriggerObserver[T, V], error) {
-	// declare exchange
-	opts := []rabbit.ExchangeDeclareOption{rabbit.ExchangeEnableDurable, rabbit.ExchangeEnableNoWait}
-
-	if err := amqpBroker.ExchangeDeclare(config.ExchangeName, rabbit.ExchangeTypeTopic, opts...); err != nil {
-		return nil, fmt.Errorf("could not create topic exchange %s: %w", config.ExchangeName, err)
-	}
-
+func NewTriggerObserver[T any, V any](amqpBroker Publisher, config *cfg.TriggerWatcherConfig, conv func(T) (V, error), log *slog.Logger) (*TriggerObserver[T, V], error) {
 	amqpObserver := &TriggerObserver[T, V]{
 		amqpBroker: amqpBroker,
 		config:     config,
@@ -86,7 +76,7 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 	switch any(obj).(type) {
 	case *cases.Case:
 		objStr = model.ScopeCases
-	case *cases.CaseLink:
+	case *cases.CaseLink, *model.CaseLink:
 		objStr = model.BrokerScopeCaseLinks
 	case *cases.CaseComment:
 		objStr = model.ScopeCaseComments
@@ -106,7 +96,7 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 	//	routingKey = cao.getRoutingKeyByEventType("cases", "case", et, domainId)
 	//}
 
-	return cao.amqpBroker.Publish(cao.config.ExchangeName, routingKey, data, nil)
+	return cao.amqpBroker.Publish(context.Background(), cao.config.ExchangeName, routingKey, data, nil)
 }
 
 func (cao *TriggerObserver[T, V]) getRoutingKeyByEventType(
@@ -135,7 +125,6 @@ func NewLoggerObserver(logger *wlogger.Logger, objclass string, timeout time.Dur
 	if err != nil {
 		return nil, err
 	}
-
 	return &LoggerObserver{
 		id:      fmt.Sprintf("%s logger", objclass),
 		logger:  objectedLogger,
@@ -180,11 +169,7 @@ func (l *LoggerObserver) Update(et watcher.EventType, args map[string]any) error
 	ctx, cancelFunc := context.WithTimeout(context.Background(), l.timeout)
 	defer cancelFunc()
 	_, err = l.logger.SendContext(ctx, auth.GetDomainId(), message)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 type FullTextSearchObserver[T any, V any] struct {

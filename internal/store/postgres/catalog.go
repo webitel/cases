@@ -3,12 +3,12 @@ package postgres
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/webitel/cases/internal/model/options"
 	"strconv"
 	"strings"
 	"time"
 
 	storeUtil "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"

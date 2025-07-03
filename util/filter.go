@@ -1,10 +1,13 @@
 package util
 
 import (
+	"fmt"
 	"strings"
-
-	sq "github.com/Masterminds/squirrel"
 )
+
+func EqualFilter(field string, value any) string {
+	return fmt.Sprintf("%s=%v", field, value)
+}
 
 type FilterExpr struct {
 	Field    string
@@ -42,24 +45,4 @@ func GetFilter(filters []string, field string) []FilterExpr {
 		}
 	}
 	return result
-}
-
-func ApplyFiltersToQuery(qb sq.SelectBuilder, column string, filters []FilterExpr) sq.SelectBuilder {
-	for _, f := range filters {
-		switch f.Operator {
-		case "=":
-			qb = qb.Where(sq.Eq{column: f.Value})
-		case "!=":
-			qb = qb.Where(sq.NotEq{column: f.Value})
-		case ">":
-			qb = qb.Where(column+" > ?", f.Value)
-		case "<":
-			qb = qb.Where(column+" < ?", f.Value)
-		case ">=":
-			qb = qb.Where(column+" >= ?", f.Value)
-		case "<=":
-			qb = qb.Where(column+" <= ?", f.Value)
-		}
-	}
-	return qb
 }

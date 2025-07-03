@@ -1,168 +1,65 @@
 package app
 
 import (
-	"context"
-	"fmt"
-
-	api "github.com/webitel/cases/api/cases"
-	cerror "github.com/webitel/cases/internal/errors"
-	"github.com/webitel/cases/model"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
-	"github.com/webitel/cases/util"
+	"github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
+	"google.golang.org/grpc/codes"
 )
 
-var PriorityMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{Name: "id", Default: true},
-	{Name: "created_by", Default: false},
-	{Name: "created_at", Default: false},
-	{Name: "updated_by", Default: false},
-	{Name: "updated_at", Default: false},
-	{Name: "name", Default: true},
-	{Name: "description", Default: true},
-	{Name: "color", Default: true},
-})
-
-type PriorityService struct {
-	app *App
-	api.UnimplementedPrioritiesServer
+// CreatePriority creates a new priority in the store.
+func (s *App) CreatePriority(
+	creator options.Creator,
+	input *model.Priority,
+) (*model.Priority, error) {
+	if input.Name == "" {
+		return nil, errors.New("priority name is required", errors.WithCode(codes.InvalidArgument))
+	}
+	res, err := s.Store.Priority().Create(creator, input)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
-// CreatePriority implements api.PrioritiesServer.
-func (p *PriorityService) CreatePriority(ctx context.Context, req *api.CreatePriorityRequest) (*api.Priority, error) {
-	if req.Input.Name == "" {
-		return nil, cerror.NewBadRequestError("app.priority.create_priority.name_required", "Priority name is required")
-	}
-	if req.Input.Color == "" {
-		return nil, cerror.NewBadRequestError("app.priority.create_priority.color_required", "Color is required")
-	}
-
-	lookup := &api.Priority{
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-		Color:       req.Input.Color,
-	}
-
-	createOpts, err := grpcopts.NewCreateOptions(
-		ctx,
-		grpcopts.WithCreateFields(req, PriorityMetadata),
-	)
+// ListPriorities lists priorities with optional SLA filters.
+func (s *App) ListPriorities(
+	searcher options.Searcher,
+	notInSla int64,
+	inSla int64,
+) ([]*model.Priority, error) {
+	res, err := s.Store.Priority().List(searcher, notInSla, inSla)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-
-	l, err := p.app.Store.Priority().Create(createOpts, lookup)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.priority.create_priority.store_create_failed", err.Error())
-	}
-
-	return l, nil
+	return res, nil
 }
 
-// ListPriorities implements api.PrioritiesServer.
-func (p *PriorityService) ListPriorities(ctx context.Context, req *api.ListPriorityRequest) (*api.PriorityList, error) {
-	searchOpts, err := grpcopts.NewSearchOptions(
-		ctx,
-		grpcopts.WithSearch(req),
-		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, PriorityMetadata,
-			util.DeduplicateFields,
-			util.EnsureIdField,
-		),
-		grpcopts.WithSort(req),
-		grpcopts.WithIDs(req.GetId()),
-	)
+// UpdatePriority updates a priority in the store.
+func (s *App) UpdatePriority(
+	updator options.Updator,
+	input *model.Priority,
+) (*model.Priority, error) {
+	if len(updator.GetIDs()) == 0 {
+		return nil, errors.New("priority ID is required", errors.WithCode(codes.InvalidArgument))
+	}
+	res, err := s.Store.Priority().Update(updator, input)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-
-	if req.Q != "" {
-		searchOpts.AddFilter(fmt.Sprintf("name=%s", req.Q))
-	}
-	prios, err := p.app.Store.Priority().List(searchOpts, req.NotInSla, req.InSlaCond)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.priority.list_priorities.store_list_failed", err.Error())
-	}
-
-	return prios, nil
+	return res, nil
 }
 
-// UpdatePriority implements api.PrioritiesServer.
-func (p *PriorityService) UpdatePriority(ctx context.Context, req *api.UpdatePriorityRequest) (*api.Priority, error) {
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("app.priority.update_priority.id_required", "Priority ID is required")
+// DeletePriority deletes a priority from the store.
+func (s *App) DeletePriority(
+	deleter options.Deleter,
+) (*model.Priority, error) {
+	if len(deleter.GetIDs()) == 0 {
+		return nil, errors.New("priority ID is required", errors.WithCode(codes.InvalidArgument))
 	}
-
-	updateOpts, err := grpcopts.NewUpdateOptions(
-		ctx,
-		grpcopts.WithUpdateFields(req, PriorityMetadata),
-		grpcopts.WithUpdateMasker(req),
-	)
+	item, err := s.Store.Priority().Delete(deleter)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
-
-	lookup := &api.Priority{
-		Id:          req.Id,
-		Name:        req.Input.Name,
-		Description: req.Input.Description,
-		UpdatedBy:   &api.Lookup{Id: updateOpts.GetAuthOpts().GetUserId()},
-		Color:       req.Input.Color,
-	}
-
-	l, err := p.app.Store.Priority().Update(updateOpts, lookup)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.priority.update_priority.store_update_failed", err.Error())
-	}
-
-	return l, nil
-}
-
-// DeletePriority implements api.PrioritiesServer.
-func (p *PriorityService) DeletePriority(ctx context.Context, req *api.DeletePriorityRequest) (*api.Priority, error) {
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("app.priority.delete_priority.id_required", "Priority ID is required")
-	}
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
-	if err != nil {
-		return nil, NewBadRequestError(err)
-	}
-
-	err = p.app.Store.Priority().Delete(deleteOpts)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.priority.delete_priority.store_delete_failed", err.Error())
-	}
-
-	return &api.Priority{Id: req.Id}, nil
-}
-
-// LocatePriority implements api.PrioritiesServer.
-func (p *PriorityService) LocatePriority(ctx context.Context, req *api.LocatePriorityRequest) (*api.LocatePriorityResponse, error) {
-	if req.Id == 0 {
-		return nil, cerror.NewBadRequestError("app.priority.locate_priority.id_required", "Priority ID is required")
-	}
-
-	listReq := &api.ListPriorityRequest{
-		Id:     []int64{req.Id},
-		Fields: req.Fields,
-		Page:   1,
-		Size:   1,
-	}
-
-	listResp, err := p.ListPriorities(ctx, listReq)
-	if err != nil {
-		return nil, cerror.NewInternalError("app.priority.locate_priority.list_priorities_failed", err.Error())
-	}
-
-	if len(listResp.Items) == 0 {
-		return nil, cerror.NewNotFoundError("app.priority.locate_priority.not_found", "Priority not found")
-	}
-
-	return &api.LocatePriorityResponse{Priority: listResp.Items[0]}, nil
-}
-
-func NewPriorityService(app *App) (*PriorityService, cerror.AppError) {
-	if app == nil {
-		return nil, cerror.NewInternalError("app.priority.new_priority_service.app_nil", "App is nil")
-	}
-	return &PriorityService{app: app}, nil
+	return item, nil
 }

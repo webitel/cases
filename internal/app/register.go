@@ -1,7 +1,12 @@
 package app
 
 import (
+	"github.com/webitel/cases/internal/model"
+	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"log"
+	"log/slog"
+
+	grpchandler "github.com/webitel/cases/internal/api_handler/grpc"
 
 	cases "github.com/webitel/cases/api/cases"
 	"google.golang.org/grpc"
@@ -32,7 +37,29 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "CaseComments",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewCaseLinkService(a) },
+			init: func(a *App) (interface{}, error) {
+				if a.config.TriggerWatcher.Enabled {
+					watcher := watcherkit.NewDefaultWatcher()
+					mq, err := NewTriggerObserver(a.rabbitPublisher, a.config.TriggerWatcher, formCaseLinkTriggerModel, slog.With(
+						slog.Group("context",
+							slog.String("scope", "watcher")),
+					))
+
+					if err != nil {
+						return nil, err
+					}
+					watcher.Attach(watcherkit.EventTypeCreate, mq)
+					watcher.Attach(watcherkit.EventTypeUpdate, mq)
+					watcher.Attach(watcherkit.EventTypeDelete, mq)
+					watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
+
+					if a.caseResolutionTimer != nil {
+						a.caseResolutionTimer.Start()
+					}
+					a.watcherManager.AddWatcher(model.BrokerScopeCaseLinks, watcher)
+				}
+				return grpchandler.NewCaseLinkService(a), nil
+			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCaseLinksServer(s, svc.(cases.CaseLinksServer))
 			},
@@ -60,63 +87,73 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "RelatedCases",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewCaseFileService(a) },
+			init: func(a *App) (interface{}, error) {
+				return grpchandler.NewCaseFileService(a)
+			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCaseFilesServer(s, svc.(cases.CaseFilesServer))
 			},
 			name: "CaseFiles",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewSourceService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewSourceService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterSourcesServer(s, svc.(cases.SourcesServer))
 			},
 			name: "Sources",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewStatusService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewStatusService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterStatusesServer(s, svc.(cases.StatusesServer))
 			},
 			name: "Statuses",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewStatusConditionService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewStatusConditionService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterStatusConditionsServer(s, svc.(cases.StatusConditionsServer))
 			},
 			name: "StatusConditions",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewCloseReasonService(a) },
+			init: func(a *App) (interface{}, error) {
+				return grpchandler.NewCloseReasonService(a)
+			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCloseReasonsServer(s, svc.(cases.CloseReasonsServer))
 			},
 			name: "CloseReasons",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewCloseReasonGroupsService(a) },
+			init: func(a *App) (interface{}, error) {
+				return grpchandler.NewCloseReasonGroupsService(a)
+			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCloseReasonGroupsServer(s, svc.(cases.CloseReasonGroupsServer))
 			},
 			name: "CloseReasonGroups",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewPriorityService(a) },
+			init: func(a *App) (interface{}, error) {
+				return grpchandler.NewPriorityService(a)
+			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterPrioritiesServer(s, svc.(cases.PrioritiesServer))
 			},
 			name: "Priorities",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewSLAService(a) },
+			init: func(a *App) (interface{}, error) {
+				return grpchandler.NewSLAService(a)
+			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterSLAsServer(s, svc.(cases.SLAsServer))
 			},
 			name: "SLAs",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewSLAConditionService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewSLAConditionService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterSLAConditionsServer(s, svc.(cases.SLAConditionsServer))
 			},
@@ -130,7 +167,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "Catalogs",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewServiceService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewServiceService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterServicesServer(s, svc.(cases.ServicesServer))
 			},

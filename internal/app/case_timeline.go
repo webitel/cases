@@ -3,18 +3,16 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"time"
 
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/errors"
-	deferr "github.com/webitel/cases/internal/errors/defaults"
+	"github.com/webitel/cases/internal/model"
+	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/model"
-	grpcopts "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
-	"github.com/webitel/webitel-go-kit/etag"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
+	"time"
 )
 
 var CaseTimelineMetadata = model.NewObjectMetadata("", caseObjScope, []*model.Field{
@@ -28,7 +26,7 @@ type CaseTimelineService struct {
 	cases.UnimplementedCaseTimelineServer
 }
 
-func NewCaseTimelineService(app *App) (*CaseTimelineService, errors.AppError) {
+func NewCaseTimelineService(app *App) (*CaseTimelineService, error) {
 	return &CaseTimelineService{app: app}, nil
 }
 
@@ -53,37 +51,28 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 		grpcopts.WithSort(request),
 	)
 	if err != nil {
-		return nil, NewBadRequestError(err)
+		return nil, err
 	}
 	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
 	if err != nil {
-		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline.check_args.invalid_etag", "Invalid case etag")
+		return nil, errors.InvalidArgument("Invalid case etag", errors.WithCause(err))
 	}
 	if tid.GetOid() != 0 {
-	searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tid.GetOid()))
+		searchOpts.AddFilter(fmt.Sprintf("case_id=%d", tid.GetOid()))
 	}
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
-		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("case_id", tid.GetOid()),
-	)
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseTimelineMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tid.GetOid())
 		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, err
 		}
 		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the case", errors.WithCause(err))
 		}
 	}
 	res, err := c.app.Store.CaseTimeline().Get(searchOpts)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.DatabaseError
+		return nil, err
 	}
 	return res, nil
 
@@ -92,31 +81,26 @@ func (c CaseTimelineService) GetTimeline(ctx context.Context, request *cases.Get
 func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *cases.GetTimelineCounterRequest) (*cases.GetTimelineCounterResponse, error) {
 	tid, err := etag.EtagOrId(etag.EtagCase, request.GetCaseId())
 	if err != nil {
-		return nil, errors.NewBadRequestError("app.case_timeline.get_timeline_counter.check_args.invalid_etag", "Invalid case etag")
+		return nil, errors.InvalidArgument("Invalid case etag", errors.WithCause(err))
 	}
-	searchOpts := &grpcopts.SearchOptions{Context: ctx, Fields: CaseTimelineMetadata.GetDefaultFields(), IDs: []int64{tid.GetOid()}, Auth: model.GetAutherOutOfContext(ctx)}
-	logAttributes := slog.Group(
-		"context",
-		slog.Int64("user_id", searchOpts.GetAuthOpts().GetUserId()),
-		slog.Int64("domain_id", searchOpts.GetAuthOpts().GetDomainId()),
-		slog.Int64("case_id", tid.GetOid()),
-	)
+	//opts, err := grpcopts.NewSearchOptions(ctx, grpcopts.WithIDsAsEtags(etag.EtagCase, request.GetCaseId()))
+	//if err != nil {
+	//	return nil, err
+	//}
+	searchOpts := &grpcopts.SearchOptions{Context: ctx, Fields: CaseTimelineMetadata.GetDefaultFields(), IDs: []int64{tid.GetOid()} /*Auth: model.GetAutherOutOfContext(ctx)*/}
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseTimelineMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tid.GetOid())
 		if err != nil {
-			slog.ErrorContext(ctx, err.Error(), logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, err
 		}
 		if !access {
-			slog.ErrorContext(ctx, "user doesn't have required (READ) access to the case", logAttributes)
-			return nil, deferr.ForbiddenError
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the case", errors.WithCause(err))
 		}
 	}
 	eventTypeCounters, err := c.app.Store.CaseTimeline().GetCounter(searchOpts)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error(), logAttributes)
-		return nil, deferr.DatabaseError
+		return nil, err
 	}
 	if len(eventTypeCounters) == 0 {
 		return nil, nil

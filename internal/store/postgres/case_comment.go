@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/webitel/cases/auth"
-	storeUtil "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model/options"
-	"github.com/webitel/cases/model/options/defaults"
+	"github.com/webitel/cases/internal/model/options"
+	"github.com/webitel/cases/internal/model/options/defaults"
+	storeutil "github.com/webitel/cases/internal/store/util"
 
 	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
@@ -16,9 +16,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
-	"github.com/webitel/cases/model"
 	"github.com/webitel/cases/util"
 )
 
@@ -42,9 +42,9 @@ func (c *CaseCommentStore) Publish(
 	input *_go.CaseComment,
 ) (*_go.CaseComment, error) {
 	// Establish database connection
-	d, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.publish.database_connection_error", dbErr)
+	d, err := c.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
 	// Build the insert and select query with RETURNING clause
@@ -53,12 +53,12 @@ func (c *CaseCommentStore) Publish(
 		UserID: input.CreatedBy,
 	})
 	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.publish.build_sqlizer_error", err)
+		return nil, err
 	}
 
 	query, args, err := sq.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.publish.query_to_sql_error", err)
+		return nil, err
 	}
 
 	// Convert plan to scanArgs
@@ -66,7 +66,7 @@ func (c *CaseCommentStore) Publish(
 
 	// Execute the query and scan the result directly into `input`
 	if err = d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.publish.scan_error", err)
+		return nil, ParseError(err)
 	}
 
 	for _, field := range rpc.GetFields() {
@@ -116,7 +116,7 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 	// Convert insertBuilder to SQL to use it within a CTE
 	insertSQL, insertArgs, err := insertBuilder.ToSql()
 	if err != nil {
-		return nil, nil, dberr.NewDBError("store.case_comment.build_publish_comments_sqlizer.insert_query_error", err.Error())
+		return nil, nil, err
 	}
 
 	// Use the insert SQL as a CTE prefix for the main select query
@@ -124,14 +124,14 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 
 	// Build select clause and scan plan dynamically using buildCommentSelectColumnsAndPlan
 	selectBuilder := sq.Select()
-	selectBuilder, plan, dbErr := buildCommentSelectColumnsAndPlan(
+	selectBuilder, plan, err := buildCommentSelectColumnsAndPlan(
 		selectBuilder,
 		caseCommentLeft,
 		fields,
 		rpc.GetAuthOpts(),
 	)
-	if dbErr != nil {
-		return nil, nil, dbErr
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Combine the CTE with the select query
@@ -155,16 +155,16 @@ func (c *CaseCommentStore) Delete(
 	// Build the delete query
 	base, err := c.buildDeleteCaseCommentQuery(rpc)
 	if err != nil {
-		return dberr.NewDBInternalError("store.case_comment.delete.query_build_error", dbErr)
+		return err
 	}
 	// Execute the query
 	query, args, err := base.ToSql()
 	if err != nil {
-		return dberr.NewDBInternalError("store.case_comment.delete.to_sql.err", err)
+		return err
 	}
 	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
-		return dberr.NewDBInternalError("store.case_comment.delete.exec_error", execErr)
+		return ParseError(execErr)
 	}
 
 	// Check if any rows were affected
@@ -191,7 +191,7 @@ func (c CaseCommentStore) buildDeleteCaseCommentQuery(rpc options.Deleter) (sq.D
 	return base, nil
 }
 
-var deleteCaseCommentQuery = storeUtil.CompactSQL(`
+var deleteCaseCommentQuery = storeutil.CompactSQL(`
 	DELETE FROM cases.case_comment
 	WHERE id = ANY($1) AND dc = $2
 `)
@@ -206,19 +206,19 @@ func (c *CaseCommentStore) List(rpc options.Searcher) (*_go.CaseCommentList, err
 	// Build the query and plan builder using BuildListCaseCommentsSqlizer
 	queryBuilder, planBuilder, err := c.BuildListCaseCommentsSqlizer(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.list.query_build_error", err)
+		return nil, err
 	}
 
 	// Convert the query to SQL
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.list.query_to_sql_error", err)
+		return nil, err
 	}
 
 	// Execute the query
 	rows, err := d.Query(rpc, query, args...)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.list.execution_error", err)
+		return nil, ParseError(err)
 	}
 	defer rows.Close()
 
@@ -240,7 +240,7 @@ func (c *CaseCommentStore) List(rpc options.Searcher) (*_go.CaseCommentList, err
 
 		// Scan row into the comment fields using the plan
 		if err := rows.Scan(plan...); err != nil {
-			return nil, dberr.NewDBInternalError("store.case_comment.list.row_scan_error", err)
+			return nil, ParseError(err)
 		}
 
 		commentList = append(commentList, comment)
@@ -268,7 +268,7 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 	// Refactored: Use GetFilter and ApplyFiltersToQuery for case_id
 	caseIDFilters := rpc.GetFilter("case_id")
 	if len(caseIDFilters) > 0 {
-		queryBuilder = util.ApplyFiltersToQuery(queryBuilder, "cc.case_id", caseIDFilters)
+		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "cc.case_id", caseIDFilters)
 	}
 
 	if len(rpc.GetIDs()) > 0 {
@@ -307,14 +307,14 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 
 	// ----------Apply search by text -----------------
 	if rpc.GetSearch() != "" {
-		queryBuilder = storeUtil.AddSearchTerm(queryBuilder, storeUtil.Ident(caseLeft, "text"))
+		queryBuilder = storeutil.AddSearchTerm(queryBuilder, storeutil.Ident(caseLeft, "text"))
 	}
 
 	// -------- Apply sorting by creation date ----------
 	queryBuilder = queryBuilder.OrderBy("created_at ASC")
 
 	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
+	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, planBuilder, nil
 }
@@ -347,7 +347,7 @@ func (c *CaseCommentStore) Update(
 
 	query, args, err := queryBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.query_build_error", err)
+		return nil, err
 	}
 
 	// Convert plan to scanArgs
@@ -355,10 +355,9 @@ func (c *CaseCommentStore) Update(
 
 	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Explicitly indicate that the user is not the creator
 			return nil, dberr.NewDBNotFoundError("postgres.case_comment.update.scan_ver.not_found", "Comment not found")
 		}
-		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.execution_error", err)
+		return nil, ParseError(err)
 	}
 	for _, field := range rpc.GetFields() {
 		if field == "role_ids" {
@@ -384,8 +383,6 @@ func (c *CaseCommentStore) GetRolesById(
 	if err != nil {
 		return nil, err
 	}
-	//// Establish database connection
-	//query := "(SELECT ARRAY_AGG(DISTINCT subject) rbac_r FROM cases.case_acl WHERE object = ? AND access & ? = ?)"
 	query := sq.Select("ARRAY_AGG(DISTINCT subject)").From("cases.case_comment_acl").Where("object = ?", commentId).Where("access & ? = ?", uint8(access), uint8(access)).PlaceholderFormat(sq.Dollar)
 	sql, args, _ := query.ToSql()
 	row := db.QueryRow(ctx, sql, args...)
@@ -476,7 +473,7 @@ func buildCommentSelectColumnsAndPlan(
 	left string,
 	fields []string,
 	session auth.Auther,
-) (sq.SelectBuilder, []func(comment *_go.CaseComment) any, *dberr.DBError) {
+) (sq.SelectBuilder, []func(comment *_go.CaseComment) any, error) {
 	var (
 		plan           []func(link *_go.CaseComment) any
 		createdByAlias string
@@ -509,12 +506,12 @@ func buildCommentSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(storeUtil.Ident(left, "id"))
+			base = base.Column(storeutil.Ident(left, "id"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Id
 			})
 		case "ver":
-			base = base.Column(storeUtil.Ident(left, "ver"))
+			base = base.Column(storeutil.Ident(left, "ver"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Ver
 			})
@@ -525,7 +522,7 @@ func buildCommentSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&comment.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(storeUtil.Ident(left, "created_at"))
+			base = base.Column(storeutil.Ident(left, "created_at"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanTimestamp(&comment.CreatedAt)
 			})
@@ -536,12 +533,12 @@ func buildCommentSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&comment.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(storeUtil.Ident(left, "updated_at"))
+			base = base.Column(storeutil.Ident(left, "updated_at"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanTimestamp(&comment.UpdatedAt)
 			})
 		case "text":
-			base = base.Column(storeUtil.Ident(left, "comment"))
+			base = base.Column(storeutil.Ident(left, "comment"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Text
 			})
@@ -566,7 +563,7 @@ func buildCommentSelectColumnsAndPlan(
 		case "role_ids":
 			// skip
 		case "case_id":
-			base = base.Column(storeUtil.Ident(left, "case_id"))
+			base = base.Column(storeutil.Ident(left, "case_id"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanInt64(&comment.CaseId)
 			})
@@ -582,7 +579,7 @@ func buildCommentSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlias string) (sq.SelectBuilder, []func(link *_go.CaseComment) any, *dberr.DBError) {
+func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlias string) (sq.SelectBuilder, []func(link *_go.CaseComment) any, error) {
 	alias := "comments"
 	if caseAlias == alias {
 		alias = "sub_" + alias
@@ -590,8 +587,8 @@ func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlia
 	base := sq.
 		Select().
 		From("cases.case_comment " + alias).
-		Where(fmt.Sprintf("%s = %s", storeUtil.Ident(alias, "case_id"), storeUtil.Ident(caseAlias, "id")))
-	base, err := addCaseCommentRbacCondition(auther, auth.Read, base, storeUtil.Ident(alias, "id"))
+		Where(fmt.Sprintf("%s = %s", storeutil.Ident(alias, "case_id"), storeutil.Ident(caseAlias, "id")))
+	base, err := addCaseCommentRbacCondition(auther, auth.Read, base, storeutil.Ident(alias, "id"))
 	if err != nil {
 		return base, nil, dberr.NewDBError("store.case_comment.build_comments_subquery.rbac_err", err.Error())
 	}
@@ -599,7 +596,7 @@ func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlia
 	if dbErr != nil {
 		return base, nil, dbErr
 	}
-	base = storeUtil.ApplyPaging(1, defaults.DefaultSearchSize, base)
+	base = storeutil.ApplyPaging(1, defaults.DefaultSearchSize, base)
 	return base, plan, nil
 }
 
@@ -632,8 +629,7 @@ func addCaseCommentRbacConditionForUpdate(auth auth.Auther, access auth.AccessMo
 
 func NewCaseCommentStore(store *Store) (store.CaseCommentStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_case_comment.check.bad_arguments",
-			"error creating comment case interface to the case_comment table, main store is nil")
+		return nil, errors.New("error creating comment case interface to the case_comment table, main store is nil")
 	}
 	return &CaseCommentStore{storage: store}, nil
 }

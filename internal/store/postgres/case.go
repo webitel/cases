@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"maps"
@@ -12,21 +11,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webitel/cases/internal/errors"
+
+	"github.com/webitel/cases/auth"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
 	"github.com/lib/pq"
 	_go "github.com/webitel/cases/api/cases"
-	"github.com/webitel/cases/auth"
-	dberr "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
+	"github.com/webitel/cases/internal/model/options/defaults"
+	common "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	storeutils "github.com/webitel/cases/internal/store/util"
-	"github.com/webitel/cases/model"
-	"github.com/webitel/cases/model/options"
-	"github.com/webitel/cases/model/options/defaults"
-	common "github.com/webitel/cases/model/options/grpc"
 	"github.com/webitel/cases/util"
 
 	customtyp "github.com/webitel/custom/data"
@@ -75,13 +76,13 @@ func (c *CaseStore) Create(
 	// Get the database connection
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.create.database_connection_error", dbErr)
+		return nil, errors.Internal("execution_error")
 	}
 
 	// Begin a transaction
 	tx, err := d.Begin(rpc)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", err)
+		return nil, errors.Internal("execution_error")
 	}
 	defer func(tx pgx.Tx, ctx context.Context) {
 		err := tx.Rollback(ctx)
@@ -103,11 +104,11 @@ func (c *CaseStore) Create(
 	}
 
 	if serviceDefs.StatusID == 0 {
-		return nil, dberr.NewDBBadRequestError("postgres.case.create.missing.params", "StatusID")
+		return nil, errors.InvalidArgument("StatusID is required")
 	}
 
 	if serviceDefs.CloseReasonGroupID == 0 {
-		return nil, dberr.NewDBBadRequestError("postgres.case.create.missing.params", "CloseReasonGroupID")
+		return nil, errors.InvalidArgument("CloseReasonGroupID is required")
 	}
 
 	// Calculate planned times within the transaction
@@ -122,7 +123,7 @@ func (c *CaseStore) Create(
 	)
 
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.create.calculate_planned_times_error", err)
+		return nil, errors.Internal("execution_error")
 	}
 
 	// Build the query
@@ -132,13 +133,13 @@ func (c *CaseStore) Create(
 		serviceDefs,
 	)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.create.build_query_error", err)
+		return nil, errors.Internal("execution_error")
 	}
 
 	// Generate the SQL and arguments
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.create.query_to_sql_error", err)
+		return nil, errors.Internal("execution_error")
 	}
 
 	query = storeutils.CompactSQL(query)
@@ -148,12 +149,12 @@ func (c *CaseStore) Create(
 
 	// Execute the query
 	if err = txManager.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.create.execution_error", err)
+		return nil, errors.Internal("execution_error")
 	}
 
 	// Commit the transaction
 	if err := tx.Commit(rpc); err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.create.commit_error", err)
+		return nil, errors.Internal("execution_error")
 	}
 
 	for _, field := range rpc.GetFields() {
@@ -254,7 +255,7 @@ FROM sla_service ss
 		scanner.ScanInt(&res.CloseReasonGroupID),
 	)
 	if err != nil {
-		return nil, dberr.NewDBInternalError("failed to scan SLA: %w", err)
+		return nil, errors.Internal("execution_error")
 	}
 
 	return &res, nil
@@ -432,16 +433,12 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			oid, data, false, // [!]partial
 		)
 		if err != nil {
-			return sq.SelectBuilder{}, nil, dberr.NewDBInternalError(
-				"postgres.custom.prepare.error", err,
-			)
+			return sq.SelectBuilder{}, nil, errors.Internal("execution_error")
 		}
 		if insertQ != nil {
 			insertQ, _, err := insertQ.ToSql()
 			if err != nil {
-				return sq.SelectBuilder{}, nil, dberr.NewDBInternalError(
-					"postgres.custom.prepare.error", err,
-				)
+				return sq.SelectBuilder{}, nil, errors.Internal("execution_error")
 			}
 			cte := "x" // alias
 			query += ", " + cte + " AS (" + insertQ + ")"
@@ -470,7 +467,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	// **  Result: "INSERT INTO cases.case (name, col2) subject ($1, $2)", []interface{}{"test_name", "test_subject"}**
 	boundQuery, args, err := storeutils.BindNamed(query, params)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.case.create.bind_named_error", err)
+		return sq.SelectBuilder{}, nil, errors.Internal("postgres.case.create.bind_named_error")
 	}
 
 	// Construct SELECT query to return case data
@@ -494,7 +491,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		),
 	)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, dberr.NewDBInternalError("postgres.case.create.build_select_query_error", err)
+		return sq.SelectBuilder{}, nil, errors.Internal("execution_error")
 	}
 
 	selectBuilder = selectBuilder.From(caseLeft)
@@ -894,24 +891,24 @@ func (c *CaseStore) Delete(rpc options.Deleter) error {
 	// Establish database connection
 	d, err := c.storage.Database()
 	if err != nil {
-		return dberr.NewDBInternalError("store.case.delete.database_connection_error", err)
+		return errors.Internal("store.case.delete.db_error")
 	}
 
 	// Build the delete query
 	query, args, dbErr := c.buildDeleteCaseQuery(rpc)
 	if dbErr != nil {
-		return dberr.NewDBInternalError("store.case.delete.query_build_error", dbErr)
+		return errors.Internal("store.case.delete.build_query_error")
 	}
 
 	// Execute the query
 	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
-		return dberr.NewDBInternalError("store.case.delete.exec_error", execErr)
+		return errors.Internal("execution_error")
 	}
 
 	// Check if any rows were affected
 	if res.RowsAffected() == 0 {
-		return dberr.NewDBNoRowsError("store.case.delete.not_found")
+		return errors.NotFound("store.case.delete.not_found")
 	}
 
 	return nil
@@ -936,7 +933,7 @@ func (c *CaseStore) List(
 	queryTarget *model.CaseQueryTarget,
 ) (*_go.CaseList, error) {
 	if opts == nil {
-		return nil, dberr.NewDBError("postgres.case.list.check_args.opts", "search options required")
+		return nil, errors.InvalidArgument("search options required")
 	}
 	query, plan, err := c.buildListCaseSqlizer(opts, queryTarget)
 	if err != nil {
@@ -944,7 +941,7 @@ func (c *CaseStore) List(
 	}
 	slct, args, err := query.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBError("postgres.case.list.to_sql.error", err.Error())
+		return nil, errors.Internal("execution_error")
 	}
 	slct = storeutils.CompactSQL(slct)
 	db, dbErr := c.storage.Database()
@@ -953,7 +950,7 @@ func (c *CaseStore) List(
 	}
 	rows, err := db.Query(opts, storeutils.CompactSQL(slct), args...)
 	if err != nil {
-		return nil, dberr.NewDBError("postgres.case.list.exec.error", err.Error())
+		return nil, errors.Internal("execution_error")
 	}
 	var res _go.CaseList
 	res.Items, err = c.scanCases(rows, plan)
@@ -1185,7 +1182,7 @@ func (c *CaseStore) filterToSqlizer(
 			}
 			converted, err := strconv.ParseInt(s, 10, 64)
 			if err != nil {
-				*errRef = dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
+				*errRef = errors.New(err.Error(), errors.WithID("postgres.case.build_list_case_sqlizer.convert_to_int_array.error"))
 				return nil
 			}
 			valuesInt = append(valuesInt, converted)
@@ -1241,7 +1238,7 @@ func (c *CaseStore) filterToSqlizer(
 			}
 			converted, err := strconv.ParseInt(s, 10, 64)
 			if err != nil {
-				*errRef = dberr.NewDBInternalError("postgres.case.build_list_case_sqlizer.convert_to_int_array.error", err)
+				*errRef = errors.New(err.Error(), errors.WithID("postgres.case.build_list_case_sqlizer.convert_to_int_array.error"))
 				return nil
 			}
 			valuesInt = append(valuesInt, converted)
@@ -1837,13 +1834,13 @@ func (c *CaseStore) Update(
 	// Establish database connection
 	db, err := c.storage.Database()
 	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.update.database_connection_error", err)
+		return nil, ParseError(err)
 	}
 
 	// Begin a transaction
 	tx, txErr := db.Begin(rpc)
 	if txErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.create.transaction_error", txErr)
+		return nil, ParseError(err)
 	}
 
 	var (
@@ -1869,7 +1866,7 @@ func (c *CaseStore) Update(
 			upd.Priority.GetId(),
 		)
 		if err != nil {
-			return nil, dberr.NewDBInternalError("postgres.case.update.scan_sla_error", err)
+			return nil, ParseError(err)
 		}
 
 		oid := rpc.GetEtags()[0].GetOid()
@@ -1885,7 +1882,7 @@ func (c *CaseStore) Update(
 			upd,
 		)
 		if err != nil {
-			return nil, dberr.NewDBInternalError("postgres.case.update.calculate_planned_times_error", err)
+			return nil, ParseError(err)
 		}
 
 		// * assign new values ( SLA ; SLA Condition ; Planned Reaction / Resolve at ) to update (input) object
@@ -1902,13 +1899,13 @@ func (c *CaseStore) Update(
 	// Build the SQL query and scan plan
 	queryBuilder, plan, sqErr := c.buildUpdateCaseSqlizer(rpc, upd)
 	if sqErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.update.query_build_error", sqErr)
+		return nil, ParseError(err)
 	}
 
 	// Generate the SQL and arguments
 	query, args, sqErr := queryBuilder.ToSql()
 	if sqErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.case.update.query_to_sql_error", sqErr)
+		return nil, ParseError(err)
 	}
 
 	query = storeutils.CompactSQL(query)
@@ -1918,15 +1915,15 @@ func (c *CaseStore) Update(
 
 	if err := txManager.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, dberr.NewDBNoRowsError("postgres.case.update.update.scan_ver.not_found")
+			return nil, ParseError(err)
 		}
-		return nil, dberr.NewDBInternalError("postgres.case.update.update.execution_error", err)
+		return nil, ParseError(err)
 	}
 
 	commitErr = tx.Commit(rpc)
 	if commitErr != nil {
 		commited = false
-		return nil, dberr.NewDBInternalError("postgres.case.update.commit_error", commitErr)
+		return nil, ParseError(err)
 	}
 	commited = true
 
@@ -2171,7 +2168,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		withSearchOptions(rpc, custom.output...), WITH,
 	)
 	if err != nil {
-		return nil, nil, dberr.NewDBError("postgres.case.update.select_query_build_error", err.Error())
+		return nil, nil, ParseError(err)
 	}
 
 	selectBuilder = selectBuilder.From(caseLeft)
@@ -2704,9 +2701,9 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				}
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
-		case "links":
+		case "links": //this field uses deprecated method with old scanning function
 			linksFields := []string{"id", "ver", "name", "url", "created_by", "author", "created_at"}
-			subquery, scanPlan, dbErr := buildLinkSelectAsSubquery(linksFields, caseLeft)
+			subquery, scanPlan, dbErr := buildLinkSelectAsSubquery(linksFields, caseLeft) //removed the scanplan parameter
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
@@ -2733,11 +2730,11 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				"name",
 				"created_at",
 			}
-			subquery, scanPlan, filtersApplied, dbErr := buildFilesSelectAsSubquery(filesFields, caseLeft)
+			subquery /*scanPlan,*/, dbErr := buildFilesSelectAsSubquery(filesFields, caseLeft) //removed the scanplan and filtersApplied parameters
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
-			base = AddSubqueryAsColumn(base, subquery, field, filtersApplied > 0)
+			base = AddSubqueryAsColumn(base, subquery, field, false /*filtersApplied > 0 */)
 			plan = append(plan, func(value *_go.Case) any {
 				var items []*_go.File
 				postProcessing := func() error {
@@ -2750,7 +2747,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 					value.Files = res
 					return nil
 				}
-				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
+				return scanner.GetCompositeTextScanFunction( /*scanPlan,*/ nil, &items, postProcessing)
 			})
 		case "related":
 			relatedFields := []string{"id", "ver", "related_case", "created_at", "created_by", "updated_by", "relation", "primary_case"}
@@ -2886,8 +2883,7 @@ func convertToCaseScanArgs(plan []func(caseItem *_go.Case) any, caseItem *_go.Ca
 
 func NewCaseStore(store *Store) (store.CaseStore, error) {
 	if store == nil {
-		return nil, dberr.NewDBError("postgres.new_case.check.bad_arguments",
-			"error creating case interface to the case table, main store is nil")
+		return nil, errors.Internal("store cannot be nil")
 	}
 	const mainTable = "cases.case"
 	return &CaseStore{storage: store, mainTable: mainTable, overdueCasesQuery: mustOverdueCasesQuery(mainTable)}, nil
@@ -2996,13 +2992,13 @@ func (c *CaseStore) SetOverdueCases(so options.Searcher) ([]*_go.Case, bool, err
 
 	rows, err := db.Query(so, storeutils.CompactSQL(query), args...)
 	if err != nil {
-		return nil, false, err
+		return nil, false, ParseError(err)
 	}
 	defer rows.Close()
 
 	cases, err := c.scanCases(rows, plan)
 	if err != nil {
-		return nil, false, err
+		return nil, false, ParseError(err)
 	}
 
 	return cases, len(cases) == overdueCasesLimit, nil
