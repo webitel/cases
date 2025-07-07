@@ -80,7 +80,7 @@ var (
 		{Name: "contact_info", Default: true},
 		{Name: "role_ids", Default: false},
 		{Name: "dc", Default: false},
-		{Name: "diff", Default: false},
+		{Name: "diff", Default: true},
 	}, CaseCommentMetadata, grpc.CaseLinkMetadata, RelatedCaseMetadata)
 
 	resolutionTimeSO = &grpcopts.SearchOptions{
@@ -389,19 +389,8 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 }
 
 func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.UpdateCaseResponse, error) {
-	var original *cases.Case
 
-	// If diff is requested, get original case before update
-	if util.ContainsField(req.Fields, "diff") {
-		locateReq := &cases.LocateCaseRequest{
-			Etag: req.Input.Etag,
-		}
-		var err error
-		original, err = c.LocateCase(ctx, locateReq)
-		if err != nil {
-			return nil, err
-		}
-	}
+	var original *cases.Case
 
 	appErr := c.ValidateUpdateInput(req.Input, req.XJsonMask)
 	if appErr != nil {
@@ -467,6 +456,18 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		upd.Reporter = nil
 	}
 
+	// If diff is requested, get original case before update
+	if util.ContainsField(updateOpts.GetFields(), "diff") {
+		locateReq := &cases.LocateCaseRequest{
+			Etag: req.Input.Etag,
+		}
+		var err error
+		original, err = c.LocateCase(ctx, locateReq)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	output, err := c.app.Store.Case().Update(updateOpts, upd)
 	if err != nil {
 		return nil, err
@@ -521,6 +522,8 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 				fmt.Sprintf("could not notify case update: %s", notifyErr.Error()), logAttributes)
 		}
 	}
+
+	//region diff building
 
 	var changes []*cases.FieldChange
 	if util.ContainsField(req.Fields, "diff") && original != nil {
