@@ -10,6 +10,7 @@ type Deleter interface {
 	context.Context
 	GetAuthOpts() auth.Auther
 	RequestTime() time.Time
+	GetFields() []string
 
 	// Additional filtering
 

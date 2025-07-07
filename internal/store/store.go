@@ -88,7 +88,7 @@ type CaseCommentStore interface {
 	// Update comment
 	Update(req options.Updator, upd *_go.CaseComment) (*_go.CaseComment, error)
 	// Delete comment
-	Delete(req options.Deleter) error
+	Delete(req options.Deleter) (*_go.CaseComment, error)
 }
 
 // Case timeline

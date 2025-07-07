@@ -143,52 +143,60 @@ func (c *CaseCommentStore) buildPublishCommentsSqlizer(
 }
 
 // Delete implements store.CommentCaseStore.
-func (c *CaseCommentStore) Delete(
-	rpc options.Deleter,
-) error {
+func (c *CaseCommentStore) Delete(req options.Deleter) (*_go.CaseComment, error) {
 	// Establish database connection
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
-		return dberr.NewDBInternalError("store.case_comment.delete.database_connection_error", dbErr)
+		return nil, dberr.NewDBInternalError("store.case_comment.delete.database_connection_error", dbErr)
 	}
 
 	// Build the delete query
-	base, err := c.buildDeleteCaseCommentQuery(rpc)
+	base, scan, err := c.buildDeleteCaseCommentQuery(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Execute the query
 	query, args, err := base.ToSql()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	res, execErr := d.Exec(rpc, query, args...)
-	if execErr != nil {
-		return ParseError(execErr)
+	res := d.QueryRow(req, query, args...)
+	// Create a new comment object
+	comment := _go.CaseComment{}
+	// Build the scan plan using the planBuilder function
+	plan := convertToScanArgs(scan, &comment)
+	// Scan row into the comment fields using the plan
+	if err := res.Scan(plan...); err != nil {
+		return nil, ParseError(err)
 	}
 
-	// Check if any rows were affected
-	if res.RowsAffected() == 0 {
-		return dberr.NewDBNoRowsError("store.case_comment.delete.not_found")
-	}
-
-	return nil
+	return &comment, nil
 }
 
-func (c CaseCommentStore) buildDeleteCaseCommentQuery(rpc options.Deleter) (sq.DeleteBuilder, error) {
-	var err error
+func (c *CaseCommentStore) buildDeleteCaseCommentQuery(rpc options.Deleter) (sq.SelectBuilder, []func(comment *_go.CaseComment) any, error) {
+	var (
+		err           error
+		selectBuilder sq.SelectBuilder
+	)
 	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
-	base := sq.
+	deleteQuery := sq.
 		Delete("cases.case_comment c").
 		Where("id = ANY(?)", pq.Array(ids)).
 		Where("dc = ?", rpc.GetAuthOpts().GetDomainId()).
+		Suffix("RETURNING *").
 		PlaceholderFormat(sq.Dollar)
-	base, err = addCaseCommentRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, base, "c.id")
+	deleteQuery, err = addCaseCommentRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, deleteQuery, "c.id")
 	if err != nil {
-		return base, err
+		return selectBuilder, nil, err
 	}
-	return base, nil
+	deleteAlias := "deleted"
+	deleteCTE, args, err := storeutil.FormAsCTE(deleteQuery, deleteAlias)
+	if err != nil {
+		return selectBuilder, nil, err
+	}
+	selectBuilder = sq.Select().From(deleteAlias).Prefix(deleteCTE, args...)
+	return buildCommentSelectColumnsAndPlan(selectBuilder, deleteAlias, rpc.GetFields(), rpc.GetAuthOpts())
 }
 
 var deleteCaseCommentQuery = storeutil.CompactSQL(`

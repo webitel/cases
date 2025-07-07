@@ -102,7 +102,7 @@ func (c *CaseCommentService) UpdateComment(
 	}
 
 	opts := []grpcopts.UpdateOption{
-		grpcopts.WithUpdateFields(req, CaseCommentMetadata),
+		grpcopts.WithUpdateFields(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault()),
 		grpcopts.WithUpdateEtag(&tag),
 		grpcopts.WithUpdateMasker(req),
 	}
@@ -123,7 +123,6 @@ func (c *CaseCommentService) UpdateComment(
 		Text:      req.Input.Text,
 		Ver:       tag.GetVer(),
 	}
-
 	updatedComment, err := c.app.Store.CaseComment().Update(updateOpts, input)
 	if err != nil {
 		return nil, err
@@ -160,11 +159,11 @@ func (c *CaseCommentService) DeleteComment(
 	if err != nil {
 		return nil, errors.InvalidArgument("invalid Etag", errors.WithCause(err))
 	}
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
+	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()), grpcopts.WithDeleteFields(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault(), util.ParseFieldsForEtag))
 	if err != nil {
 		return nil, err
 	}
-	err = c.app.Store.CaseComment().Delete(deleteOpts)
+	item, err := c.app.Store.CaseComment().Delete(deleteOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +171,7 @@ func (c *CaseCommentService) DeleteComment(
 	if notifyErr := c.app.watcherManager.Notify(
 		caseCommentsObjScope,
 		watcherkit.EventTypeDelete,
-		NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), nil, tag.GetOid(), 0, nil),
+		NewCaseCommentWatcherData(deleteOpts.GetAuthOpts(), item, tag.GetOid(), item.CaseId, item.RoleIds),
 	); notifyErr != nil {
 		slog.ErrorContext(ctx, fmt.Sprintf("could not notify comment delete: %s, ", notifyErr.Error()))
 	}
@@ -238,7 +237,7 @@ func (c *CaseCommentService) PublishComment(
 	}
 
 	opts := []grpcopts.CreateOption{
-		grpcopts.WithCreateFields(req, CaseCommentMetadata,
+		grpcopts.WithCreateFields(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
@@ -313,7 +312,6 @@ func NormalizeCommentsResponse(res interface{}, opts shared.Fielder) error {
 	var err error
 	processComment := func(comment *cases.CaseComment) error {
 		comment.RoleIds = nil
-		comment.CaseId = 0
 		if hasEtag {
 			comment.Etag, err = etag.EncodeEtag(etag.EtagCaseComment, comment.Id, comment.Ver)
 			if err != nil {

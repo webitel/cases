@@ -4,7 +4,9 @@ import (
 	"context"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
+	"github.com/webitel/cases/internal/model/options/grpc/shared"
 	optsutil "github.com/webitel/cases/internal/model/options/grpc/util"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
@@ -23,6 +25,7 @@ type DeleteOptions struct {
 	ParentID int64
 	Auth     auth.Auther
 	Filters  []string
+	Fields   []string
 }
 
 func WithDeleteIDs(ids []int64) DeleteOption {
@@ -66,12 +69,33 @@ func WithDeleteParentIDAsEtag(etagType etag.EtagType, tag string) DeleteOption {
 	}
 }
 
+func WithDeleteFields(fielder shared.Fielder, md model.ObjectMetadatter, fieldModifiers ...func(in []string) []string) DeleteOption {
+	return func(options *DeleteOptions) error {
+		if requestedFields := fielder.GetFields(); len(requestedFields) == 0 {
+			options.Fields = md.GetDefaultFields()
+
+		} else {
+			options.Fields = util.FieldsFunc(requestedFields, util.InlineFields)
+		}
+		for _, modifier := range fieldModifiers {
+			options.Fields = modifier(options.Fields)
+		}
+		options.Fields, _ = util.SplitKnownAndUnknownFields(options.Fields, md.GetAllFields())
+
+		return nil
+	}
+}
+
 func (s *DeleteOptions) RequestTime() time.Time {
 	return s.createdAt
 }
 
 func (s *DeleteOptions) AddFilter(f string) {
 	s.Filters = append(s.Filters, f)
+}
+
+func (s *DeleteOptions) GetFields() []string {
+	return s.Fields
 }
 
 func (s *DeleteOptions) GetFilters() []string {
