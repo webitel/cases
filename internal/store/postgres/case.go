@@ -930,12 +930,11 @@ func (c CaseStore) buildDeleteCaseQuery(rpc options.Deleter) (string, []interfac
 // List implements store.CaseStore.
 func (c *CaseStore) List(
 	opts options.Searcher,
-	queryTarget *model.CaseQueryTarget,
 ) (*_go.CaseList, error) {
 	if opts == nil {
 		return nil, errors.InvalidArgument("search options required")
 	}
-	query, plan, err := c.buildListCaseSqlizer(opts, queryTarget)
+	query, plan, err := c.buildListCaseSqlizer(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1599,7 +1598,6 @@ func isComplexFilter(filterStr string) bool {
 
 func (c *CaseStore) buildListCaseSqlizer(
 	opts options.Searcher,
-	queryTarget *model.CaseQueryTarget,
 ) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
 	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
 	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
@@ -1607,24 +1605,25 @@ func (c *CaseStore) buildListCaseSqlizer(
 		return base, nil, err
 	}
 
-	if search := opts.GetSearch(); search != "" && queryTarget != nil {
+	if search := opts.GetSearch(); search != "" {
+		qin := strings.ToLower(opts.GetQin())
 		searchTerm, operator := storeutils.ParseSearchTerm(search)
 		searchNumber := storeutils.PrepareSearchNumber(search)
 		domainId := opts.GetAuthOpts().GetDomainId()
 
-		if queryTarget.ID {
+		switch qin {
+		case "", "full":
+			// full search
+			var where sq.Or
+
+			// Try match by ID (if numeric)
 			if id, err := strconv.ParseInt(search, 10, 64); err == nil {
-				// Valid numeric search → search by ID
-				base = base.Where(sq.Expr(fmt.Sprintf("%s.id = ?", caseLeft), id))
-				return base, plan, nil //  Skip other filters
+				where = append(where, sq.Expr(fmt.Sprintf("%s.id = ?", caseLeft), id))
 			}
-			// Not a valid number → fall through to contact search
-		}
 
-		var where sq.Or
-
-		if queryTarget.Full || queryTarget.ContactInfo {
-			where = append(where, sq.Expr(fmt.Sprintf(`
+			where = append(where,
+				// Phones
+				sq.Expr(fmt.Sprintf(`
 				%s.reporter = ANY (
 					SELECT contact_id FROM contacts.contact_phone ct_ph
 					WHERE ct_ph.reverse LIKE
@@ -1633,51 +1632,90 @@ func (c *CaseStore) buildListCaseSqlizer(
 							 WHERE s.domain_id = ? AND s.name = 'search_number_length'),
 							?)+1 FOR ? ) || '%%'
 				)
-			`, caseLeft),
-				searchNumber, domainId, len(searchNumber), len(searchNumber)),
-			)
+			`, caseLeft), searchNumber, domainId, len(searchNumber), len(searchNumber)),
 
-			where = append(where, sq.Expr(fmt.Sprintf(`
+				// Emails
+				sq.Expr(fmt.Sprintf(`
 				%s.reporter = ANY (
 					SELECT contact_id FROM contacts.contact_email ct_em
 					WHERE ct_em.email %s ?
 				)
-			`, caseLeft, operator),
-				searchTerm),
-			)
+			`, caseLeft, operator), searchTerm),
 
-			where = append(where, sq.Expr(fmt.Sprintf(`
+				// IM clients
+				sq.Expr(fmt.Sprintf(`
 				%s.reporter = ANY (
 					SELECT contact_id FROM contacts.contact_imclient ct_im
 					WHERE ct_im.user_id IN (
 						SELECT id FROM chat.client WHERE name %s ?
 					)
 				)
-			`, caseLeft, operator),
-				searchTerm),
+			`, caseLeft, operator), searchTerm),
+
+				// Raw fields
+				sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "contact_info"), operator), searchTerm),
+				sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "subject"), operator), searchTerm),
+				sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "name"), operator), searchTerm),
 			)
-		}
 
-		if queryTarget.Full || queryTarget.Subject {
-			where = append(where, sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "subject"), operator), searchTerm))
-		}
-
-		if queryTarget.Full || queryTarget.Name {
-			where = append(where, sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "name"), operator), searchTerm))
-		}
-
-		if queryTarget.Full || queryTarget.ContactInfo {
-			where = append(where, sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "contact_info"), operator), searchTerm))
-		}
-
-		if len(where) > 0 {
 			base = base.Where(where)
+
+		case "id":
+			if id, err := strconv.ParseInt(search, 10, 64); err == nil {
+				base = base.Where(sq.Expr(fmt.Sprintf("%s.id = ?", caseLeft), id))
+				return base, plan, nil // short-circuit
+			}
+
+		case "name":
+			base = base.Where(sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "name"), operator), searchTerm))
+
+		case "subject":
+			base = base.Where(sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "subject"), operator), searchTerm))
+
+		case "contact_info":
+			base = base.Where(sq.Or{
+				// contact_info field
+				sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "contact_info"), operator), searchTerm),
+
+				// Phones
+				sq.Expr(fmt.Sprintf(`
+				%s.reporter = ANY (
+					SELECT contact_id FROM contacts.contact_phone ct_ph
+					WHERE ct_ph.reverse LIKE
+						'%%' || overlay(? placing '' from coalesce(
+							(SELECT value::int FROM call_center.system_settings s
+							 WHERE s.domain_id = ? AND s.name = 'search_number_length'),
+							?)+1 FOR ? ) || '%%'
+				)
+			`, caseLeft), searchNumber, domainId, len(searchNumber), len(searchNumber)),
+
+				// Emails
+				sq.Expr(fmt.Sprintf(`
+				%s.reporter = ANY (
+					SELECT contact_id FROM contacts.contact_email ct_em
+					WHERE ct_em.email %s ?
+				)
+			`, caseLeft, operator), searchTerm),
+
+				// IM clients
+				sq.Expr(fmt.Sprintf(`
+				%s.reporter = ANY (
+					SELECT contact_id FROM contacts.contact_imclient ct_im
+					WHERE ct_im.user_id IN (
+						SELECT id FROM chat.client WHERE name %s ?
+					)
+				)
+			`, caseLeft, operator), searchTerm),
+			})
+		default:
+			// optionally return error or skip filter
 		}
 	}
 
-	if len(opts.GetIDs()) != 0 {
+	if len(opts.GetIDs()) > 0 {
 		base = base.Where(fmt.Sprintf("%s = ANY(?)", storeutils.Ident(caseLeft, "id")), opts.GetIDs())
 	}
+
 	// region: custom fields
 	var custom customFilterContext
 	var simpleFilters []string

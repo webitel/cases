@@ -31,4 +31,5 @@ type Searcher interface {
 	GetIDs() []int64
 	AddCustomContext(key string, value any)
 	GetCustomContext() map[string]any
+	GetQin() string
 }
