@@ -110,6 +110,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		),
 		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetIds()...),
 		grpcopts.WithSort(req),
+		grpcopts.WithQin(req.GetQin()),
 	)
 	if err != nil {
 		return nil, err
@@ -119,9 +120,7 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		searchOpts.Filters = append(searchOpts.Filters, fmt.Sprintf("contact=%s", contactID))
 	}
 
-	target := buildQueryTarget(req.QueryTarget)
-
-	list, err := c.app.Store.Case().List(searchOpts, target)
+	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -131,46 +130,6 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	}
 
 	return list, nil
-}
-
-func buildLogAttributes(searchOpts *grpcopts.SearchOptions) slog.Attr {
-	authOpts := searchOpts.GetAuthOpts()
-
-	return slog.Group("context",
-		slog.Int64("user_id", authOpts.GetUserId()),
-		slog.Int64("domain_id", authOpts.GetDomainId()),
-	)
-}
-
-func buildQueryTarget(input *cases.CaseQueryTarget) *model.CaseQueryTarget {
-	if input == nil {
-		return &model.CaseQueryTarget{
-			Full:        true,
-			Subject:     true,
-			Name:        true,
-			ContactInfo: true,
-			ID:          true,
-		}
-	}
-
-	target := &model.CaseQueryTarget{
-		Full:        input.Full,
-		Subject:     input.Subject,
-		Name:        input.Name,
-		ContactInfo: input.ContactInfo,
-		ID:          input.Id,
-	}
-
-	if !(target.Full || target.Subject || target.Name || target.ContactInfo || target.ID) {
-		// Enable all by default if none are true
-		target.Full = true
-		target.Subject = true
-		target.Name = true
-		target.ContactInfo = true
-		target.ID = true
-	}
-
-	return target
 }
 
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
@@ -187,7 +146,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	list, err := c.app.Store.Case().List(searchOpts, nil)
+	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		return nil, err
 	}

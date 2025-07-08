@@ -12,6 +12,7 @@ import (
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"google.golang.org/grpc/codes"
+	"strings"
 	"time"
 )
 
@@ -38,6 +39,7 @@ type SearchOptions struct {
 	Sort string
 	// Auth opts
 	Auth auth.Auther
+	Qin  string
 }
 
 type Pager interface {
@@ -135,6 +137,14 @@ func WithSort(sorter Sorter) SearchOption {
 	}
 }
 
+func WithQin(qin string) SearchOption {
+	return func(o *SearchOptions) error {
+		o.Qin = strings.ToLower(qin)
+
+		return nil
+	}
+}
+
 func WithIDsAsEtags(tag etag.EtagType, etags ...string) SearchOption {
 	return func(options *SearchOptions) error {
 		ids, err := util.ParseIds(etags, tag)
@@ -152,6 +162,13 @@ func (s *SearchOptions) GetAuthOpts() auth.Auther {
 
 func (s *SearchOptions) RequestTime() time.Time {
 	return s.createdAt
+}
+
+func (s *SearchOptions) GetQin() string {
+	if s == nil {
+		return ""
+	}
+	return s.Qin
 }
 
 func (s *SearchOptions) GetFields() []string {

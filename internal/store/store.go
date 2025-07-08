@@ -57,7 +57,7 @@ type CaseStore interface {
 	// Create a new case
 	Create(rpc options.Creator, add *_go.Case) (*_go.Case, error)
 	// List cases
-	List(rpc options.Searcher, queryTarget *model.CaseQueryTarget) (*_go.CaseList, error)
+	List(rpc options.Searcher) (*_go.CaseList, error)
 	// Update case
 	Update(req options.Updator, upd *_go.Case) (*_go.Case, error)
 	// Delete case
