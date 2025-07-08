@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	grpcutil "github.com/webitel/cases/internal/model/options/grpc/util"
 
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
@@ -83,11 +84,7 @@ func (c CaseTimelineService) GetTimelineCounter(ctx context.Context, request *ca
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid case etag", errors.WithCause(err))
 	}
-	//opts, err := grpcopts.NewSearchOptions(ctx, grpcopts.WithIDsAsEtags(etag.EtagCase, request.GetCaseId()))
-	//if err != nil {
-	//	return nil, err
-	//}
-	searchOpts := &grpcopts.SearchOptions{Context: ctx, Fields: CaseTimelineMetadata.GetDefaultFields(), IDs: []int64{tid.GetOid()} /*Auth: model.GetAutherOutOfContext(ctx)*/}
+	searchOpts := &grpcopts.SearchOptions{Context: ctx, Fields: CaseTimelineMetadata.GetDefaultFields(), IDs: []int64{tid.GetOid()}, Auth: grpcutil.GetAutherOutOfContext(ctx)}
 	accessMode := auth.Read
 	if searchOpts.GetAuthOpts().IsRbacCheckRequired(CaseTimelineMetadata.GetParentScopeName(), accessMode) {
 		access, err := c.app.Store.Case().CheckRbacAccess(searchOpts, searchOpts.GetAuthOpts(), accessMode, tid.GetOid())

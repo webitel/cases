@@ -152,7 +152,7 @@ func (s *SLAConditionStore) Update(rpc options.Updator, l *model.SLACondition) (
 }
 
 func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.Creator, sla *model.SLACondition) (sq.Sqlizer, error) {
-	ctes := map[string]sq.Sqlizer{}
+	var ctes []*storeutil.CTE
 	conditionCTEName := "inserted_condition"
 
 	// select of the inserted condition
@@ -174,7 +174,7 @@ func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.Creator, sl
 		sla.SlaId,
 		rpc.GetAuthOpts().GetDomainId(),
 	).Suffix("RETURNING *")
-	ctes[conditionCTEName] = conditionInsert
+	ctes = append(ctes, storeutil.NewCTE(conditionCTEName, conditionInsert))
 
 	if len(sla.Priorities) != 0 { // if priorities not empty insert priorities
 		priorityCTEName := "inserted_priorities"
@@ -189,7 +189,7 @@ func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.Creator, sl
 				sq.Expr(fmt.Sprintf("SELECT created_at, updated_at, created_by, updated_by, id, ?, dc FROM %s", priorityCTEName), priority.Id),
 			)
 		}
-		ctes[priorityCTEName] = conditionPriorityInsert
+		ctes = append(ctes, storeutil.NewCTE(priorityCTEName, conditionPriorityInsert))
 	}
 	query, args, err := storeutil.FormAsCTEs(ctes)
 	if err != nil {

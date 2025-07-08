@@ -3,7 +3,7 @@ package postgres
 import (
 	"fmt"
 	"github.com/webitel/cases/internal/model/options"
-	"github.com/webitel/cases/internal/store/util"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"strconv"
 
 	"github.com/Masterminds/squirrel"
@@ -37,7 +37,7 @@ func (c *CaseTimelineStore) Get(rpc options.Searcher) (*cases.GetTimelineRespons
 		return nil, err
 	}
 
-	rows, err := db.Query(rpc, util.CompactSQL(sql), args...)
+	rows, err := db.Query(rpc, storeutil.CompactSQL(sql), args...)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case_timeline.get.exec.error", err)
 	}
@@ -54,7 +54,7 @@ func (c *CaseTimelineStore) Get(rpc options.Searcher) (*cases.GetTimelineRespons
 		}
 		result.Days = append(result.Days, node)
 	}
-	result.Days, result.Next = util.ResolvePaging(rpc.GetSize(), result.Days)
+	result.Days, result.Next = storeutil.ResolvePaging(rpc.GetSize(), result.Days)
 	result.Page = int32(rpc.GetPage())
 
 	return result, nil
@@ -78,7 +78,7 @@ func buildCaseTimelineSqlizer(rpc options.Searcher) (squirrel.Sqlizer, []func(ti
 		fields = CaseTimelineFields
 	}
 	var (
-		ctes       = make(map[string]squirrel.Sqlizer)
+		ctes       []*storeutil.CTE
 		chatsPlan  []func(timeline **cases.Event) any
 		callsPlan  []func(timeline **cases.Event) any
 		emailsPlan []func(timeline **cases.Event) any
@@ -108,7 +108,7 @@ func buildCaseTimelineSqlizer(rpc options.Searcher) (squirrel.Sqlizer, []func(ti
 		if err != nil {
 			return nil, nil, err
 		}
-		ctes[field] = cte
+		ctes = append(ctes, storeutil.NewCTE(field, cte))
 		if i != 0 {
 			from += " union all "
 		}
@@ -121,7 +121,7 @@ func buildCaseTimelineSqlizer(rpc options.Searcher) (squirrel.Sqlizer, []func(ti
 						`, eventType, field)
 	}
 	from += ") AS ec ORDER BY created_at DESC) e"
-	cteQuery, args, err := util.FormAsCTEs(ctes)
+	cteQuery, args, err := storeutil.FormAsCTEs(ctes)
 	if err != nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.form_cte.error", err.Error())
 	}
@@ -130,7 +130,7 @@ func buildCaseTimelineSqlizer(rpc options.Searcher) (squirrel.Sqlizer, []func(ti
 		OrderBy("e.day desc").From(from).
 		Prefix(cteQuery, args...).
 		PlaceholderFormat(squirrel.Dollar)
-	query = util.ApplyPaging(rpc.GetPage(), rpc.GetSize(), query)
+	query = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), query)
 
 	plan = []func(timeline *cases.DayTimeline) any{
 		func(rec *cases.DayTimeline) any {
@@ -643,7 +643,7 @@ func (c *CaseTimelineStore) GetCounter(rpc options.Searcher) ([]*model.TimelineC
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.Query(rpc, util.CompactSQL(sql), args...)
+	rows, err := db.Query(rpc, storeutil.CompactSQL(sql), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -681,20 +681,20 @@ func buildTimelineCounterSqlizer(rpc options.Searcher) (query squirrel.Sqlizer, 
 		fields = CaseTimelineFields
 	}
 	var (
-		ctes = make(map[string]squirrel.Sqlizer)
+		ctes []*storeutil.CTE
 		from = "("
 	)
 	for i, field := range fields {
 		switch field {
 		case cases.CaseTimelineEventType_call.String():
 			communicationType := store.CommunicationCall
-			ctes[field] = squirrel.Expr(CallsCounterCTE, communicationType, caseId, communicationType)
+			ctes = append(ctes, storeutil.NewCTE(field, squirrel.Expr(CallsCounterCTE, communicationType, caseId, communicationType)))
 		case cases.CaseTimelineEventType_email.String():
 			communicationType := store.CommunicationEmail
-			ctes[field] = squirrel.Expr(EmailsCounterCTE, communicationType, caseId, communicationType)
+			ctes = append(ctes, storeutil.NewCTE(field, squirrel.Expr(EmailsCounterCTE, communicationType, caseId, communicationType)))
 		case cases.CaseTimelineEventType_chat.String():
 			communicationType := store.CommunicationChat
-			ctes[field] = squirrel.Expr(ChatsCounterCTE, communicationType, caseId, communicationType)
+			ctes = append(ctes, storeutil.NewCTE(field, squirrel.Expr(ChatsCounterCTE, communicationType, caseId, communicationType)))
 		default:
 			return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_counter_sqlizer.parse_fields.unknown", "unknown field "+field)
 		}
@@ -704,7 +704,7 @@ func buildTimelineCounterSqlizer(rpc options.Searcher) (query squirrel.Sqlizer, 
 		from += fmt.Sprintf("(select * from %s)", field)
 	}
 	from += ") s"
-	cteQuery, args, err := util.FormAsCTEs(ctes)
+	cteQuery, args, err := storeutil.FormAsCTEs(ctes)
 	if err != nil {
 		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_counter_sqlizer.parse_fields.unknown", err.Error())
 	}

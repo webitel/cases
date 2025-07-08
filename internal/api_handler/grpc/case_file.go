@@ -37,7 +37,6 @@ var CaseFileMetadata = model.NewObjectMetadata("", "", []*model.Field{
 	{Name: "name", Default: true},
 	{Name: "created_at", Default: true},
 	{Name: "created_by", Default: true},
-	{Name: "author", Default: true},
 })
 
 func (s *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesRequest) (*cases.CaseFileList, error) {
@@ -116,7 +115,6 @@ func (s *CaseFileService) Marshal(m *model.CaseFile) (*cases.File, error) {
 		Mime:      m.Mime,
 		Name:      m.Name,
 		Url:       m.Url,
-		CreatedBy: utils.MarshalLookup(m.Author),
-		Author:    utils.MarshalLookup(m.Contact),
+		CreatedBy: utils.MarshalExtendedLookup(m.Author),
 	}, nil
 }

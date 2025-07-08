@@ -29,20 +29,32 @@ func FormAsCTE(in squirrel.Sqlizer, alias string) (string, []any, error) {
 	return query, args, nil
 }
 
-func FormAsCTEs(in map[string]squirrel.Sqlizer) (string, []any, error) {
+type CTE struct {
+	Alias   string
+	Sqlizer squirrel.Sqlizer
+}
+
+func NewCTE(alias string, sqlizer squirrel.Sqlizer) *CTE {
+	return &CTE{
+		Alias:   alias,
+		Sqlizer: sqlizer,
+	}
+}
+
+func FormAsCTEs(in []*CTE) (string, []any, error) {
 	var (
 		i              int
 		resultingQuery string
 		resultingArgs  []any
 	)
-	for alias, sqlizer := range in {
-		query, args, _ := sqlizer.ToSql()
+	for _, sqlizer := range in {
+		query, args, _ := sqlizer.Sqlizer.ToSql()
 		if i == 0 {
 			// init
-			resultingQuery = fmt.Sprintf("WITH %s AS (%s)", alias, query)
+			resultingQuery = fmt.Sprintf("WITH %s AS (%s)", sqlizer.Alias, query)
 			resultingArgs = args
 		} else {
-			resultingQuery += fmt.Sprintf("%s AS (%s)", alias, query)
+			resultingQuery += fmt.Sprintf("%s AS (%s)", sqlizer.Alias, query)
 			resultingArgs = append(resultingArgs, args...)
 		}
 

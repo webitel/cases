@@ -24,6 +24,7 @@ const (
 	// Alias for the storage.files table
 	fileAlias               = "cf"
 	channel                 = "case"
+	chatChannel             = "chat"
 	fileDefaultSort         = "uploaded_at"
 	caseFileAuthorAlias     = "au"
 	caseFileNotRemovedAlias = "ra"
@@ -61,30 +62,64 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 ) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
 	if len(fields) == 0 {
-		fields = []string{"id", "name", "size", "mime", "created_at", "created_by", "author"}
+		fields = []string{"id", "name", "size", "mime", "created_at", "created_by", "author", "url"}
 	}
+	caseIDFilters := rpc.GetFilter("case_id")
+	if len(caseIDFilters) == 0 {
+		return sq.Select(), errors.New("case id required")
+	}
+	var ctes []*storeutil.CTE
+
+	// Build the CTE for chat files
+	conversationsWithFiles := sq.Select("communication_id chat_id").
+		From("cases.case_communication case_comms").
+		LeftJoin("call_center.cc_communication comm_type ON case_comms.communication_type = comm_type.id").
+		Where("comm_type.channel = 'Messaging'").
+		Where("case_id = ?", caseIDFilters[0].Value)
+	ctes = append(ctes, storeutil.NewCTE("connected_chats", conversationsWithFiles))
+
+	// Build the CTE for chat messages with files
+	messageWithFiles := sq.Select(
+		"file_id",
+		"jsonb_build_object('id', ch.user_id, 'name', COALESCE(usr.name, bot.name, cli.name), 'type', COALESCE(ch.type, 'bot')) as author",
+	).
+		From("chat.message m").
+		LeftJoin("chat.channel ch ON ch.id = m.channel_id").
+		LeftJoin("chat.bot bot ON bot.id = ch.user_id").
+		LeftJoin("directory.wbt_user usr ON usr.id = ch.user_id").
+		LeftJoin("chat.client cli ON cli.id = ch.user_id").
+		Where("m.conversation_id::text = ANY (SELECT chat_id FROM connected_chats)").
+		Where("file_id IS NOT NULL")
+	ctes = append(ctes, storeutil.NewCTE("chat_upload", messageWithFiles))
+
+	directFiles := sq.Select(
+		"f.id as file_id",
+		"jsonb_build_object('id', usr.id, 'name', COALESCE(usr.name, usr.username), 'type', 'webitel') as author",
+	).
+		From("storage.files f").
+		LeftJoin("directory.wbt_user usr ON f.uploaded_by = usr.id").
+		Where("uuid = ?::text", caseIDFilters[0].Value).
+		Where("channel = 'case'")
+	ctes = append(ctes, storeutil.NewCTE("direct_upload", directFiles))
+
+	// Union the CTEs for chat files and direct files
+	fileMessages := sq.Expr("SELECT * FROM chat_upload UNION SELECT * FROM direct_upload")
+	ctes = append(ctes, storeutil.NewCTE("union_types", fileMessages))
+
+	ctesQuery, ctesArgs, err := storeutil.FormAsCTEs(ctes)
+	if err != nil {
+		return conversationsWithFiles, err
+	}
+	unionAlias := "files"
 
 	// Begin building the base query with alias `cf`
 	queryBuilder := sq.Select().
 		From("storage.files AS cf").
-		Where(
-			sq.And{
-				sq.Eq{"cf.domain_id": rpc.GetAuthOpts().GetDomainId()},
-				sq.Eq{"cf.channel": channel},
-				sq.Eq{"cf.removed": nil},
-			},
-		).
-		PlaceholderFormat(sq.Dollar)
-
-	caseIDFilters := rpc.GetFilter("case_id")
-	if len(caseIDFilters) == 0 {
-		return queryBuilder, errors.New("case id required")
-	}
-	// Apply all case_id filters (with all supported operators) to cf.uuid
-	queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "cf.uuid", caseIDFilters)
-
+		InnerJoin(fmt.Sprintf("union_types %s ON %s = %s", unionAlias, storeutil.Ident(unionAlias, "file_id"), storeutil.Ident(fileAlias, "id"))).
+		PlaceholderFormat(sq.Dollar).
+		Prefix(ctesQuery, ctesArgs...)
 	// Build select columns and scan plan using buildFilesSelectColumnsAndPlan
-	queryBuilder, err := buildCaseFileSelectColumns(queryBuilder, rpc.GetFields(), fileAlias)
+	queryBuilder, err = buildCaseFileSelectColumns(queryBuilder, rpc.GetFields(), fileAlias, unionAlias)
 	if err != nil {
 		return queryBuilder, err
 	}
@@ -151,6 +186,7 @@ func (c *CaseFileStore) Delete(rpc options.Deleter) (*model.CaseFile, error) {
 		sq.Select().Prefix(cteSQL).From("deleted cf"),
 		fields,
 		fileAlias,
+		"",
 	)
 	if err != nil {
 		return nil, ParseError(err)
@@ -184,6 +220,7 @@ func buildCaseFileSelectColumns(
 	base sq.SelectBuilder,
 	fields []string,
 	tableAlias string,
+	authorCTEAlias string,
 ) (sq.SelectBuilder, error) {
 	var (
 		createdByAlias string
@@ -193,16 +230,6 @@ func buildCaseFileSelectColumns(
 			}
 			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %s.uploaded_by = %s.id", alias, tableAlias, alias))
 			createdByAlias = alias
-			return alias
-		}
-		authorAlias string
-		joinAuthor  = func(alias string) string {
-			if authorAlias != "" {
-				return authorAlias
-			}
-			joinCreatedBy(caseFileCreatedByAlias)
-			authorAlias = alias
-			base = base.LeftJoin(fmt.Sprintf("contacts.contact %s ON %s.contact_id = %s.id", alias, caseFileCreatedByAlias, alias))
 			return alias
 		}
 	)
@@ -219,18 +246,16 @@ func buildCaseFileSelectColumns(
 			base = base.Column(fmt.Sprintf("%s.mime_type AS mime", tableAlias))
 		case "created_at":
 			base = base.Column(fmt.Sprintf("%s.uploaded_at AS created_at", tableAlias))
-			/* 		case "url":
-			base = base.Column(fmt.Sprintf("%s.url", tableAlias)) */
 		case "created_by":
-			cb := caseFileCreatedByAlias
-			joinCreatedBy(cb)
-			base = base.Column(fmt.Sprintf("%s.id AS created_by_id", cb))
-			base = base.Column(fmt.Sprintf("%s.name AS created_by_name", cb))
-		case "author":
-			au := caseFileAuthorAlias
-			joinAuthor(au)
-			base = base.Column(fmt.Sprintf("%s.id AS contact_id", au))
-			base = base.Column(fmt.Sprintf("%s.common_name AS contact_name", au))
+			if authorCTEAlias != "" {
+				base = base.Column(storeutil.Ident(authorCTEAlias, "author created_by"))
+			} else {
+				cb := caseFileCreatedByAlias
+				joinCreatedBy(cb)
+				base = base.Column(fmt.Sprintf("jsonb_build_object('id', %s.id, 'name', %[1]s.name, 'type', 'webitel') created_by", cb))
+			}
+		case "url":
+			base = base.Column(fmt.Sprintf("%s.file_url AS url", tableAlias))
 		default:
 			return base, errors.New("unknown field: " + field)
 		}
@@ -250,7 +275,7 @@ func buildFilesSelectAsSubquery(fields []string, caseAlias string) (sq.SelectBui
 		Where(fmt.Sprintf("%s = '%s'", storeutil.Ident(alias, "channel"), channel))
 	base = storeutil.ApplyPaging(1, defaults.DefaultSearchSize, base)
 
-	base, dbErr := buildCaseFileSelectColumns(base, fields, alias)
+	base, dbErr := buildCaseFileSelectColumns(base, fields, alias, "")
 	if dbErr != nil {
 		return base, dbErr
 	}

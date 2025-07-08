@@ -94,7 +94,7 @@ type File struct {
 	// Storage file ID.
 	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Creator of the file.
-	CreatedBy *Lookup `protobuf:"bytes,2,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	CreatedBy *ExtendedLookup `protobuf:"bytes,2,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
 	// Creation timestamp in Unix milliseconds.
 	CreatedAt int64 `protobuf:"varint,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// File size in bytes.
@@ -102,9 +102,8 @@ type File struct {
 	// MIME type of the file.
 	Mime string `protobuf:"bytes,5,opt,name=mime,proto3" json:"mime,omitempty"`
 	// File name.
-	Name          string  `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
-	Author        *Lookup `protobuf:"bytes,7,opt,name=author,proto3" json:"author,omitempty"`
-	Url           string  `protobuf:"bytes,8,opt,name=url,proto3" json:"url,omitempty"`
+	Name          string `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
+	Url           string `protobuf:"bytes,8,opt,name=url,proto3" json:"url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -146,7 +145,7 @@ func (x *File) GetId() int64 {
 	return 0
 }
 
-func (x *File) GetCreatedBy() *Lookup {
+func (x *File) GetCreatedBy() *ExtendedLookup {
 	if x != nil {
 		return x.CreatedBy
 	}
@@ -179,13 +178,6 @@ func (x *File) GetName() string {
 		return x.Name
 	}
 	return ""
-}
-
-func (x *File) GetAuthor() *Lookup {
-	if x != nil {
-		return x.Author
-	}
-	return nil
 }
 
 func (x *File) GetUrl() string {
@@ -357,17 +349,16 @@ const file_case_file_proto_rawDesc = "" +
 	"\fCaseFileList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x03R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x12)\n" +
-	"\x05items\x18\x03 \x03(\v2\x13.webitel.cases.FileR\x05items\"\xdc\x01\n" +
+	"\x05items\x18\x03 \x03(\v2\x13.webitel.cases.FileR\x05items\"\xbb\x01\n" +
 	"\x04File\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12.\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x126\n" +
 	"\n" +
-	"created_by\x18\x02 \x01(\v2\x0f.general.LookupR\tcreatedBy\x12\x1d\n" +
+	"created_by\x18\x02 \x01(\v2\x17.general.ExtendedLookupR\tcreatedBy\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x03 \x01(\x03R\tcreatedAt\x12\x12\n" +
 	"\x04size\x18\x04 \x01(\x03R\x04size\x12\x12\n" +
 	"\x04mime\x18\x05 \x01(\tR\x04mime\x12\x12\n" +
-	"\x04name\x18\x06 \x01(\tR\x04name\x12'\n" +
-	"\x06author\x18\a \x01(\v2\x0f.general.LookupR\x06author\x12\x10\n" +
+	"\x04name\x18\x06 \x01(\tR\x04name\x12\x10\n" +
 	"\x03url\x18\b \x01(\tR\x03url\"L\n" +
 	"\x11DeleteFileRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1b\n" +
@@ -407,21 +398,20 @@ var file_case_file_proto_goTypes = []any{
 	(*File)(nil),              // 1: webitel.cases.File
 	(*DeleteFileRequest)(nil), // 2: webitel.cases.DeleteFileRequest
 	(*ListFilesRequest)(nil),  // 3: webitel.cases.ListFilesRequest
-	(*Lookup)(nil),            // 4: general.Lookup
+	(*ExtendedLookup)(nil),    // 4: general.ExtendedLookup
 }
 var file_case_file_proto_depIdxs = []int32{
 	1, // 0: webitel.cases.CaseFileList.items:type_name -> webitel.cases.File
-	4, // 1: webitel.cases.File.created_by:type_name -> general.Lookup
-	4, // 2: webitel.cases.File.author:type_name -> general.Lookup
-	3, // 3: webitel.cases.CaseFiles.ListFiles:input_type -> webitel.cases.ListFilesRequest
-	2, // 4: webitel.cases.CaseFiles.DeleteFile:input_type -> webitel.cases.DeleteFileRequest
-	0, // 5: webitel.cases.CaseFiles.ListFiles:output_type -> webitel.cases.CaseFileList
-	1, // 6: webitel.cases.CaseFiles.DeleteFile:output_type -> webitel.cases.File
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	4, // 1: webitel.cases.File.created_by:type_name -> general.ExtendedLookup
+	3, // 2: webitel.cases.CaseFiles.ListFiles:input_type -> webitel.cases.ListFilesRequest
+	2, // 3: webitel.cases.CaseFiles.DeleteFile:input_type -> webitel.cases.DeleteFileRequest
+	0, // 4: webitel.cases.CaseFiles.ListFiles:output_type -> webitel.cases.CaseFileList
+	1, // 5: webitel.cases.CaseFiles.DeleteFile:output_type -> webitel.cases.File
+	4, // [4:6] is the sub-list for method output_type
+	2, // [2:4] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_case_file_proto_init() }
