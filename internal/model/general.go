@@ -14,6 +14,9 @@ func (g *GeneralLookup) SetId(id int) {
 }
 
 func (g *GeneralLookup) GetId() *int {
+	if g == nil {
+		return nil
+	}
 	if g.Id == nil {
 		return nil
 	}
@@ -29,6 +32,9 @@ func (g *GeneralLookup) SetName(name string) {
 }
 
 func (g *GeneralLookup) GetName() *string {
+	if g == nil {
+		return nil
+	}
 	if g.Name == nil {
 		return nil
 	}
@@ -50,6 +56,9 @@ func (g *GeneralExtendedLookup) SetId(id int) {
 }
 
 func (g *GeneralExtendedLookup) GetId() *int {
+	if g == nil {
+		return nil
+	}
 	if g.Id == nil {
 		return nil
 	}
@@ -65,6 +74,9 @@ func (g *GeneralExtendedLookup) SetName(name string) {
 }
 
 func (g *GeneralExtendedLookup) GetName() *string {
+	if g == nil {
+		return nil
+	}
 	if g.Name == nil {
 		return nil
 	}

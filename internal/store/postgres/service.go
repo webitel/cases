@@ -115,15 +115,6 @@ func (s *ServiceStore) Update(rpc options.Updator, lookup *model.Service) (*mode
 }
 
 func (s *ServiceStore) buildCreateServiceQuery(rpc options.Creator, add *model.Service) (string, []interface{}, error) {
-	if add.Assignee == nil || add.Assignee.GetId() == nil || *add.Assignee.GetId() == 0 {
-		return "", nil, errors.InvalidArgument("assignee must be set for service creation")
-	}
-	if add.Group == nil || add.Group.GetId() == nil || *add.Group.GetId() == 0 {
-		return "", nil, errors.InvalidArgument("group must be set for service creation")
-	}
-	if add.Sla == nil || add.Sla.GetId() == nil || *add.Sla.GetId() == 0 {
-		return "", nil, errors.InvalidArgument("SLA must be set for service creation")
-	}
 	from := "inserted_service"
 	insert := sq.Insert("cases.service_catalog").
 		Columns(
@@ -138,9 +129,9 @@ func (s *ServiceStore) buildCreateServiceQuery(rpc options.Creator, add *model.S
 			rpc.GetAuthOpts().GetUserId(),
 			rpc.RequestTime(),
 			rpc.GetAuthOpts().GetUserId(),
-			add.Sla.Id,
-			add.Group.Id,
-			add.Assignee.Id,
+			add.Sla.GetId(),
+			add.Group.GetId(),
+			add.Assignee.GetId(),
 			add.State,
 			rpc.GetAuthOpts().GetDomainId(),
 			add.RootId,
@@ -357,7 +348,7 @@ func (s *ServiceStore) buildSelectColumns(base sq.SelectBuilder, fields []string
 			base = base.Column(`jsonb_build_object(
 				'id', grp.id,
 				'name', grp.name,
-				'type', CASE WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END
+				'type', CASE WHEN grp.id IS NULL THEN NULL WHEN grp.id IN (SELECT id FROM contacts.dynamic_group) THEN 'DYNAMIC' ELSE 'STATIC' END
 			) AS "group"`)
 			base = base.LeftJoin(fmt.Sprintf("contacts.group AS grp ON grp.id = %s AND grp.dc = %s",
 				storeutil.Ident(mainTableAlias, "group_id"),
