@@ -30,7 +30,53 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "Cases",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewCaseCommentService(a) },
+			init: func(a *App) (interface{}, error) {
+				// Initialize watchers first
+				if a.config.TriggerWatcher.Enabled {
+					watcher := watcherkit.NewDefaultWatcher()
+
+					// Add logger observer if enabled
+					if a.config.LoggerWatcher.Enabled {
+						obs, err := NewLoggerObserver(a.wtelLogger, caseCommentsObjScope, defaultLogTimeout)
+						if err != nil {
+							return nil, err
+						}
+						watcher.Attach(watcherkit.EventTypeCreate, obs)
+						watcher.Attach(watcherkit.EventTypeUpdate, obs)
+						watcher.Attach(watcherkit.EventTypeDelete, obs)
+					}
+
+					// Add FTS observer if enabled
+					if a.config.FtsWatcher.Enabled {
+						ftsObserver, err := NewFullTextSearchObserver(a.ftsClient, caseCommentsObjScope, formCommentsFtsModel)
+						if err != nil {
+							return nil, err
+						}
+						watcher.Attach(watcherkit.EventTypeCreate, ftsObserver)
+						watcher.Attach(watcherkit.EventTypeUpdate, ftsObserver)
+						watcher.Attach(watcherkit.EventTypeDelete, ftsObserver)
+					}
+
+					// Add trigger observer
+					mq, err := NewTriggerObserver(a.rabbitPublisher, a.config.TriggerWatcher, formCaseCommentTriggerModel, slog.With(
+						slog.Group("context",
+							slog.String("scope", "watcher")),
+					))
+					if err != nil {
+						return nil, err
+					}
+					watcher.Attach(watcherkit.EventTypeCreate, mq)
+					watcher.Attach(watcherkit.EventTypeUpdate, mq)
+					watcher.Attach(watcherkit.EventTypeDelete, mq)
+					watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
+
+					// Register the watcher
+					a.watcherManager.AddWatcher(caseCommentsObjScope, watcher)
+				}
+
+				// Then create gRPC service using App directly
+				return grpchandler.NewCaseCommentService(a)
+			},
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCaseCommentsServer(s, svc.(cases.CaseCommentsServer))
 			},

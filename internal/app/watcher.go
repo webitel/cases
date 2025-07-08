@@ -78,7 +78,7 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 		objStr = model.ScopeCases
 	case *cases.CaseLink, *model.CaseLink:
 		objStr = model.BrokerScopeCaseLinks
-	case *cases.CaseComment:
+	case *cases.CaseComment, *model.CaseComment:
 		objStr = model.ScopeCaseComments
 	case *cases.File:
 		objStr = model.BrokerScopeFiles

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/api_handler/grpc"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
@@ -44,7 +45,7 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 	}
 	searchOpts, err := grpcopts.NewLocateOptions(
 		ctx,
-		grpcopts.WithFields(req, CaseCommentMetadata,
+		grpcopts.WithFields(req, grpc.CaseCommentMetadata,
 			util.DeduplicateFields,
 			func(in []string) []string {
 				return util.EnsureFields(in, "created_at", "id")

@@ -81,7 +81,7 @@ var (
 		{Name: "role_ids", Default: false},
 		{Name: "dc", Default: false},
 		{Name: "diff", Default: true},
-	}, CaseCommentMetadata, grpc.CaseLinkMetadata, RelatedCaseMetadata)
+	}, grpc.CaseCommentMetadata, grpc.CaseLinkMetadata, RelatedCaseMetadata)
 
 	resolutionTimeSO = &grpcopts.SearchOptions{
 		Context: context.Background(),
@@ -1155,9 +1155,23 @@ func formCaseLinkTriggerModel(item *model.CaseLink) (*model.CaseLinkAMQPMessage,
 	return m, nil
 }
 
-func formCaseCommentTriggerModel(item *cases.CaseComment) (*model.CaseCommentAMQPMessage, error) {
+func formCaseCommentTriggerModel(item *model.CaseComment) (*model.CaseCommentAMQPMessage, error) {
+	protoComment := &cases.CaseComment{
+		Id:        item.Id,
+		Etag:      item.Etag,
+		Ver:       item.Ver,
+		Text:      item.Text,
+		CreatedBy: utils.MarshalLookup(item.Author),
+		Author:    utils.MarshalLookup(item.Contact),
+		CreatedAt: utils.MarshalTime(item.CreatedAt),
+		UpdatedAt: utils.MarshalTime(item.UpdatedAt),
+		CanEdit:   item.CanEdit,
+		CaseId:    item.CaseId,
+		UpdatedBy: utils.MarshalLookup(item.Editor),
+		Edited:    item.Edited,
+	}
 	m := &model.CaseCommentAMQPMessage{
-		CaseComment: item,
+		CaseComment: protoComment,
 	}
 
 	return m, nil

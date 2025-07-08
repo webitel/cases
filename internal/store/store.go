@@ -82,13 +82,14 @@ type CaseLinkStore interface {
 // Comments attribute attached to the case (n:1)
 type CaseCommentStore interface {
 	// Create comment
-	Publish(rpc options.Creator, add *_go.CaseComment) (*_go.CaseComment, error)
+	Publish(rpc options.Creator, add *model.CaseComment) (*model.CaseComment, error)
 	// List comments
-	List(rpc options.Searcher) (*_go.CaseCommentList, error)
+	List(rpc options.Searcher) ([]*model.CaseComment, error)
 	// Update comment
-	Update(req options.Updator, upd *_go.CaseComment) (*_go.CaseComment, error)
+	Update(req options.Updator, upd *model.CaseComment) (*model.CaseComment, error)
 	// Delete comment
-	Delete(req options.Deleter) (*_go.CaseComment, error)
+	Delete(req options.Deleter) (*model.CaseComment, error)
+
 }
 
 // Case timeline

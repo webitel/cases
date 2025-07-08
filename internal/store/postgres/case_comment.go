@@ -2,23 +2,23 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"strconv"
 
+	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/model/options/defaults"
-	storeutil "github.com/webitel/cases/internal/store/util"
+	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/postgres/scanner"
+	storeUtil "github.com/webitel/cases/internal/store/util"
 
-	"github.com/jackc/pgx"
 	_go "github.com/webitel/cases/api/cases"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
-	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
-	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/util"
 )
 
@@ -36,236 +36,204 @@ const (
 	caseCommentObjClassScopeName = model.ScopeCaseComments
 )
 
-// Publish implements store.CommentCaseStore for publishing a single comment.
-func (c *CaseCommentStore) Publish(
-	rpc options.Creator,
-	input *_go.CaseComment,
-) (*_go.CaseComment, error) {
-	// Establish database connection
+// Publish implements store.CaseCommentStore
+func (c *CaseCommentStore) Publish(rpc options.Creator, input *model.CaseComment) (*model.CaseComment, error) {
 	d, err := c.storage.Database()
 	if err != nil {
 		return nil, err
 	}
 
 	// Build the insert and select query with RETURNING clause
-	sq, plan, err := c.buildPublishCommentsSqlizer(rpc, &_go.InputCaseComment{
-		Text:   input.Text,
-		UserID: input.CreatedBy,
-	})
+	selectBuilder, err := c.buildPublishCaseCommentQuery(rpc, input)
 	if err != nil {
 		return nil, err
 	}
 
-	query, args, err := sq.ToSql()
+	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, err
-	}
-
-	// Convert plan to scanArgs
-	scanArgs := convertToScanArgs(plan, input)
-
-	// Execute the query and scan the result directly into `input`
-	if err = d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, ParseError(err)
 	}
 
-	for _, field := range rpc.GetFields() {
-		if field == "role_ids" {
-			roles, defErr := c.GetRolesById(rpc, input.GetId(), auth.Read)
-			if defErr != nil {
-				return nil, defErr
-			}
-			input.RoleIds = roles
-			break
-		}
+	var result model.CaseComment
+	err = pgxscan.Get(rpc, d, &result, query, args...)
+	if err != nil {
+		return nil, ParseError(err)
 	}
 
-	return input, nil
+	if util.ContainsField(rpc.GetFields(), "role_ids") {
+		roles, err := c.GetRolesById(rpc, result.Id, auth.Read)
+		if err != nil {
+			return nil, err
+		}
+		result.RoleIds = roles
+	}
+
+	return &result, nil
 }
 
-func (c *CaseCommentStore) buildPublishCommentsSqlizer(
+func (c *CaseCommentStore) buildPublishCaseCommentQuery(
 	rpc options.Creator,
-	input *_go.InputCaseComment,
-) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
+	input *model.CaseComment,
+) (sq.SelectBuilder, error) {
 	// Ensure "id" and "ver" are in the fields list
-	fields := rpc.GetFields()
-	fields = util.EnsureIdAndVerField(rpc.GetFields())
-	var err error
-
+	fields := util.EnsureIdAndVerField(rpc.GetFields())
 	userID := rpc.GetAuthOpts().GetUserId()
-	if createdBy := input.GetUserID(); createdBy != nil && createdBy.Id != 0 {
-		userID = createdBy.Id
+
+	if input.Author != nil && input.Author.GetId() != nil && *input.Author.GetId() != 0 {
+		userID = int64(*input.Author.GetId())
 	}
 
 	// Build the insert query with a RETURNING clause
-	insertBuilder := sq.
-		Insert("cases.case_comment").
+	insertBuilder := sq.Insert("cases.case_comment").
 		Columns("dc", "case_id", "created_at", "created_by", "updated_at", "updated_by", "comment").
 		Values(
-			rpc.GetAuthOpts().GetDomainId(), // dc
-			rpc.GetParentID(),               // case_id
-			rpc.RequestTime(),               // created_at (and updated_at)
-			userID,                          // created_by (and updated_by)
-			rpc.RequestTime(),               // updated_at
-			userID,                          // updated_by
-			input.Text,                      // comment text
+			rpc.GetAuthOpts().GetDomainId(), //dc
+			input.CaseId,                    //case_id
+			rpc.RequestTime(),               //created_at (and updated_at)
+			userID,                          //created_by (and updated)by)
+			rpc.RequestTime(),               //updated_at
+			userID,                          //updated_by
+			input.Text,                      //comment text
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
 
-	// Convert insertBuilder to SQL to use it within a CTE
-	insertSQL, insertArgs, err := insertBuilder.ToSql()
+		// Convert insertBuilder to SQL to use it within a CTE
+	insertSQL, args, err := insertBuilder.ToSql()
 	if err != nil {
-		return nil, nil, err
+		return sq.SelectBuilder{}, ParseError(err)
 	}
 
 	// Use the insert SQL as a CTE prefix for the main select query
-	ctePrefix := sq.Expr("WITH cc AS ("+insertSQL+")", insertArgs...)
+	cte := sq.Expr("WITH cc AS ("+insertSQL+")", args...)
 
-	// Build select clause and scan plan dynamically using buildCommentSelectColumnsAndPlan
 	selectBuilder := sq.Select()
-	selectBuilder, plan, err := buildCommentSelectColumnsAndPlan(
+
+	// Add columns to the select builder
+	selectBuilder, err = buildCaseCommentSelectColumns(
 		selectBuilder,
-		caseCommentLeft,
 		fields,
 		rpc.GetAuthOpts(),
 	)
 	if err != nil {
-		return nil, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
 	// Combine the CTE with the select query
-	sqBuilder := selectBuilder.
+	selectBuilder = selectBuilder.
 		From(caseCommentLeft).
-		PrefixExpr(ctePrefix)
+		PrefixExpr(cte)
 
-	return sqBuilder, plan, nil
+	return selectBuilder, nil
 }
 
-// Delete implements store.CommentCaseStore.
-func (c *CaseCommentStore) Delete(req options.Deleter) (*_go.CaseComment, error) {
+// Delete implements store.CaseCommentStore
+func (c *CaseCommentStore) Delete(rpc options.Deleter) (*model.CaseComment, error) {
 	// Establish database connection
-	d, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.delete.database_connection_error", dbErr)
+	d, err := c.storage.Database()
+	if err != nil {
+		return nil, errors.NewDBInternalError("store.case_comment.delete.database_connection_error", err)
 	}
 
 	// Build the delete query
-	base, scan, err := c.buildDeleteCaseCommentQuery(req)
+	selectBuilder, err := c.buildDeleteCaseCommentQuery(rpc)
 	if err != nil {
 		return nil, err
 	}
+
 	// Execute the query
-	query, args, err := base.ToSql()
+	query, args, err := selectBuilder.ToSql()
 	if err != nil {
 		return nil, err
 	}
-	res := d.QueryRow(req, query, args...)
-	// Create a new comment object
-	comment := _go.CaseComment{}
-	// Build the scan plan using the planBuilder function
-	plan := convertToScanArgs(scan, &comment)
-	// Scan row into the comment fields using the plan
-	if err := res.Scan(plan...); err != nil {
+
+	var result model.CaseComment
+	err = pgxscan.Get(rpc, d, &result, query, args...)
+	if err != nil {
 		return nil, ParseError(err)
 	}
 
-	return &comment, nil
+	return &result, nil
 }
 
-func (c *CaseCommentStore) buildDeleteCaseCommentQuery(rpc options.Deleter) (sq.SelectBuilder, []func(comment *_go.CaseComment) any, error) {
-	var (
-		err           error
-		selectBuilder sq.SelectBuilder
-	)
+func (c *CaseCommentStore) buildDeleteCaseCommentQuery(rpc options.Deleter) (sq.SelectBuilder, error) {
+
+	if len(rpc.GetIDs()) == 0 {
+		return sq.SelectBuilder{}, errors.InvalidArgument("no IDs provided for deletion")
+	}
+
 	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
-	deleteQuery := sq.
-		Delete("cases.case_comment c").
+
+	deleteBuilder := sq.Delete("cases.case_comment").
 		Where("id = ANY(?)", pq.Array(ids)).
-		Where("dc = ?", rpc.GetAuthOpts().GetDomainId()).
-		Suffix("RETURNING *").
-		PlaceholderFormat(sq.Dollar)
-	deleteQuery, err = addCaseCommentRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, deleteQuery, "c.id")
+		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
+		PlaceholderFormat(sq.Dollar).
+		Suffix("RETURNING *")
+
+	deleteBuilder, err := addCaseCommentRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, deleteBuilder, "id")
 	if err != nil {
-		return selectBuilder, nil, err
+		return sq.SelectBuilder{}, err
 	}
-	deleteAlias := "deleted"
-	deleteCTE, args, err := storeutil.FormAsCTE(deleteQuery, deleteAlias)
+
+	deleteSQL, args, err := deleteBuilder.ToSql()
 	if err != nil {
-		return selectBuilder, nil, err
+		return sq.SelectBuilder{}, errors.Internal("case_comment.delete.query_to_sql_error", errors.WithCause(err))
 	}
-	selectBuilder = sq.Select().From(deleteAlias).Prefix(deleteCTE, args...)
-	return buildCommentSelectColumnsAndPlan(selectBuilder, deleteAlias, rpc.GetFields(), rpc.GetAuthOpts())
+
+	cte := sq.Expr("WITH deleted AS ("+deleteSQL+")", args...)
+
+	// First create a select builder
+	selectBuilder := sq.Select()
+
+	// Add columns to the select builder
+	selectBuilder, err = buildCaseCommentSelectColumns(
+		selectBuilder,
+		rpc.GetFields(),
+		rpc.GetAuthOpts(),
+	)
+	if err != nil {
+		return sq.SelectBuilder{}, err
+	}
+
+	// Combine the CTE with the select query
+	selectBuilder = selectBuilder.
+		From("deleted cc").
+		PrefixExpr(cte)
+
+	return selectBuilder, nil
 }
 
-var deleteCaseCommentQuery = storeutil.CompactSQL(`
-	DELETE FROM cases.case_comment
-	WHERE id = ANY($1) AND dc = $2
-`)
-
-func (c *CaseCommentStore) List(rpc options.Searcher) (*_go.CaseCommentList, error) {
-	// Connect to the database
-	d, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("store.case_comment.list.database_connection_error", dbErr)
+// List implements store.CaseCommentStore
+func (c *CaseCommentStore) List(rpc options.Searcher) ([]*model.CaseComment, error) {
+	d, err := c.storage.Database()
+	if err != nil {
+		return nil, err
 	}
 
-	// Build the query and plan builder using BuildListCaseCommentsSqlizer
-	queryBuilder, planBuilder, err := c.BuildListCaseCommentsSqlizer(rpc)
+	// Build the query and plan builder using BuildListCaseCommentQuery
+	selectBuilder, err := c.buildListCaseCommentQuery(rpc)
 	if err != nil {
 		return nil, err
 	}
 
 	// Convert the query to SQL
-	query, args, err := queryBuilder.ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	// Execute the query
-	rows, err := d.Query(rpc, query, args...)
+	query, args, err := selectBuilder.ToSql()
 	if err != nil {
 		return nil, ParseError(err)
 	}
-	defer rows.Close()
+	query = storeUtil.CompactSQL(query)
 
-	var commentList []*_go.CaseComment
-	lCount := 0
-	next := false
-	fetchAll := rpc.GetSize() == -1
-
-	for rows.Next() {
-		if !fetchAll && lCount >= int(rpc.GetSize()) {
-			next = true
-			break
-		}
-
-		// Create a new comment object
-		comment := &_go.CaseComment{}
-		// Build the scan plan using the planBuilder function
-		plan := planBuilder(comment)
-
-		// Scan row into the comment fields using the plan
-		if err := rows.Scan(plan...); err != nil {
-			return nil, ParseError(err)
-		}
-
-		commentList = append(commentList, comment)
-		lCount++
+	var comments []*model.CaseComment
+	err = pgxscan.Select(rpc, d, &comments, query, args...)
+	if err != nil {
+		return nil, ParseError(err)
 	}
 
-	return &_go.CaseCommentList{
-		Page:  int64(rpc.GetPage()),
-		Next:  next,
-		Items: commentList,
-	}, nil
+	return comments, nil
 }
 
-func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
-	rpc options.Searcher,
-) (sq.Sqlizer, func(*_go.CaseComment) []any, error) {
-	var defErr error
+func (c *CaseCommentStore) buildListCaseCommentQuery(rpc options.Searcher) (sq.SelectBuilder, error) {
 
 	// Begin building the base query
 	queryBuilder := sq.Select().
@@ -273,112 +241,71 @@ func (c *CaseCommentStore) BuildListCaseCommentsSqlizer(
 		Where(sq.Eq{"cc.dc": rpc.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(sq.Dollar)
 
-	// Refactored: Use GetFilter and ApplyFiltersToQuery for case_id
-	caseIDFilters := rpc.GetFilter("case_id")
-	if len(caseIDFilters) > 0 {
-		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "cc.case_id", caseIDFilters)
+	filters := rpc.GetFilter("case_id")
+	if len(filters) > 0 {
+		if parentId, err := strconv.ParseInt(filters[0].Value, 10, 64); err == nil && parentId != 0 {
+			queryBuilder = queryBuilder.Where(sq.Eq{"cc.case_id": parentId})
+		}
 	}
 
 	if len(rpc.GetIDs()) > 0 {
 		queryBuilder = queryBuilder.Where("cc.id = ANY(?)", rpc.GetIDs())
 	}
 
-	queryBuilder, defErr = addCaseCommentRbacCondition(rpc.GetAuthOpts(), auth.Read, queryBuilder, "cc.id")
-	if defErr != nil {
-		return nil, nil, defErr
-	}
-
-	// Build select columns and scan plan using buildCommentSelectColumnsAndPlan
-	queryBuilder, plan, err := buildCommentSelectColumnsAndPlan(
-		queryBuilder,
-		caseCommentLeft,
-		rpc.GetFields(),
-		rpc.GetAuthOpts(),
-	)
+	queryBuilder, err := addCaseCommentRbacCondition(rpc.GetAuthOpts(), auth.Read, queryBuilder, "cc.id")
 	if err != nil {
-		return nil, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
-	// Define the plan builder function
-	planBuilder := func(output *_go.CaseComment) []any {
-		var scanPlan []any
-		for _, scanFunc := range plan {
-			scanPlan = append(scanPlan, scanFunc(output))
-		}
-		return scanPlan
-	}
-
-	// Apply additional filters, sorting, and pagination as needed
-	if len(rpc.GetIDs()) > 0 {
-		queryBuilder = queryBuilder.Where(sq.Eq{"cc.id": rpc.GetIDs()})
+	// Build select columns and scan plan using buildCommentSelectColumns
+	queryBuilder, err = buildCaseCommentSelectColumns(queryBuilder, rpc.GetFields(), rpc.GetAuthOpts())
+	if err != nil {
+		return sq.SelectBuilder{}, err
 	}
 
 	// ----------Apply search by text -----------------
 	if rpc.GetSearch() != "" {
-		queryBuilder = storeutil.AddSearchTerm(queryBuilder, storeutil.Ident(caseLeft, "text"))
+		// Use "text" which is the alias for the "comment" column
+		queryBuilder = storeUtil.AddSearchTerm(queryBuilder, rpc.GetSearch(), "text")
 	}
 
 	// -------- Apply sorting by creation date ----------
-	queryBuilder = queryBuilder.OrderBy("created_at ASC")
+	queryBuilder = queryBuilder.OrderBy("cc.created_at ASC")
+	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
-	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
-	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
-
-	return queryBuilder, planBuilder, nil
+	return queryBuilder, nil
 }
 
-func (c *CaseCommentStore) Update(
-	rpc options.Updator,
-	input *_go.CaseComment,
-) (*_go.CaseComment, error) {
-	// Get the database connection
-	d, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.cases.case_comment.update.database_connection_error", dbErr)
-	}
-
-	// Build the update query
-	queryBuilder, plan, err := c.BuildUpdateCaseCommentSqlizer(
-		rpc,
-		struct {
-			Text   string
-			Id     int64
-			UserID int64
-		}{
-			Text:   input.Text,
-			Id:     input.Id,
-			UserID: input.UpdatedBy.GetId(),
-		})
+func (c *CaseCommentStore) Update(rpc options.Updator, input *model.CaseComment) (*model.CaseComment, error) {
+	d, err := c.storage.Database()
 	if err != nil {
 		return nil, err
 	}
 
-	query, args, err := queryBuilder.ToSql()
+	selectBuilder, err := c.buildUpdateCaseCommentQuery(rpc, input)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert plan to scanArgs
-	scanArgs := convertToScanArgs(plan, input)
-
-	if err := d.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, dberr.NewDBNotFoundError("postgres.case_comment.update.scan_ver.not_found", "Comment not found")
-		}
+	query, args, err := selectBuilder.ToSql()
+	if err != nil {
 		return nil, ParseError(err)
 	}
-	for _, field := range rpc.GetFields() {
-		if field == "role_ids" {
-			roles, defErr := c.GetRolesById(rpc, input.GetId(), auth.Read)
-			if defErr != nil {
-				return nil, defErr
-			}
-			input.RoleIds = roles
-			break
-		}
+
+	var result model.CaseComment
+	err = pgxscan.Get(rpc, d, &result, query, args...)
+	if err != nil {
+		return nil, ParseError(err)
 	}
 
-	return input, nil
+	if util.ContainsField(rpc.GetFields(), "role_ids") {
+		roles, err := c.GetRolesById(rpc, result.Id, auth.Read)
+		if err != nil {
+			return nil, err
+		}
+		result.RoleIds = roles
+	}
+	return &result, nil
 }
 
 func (c *CaseCommentStore) GetRolesById(
@@ -404,24 +331,17 @@ func (c *CaseCommentStore) GetRolesById(
 	return res, nil
 }
 
-func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
+func (c *CaseCommentStore) buildUpdateCaseCommentQuery(
 	rpc options.Updator,
-	input struct {
-		Text   string
-		Id     int64
-		UserID int64
-	},
-) (sq.Sqlizer, []func(comment *_go.CaseComment) any, error) {
-	var defErr error
+	input *model.CaseComment,
+) (sq.SelectBuilder, error) {
 	// Ensure "id" and "ver" are in the fields list
-	fields := rpc.GetFields()
-	fields = util.EnsureIdAndVerField(rpc.GetFields())
-
+	fields := util.EnsureIdAndVerField(rpc.GetFields())
 	userID := rpc.GetAuthOpts().GetUserId()
-	if util.ContainsField(rpc.GetMask(), "userID") {
-		if updatedBy := input.UserID; updatedBy != 0 {
-			userID = updatedBy
-		}
+
+	// Check if Editor is provided and has a valid ID
+	if input.Editor != nil && input.Editor.GetId() != nil && *input.Editor.GetId() != 0 {
+		userID = int64(*input.Editor.GetId())
 	}
 
 	// Begin the update statement for `cases.case_comment`
@@ -432,50 +352,133 @@ func (c *CaseCommentStore) BuildUpdateCaseCommentSqlizer(
 		Set("ver", sq.Expr("ver + 1")). // Increment version
 		// input.Etag == input.ID
 		Where(sq.Eq{
-			"id":         rpc.GetEtags()[0].GetOid(),
-			"ver":        rpc.GetEtags()[0].GetVer(),
+			"id":         input.Id,
+			"ver":        input.Ver,
 			"dc":         rpc.GetAuthOpts().GetDomainId(),
 			"created_by": rpc.GetAuthOpts().GetUserId(), // Ensure only the creator can edit
 		})
-	updateBuilder, defErr = addCaseCommentRbacConditionForUpdate(rpc.GetAuthOpts(), auth.Edit, updateBuilder, "case_comment.id")
-	if defErr != nil {
-		return nil, nil, defErr
+
+	updateBuilder, err := addCaseCommentRbacConditionForUpdate(rpc.GetAuthOpts(), auth.Edit, updateBuilder, "case_comment.id")
+	if err != nil {
+		return sq.SelectBuilder{}, err
 	}
+
 	// Update the `comment` field if provided
 	if input.Text != "" {
 		updateBuilder = updateBuilder.Set("comment", input.Text)
-	} else {
-		return nil, nil, dberr.NewDBInternalError("store.case_comment.update.text_required", nil)
+	}
+
+	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
+	if err != nil {
+		return sq.SelectBuilder{}, ParseError(err)
 	}
 
 	// Generate the CTE for the update operation
-	selectBuilder := sq.Select().PrefixExpr(sq.Expr("WITH cc AS (?)", updateBuilder.Suffix("RETURNING *"))).From("cc")
+	cte := sq.Expr("WITH cc AS ("+updateSQL+")", args...)
 
-	// Use `buildCommentSelectColumnsAndPlan` to build select columns and plan based on `rpc.Fields`
-	selectBuilder, plan, err := buildCommentSelectColumnsAndPlan(
+	// First create a select builder
+	selectBuilder := sq.Select()
+
+	// Add columns to the select builder
+	selectBuilder, err = buildCaseCommentSelectColumns(
 		selectBuilder,
-		caseCommentLeft,
 		fields,
 		rpc.GetAuthOpts(),
 	)
 	if err != nil {
-		return nil, nil, err
+		return sq.SelectBuilder{}, err
 	}
 
-	return selectBuilder, plan, nil
-}
+	// Combine the CTE with the select query
+	selectBuilder = selectBuilder.
+		From(caseCommentLeft).
+		PrefixExpr(cte)
 
-// Helper function to convert a slice of CommentScan functions to a slice of empty interface{} suitable for scanning.
-func convertToScanArgs(plan []func(comment *_go.CaseComment) any, comment *_go.CaseComment) []any {
-	var scanArgs []any
-	for _, scan := range plan {
-		scanArgs = append(scanArgs, scan(comment))
-	}
-	return scanArgs
+	return selectBuilder, nil
 }
 
 // Helper function to build the select columns and scan plan based on the fields requested.
 // UserAuthSession required to get some columns
+func buildCaseCommentSelectColumns(
+	base sq.SelectBuilder,
+	fields []string,
+	session auth.Auther,
+) (sq.SelectBuilder, error) {
+	var (
+		createdByAlias string
+		joinCreatedBy  = func(alias string) string {
+			if createdByAlias != "" {
+				return createdByAlias
+			}
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %s.created_by = %s.id", alias, caseCommentLeft, alias))
+			createdByAlias = alias
+			return alias
+		}
+		updatedByAlias string
+		joinUpdatedBy  = func(alias string) string {
+			if updatedByAlias != "" {
+				return updatedByAlias
+			}
+			base = base.LeftJoin(fmt.Sprintf("directory.wbt_user %s ON %s.updated_by = %s.id", alias, caseCommentLeft, alias))
+			updatedByAlias = alias
+			return alias
+		}
+		authorAlias string
+		joinAuthor  = func(alias string) string {
+			if authorAlias != "" {
+				return authorAlias
+			}
+			createdByAlias = joinCreatedBy("ccb")
+			authorAlias = alias
+			base = base.LeftJoin(fmt.Sprintf("contacts.contact %s ON %[1]s.id = %s.contact_id", alias, createdByAlias))
+			return alias
+		}
+	)
+
+	base = base.Column(storeUtil.Ident(caseCommentLeft, "id"))
+	base = base.Column(storeUtil.Ident(caseCommentLeft, "ver"))
+
+	for _, field := range fields {
+		switch field {
+		case "id", "ver":
+			// already set
+		case "text":
+			base = base.Column(fmt.Sprintf("%s.comment text", caseCommentLeft))
+		case "created_at":
+			base = base.Column(storeUtil.Ident(caseCommentLeft, "created_at"))
+		case "updated_at":
+			base = base.Column(storeUtil.Ident(caseCommentLeft, "updated_at"))
+		case "created_by":
+			alias := joinCreatedBy("ccb")
+			base = base.Column(fmt.Sprintf("%s.id created_by_id", alias))
+			base = base.Column(fmt.Sprintf("COALESCE(%s.name, %s.username) created_by_name", alias, alias))
+		case "updated_by":
+			alias := joinUpdatedBy("cub")
+			base = base.Column(fmt.Sprintf("%s.id updated_by_id", alias))
+			base = base.Column(fmt.Sprintf("COALESCE(%s.name, %s.username) updated_by_name", alias, alias))
+		case "edited":
+			base = base.Column(fmt.Sprintf("(%s.created_at < %[1]s.updated_at) edited", caseCommentLeft))
+		case "can_edit":
+			if session != nil {
+				base = base.Column(fmt.Sprintf("(%s.created_by = %d) can_edit", caseCommentLeft, session.GetUserId()))
+			}
+		case "author":
+			alias := joinAuthor("au")
+			base = base.Column(fmt.Sprintf("%s.id AS contact_id", alias))
+			base = base.Column(fmt.Sprintf("%s.common_name AS contact_name", alias))
+		case "case_id":
+			base = base.Column(storeUtil.Ident(caseCommentLeft, "case_id"))
+		case "role_ids":
+			// skip
+		default:
+			return base, errors.New(fmt.Sprintf("unknown field: %s", field))
+		}
+	}
+
+	return base, nil
+}
+
+// deprecated function. use until case service is refactored
 func buildCommentSelectColumnsAndPlan(
 	base sq.SelectBuilder,
 	left string,
@@ -514,12 +517,12 @@ func buildCommentSelectColumnsAndPlan(
 	for _, field := range fields {
 		switch field {
 		case "id":
-			base = base.Column(storeutil.Ident(left, "id"))
+			base = base.Column(storeUtil.Ident(left, "id"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Id
 			})
 		case "ver":
-			base = base.Column(storeutil.Ident(left, "ver"))
+			base = base.Column(storeUtil.Ident(left, "ver"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Ver
 			})
@@ -530,7 +533,7 @@ func buildCommentSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&comment.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(storeutil.Ident(left, "created_at"))
+			base = base.Column(storeUtil.Ident(left, "created_at"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanTimestamp(&comment.CreatedAt)
 			})
@@ -541,12 +544,12 @@ func buildCommentSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&comment.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(storeutil.Ident(left, "updated_at"))
+			base = base.Column(storeUtil.Ident(left, "updated_at"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanTimestamp(&comment.UpdatedAt)
 			})
 		case "text":
-			base = base.Column(storeutil.Ident(left, "comment"))
+			base = base.Column(storeUtil.Ident(left, "comment"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return &comment.Text
 			})
@@ -571,22 +574,23 @@ func buildCommentSelectColumnsAndPlan(
 		case "role_ids":
 			// skip
 		case "case_id":
-			base = base.Column(storeutil.Ident(left, "case_id"))
+			base = base.Column(storeUtil.Ident(left, "case_id"))
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanInt64(&comment.CaseId)
 			})
 		default:
-			return base, nil, dberr.NewDBError("postgres.case_comment.build_comment_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))
+			return base, nil, errors.NewDBError("postgres.case_comment.build_comment_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))
 		}
 	}
 
 	if len(plan) == 0 {
-		return base, nil, dberr.NewDBError("postgres.case_comment.build_comment_select.final_check.unknown", "no resulting columns")
+		return base, nil, errors.NewDBError("postgres.case_comment.build_comment_select.final_check.unknown", "no resulting columns")
 	}
 
 	return base, plan, nil
 }
 
+// deprecated function. use until case service is refactored
 func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlias string) (sq.SelectBuilder, []func(link *_go.CaseComment) any, error) {
 	alias := "comments"
 	if caseAlias == alias {
@@ -595,16 +599,16 @@ func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlia
 	base := sq.
 		Select().
 		From("cases.case_comment " + alias).
-		Where(fmt.Sprintf("%s = %s", storeutil.Ident(alias, "case_id"), storeutil.Ident(caseAlias, "id")))
-	base, err := addCaseCommentRbacCondition(auther, auth.Read, base, storeutil.Ident(alias, "id"))
+		Where(fmt.Sprintf("%s = %s", storeUtil.Ident(alias, "case_id"), storeUtil.Ident(caseAlias, "id")))
+	base, err := addCaseCommentRbacCondition(auther, auth.Read, base, storeUtil.Ident(alias, "id"))
 	if err != nil {
-		return base, nil, dberr.NewDBError("store.case_comment.build_comments_subquery.rbac_err", err.Error())
+		return base, nil, err
 	}
 	base, plan, dbErr := buildCommentSelectColumnsAndPlan(base, alias, fields, auther)
 	if dbErr != nil {
 		return base, nil, dbErr
 	}
-	base = storeutil.ApplyPaging(1, defaults.DefaultSearchSize, base)
+	base = storeUtil.ApplyPaging(1, defaults.DefaultSearchSize, base)
 	return base, plan, nil
 }
 
