@@ -1613,12 +1613,12 @@ func (c *CaseStore) buildListCaseSqlizer(
 		domainId := opts.GetAuthOpts().GetDomainId()
 
 		if queryTarget.ID {
-			if id, err := strconv.Atoi(opts.GetSearch()); err == nil {
+			if id, err := strconv.ParseInt(search, 10, 64); err == nil {
+				// Valid numeric search → search by ID
 				base = base.Where(sq.Expr(fmt.Sprintf("%s.id = ?", caseLeft), id))
-			} else {
-				return base, nil, err
+				return base, plan, nil //  Skip other filters
 			}
-			return base, plan, nil
+			// Not a valid number → fall through to contact search
 		}
 
 		var where sq.Or
