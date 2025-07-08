@@ -274,19 +274,15 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc options.Updator, input *model
 		case "name":
 			updateQueryBuilder = updateQueryBuilder.Set("name", input.Name)
 		case "description":
-			// Use NULLIF to store NULL if description is an empty string
 			updateQueryBuilder = updateQueryBuilder.Set("description", input.Description)
 		case "code":
-			// Use NULLIF to store NULL if code is an empty string
 			updateQueryBuilder = updateQueryBuilder.Set("code", input.Code)
 		case "sla":
-			// Use NULLIF to store NULL if sla_id is 0
 			updateQueryBuilder = updateQueryBuilder.Set("sla_id", input.Sla.Id)
 		case "group":
 			if input.Group != nil && input.Group.Id != nil {
 				updateQueryBuilder = updateQueryBuilder.Set("group_id", input.Group.Id)
 			}
-
 		case "assignee":
 			if input.Assignee != nil && input.Assignee.Id != nil {
 				updateQueryBuilder = updateQueryBuilder.Set("assignee_id", input.Assignee.Id)
@@ -304,11 +300,9 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc options.Updator, input *model
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to form CTE for service update: %w", err)
 	}
-
+	selectSql := sq.Select().From(from).Prefix(updateSQL, updateArgs...).PlaceholderFormat(sq.Dollar)
 	// Now build the select query with a static SQL using a WITH clause
-	selectSQL, err := s.buildSelectColumns(sq.Select().From("cases.service_catalog AS service").
-		Where(sq.Eq{"service.dc": rpc.GetAuthOpts().GetDomainId()}).
-		PlaceholderFormat(sq.Dollar).Prefix(updateSQL, updateArgs...), rpc.GetFields(), from)
+	selectSQL, err := s.buildSelectColumns(selectSql, rpc.GetFields(), from)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to build select columns for service update: %w", err)
 	}
