@@ -29,33 +29,32 @@ func (c *CaseCommunicationStore) Link(
 		)
 	}
 
-	d, dbErr := c.storage.Database()
-	if dbErr != nil {
-		return nil, dberr.NewDBInternalError("postgres.case_communication.link.database_connection_error", dbErr)
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case_communication.link.database_connection_error", err)
 	}
 
-	tx, err := d.Begin(options)
+	tx, err := db.Begin(options)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.case_communication.link.transaction_error", err)
 	}
 
-	// Defer rollback, but ignore error if the transaction is already committed/rolled back
-	defer func() {
-		if err := recover(); err != nil {
-			_ = tx.Rollback(options) // Will be a no-op if already committed
-		}
-	}()
-
 	txManager := transaction.NewTxManager(tx)
 
-	base, plan, dbErr := c.buildCreateCaseCommunicationSqlizer(txManager, options, communications)
-	if dbErr != nil {
-		return nil, dbErr
+	// Ensure rollback if something fails
+	defer func() {
+		_ = tx.Rollback(options) // Safe to call after commit; it's a no-op
+	}()
+
+	// Build SQL insert statement and value plan
+	base, plan, err := c.buildCreateCaseCommunicationSqlizer(txManager, options, communications)
+	if err != nil {
+		return nil, err
 	}
 
 	sql, args, err := base.ToSql()
 	if err != nil {
-		return nil, dberr.NewDBError("postgres.case_communication.link.convert_to_sql.err", err.Error())
+		return nil, dberr.NewDBError("postgres.case_communication.link.convert_to_sql.error", err.Error())
 	}
 
 	rows, err := txManager.Query(options, storeutil.CompactSQL(sql), args...)
@@ -64,22 +63,16 @@ func (c *CaseCommunicationStore) Link(
 	}
 	defer rows.Close()
 
-	res, dbErr := c.scanCommunications(rows, plan)
-	if dbErr != nil {
-		return nil, dbErr
-	}
-
-	err = txManager.Commit(options)
+	result, err := c.scanCommunications(rows, plan)
 	if err != nil {
-		return nil, dbErr
+		return nil, err
 	}
 
-	//// If Commit succeeds, rollback is now a no-op
-	//if err := txManager.Commit(options); err != nil {
-	//	return nil, dberr.NewDBInternalError("postgres.case_communication.link.commit_error", err)
-	//}
+	if err := txManager.Commit(options); err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case_communication.link.commit_error", err)
+	}
 
-	return res, nil
+	return result, nil
 }
 
 func (c *CaseCommunicationStore) Unlink(options options.Deleter) (int64, error) {
@@ -134,7 +127,7 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
 ) (
 	query squirrel.Sqlizer,
 	plan []func(caseCommunication *cases.CaseCommunication) any,
-	dbError *dberr.DBError,
+	err error,
 ) {
 	if options == nil {
 		return nil, nil, dberr.NewDBError(
@@ -165,8 +158,8 @@ func (c *CaseCommunicationStore) scanCommunications(
 	rows pgx.Rows,
 	plan []func(*cases.CaseCommunication) any,
 ) (
-	[]*cases.CaseCommunication,
-	*dberr.DBError,
+	output []*cases.CaseCommunication,
+	err error,
 ) {
 	var res []*cases.CaseCommunication
 	for rows.Next() {
@@ -191,7 +184,7 @@ func (c *CaseCommunicationStore) buildCreateCaseCommunicationSqlizer(
 ) (
 	query squirrel.Sqlizer,
 	plan []func(caseCommunication *cases.CaseCommunication) any,
-	dbError *dberr.DBError,
+	err error,
 ) {
 	if options == nil {
 		return nil, nil, dberr.NewDBError(
@@ -336,7 +329,11 @@ func (c *CaseCommunicationStore) buildSelectColumnsAndPlan(
 	base squirrel.SelectBuilder,
 	left string,
 	fields []string,
-) (query squirrel.SelectBuilder, plan []func(comm *cases.CaseCommunication) any, dbError *dberr.DBError) {
+) (
+	query squirrel.SelectBuilder,
+	plan []func(comm *cases.CaseCommunication) any,
+	err error,
+) {
 	if len(fields) == 0 {
 		fields = CaseCommunicationFields
 	}
@@ -402,7 +399,7 @@ func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(
 	options options.Deleter,
 ) (
 	query squirrel.Sqlizer,
-	dbError *dberr.DBError,
+	err error,
 ) {
 	if options == nil {
 		return nil, dberr.NewDBError(
@@ -417,6 +414,7 @@ func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(
 		)
 	}
 	del := squirrel.Delete(c.mainTable).Where("id = ANY(?)", options.GetIDs())
+
 	return del, nil
 }
 
