@@ -178,15 +178,28 @@ func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.Creator, sl
 
 	if len(sla.Priorities) != 0 { // if priorities not empty insert priorities
 		priorityCTEName := "inserted_priorities"
-		conditionPriorityInsert := sq.Insert("cases.priority_sla_condition").Columns("created_at", "updated_at", "created_by", "updated_by",
-			"sla_condition_id", "priority_id", "dc",
-		).Suffix("RETURNING *")
+		conditionPriorityInsert := sq.Insert("cases.priority_sla_condition").
+			Columns(
+				"created_at",
+				"updated_at",
+				"created_by",
+				"updated_by",
+				"sla_condition_id",
+				"priority_id",
+				"dc",
+			).Suffix("RETURNING *")
 		for _, priority := range sla.Priorities {
 			if priority.Id == 0 {
 				continue
 			}
 			conditionPriorityInsert = conditionPriorityInsert.Values(
-				sq.Expr(fmt.Sprintf("SELECT created_at, updated_at, created_by, updated_by, id, ?, dc FROM %s", priorityCTEName), priority.Id),
+				rpc.RequestTime(),
+				rpc.RequestTime(),
+				rpc.GetAuthOpts().GetUserId(),
+				rpc.GetAuthOpts().GetUserId(),
+				sq.Expr(fmt.Sprintf("(SELECT id FROM %s)", conditionCTEName)),
+				priority.Id,
+				rpc.GetAuthOpts().GetDomainId(),
 			)
 		}
 		ctes = append(ctes, storeutil.NewCTE(priorityCTEName, conditionPriorityInsert))
