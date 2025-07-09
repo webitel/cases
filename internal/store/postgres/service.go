@@ -225,7 +225,7 @@ func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.Searcher) sq
 		"code":        "service.code",
 		"description": "service.description",
 		"state":       "service.state",
-		"assignee":    "ass.common_name",
+		"assignee":    "assignee.common_name",
 		"group":       "grp.name",
 	}
 
