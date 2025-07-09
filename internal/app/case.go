@@ -319,7 +319,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	message, _ := wlogger.NewMessage(
 		createOpts.GetAuthOpts().GetUserId(),
 		ip,
-		wlogger.UpdateAction,
+		wlogger.CreateAction,
 		strconv.Itoa(int(res.GetId())),
 		req,
 	)
@@ -826,7 +826,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	message, _ := wlogger.NewMessage(
 		deleteOpts.GetAuthOpts().GetUserId(),
 		deleteOpts.GetAuthOpts().GetUserIp(),
-		wlogger.UpdateAction,
+		wlogger.DeleteAction,
 		strconv.Itoa(int(tag.GetOid())),
 		req,
 	)
