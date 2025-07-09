@@ -50,8 +50,8 @@ func (a *App) CreateCaseLink(creator options.Creator, input *model.CaseLink) (*m
 	message, err := wlogger.NewMessage(
 		authOpts.GetUserId(),
 		authOpts.GetUserIp(),
-		wlogger.CreateAction,
-		strconv.FormatInt(link.Id, 10),
+		wlogger.UpdateAction,
+		strconv.FormatInt(caseID, 10),
 		input,
 	)
 	if err == nil {
@@ -107,7 +107,7 @@ func (a *App) UpdateCaseLink(updator options.Updator, input *model.CaseLink) (*m
 		authOpts.GetUserId(),
 		authOpts.GetUserIp(),
 		wlogger.UpdateAction,
-		strconv.FormatInt(link.Id, 10),
+		strconv.FormatInt(caseID, 10),
 		input,
 	)
 	if err == nil {
@@ -158,7 +158,7 @@ func (a *App) DeleteCaseLink(deleter options.Deleter) (*model.CaseLink, error) {
 		authOpts.GetUserId(),
 		authOpts.GetUserIp(),
 		wlogger.UpdateAction,
-		strconv.FormatInt(linkIDs[0], 10),
+		strconv.FormatInt(caseID, 10),
 		link,
 	)
 	if err == nil {
