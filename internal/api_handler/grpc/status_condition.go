@@ -162,6 +162,7 @@ func (s *StatusConditionService) LocateStatusCondition(ctx context.Context, req 
 	if err != nil {
 		return nil, err
 	}
+	opts.AddFilter(util.EqualFilter("parent_id", req.StatusId))
 	// Call the ListStatusConditions method
 	items, err := s.app.ListStatusConditions(opts)
 	if err != nil {
