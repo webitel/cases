@@ -62,7 +62,7 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 ) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
 	if len(fields) == 0 {
-		fields = []string{"id", "name", "size", "mime", "created_at", "created_by", "author", "url"}
+		fields = []string{"id", "name", "size", "mime", "created_at", "created_by", "url"}
 	}
 	caseIDFilters := rpc.GetFilter("case_id")
 	if len(caseIDFilters) == 0 {
@@ -155,7 +155,7 @@ func (c *CaseFileStore) Delete(rpc options.Deleter) (*model.CaseFile, error) {
 		return nil, errors.New("case id required")
 	}
 
-	fields := []string{"id", "name", "size", "mime", "created_at", "created_by", "author"}
+	fields := []string{"id", "name", "size", "mime", "created_at", "created_by"}
 
 	ids := rpc.GetIDs()
 	if len(ids) == 1 {
