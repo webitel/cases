@@ -61,17 +61,20 @@ func (s *SLAConditionStore) Delete(rpc options.Deleter) (*model.SLACondition, er
 	}
 
 	// Build the delete query for SLACondition
-	query, args, err := s.buildDeleteSLAConditionQuery(rpc)
+	query, err := s.buildDeleteSLAConditionQuery(rpc)
 	if err != nil {
 		return nil, err
 	}
-
+	deleteSql, args, err := query.ToSql()
+	if err != nil {
+		return nil, errors.Internal(fmt.Sprintf("postgres.sla_condition.delete.query_build_error: %v", err))
+	}
 	var res model.SLACondition
-	err = pgxscan.Get(rpc, d, &res, query, args...)
+	err = pgxscan.Get(rpc, d, &res, deleteSql, args...)
 	if err != nil {
 		return nil, ParseError(err)
 	}
-	return nil, nil
+	return &res, nil
 }
 
 // List implements store.SLAConditionStore.
@@ -213,17 +216,15 @@ func (s *SLAConditionStore) buildCreateSLAConditionQuery(rpc options.Creator, sl
 }
 
 // Helper function to build the delete query for SLACondition
-func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.Deleter) (string, []interface{}, error) {
+func (s *SLAConditionStore) buildDeleteSLAConditionQuery(rpc options.Deleter) (sq.SelectBuilder, error) {
 	// Create base query for deletion
-	query := deleteSLAConditionQuery
-
-	// Arguments for the query
-	args := []interface{}{
-		rpc.GetIDs()[0],                 // $1 is the SLA Condition ID to delete
-		rpc.GetAuthOpts().GetDomainId(), // $2 is the domain context (dc)
+	alias := "deleted"
+	deleteQuery := sq.Delete("cases.sla_condition").Where("id = ?", rpc.GetIDs()[0]).Where("dc = ?", rpc.GetAuthOpts().GetDomainId()).Suffix("RETURNING *")
+	deleteCte, args, err := storeutil.FormAsCTE(deleteQuery, alias)
+	if err != nil {
+		return sq.Select(), err
 	}
-
-	return query, args, nil
+	return buildSLAConditionColumns(sq.Select().From(alias).Prefix(deleteCte, args...).PlaceholderFormat(sq.Dollar), rpc.GetFields(), alias)
 }
 
 func buildSLAConditionColumns(queryBuilder sq.SelectBuilder, fields []string, tableAlias string) (sq.SelectBuilder, error) {
@@ -435,11 +436,6 @@ func (s *SLAConditionStore) populatePriorities(
 		})
 	}
 }
-
-var deleteSLAConditionQuery = storeutil.CompactSQL(
-	`DELETE FROM cases.sla_condition
-	 WHERE id = $1 AND dc = $2
-	`)
 
 func NewSLAConditionStore(store *Store) (store.SLAConditionStore, error) {
 	if store == nil {

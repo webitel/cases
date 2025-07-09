@@ -82,17 +82,18 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 // It validates the request and calls the handler's DeleteSLACondition method.
 func (s *SLAConditionService) DeleteSLACondition(ctx context.Context, req *cases.DeleteSLAConditionRequest) (*cases.SLACondition, error) {
 	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(req.Id))
+	deleteOpts.Fields = SLAConditionMetadata.GetAllFields()
 	if err != nil {
 		return nil, err
 	}
 
 	// Delete the SLACondition in the store
-	_, err = s.app.DeleteSLACondition(deleteOpts)
+	res, err := s.app.DeleteSLACondition(deleteOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	return &cases.SLACondition{Id: req.Id}, nil
+	return s.Marshal(res)
 }
 
 // ListSLAConditions handles the gRPC request to list SLA conditions with filters and pagination.
