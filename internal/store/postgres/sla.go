@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"fmt"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 
@@ -106,7 +105,7 @@ func (s *SLAStore) buildCreateSLAQuery(rpc options.Creator, sla *model.SLA) (sq.
 			sla.Name,
 			rpc.GetAuthOpts().GetDomainId(),
 			rpc.RequestTime(),
-			sq.Expr("NULLIF(?, '')", sla.Description),
+			sla.Description,
 			rpc.GetAuthOpts().GetUserId(),
 			rpc.RequestTime(),
 			rpc.GetAuthOpts().GetUserId(),
@@ -273,7 +272,14 @@ func (s *SLAStore) buildListSLAQuery(rpc options.Searcher) (sq.SelectBuilder, er
 		}
 	}
 
-	queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
+	switch field, op := storeutil.GetSortingOperator(rpc.GetSort()); field {
+	case "calendar":
+		queryBuilder = queryBuilder.
+			LeftJoin("flow.calendar cal_sort ON cal_sort.id = s.calendar_id")
+		queryBuilder = queryBuilder.OrderBy(fmt.Sprintf("%s %s", "cal_sort.name", op))
+	default:
+		queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, slaDefaultSort)
+	}
 	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	queryBuilder, err := buildSLASelectColumns(queryBuilder, rpc.GetFields())
