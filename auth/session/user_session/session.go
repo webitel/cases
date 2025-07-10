@@ -33,6 +33,9 @@ func (s *UserAuthSession) GetUserId() int64 {
 }
 
 func (s *UserAuthSession) GetUserIp() string {
+	if s.UserIp == "" {
+		return "unknown"
+	}
 	return s.UserIp
 }
 
