@@ -209,7 +209,7 @@ func (c *CaseFileStore) Delete(rpc options.Deleter) (*model.CaseFile, error) {
 	err = pgxscan.Get(rpc, db, &result, query, updateArgs...)
 	if err != nil {
 		if pgxscan.NotFound(err) {
-			return nil, errors.New("case file not found")
+			return nil, errors.InvalidArgument("case file not found or it's not permitted to delete it")
 		}
 		return nil, ParseError(err)
 	}
