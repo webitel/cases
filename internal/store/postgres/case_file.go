@@ -81,7 +81,7 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 	// Build the CTE for chat messages with files
 	messageWithFiles := sq.Select(
 		"file_id",
-		"jsonb_build_object('id', ch.user_id, 'name', COALESCE(usr.name, bot.name, cli.name), 'type', COALESCE(ch.type, 'bot')) as author",
+		"jsonb_build_object('id', ch.user_id, 'name', COALESCE(usr.name, bot.name, cli.name), 'type', COALESCE(ch.type, 'bot')) as author, 'chat' as source",
 	).
 		From("chat.message m").
 		LeftJoin("chat.channel ch ON ch.id = m.channel_id").
@@ -94,7 +94,7 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 
 	directFiles := sq.Select(
 		"f.id as file_id",
-		"jsonb_build_object('id', usr.id, 'name', COALESCE(usr.name, usr.username), 'type', 'webitel') as author",
+		"jsonb_build_object('id', usr.id, 'name', COALESCE(usr.name, usr.username), 'type', 'webitel') as author, 'direct' as source",
 	).
 		From("storage.files f").
 		LeftJoin("directory.wbt_user usr ON f.uploaded_by = usr.id").
@@ -171,6 +171,7 @@ func (c *CaseFileStore) Delete(rpc options.Deleter) (*model.CaseFile, error) {
 		Where("id = ANY(?)", ids).
 		Where(sq.Eq{"domain_id": rpc.GetAuthOpts().GetDomainId()}).
 		Where(sq.Eq{"uuid": uuid}).
+		Where("channel != 'chat'").
 		Suffix("RETURNING *").
 		PlaceholderFormat(sq.Dollar)
 
@@ -220,7 +221,7 @@ func buildCaseFileSelectColumns(
 	base sq.SelectBuilder,
 	fields []string,
 	tableAlias string,
-	authorCTEAlias string,
+	idCTEAlias string,
 ) (sq.SelectBuilder, error) {
 	var (
 		createdByAlias string
@@ -247,15 +248,17 @@ func buildCaseFileSelectColumns(
 		case "created_at":
 			base = base.Column(fmt.Sprintf("%s.uploaded_at AS created_at", tableAlias))
 		case "created_by":
-			if authorCTEAlias != "" {
-				base = base.Column(storeutil.Ident(authorCTEAlias, "author created_by"))
+			if idCTEAlias != "" {
+				base = base.Column(storeutil.Ident(idCTEAlias, "author created_by"))
 			} else {
 				cb := caseFileCreatedByAlias
 				joinCreatedBy(cb)
 				base = base.Column(fmt.Sprintf("jsonb_build_object('id', %s.id, 'name', %[1]s.name, 'type', 'webitel') created_by", cb))
 			}
-		case "url":
-			base = base.Column(fmt.Sprintf("%s.file_url AS url", tableAlias))
+		//case "url":
+		//	base = base.Column(fmt.Sprintf("%s.file_url AS url", tableAlias))
+		case "source":
+			base = base.Column(fmt.Sprintf("%s.source", idCTEAlias))
 		default:
 			return base, errors.New("unknown field: " + field)
 		}

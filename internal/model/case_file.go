@@ -10,4 +10,5 @@ type CaseFile struct {
 	Name      string                 `db:"name"`
 	Url       string                 `db:"url"`
 	Author    *GeneralExtendedLookup `db:"created_by"`
+	Source    string                 `db:"source"`
 }

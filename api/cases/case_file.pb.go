@@ -104,6 +104,7 @@ type File struct {
 	// File name.
 	Name          string `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
 	Url           string `protobuf:"bytes,8,opt,name=url,proto3" json:"url,omitempty"`
+	Source        string `protobuf:"bytes,9,opt,name=source,proto3" json:"source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -183,6 +184,13 @@ func (x *File) GetName() string {
 func (x *File) GetUrl() string {
 	if x != nil {
 		return x.Url
+	}
+	return ""
+}
+
+func (x *File) GetSource() string {
+	if x != nil {
+		return x.Source
 	}
 	return ""
 }
@@ -349,7 +357,7 @@ const file_case_file_proto_rawDesc = "" +
 	"\fCaseFileList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x03R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x12)\n" +
-	"\x05items\x18\x03 \x03(\v2\x13.webitel.cases.FileR\x05items\"\xbb\x01\n" +
+	"\x05items\x18\x03 \x03(\v2\x13.webitel.cases.FileR\x05items\"\xd3\x01\n" +
 	"\x04File\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x126\n" +
 	"\n" +
@@ -359,7 +367,8 @@ const file_case_file_proto_rawDesc = "" +
 	"\x04size\x18\x04 \x01(\x03R\x04size\x12\x12\n" +
 	"\x04mime\x18\x05 \x01(\tR\x04mime\x12\x12\n" +
 	"\x04name\x18\x06 \x01(\tR\x04name\x12\x10\n" +
-	"\x03url\x18\b \x01(\tR\x03url\"L\n" +
+	"\x03url\x18\b \x01(\tR\x03url\x12\x16\n" +
+	"\x06source\x18\t \x01(\tR\x06source\"L\n" +
 	"\x11DeleteFileRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1b\n" +
 	"\tcase_etag\x18\x02 \x01(\tR\bcaseEtag:\n" +
