@@ -321,7 +321,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		ip,
 		wlogger.CreateAction,
 		strconv.Itoa(int(res.GetId())),
-		req,
+		res,
 	)
 
 	_, err = c.logger.SendContext(ctx, createOpts.GetAuthOpts().GetDomainId(), message)
@@ -462,7 +462,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		ip,
 		wlogger.UpdateAction,
 		strconv.Itoa(int(output.GetId())),
-		req,
+		output,
 	)
 
 	_, err = c.logger.SendContext(ctx, updateOpts.GetAuthOpts().GetDomainId(), message)
@@ -828,7 +828,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 		deleteOpts.GetAuthOpts().GetUserIp(),
 		wlogger.DeleteAction,
 		strconv.Itoa(int(tag.GetOid())),
-		req,
+		deleteCase,
 	)
 
 	_, err = c.logger.SendContext(ctx, deleteOpts.GetAuthOpts().GetDomainId(), message)
