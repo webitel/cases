@@ -39,7 +39,7 @@ func (a *App) ListCaseFiles(rpc options.Searcher) ([]*model.CaseFile, error) {
 }
 
 func (a *App) DeleteCaseFile(rpc options.Deleter) (*model.CaseFile, error) {
-	if rpc.GetIDs() == nil || len(rpc.GetIDs()) == 0 {
+	if len(rpc.GetIDs()) == 0 {
 		return nil, errors.New("file id required", errors.WithCode(codes.InvalidArgument))
 	}
 	logAttributes := slog.Group(

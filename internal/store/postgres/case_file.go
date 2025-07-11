@@ -99,7 +99,8 @@ func (c *CaseFileStore) BuildListCaseFilesSqlizer(
 		From("storage.files f").
 		LeftJoin("directory.wbt_user usr ON f.uploaded_by = usr.id").
 		Where("uuid = ?::text", caseIDFilters[0].Value).
-		Where("channel = 'case'")
+		Where("channel = 'case'").
+		Where("removed = false")
 	ctes = append(ctes, storeutil.NewCTE("direct_upload", directFiles))
 
 	// Union the CTEs for chat files and direct files
