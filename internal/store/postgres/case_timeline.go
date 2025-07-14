@@ -2,893 +2,513 @@ package postgres
 
 import (
 	"fmt"
-	"github.com/webitel/cases/internal/model/options"
-	storeutil "github.com/webitel/cases/internal/store/util"
 	"strconv"
+	"strings"
 
-	"github.com/Masterminds/squirrel"
-	"github.com/jackc/pgtype"
-	"github.com/webitel/cases/api/cases"
+	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/webitel/cases/internal/model/options"
+
 	dberr "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/store"
-	"github.com/webitel/cases/internal/store/postgres/scanner"
+	storeutil "github.com/webitel/cases/internal/store/util"
 )
 
 var CaseTimelineFields = []string{
-	"calls", "chats", "emails",
+	"call", "chat", "email",
 }
 
 type CaseTimelineStore struct {
 	storage *Store
 }
 
-func (c *CaseTimelineStore) Get(rpc options.Searcher) (*cases.GetTimelineResponse, error) {
-	query, scanPlan, dbErr := buildCaseTimelineSqlizer(rpc)
-	if dbErr != nil {
-		return nil, dbErr
-	}
-	sql, args, err := query.ToSql()
-	if err != nil {
-		return nil, err
-	}
-	db, err := c.storage.Database()
-	if err != nil {
-		return nil, err
-	}
-
-	rows, err := db.Query(rpc, storeutil.CompactSQL(sql), args...)
-	if err != nil {
-		return nil, dberr.NewDBInternalError("postgres.case_timeline.get.exec.error", err)
-	}
-	result := &cases.GetTimelineResponse{}
-	for rows.Next() {
-		node := &cases.DayTimeline{}
-		var scanValue []any
-		for _, f := range scanPlan {
-			scanValue = append(scanValue, f(node))
-		}
-		err = rows.Scan(scanValue...)
-		if err != nil {
-			return nil, dberr.NewDBInternalError("postgres.case_timeline.get.scan.error", err)
-		}
-		result.Days = append(result.Days, node)
-	}
-	result.Days, result.Next = storeutil.ResolvePaging(rpc.GetSize(), result.Days)
-	result.Page = int32(rpc.GetPage())
-
-	return result, nil
-}
-
-// region Timeline Build Functions
-func buildCaseTimelineSqlizer(rpc options.Searcher) (squirrel.Sqlizer, []func(timeline *cases.DayTimeline) any, *dberr.DBError) {
-	if rpc == nil {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.rpc", "search options required")
-	}
+func (c *CaseTimelineStore) Get(rpc options.Searcher) (*model.CaseTimeline, error) {
 	filters := rpc.GetFilter("case_id")
 	if len(filters) == 0 || filters[0].Operator != "=" {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id required and must be '='")
+		return nil, dberr.NewDBError("postgres.case_timeline.get.check_args.case_id", "case id required and must be '='")
 	}
-	parentId, err := strconv.ParseInt(filters[0].Value, 10, 64)
-	if err != nil || parentId == 0 {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id required")
+
+	caseID, err := strconv.ParseInt(filters[0].Value, 10, 64)
+	if err != nil || caseID == 0 {
+		return nil, dberr.NewDBError("postgres.case_timeline.get.check_args.case_id", "case id required")
 	}
+
 	fields := rpc.GetFields()
 	if len(fields) == 0 {
 		fields = CaseTimelineFields
 	}
-	var (
-		ctes       []*storeutil.CTE
-		chatsPlan  []func(timeline **cases.Event) any
-		callsPlan  []func(timeline **cases.Event) any
-		emailsPlan []func(timeline **cases.Event) any
-		dayEvents  []string
-		from       = "( SELECT * FROM ("
-		plan       []func(timeline *cases.DayTimeline) any
-	)
-	for i, field := range fields {
-		var (
-			err       *dberr.DBError
-			cte       squirrel.Sqlizer
-			eventType string
-		)
-		switch field {
-		case "chat":
-			cte, chatsPlan, err = buildTimelineChatsColumn(parentId)
-			eventType = cases.CaseTimelineEventType_chat.String()
-		case "call":
-			cte, callsPlan, err = buildTimelineCallsColumn(parentId)
-			eventType = cases.CaseTimelineEventType_call.String()
-		case "email":
-			cte, emailsPlan, err = buildTimelineEmailsColumn(parentId)
-			eventType = cases.CaseTimelineEventType_email.String()
-		default:
-			return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.parse_fields.unknown", "unknown field "+field)
-		}
-		if err != nil {
-			return nil, nil, err
-		}
-		ctes = append(ctes, storeutil.NewCTE(field, cte))
-		if i != 0 {
-			from += " union all "
-		}
-		from += fmt.Sprintf(`SELECT
-					  DATE_TRUNC('day', created_at) "day",
-					  created_at,
-					  '%s' "event",
-					  (%s)::text "data"
-					   from %[2]s
-						`, eventType, field)
-	}
-	from += ") AS ec ORDER BY created_at DESC) e"
-	cteQuery, args, err := storeutil.FormAsCTEs(ctes)
+
+	// Build the SQL query with JSONB
+	query, args, err := c.buildTimelineQuery(caseID, fields, rpc)
 	if err != nil {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.form_cte.error", err.Error())
+		return nil, dberr.NewDBError("postgres.case_timeline.get.build_query.error", err.Error())
 	}
-	query := squirrel.Select("day", "array_agg(e.event)::text \"events\"", "array_agg(e.data)::text \"data\"").
-		GroupBy("e.day").
-		OrderBy("e.day desc").From(from).
-		Prefix(cteQuery, args...).
-		PlaceholderFormat(squirrel.Dollar)
-	query = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), query)
 
-	plan = []func(timeline *cases.DayTimeline) any{
-		func(rec *cases.DayTimeline) any {
-			return scanner.ScanTimestamp(&rec.DayTimestamp)
-		},
-		// day event signatures
-		func(rec *cases.DayTimeline) any {
-			return scanner.ScanFunc(func(src interface{}) (err error) {
-				if src == nil {
-					return
-				}
-				var text string
-				switch src := src.(type) {
-				case string:
-					text = src
-				case []byte:
-					text = string(src)
-				default:
-					return dberr.NewDBError(
-						"postgres.case_timeline.build_case_timeline_sqlizer.scan_event_signatures.error",
-						"postgres: unknown type to convert into []string",
-					)
-				}
-				if src == "{}" {
-					return // nil; NULL
-				}
-
-				var rows *pgtype.UntypedTextArray
-				rows, err = pgtype.ParseUntypedTextArray(text)
-				if err != nil || len(rows.Elements) == 0 {
-					return err
-				}
-
-				// context:
-				// [row] -- fields requested
-
-				size := len(rows.Elements)
-
-				if size == 0 {
-					return nil
-				}
-				// init dayEvents for every row
-				dayEvents = make([]string, 0, size)
-
-				// DECODE
-				for _, elem := range rows.Elements {
-					// RECORD
-					if elem == "" {
-						return dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.scan_event_signatures.element_error", "empty event type")
-					}
-					dayEvents = append(dayEvents, elem)
-
-				}
-				return nil
-			})
-		},
-		// actually day events
-		func(rec *cases.DayTimeline) any {
-			return scanner.ScanFunc(func(src any) (err error) {
-				if src == nil {
-					return
-				}
-				var text string
-				switch src := src.(type) {
-				case string:
-					text = src
-				case []byte:
-					text = string(src)
-				default:
-					return dberr.NewDBError(
-						"postgres.case_timeline.build_case_timeline_sqlizer.scan_events.error",
-						"unknown type input",
-					)
-				}
-				if src == "{}" {
-					return // nil; NULL
-				}
-
-				var rows *pgtype.UntypedTextArray
-				rows, err = pgtype.ParseUntypedTextArray(text)
-				if err != nil || len(rows.Elements) == 0 {
-					return err
-				}
-
-				var node *cases.Event
-
-				// DECODE
-				for r, elem := range rows.Elements {
-					// RECORD
-					node = &cases.Event{} // NEW
-					var (
-						eventType string
-						scanPlan  []func(**cases.Event) any
-					)
-					// ALLOC
-					switch eventType = dayEvents[r]; eventType {
-					case cases.CaseTimelineEventType_email.String():
-						actualEvent := &cases.EmailEvent{}
-						node.Type = cases.CaseTimelineEventType_email
-						node.Event = &cases.Event_Email{Email: actualEvent}
-						count := &rec.EmailsCount
-						*count++
-
-						// scanning functions set
-						scanPlan = emailsPlan
-					case cases.CaseTimelineEventType_chat.String():
-						actualEvent := &cases.ChatEvent{}
-						node.Type = cases.CaseTimelineEventType_chat
-						node.Event = &cases.Event_Chat{Chat: actualEvent}
-						count := &rec.ChatsCount
-						*count++
-
-						// scanning functions set
-						scanPlan = chatsPlan
-					case cases.CaseTimelineEventType_call.String():
-						actualEvent := &cases.CallEvent{}
-						node.Type = cases.CaseTimelineEventType_call
-						node.Event = &cases.Event_Call{Call: actualEvent}
-						count := &rec.CallsCount
-						*count++
-
-						// scanning functions set
-						scanPlan = callsPlan
-					}
-					// DECODE
-					scan := pgtype.NewCompositeTextScanner(pgtype.NewConnInfo(), []byte(elem))
-					for _, bind := range scanPlan {
-						df := bind(&node)
-						if df == nil {
-							// omit; pseudo calc
-							continue
-						}
-						scan.ScanValue(df)
-						err = scan.Err()
-						if err != nil {
-							return err
-						}
-					}
-					rec.Items = append(rec.Items, node)
-				}
-				return nil
-			})
-		},
+	// Get database connection
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case_timeline.get.database.error", err)
 	}
-	return query, plan, nil
+
+	var days []*model.DayTimeline
+	err = pgxscan.Select(rpc, db, &days, query, args...)
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case_timeline.get.scan.error", err)
+	}
+
+	// Process each day to unmarshal items and event data
+	for _, day := range days {
+		// unmarshal the items JSONB field
+		if err := day.UnmarshalItems(); err != nil {
+			return nil, dberr.NewDBInternalError("postgres.case_timeline.get.unmarshal_items.error", err)
+		}
+
+		// unmarshal each event's data
+		for _, event := range day.Items {
+			if err := event.UnmarshalEventData(); err != nil {
+				return nil, dberr.NewDBInternalError("postgres.case_timeline.get.unmarshal_event_data.error", err)
+			}
+		}
+	}
+
+	// apply pagination
+	var result model.CaseTimeline
+	result.Days, result.Next = storeutil.ResolvePaging(rpc.GetSize(), days)
+	result.Page = int32(rpc.GetPage())
+
+	return &result, nil
 }
 
-func buildTimelineChatsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline **cases.Event) any, dbError *dberr.DBError) {
-	if caseId == 0 {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_chats_column.check_args.case_id.empty", "case id required")
+// buildTimelineQuery creates SQL query using JSONB for event data
+func (c *CaseTimelineStore) buildTimelineQuery(caseID int64, fields []string, rpc options.Searcher) (string, []interface{}, error) {
+	if caseID == 0 {
+		return "", nil, fmt.Errorf("case id required")
 	}
-	base = squirrel.Expr(ChatsCTE, caseId, store.CommunicationChat)
-	plan = append(plan,
-		func(node **cases.Event) any {
-			buf := *node
-			chat := buf.GetChat()
-			return scanner.ScanText(&chat.Id)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			return scanner.ScanTimestamp(&buf.CreatedAt)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			chat := buf.GetChat()
-			return scanner.ScanTimestamp(&chat.ClosedAt)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			chat := buf.GetChat()
-			return scanner.ScanInt64(&chat.Duration)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			chat := buf.GetChat()
-			return scanner.ScanLookupList(&chat.Participants)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			chat := buf.GetChat()
-			return scanner.ScanRowExtendedLookup(&chat.Gateway)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			chat := buf.GetChat()
-			return scanner.ScanRowLookup(&chat.FlowScheme)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			chat := buf.GetChat()
-			return &chat.IsInbound
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			chat := buf.GetChat()
-			return &chat.IsMissed
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			chat := buf.GetChat()
-			return scanner.ScanRowLookup(&chat.Queue)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			chat := buf.GetChat()
-			return &chat.IsDetailed
-		})
-	return
-}
 
-func buildTimelineCallsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline **cases.Event) any, dbError *dberr.DBError) {
-	if caseId == 0 {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_calls_column.check_args.case_id.empty", "case id required")
+	var cteQueries []string
+	var args []interface{}
+	argIndex := 1
+
+	// Map to track which event types are included
+	includeType := map[string]bool{
+		"call":  false,
+		"chat":  false,
+		"email": false,
 	}
-	base = squirrel.Expr(CallsCTE, caseId, store.CommunicationCall)
 
-	plan = append(plan,
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return scanner.ScanText(&call.Id)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			return scanner.ScanTimestamp(&buf.CreatedAt)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return scanner.ScanTimestamp(&call.ClosedAt)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return scanner.ScanInt64(&call.Duration)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return &call.TotalDuration
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return scanner.ScanLookupList(&call.Participants)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return scanner.ScanRowLookup(&call.Gateway)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return scanner.ScanRowLookup(&call.FlowScheme)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return scanner.ScanBool(&call.IsInbound)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return &call.IsMissed
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return scanner.ScanRowLookup(&call.Queue)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			call := buf.GetCall()
-			return &call.IsDetailed
-		},
-		// files
-		func(node **cases.Event) any {
-			buf := *node
-			value := buf.GetCall()
-			return scanner.TextDecoder(func(src []byte) error {
-				if len(src) == 0 {
-					return nil // NULL
-				}
-				array, inErr := pgtype.ParseUntypedTextArray(string(src))
-				if inErr != nil {
-					return inErr
-				}
-
-				scanPlan := []func(file *cases.CallFile) any{
-					// id
-					func(file *cases.CallFile) any {
-						return scanner.ScanInt64(&file.Id)
-					},
-					// size
-					func(file *cases.CallFile) any {
-						return scanner.ScanInt64(&file.Size)
-					},
-					// mime type
-					func(file *cases.CallFile) any {
-						return scanner.ScanText(&file.MimeType)
-					},
-					func(file *cases.CallFile) any {
-						return scanner.ScanText(&file.Name)
-					},
-					func(file *cases.CallFile) any {
-						return scanner.ScanInt64(&file.StartAt)
-					},
-				}
-
-				var err error
-				for _, element := range array.Elements {
-					var (
-						file cases.CallFile
-						raw  = pgtype.NewCompositeTextScanner(pgtype.NewConnInfo(), []byte(element))
-					)
-					for _, bind := range scanPlan {
-						raw.ScanValue(bind(&file))
-						err = raw.Err()
-						if err != nil {
-							return err
-						}
-					}
-					value.Files = append(value.Files, &file)
-				}
-				return nil
-			})
-		},
-		// transcripts
-		func(node **cases.Event) any {
-			buf := *node
-			value := buf.GetCall()
-			return scanner.TextDecoder(func(src []byte) error {
-				if len(src) == 0 {
-					return nil // NULL
-				}
-				array, inErr := pgtype.ParseUntypedTextArray(string(src))
-				if inErr != nil {
-					return inErr
-				}
-
-				scanPlan := []func(*cases.TranscriptLookup) any{
-					// id
-					func(transcript *cases.TranscriptLookup) any {
-						return scanner.ScanInt64(&transcript.Id)
-					},
-					// size
-					func(transcript *cases.TranscriptLookup) any {
-						return scanner.ScanText(&transcript.Locale)
-					},
-					// file
-					func(transcript *cases.TranscriptLookup) any {
-						return scanner.ScanRowLookup(&transcript.File)
-					},
-				}
-
-				var err error
-				for _, element := range array.Elements {
-					var (
-						file cases.TranscriptLookup
-						raw  = pgtype.NewCompositeTextScanner(pgtype.NewConnInfo(), []byte(element))
-					)
-					for _, bind := range scanPlan {
-						raw.ScanValue(bind(&file))
-						err = raw.Err()
-						if err != nil {
-							return err
-						}
-					}
-					value.Transcripts = append(value.Transcripts, &file)
-				}
-				return nil
-			})
-		},
-	)
-	return
-}
-
-func buildTimelineEmailsColumn(caseId int64) (base squirrel.Sqlizer, plan []func(timeline **cases.Event) any, dbError *dberr.DBError) {
-	if caseId == 0 {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_timeline_emails_column.check_args.case_id.empty", "case id required")
+	// Build CTEs for each requested field
+	for _, field := range fields {
+		switch field {
+		case "call":
+			includeType["call"] = true
+			cteQueries = append(cteQueries, fmt.Sprintf(CallsJSONBCTE, argIndex, argIndex+1))
+			args = append(args, caseID, store.CommunicationCall)
+			argIndex += 2
+		case "chat":
+			includeType["chat"] = true
+			cteQueries = append(cteQueries, fmt.Sprintf(ChatsJSONBCTE, argIndex, argIndex+1))
+			args = append(args, caseID, store.CommunicationChat)
+			argIndex += 2
+		case "email":
+			includeType["email"] = true
+			cteQueries = append(cteQueries, fmt.Sprintf(EmailsJSONBCTE, argIndex, argIndex+1))
+			args = append(args, caseID, store.CommunicationEmail)
+			argIndex += 2
+		default:
+			return "", nil, fmt.Errorf("unknown field: %s", field)
+		}
 	}
-	base = squirrel.Expr(EmailsCTE, caseId, store.CommunicationEmail)
 
-	plan = append(plan,
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return scanner.ScanText(&email.Id)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return &email.From
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return &email.To
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return scanner.ScanRowLookup(&email.Profile)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return scanner.ScanText(&email.Subject)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return &email.Cc
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			return scanner.ScanTimestamp(&buf.CreatedAt)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return &email.IsInbound
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return &email.Sender
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return scanner.ScanText(&email.Body)
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return scanner.ScanText(&email.Html)
-		},
-		// attachments
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return scanner.TextDecoder(func(src []byte) error {
-				if len(src) == 0 {
-					return nil // NULL
-				}
-				array, inErr := pgtype.ParseUntypedTextArray(string(src))
-				if inErr != nil {
-					return inErr
-				}
+	// If no communication types are requested, return empty result query
+	if len(cteQueries) == 0 {
+		return "SELECT NULL::timestamp AS day_timestamp, 0::bigint AS chats_count, 0::bigint AS calls_count, 0::bigint AS emails_count, '[]'::jsonb AS items WHERE false", []interface{}{}, nil
+	}
 
-				scanPlan := []func(file *cases.Attachment) any{
-					// id
-					func(file *cases.Attachment) any {
-						return scanner.ScanInt64(&file.Id)
-					},
-					// mime type
-					func(file *cases.Attachment) any {
-						return scanner.ScanText(&file.Mime)
-					},
-					func(file *cases.Attachment) any {
-						return scanner.ScanText(&file.Name)
-					},
-					// size
-					func(file *cases.Attachment) any {
-						return scanner.ScanInt64(&file.Size)
-					},
-				}
+	// Build union parts for the main query
+	var unionParts []string
+	if includeType["call"] {
+		unionParts = append(unionParts, `SELECT 
+			DATE_TRUNC('day', created_at) AS day, 
+			created_at::timestamp AS created_at, 
+			'call' AS event_type, 
+			jsonb_build_object(
+				'id', id,
+				'closed_at', (EXTRACT(EPOCH FROM closed_at) * 1000)::bigint,
+				'duration', duration,
+				'total_duration', total_duration,
+				'is_inbound', is_inbound,
+				'is_missed', is_missed,
+				'is_detailed', is_detailed,
+				'participants', participants,
+				'gateway', gateway,
+				'flow_scheme', flow_scheme,
+				'queue', queue,
+				'files', files,
+				'transcripts', transcripts
+			) AS event_data 
+			FROM call_data`)
+	}
+	if includeType["chat"] {
+		unionParts = append(unionParts, `SELECT 
+			DATE_TRUNC('day', created_at) AS day, 
+			created_at::timestamp AS created_at, 
+			'chat' AS event_type, 
+			jsonb_build_object(
+				'id', id,
+				'closed_at', (EXTRACT(EPOCH FROM closed_at) * 1000)::bigint,
+				'duration', duration,
+				'is_inbound', is_inbound,
+				'is_missed', is_missed,
+				'is_detailed', is_detailed,
+				'participants', participants,
+				'gateway', gateway,
+				'flow_scheme', flow_scheme,
+				'queue', queue
+			) AS event_data 
+			FROM chat_data`)
+	}
+	if includeType["email"] {
+		unionParts = append(unionParts, `SELECT 
+			DATE_TRUNC('day', created_at) AS day, 
+			created_at::timestamp AS created_at, 
+			'email' AS event_type, 
+			jsonb_build_object(
+				'id', id,
+				'closed_at', (EXTRACT(EPOCH FROM closed_at) * 1000)::bigint,
+				'duration', duration,
+				'from', "from",
+				'to', "to",
+				'sender', sender,
+				'cc', cc,
+				'is_inbound', is_inbound,
+				'subject', subject,
+				'body', body,
+				'html', html,
+				'is_detailed', is_detailed,
+				'profile', profile,
+				'owner', owner,
+				'attachments', attachments
+			) AS event_data 
+			FROM email_data`)
+	}
 
-				var err error
-				for _, element := range array.Elements {
-					var (
-						file cases.Attachment
-						raw  = pgtype.NewCompositeTextScanner(pgtype.NewConnInfo(), []byte(element))
-					)
-					for _, bind := range scanPlan {
-						raw.ScanValue(bind(&file))
-						err = raw.Err()
-						if err != nil {
-							return err
-						}
-					}
-					email.Attachments = append(email.Attachments, &file)
-				}
-				return nil
-			})
-		},
-		func(node **cases.Event) any {
-			buf := *node
-			email := buf.GetEmail()
-			return scanner.ScanRowLookup(&email.Owner)
-		})
+	page := rpc.GetPage()
+	size := rpc.GetSize()
 
-	return
+	// Build the main query
+	mainQuery := "SELECT " +
+		"    (EXTRACT(EPOCH FROM day) * 1000)::bigint AS day_timestamp," +
+		"    COALESCE(SUM(CASE WHEN event_type = 'chat' THEN 1 ELSE 0 END), 0) AS chats_count," +
+		"    COALESCE(SUM(CASE WHEN event_type = 'call' THEN 1 ELSE 0 END), 0) AS calls_count," +
+		"    COALESCE(SUM(CASE WHEN event_type = 'email' THEN 1 ELSE 0 END), 0) AS emails_count," +
+		"    COALESCE(jsonb_agg(" +
+		"        jsonb_build_object(" +
+		"            'type', event_type," +
+		"            'created_at', (EXTRACT(EPOCH FROM created_at) * 1000)::bigint," +
+		"            'event_data', event_data" +
+		"        ) ORDER BY created_at DESC" +
+		"    ), '[]'::jsonb) AS items " +
+		"FROM (" + strings.Join(unionParts, " UNION ALL ") + ") combined " +
+		"GROUP BY day " +
+		"ORDER BY day DESC"
+
+	// apply pagination
+	if size > 0 {
+		mainQuery += fmt.Sprintf(" LIMIT %d", size+1)
+		if page > 1 {
+			mainQuery += fmt.Sprintf(" OFFSET %d", (page-1)*size)
+		}
+	}
+
+	// Combine with CTEs
+	finalQuery := "WITH " + strings.Join(cteQueries, ",\n") + "\n" + mainQuery
+
+	return finalQuery, args, nil
 }
 
 // endregion
 
+// GetCounter retrieves timeline counter data for a case
 func (c *CaseTimelineStore) GetCounter(rpc options.Searcher) ([]*model.TimelineCounter, error) {
-	query, plan, dbErr := buildTimelineCounterSqlizer(rpc)
-	if dbErr != nil {
-		return nil, dbErr
+	filters := rpc.GetFilter("case_id")
+	if len(filters) == 0 || filters[0].Operator != "=" {
+		return nil, dberr.NewDBError(
+			"postgres.case_timeline.get_counter.check_args.case_id",
+			"case id required and must use '=' operator")
 	}
-	sql, args, err := query.ToSql()
-	if err != nil {
-		return nil, err
+
+	caseID, err := strconv.ParseInt(filters[0].Value, 10, 64)
+	if err != nil || caseID == 0 {
+		return nil, dberr.NewDBError(
+			"postgres.case_timeline.get_counter.check_args.case_id",
+			"invalid case id")
 	}
+
 	db, err := c.storage.Database()
 	if err != nil {
-		return nil, err
+		return nil, dberr.NewDBInternalError(
+			"postgres.case_timeline.get_counter.database_connection_error",
+			err)
 	}
-	rows, err := db.Query(rpc, storeutil.CompactSQL(sql), args...)
-	if err != nil {
-		return nil, err
-	}
-	var res []*model.TimelineCounter
-	for rows.Next() {
-		node := &model.TimelineCounter{}
-		var planValues []any
-		for _, bind := range plan {
-			planValues = append(planValues, bind(node))
-		}
-		err = rows.Scan(planValues...)
-		if err != nil {
-			return nil, err
-		}
-		res = append(res, node)
-	}
-	return res, nil
-}
 
-// region Timeline Counter Build Functions
-
-func buildTimelineCounterSqlizer(rpc options.Searcher) (query squirrel.Sqlizer, scanPlan []func(response *model.TimelineCounter) any, dbError *dberr.DBError) {
-	if rpc == nil {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.rpc", "search options required")
-	}
-	if len(rpc.GetIDs()) == 0 {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id empty")
-	}
-	caseId := rpc.GetIDs()[0]
-	if caseId <= 0 {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_sqlizer.check_args.case_id", "case id empty")
-	}
 	fields := rpc.GetFields()
 	if len(fields) == 0 {
 		fields = CaseTimelineFields
 	}
-	var (
-		ctes []*storeutil.CTE
-		from = "("
-	)
-	for i, field := range fields {
+
+	var unionParts []string
+	var args []interface{}
+	argIndex := 1
+
+	// Build union parts
+	for _, field := range fields {
 		switch field {
-		case cases.CaseTimelineEventType_call.String():
-			communicationType := store.CommunicationCall
-			ctes = append(ctes, storeutil.NewCTE(field, squirrel.Expr(CallsCounterCTE, communicationType, caseId, communicationType)))
-		case cases.CaseTimelineEventType_email.String():
-			communicationType := store.CommunicationEmail
-			ctes = append(ctes, storeutil.NewCTE(field, squirrel.Expr(EmailsCounterCTE, communicationType, caseId, communicationType)))
-		case cases.CaseTimelineEventType_chat.String():
-			communicationType := store.CommunicationChat
-			ctes = append(ctes, storeutil.NewCTE(field, squirrel.Expr(ChatsCounterCTE, communicationType, caseId, communicationType)))
-		default:
-			return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_counter_sqlizer.parse_fields.unknown", "unknown field "+field)
+		case "call":
+			unionParts = append(unionParts, fmt.Sprintf(CallCounterQuery, argIndex, argIndex+1))
+			args = append(args, caseID, store.CommunicationCall)
+			argIndex += 2
+
+		case "chat":
+			unionParts = append(unionParts, fmt.Sprintf(ChatCounterQuery, argIndex, argIndex+1))
+			args = append(args, caseID, store.CommunicationChat)
+			argIndex += 2
+
+		case "email":
+			unionParts = append(unionParts, fmt.Sprintf(EmailCounterQuery, argIndex, argIndex+1))
+			args = append(args, caseID, store.CommunicationEmail)
+			argIndex += 2
 		}
-		if i != 0 {
-			from += " union all "
-		}
-		from += fmt.Sprintf("(select * from %s)", field)
 	}
-	from += ") s"
-	cteQuery, args, err := storeutil.FormAsCTEs(ctes)
+
+	// If no communication types are requested, return empty result
+	if len(unionParts) == 0 {
+		return []*model.TimelineCounter{}, nil
+	}
+
+	// Build the query
+	finalQuery := strings.Join(unionParts, " UNION ALL ")
+
+	// Execute query using pgxscan
+	var counters []*model.TimelineCounter
+	err = pgxscan.Select(rpc, db, &counters, finalQuery, args...)
 	if err != nil {
-		return nil, nil, dberr.NewDBError("postgres.case_timeline.build_case_timeline_counter_sqlizer.parse_fields.unknown", err.Error())
+		return nil, dberr.NewDBInternalError(
+			"postgres.case_timeline.get_counter.scan_error",
+			err)
 	}
 
-	query = squirrel.Select("count(*) count",
-		"type event",
-		"max(closed_at) date_to",
-		"min(created_at) date_from").
-		From(from).
-		Prefix(cteQuery, args...).
-		GroupBy("type").
-		PlaceholderFormat(squirrel.Dollar)
-
-	// each row represents type of event
-	scanPlan = append(scanPlan,
-		func(node *model.TimelineCounter) any {
-			return scanner.ScanInt64(&node.Count)
-		}, func(node *model.TimelineCounter) any {
-			return scanner.ScanText(&node.EventType)
-		}, func(node *model.TimelineCounter) any {
-			return scanner.ScanTimestamp(&node.DateTo)
-		}, func(node *model.TimelineCounter) any {
-			return scanner.ScanTimestamp(&node.DateFrom)
-		},
-	)
-
-	return
+	return counters, nil
 }
 
 // endregion
 
 const (
-	CallsCTE = `select c.id::text,
-       c.created_at,
-       c.hangup_at                  AS                                        closed_at,
-       round(case when c.user_id notnull then date_part('epoch'::text, c.hangup_at - c.created_at)::bigint else (select date_part('epoch'::text, hangup_at - created_at)::bigint from call_center.cc_calls_history where parent_id = c.id limit 1) end)::bigint as      duration,
-       root.duration                                        total_duration,
-       (with recursive a as (select *
-                             from call_center.cc_calls_history
-                             where id in (with recursive a as (select d.id::uuid, d.user_id
-                                                               from call_center.cc_calls_history d
-                                                               where d.id::uuid = c.id
-                                                                 and d.domain_id = 1
-                                                               union all
-                                                               select d.id::uuid, d.user_id
-                                                               from call_center.cc_calls_history d,
-                                                                    a
-                                                               where (d.parent_id::uuid = a.id::uuid or
-                                                                      (d.transfer_from::uuid = a.id::uuid)))
-                                          select distinct id
-                                          from a))
-        SELECT ARRAY_AGG(p.participant)
-        FROM (SELECT ROW (usr.id, coalesce(usr.name, usr.username)) participant
+	CallCounterQuery = `
+SELECT 
+	'Phone' AS event_type,
+	COUNT(*)::bigint AS count,
+	COALESCE((EXTRACT(EPOCH FROM MIN(c.created_at)) * 1000)::bigint, 0) AS date_from,
+	COALESCE((EXTRACT(EPOCH FROM MAX(c.hangup_at)) * 1000)::bigint, 0) AS date_to
+FROM call_center.cc_calls_history c
+WHERE c.id = ANY(SELECT communication_id::uuid 
+	FROM cases.case_communication casecom 
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type 
+	WHERE case_id = $%d AND com.channel = $%d)
+AND c.transfer_from IS NULL`
+
+	ChatCounterQuery = `
+SELECT 
+	'Messaging' AS event_type,
+	COUNT(*)::bigint AS count,
+	COALESCE((EXTRACT(EPOCH FROM MIN(conv.created_at)) * 1000)::bigint, 0) AS date_from,
+	COALESCE((EXTRACT(EPOCH FROM MAX(conv.closed_at)) * 1000)::bigint, 0) AS date_to
+FROM chat.conversation conv
+WHERE conv.id = ANY(SELECT communication_id::uuid 
+	FROM cases.case_communication casecom 
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type 
+	WHERE case_id = $%d AND com.channel = $%d)`
+
+	EmailCounterQuery = `
+SELECT 
+	'Email' AS event_type,
+	COUNT(*)::bigint AS count,
+	COALESCE((EXTRACT(EPOCH FROM MIN(e.created_at)) * 1000)::bigint, 0) AS date_from,
+	COALESCE((EXTRACT(EPOCH FROM MAX(e.created_at)) * 1000)::bigint, 0) AS date_to
+FROM call_center.cc_email e
+WHERE e.id = ANY(SELECT communication_id::bigint 
+	FROM cases.case_communication casecom 
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type 
+	WHERE case_id = $%d AND com.channel = $%d)`
+
+	// JSONB CTE Queries
+	CallsJSONBCTE = `
+call_data AS (
+	SELECT 
+		c.id::text,
+		c.created_at,
+		c.hangup_at AS closed_at,
+		round(case when c.user_id notnull then date_part('epoch'::text, c.hangup_at - c.created_at)::bigint else (select date_part('epoch'::text, hangup_at - created_at)::bigint from call_center.cc_calls_history where parent_id = c.id limit 1) end)::bigint as duration,
+		root.duration AS total_duration,
+		(c.direction = 'inbound') AS is_inbound,
+		(case when c.bridged_id isnull then c.queue_id notnull else false end) AS is_missed,
+		exists(with recursive a as (select*
+                from call_center.cc_calls_history
+                where id in (with recursive a as (select d.id::uuid, d.user_id
+                                                  from call_center.cc_calls_history d
+                                                  where d.id::uuid = c.id
+                                                    and d.domain_id = 1
+                                                  union all
+                                                  select d.id::uuid, d.user_id
+                                                  from call_center.cc_calls_history d,
+                                                       a
+                                                  where (d.parent_id::uuid =
+                                                         a.id::uuid or
+                                                         (d.transfer_from::uuid = a.id::uuid)))
+                             select distinct id
+                             from a))
+           select id::uuid ids
+           from a
+           where a.parent_id != c.id
+              or coalesce(a.transfer_to::varchar, a.transfer_from::varchar,
+                          a.blind_transfer::varchar) notnull) AS is_detailed,
+		participants.data AS participants,
+		gateway.data AS gateway,
+		flow_scheme.data AS flow_scheme,
+		queue.data AS queue,
+		files.data AS files,
+		transcripts.data AS transcripts
+	FROM call_center.cc_calls_history c
+	LEFT JOIN LATERAL (SELECT round(date_part('epoch'::text, c.hangup_at - c.created_at)::bigint) duration) root ON true
+	LEFT JOIN LATERAL (
+		SELECT jsonb_agg(jsonb_build_object('id', users.id, 'name', users.name)) AS data
+		FROM (with recursive a as (select *
+                                from call_center.cc_calls_history
+                                where id in (with recursive a as (select d.id::uuid, d.user_id
+                                                                  from call_center.cc_calls_history d
+                                                                  where d.id::uuid = c.id
+                                                                    and d.domain_id = 1
+                                                                  union all
+                                                                  select d.id::uuid, d.user_id
+                                                                  from call_center.cc_calls_history d,
+                                                                       a
+                                                                  where (d.parent_id::uuid = a.id::uuid or
+                                                                         (d.transfer_from::uuid = a.id::uuid)))
+                             select distinct id
+                             from a))
+              SELECT usr.id, coalesce(usr.name, usr.username) as name
               from a
                        inner join directory.wbt_user usr on a.user_id = usr.id
-              order by a.created_at) as p)                                    participants,
-       null::record                 as                                        gateway,
-       ROW (scheme.id, scheme.name) as                                        flow_scheme,
-       (c.direction = 'inbound')                                              is_inbound,
-       (case when c.bridged_id isnull then c.queue_id notnull else false end) is_missed,
-       ROW (c.queue_id, a.name)                                               queue,
-       exists(with recursive a as (select*
-                                   from call_center.cc_calls_history
-                                   where id in (with recursive a as (select d.id::uuid, d.user_id
-                                                                     from call_center.cc_calls_history d
-                                                                     where d.id::uuid = c.id
-                                                                       and d.domain_id = 1
-                                                                     union all
-                                                                     select d.id::uuid, d.user_id
-                                                                     from call_center.cc_calls_history d,
-                                                                          a
-                                                                     where (d.parent_id::uuid =
-                                                                            a.id::uuid or
-                                                                            (d.transfer_from::uuid = a.id::uuid)))
-                                                select distinct id
-                                                from a))
-              select id::uuid ids
-              from a
-              where a.parent_id != c.id
-                 or coalesce(a.transfer_to::varchar, a.transfer_from::varchar,
-                             a.blind_transfer::varchar) notnull)              is_detailed,
-       files.data                                                                  files,
-       transcripts.data                                                          transcripts
-from call_center.cc_calls_history c
-         left join directory.sip_gateway g on g.id = c.gateway_id
-         left join call_center.cc_queue a on a.id = c.queue_id
-    -- root reusable columns
-         LEFT JOIN LATERAL (SELECT round(date_part('epoch'::text, c.hangup_at - c.created_at)::bigint) duration) root
-                   ON true
-    -- join flow_scheme
-         LEFT JOIN flow.acr_routing_scheme scheme ON scheme.id = c.schema_ids[array_length(c.schema_ids, 1)]
-    -- join files
-         LEFT jOIN LATERAL (SELECT ARRAY_AGG(ROW (f1.id, f1.size, f1.mime_type, f1.name, f1.created_at)) data
-                            FROM storage.files f1
-                            WHERE f1.domain_id = c.domain_id
-                              AND NOT f1.removed IS TRUE
-                              AND f1.uuid = c.id::varchar) files ON true
-    -- join transcripts
-         LEFT JOIN LATERAL (SELECT ARRAY_AGG(ROW (tr.id, tr.locale, ROW (ff.id, ff.name))) AS data
-                            FROM storage.file_transcript tr
-                                     LEFT JOIN storage.files ff ON ff.id = tr.file_id
-                            WHERE tr.uuid::text = c.id::text
-    ) transcripts ON true
-where c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)
-  and c.transfer_from isnull`
+              order by a.created_at) users
+	) participants ON true
+	LEFT JOIN LATERAL (
+		SELECT jsonb_build_object('id', null, 'name', null) AS data
+	) gateway ON true
+	LEFT JOIN LATERAL (
+		SELECT jsonb_build_object('id', scheme.id, 'name', scheme.name) AS data
+		FROM flow.acr_routing_scheme scheme 
+		WHERE scheme.id = c.schema_ids[array_length(c.schema_ids, 1)]
+	) flow_scheme ON true
+	LEFT JOIN LATERAL (
+		SELECT jsonb_build_object('id', c.queue_id, 'name', a.name) AS data
+		FROM call_center.cc_queue a 
+		WHERE a.id = c.queue_id
+	) queue ON true
+	LEFT JOIN LATERAL (
+		SELECT jsonb_agg(jsonb_build_object('id', f1.id, 'size', f1.size, 'mime_type', f1.mime_type, 'name', f1.name, 'start_at', f1.created_at * 1000)) AS data
+		FROM storage.files f1
+		WHERE f1.domain_id = c.domain_id
+		  AND NOT f1.removed IS TRUE
+		  AND f1.uuid = c.id::varchar
+	) files ON true
+	LEFT JOIN LATERAL (
+		SELECT jsonb_agg(jsonb_build_object('id', tr.id, 'locale', tr.locale, 'file', jsonb_build_object('id', ff.id, 'name', ff.name))) AS data
+		FROM storage.file_transcript tr
+		LEFT JOIN storage.files ff ON ff.id = tr.file_id
+		WHERE tr.uuid::text = c.id::text
+	) transcripts ON true
+	WHERE c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = $%d AND com.channel = $%d)
+	  AND c.transfer_from isnull
+)`
 
-	EmailsCTE = `SELECT e.id::text,
-       e."from",
-       e."to",
-       ROW (e.profile_id, p.name)   AS profile,
-       e.subject,
-       e.cc,
-       e.created_at,
-       (e.direction = 'inbound')    AS is_inbound,
-       e.sender,
-       e.body,
-       e.html,
-       attachments.data                  AS attachments,
-       ROW (e."owner_id", u."name") AS "user"
-FROM call_center.cc_email e
-    -- owner
-         LEFT JOIN directory.wbt_user u ON e.owner_id = u.id
-    -- email profile
-         LEFT JOIN call_center.cc_email_profile p ON e.profile_id = p.id
-    -- attachments
-         LEFT JOIN LATERAL (SELECT ARRAY_AGG(ROW (f.id, f.mime_type, f.view_name, f.size)) data
-                            from storage.files f
-                            where f.id = any (e.attachment_ids)
+	ChatsJSONBCTE = `
+chat_data AS (
+	SELECT 
+		conv.id::text,
+		conv.created_at,
+		conv.closed_at AS closed_at,
+		round(extract(EPOCH FROM (conv.closed_at - conv.created_at)))::bigint AS duration,
+		true AS is_inbound,
+		false AS is_missed,
+		true AS is_detailed,
+		participants.data AS participants,
+		gateway.data AS gateway,
+		flow_scheme.data AS flow_scheme,
+		queue.data AS queue
+	FROM chat.conversation conv
+	LEFT JOIN LATERAL (
+		SELECT jsonb_agg(jsonb_build_object('id', usr.id, 'name', usr.name)) AS data
+		FROM chat.channel c
+		INNER JOIN directory.wbt_auth usr ON user_id = usr.id
+		WHERE conversation_id = conv.id
+		  AND internal
+		  AND joined_at NOTNULL
+		GROUP BY usr.id
+	) participants ON true
+	LEFT JOIN LATERAL (
+		SELECT jsonb_build_object('id', b.id, 'name', b.name, 'provider', b.provider) AS data
+		FROM chat.channel
+		LEFT JOIN chat.bot b ON connection::bigint = b.id
+		WHERE NOT internal
+		  AND conversation_id = conv.id
+	) gateway ON true
+	LEFT JOIN LATERAL (
+		SELECT jsonb_build_object('id', flow_scheme.id, 'name', flow_scheme.name) AS data
+		FROM flow.acr_routing_scheme flow_scheme 
+		WHERE flow_scheme.id = (conv.props ->> 'flow')::bigint
+	) flow_scheme ON true
+	LEFT JOIN LATERAL (
+		SELECT null::jsonb AS data
+	) queue ON true
+	WHERE conv.id = ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = $%d AND com.channel = $%d)
+)`
 
-    ) attachments ON true
-WHERE e.id = ANY(SELECT communication_id::bigint FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)`
-
-	ChatsCTE = `SELECT conv.id::text,
-       conv.created_at,
-       conv.closed_at,
-       round(extract(EPOCH FROM (conv.closed_at - conv.created_at))) as duration,
-       participants.data                                                     participants,
-       gateway.data                                                          gateway,
-       ROW (flow_scheme.id, flow_scheme.name)                        as flow_scheme,
-       true                                                             is_inbound,
-       false                                                            is_missed,
-       null::record                                                     queue,
-       true                                                             is_detailed
-FROM chat.conversation conv
-    -- join participants
-         LEFT JOIN LATERAL (SELECT ARRAY_AGG(ROW (usr.id, usr.name)) data
-                            FROM chat.channel c
-                                     INNER JOIN directory.wbt_auth usr ON user_id = usr.id
-                            WHERE conversation_id = conv.id
-                              AND internal
-                              AND joined_at NOTNULL
-                            GROUP BY usr.id) participants ON true
-    -- join gateway
-         LEFT JOIN LATERAL (SELECT ROW (b.id, b.name, b.provider) data
-                            FROM chat.channel
-                                     LEFT JOIN chat.bot b ON connection::bigint = b.id
-                            WHERE NOT internal
-                              AND conversation_id = conv.id
-    ) gateway ON true
-    -- join flow scheme
-         LEFT JOIN flow.acr_routing_scheme flow_scheme ON flow_scheme.id = (conv.props ->> 'flow')::bigint
-WHERE conv.id =  ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)`
-
-	CallsCounterCTE = `SELECT c.id::text,
-                      c.created_at,
-                      c.hangup_at                                             AS      closed_at,
-                      ?                                                          type
-
-               FROM call_center.cc_calls_history c
-               WHERE c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)`
-
-	ChatsCounterCTE = `select conv.id::text,
-                      conv.created_at,
-                      conv.closed_at,
-                      ?                                                           type
-               from chat.conversation conv
-               WHERE conv.id = ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)`
-
-	EmailsCounterCTE = `select m.id::text,
-                      m.created_at,
-                      m.created_at,
-                      ?                                                           type
-               from call_center.cc_email m
-               WHERE m.id = ANY(SELECT communication_id::bigint FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = ? AND com.channel = ?)`
+	EmailsJSONBCTE = `
+email_data AS (
+	SELECT 
+		e.id::text,
+		e.created_at,
+		e.created_at AS closed_at,
+		0::bigint AS duration,
+		e."from",
+		e."to",
+		e.sender,
+		e.cc,
+		(e.direction = 'inbound') AS is_inbound,
+		e.subject,
+		e.body,
+		e.html,
+		true AS is_detailed,
+		profile.data AS profile,
+		owner.data AS owner,
+		attachments.data AS attachments
+	FROM call_center.cc_email e
+	LEFT JOIN LATERAL (
+		SELECT jsonb_build_object('id', e.profile_id, 'name', p.name) AS data
+		FROM call_center.cc_email_profile p 
+		WHERE e.profile_id = p.id
+	) profile ON true
+	LEFT JOIN LATERAL (
+		SELECT jsonb_build_object('id', e."owner_id", 'name', u."name") AS data
+		FROM directory.wbt_user u 
+		WHERE e.owner_id = u.id
+	) owner ON true
+	LEFT JOIN LATERAL (
+		SELECT jsonb_agg(jsonb_build_object('id', f.id, 'mime', f.mime_type, 'name', f.view_name, 'size', f.size)) AS data
+		FROM storage.files f
+		WHERE f.id = any (e.attachment_ids)
+	) attachments ON true
+	WHERE e.id = ANY(SELECT communication_id::bigint FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = $%d AND com.channel = $%d)
+)`
 )
 
 func NewCaseTimelineStore(store *Store) (store.CaseTimelineStore, error) {

@@ -112,7 +112,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 			name: "CaseLinks",
 		},
 		{
-			init: func(a *App) (interface{}, error) { return NewCaseTimelineService(a) },
+			init: func(a *App) (interface{}, error) { return grpchandler.NewCaseTimelineService(a) },
 			register: func(s *grpc.Server, svc interface{}) {
 				cases.RegisterCaseTimelineServer(s, svc.(cases.CaseTimelineServer))
 			},

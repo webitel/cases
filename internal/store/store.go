@@ -94,7 +94,7 @@ type CaseCommentStore interface {
 
 // Case timeline
 type CaseTimelineStore interface {
-	Get(rpc options.Searcher) (*_go.GetTimelineResponse, error)
+	Get(rpc options.Searcher) (*model.CaseTimeline, error)
 	GetCounter(rpc options.Searcher) ([]*model.TimelineCounter, error)
 }
 
