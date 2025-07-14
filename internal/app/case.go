@@ -16,7 +16,6 @@ import (
 	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	"github.com/webitel/cases/auth"
-	auth_util "github.com/webitel/cases/auth/util"
 	"github.com/webitel/cases/internal/api_handler/grpc"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
@@ -263,21 +262,17 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			req,
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
-			util.ParseFieldsForEtag),
+			util.ParseFieldsForEtag,
+		),
+		grpcopts.WithCreateOverrideUserID(req.Input.UserID.GetId()),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	// if userID is set explicitly - log it else log userID extracted from token
-	userID := req.Input.UserID.GetId()
-	if userID == 0 {
-		userID = createOpts.GetAuthOpts().GetUserId()
-	}
-
 	logAttributes := slog.Group(
 		"context",
-		slog.Int64("user_id", userID),
+		slog.Int64("user_id", createOpts.GetAuthOpts().GetUserId()),
 		slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()),
 	)
 
@@ -306,11 +301,6 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		return nil, err
 	}
 
-	authOpts := createOpts.GetAuthOpts()
-	if overrideID := req.Input.UserID.GetId(); overrideID != 0 {
-		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
-	}
-
 	ip := createOpts.GetAuthOpts().GetUserIp()
 	if ip == "" {
 		ip = "unknown"
@@ -334,7 +324,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			model.ScopeCases,
 			watcherkit.EventTypeCreate,
 			NewCaseWatcherData(
-				authOpts,
+				createOpts.GetAuthOpts(),
 				res,
 				id,
 				roleIds,
@@ -371,19 +361,15 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		),
 		grpcopts.WithUpdateEtag(&tag),
 		grpcopts.WithUpdateMasker(req),
+		grpcopts.WithUpdateOverrideUserID(req.Input.UserID.GetId()),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	userID := req.Input.UserID.GetId()
-	if userID == 0 {
-		userID = updateOpts.GetAuthOpts().GetUserId()
-	}
-
 	logAttributes := slog.Group(
 		"context",
-		slog.Int64("user_id", userID),
+		slog.Int64("user_id", updateOpts.GetAuthOpts().GetUserId()),
 		slog.Int64("domain_id", updateOpts.GetAuthOpts().GetDomainId()),
 		slog.Int64("case_id", tag.GetOid()),
 	)
@@ -447,11 +433,6 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, err
 	}
 
-	authOpts := updateOpts.GetAuthOpts()
-	if overrideID := req.Input.UserID.GetId(); overrideID != 0 {
-		authOpts = auth_util.CloneWithUserID(authOpts, overrideID)
-	}
-
 	ip := updateOpts.GetAuthOpts().GetUserIp()
 	if ip == "" {
 		ip = "unknown"
@@ -474,7 +455,12 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		if notifyErr := c.app.watcherManager.Notify(
 			model.ScopeCases,
 			watcherkit.EventTypeUpdate,
-			NewCaseWatcherData(authOpts, upd, output.Id, output.GetRoleIds()),
+			NewCaseWatcherData(
+				updateOpts.GetAuthOpts(),
+				upd,
+				output.Id,
+				output.GetRoleIds(),
+			),
 		); notifyErr != nil {
 			slog.ErrorContext(
 				ctx,
