@@ -138,7 +138,7 @@ func (s *CatalogService) ListCatalogs(
 		grpcopts.WithFields(req, CatalogMetadata,
 			util.DeduplicateFields,
 			func(in []string) []string {
-				return util.EnsureFields(in, "id", "services")
+				return util.EnsureFields(in, "services", "id")
 			},
 		),
 		grpcopts.WithIDs(req.Id),
