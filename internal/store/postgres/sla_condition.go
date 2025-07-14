@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	storeUtil "github.com/webitel/cases/internal/store/util"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
 	"github.com/webitel/cases/api/cases"
@@ -255,53 +253,68 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 	queryBuilder := sq.Select().
 		From("cases.sla_condition AS g").
 		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId()}).
-		LeftJoin("cases.priority_sla_condition AS ps ON ps.sla_condition_id = g.id").
 		PlaceholderFormat(sq.Dollar)
-	if slaIdFilters := rpc.GetFilter("sla_id"); len(slaIdFilters) > 0 {
-		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "g.sla_id", slaIdFilters)
-	}
+
 	queryBuilder, err := buildSLAConditionColumns(queryBuilder, rpc.GetFields(), "g")
 	if err != nil {
 		return "", nil, err
 	}
+
+	if slaIdFilters := rpc.GetFilter("sla_id"); len(slaIdFilters) > 0 {
+		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "g.sla_id", slaIdFilters)
+	}
+
 	if len(rpc.GetIDs()) > 0 {
 		queryBuilder = queryBuilder.Where(sq.Eq{"g.id": rpc.GetIDs()})
 	}
 
-	// Move new filter logic for priority_id and name here, after the switch-case
 	if priorityIdFilters := rpc.GetFilter("priority_id"); len(priorityIdFilters) > 0 {
-		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "ps.priority_id", priorityIdFilters)
+		var priorityIDs []interface{}
+		for _, f := range priorityIdFilters {
+			if f.Operator == "=" {
+				priorityIDs = append(priorityIDs, f.Value)
+			}
+		}
+
+		if len(priorityIDs) > 0 {
+			subQuery := sq.Select("1").
+				From("cases.priority_sla_condition AS ps").
+				Where("ps.sla_condition_id = g.id").
+				Where(sq.Eq{"ps.priority_id": priorityIDs})
+
+			queryBuilder = queryBuilder.Where(sq.Expr("EXISTS (?)", subQuery))
+		}
 	}
 
 	nameFilters := rpc.GetFilter("name")
 	if len(nameFilters) > 0 {
 		f := nameFilters[0]
 		if (f.Operator == "=" || f.Operator == "") && len(f.Value) > 0 {
-			queryBuilder = storeUtil.AddSearchTerm(queryBuilder, f.Value, "g.name")
+			queryBuilder = storeutil.AddSearchTerm(queryBuilder, f.Value, "g.name")
 		}
 	}
 
-	// Adjust sort if calendar is present
 	sortField := rpc.GetSort()
-	// Remove any leading "+" or "-" for comparison
 	field := strings.TrimPrefix(strings.TrimPrefix(sortField, "-"), "+")
 
 	if field == "priorities" {
-		s := "p.name"
-		desc := strings.HasPrefix(sortField, "-")
-		// Determine sort direction
-		if desc {
-			s += " DESC"
-		} else {
-			s += " ASC"
+		subQuery := sq.Select("string_agg(p.id::text, ',' ORDER BY p.id)").
+			From("cases.priority p").
+			Join("cases.priority_sla_condition ps ON p.id = ps.priority_id").
+			Where("ps.sla_condition_id = g.id")
+
+		sortDir := "ASC"
+		if strings.HasPrefix(sortField, "-") {
+			sortDir = "DESC"
 		}
-		queryBuilder = queryBuilder.OrderBy(s)
+
+		queryBuilder = queryBuilder.
+			Column(sq.Alias(subQuery, "priority_ids")).
+			OrderBy(fmt.Sprintf("priority_ids %s", sortDir))
 	} else {
-		// -------- Apply sorting ----------
 		queryBuilder = storeutil.ApplyDefaultSorting(rpc, queryBuilder, slaConditionDefaultSort)
 	}
 
-	// ---------Apply paging based on Search Opts ( page ; size ) -----------------
 	queryBuilder = storeutil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	query, args, err := queryBuilder.ToSql()
