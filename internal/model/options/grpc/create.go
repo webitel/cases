@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"github.com/webitel/cases/auth"
+	auth_util "github.com/webitel/cases/auth/util"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
@@ -53,6 +54,19 @@ func WithCreateFields(
 func WithCreateIDs(ids []int64) CreateOption {
 	return func(o *CreateOptions) error {
 		o.IDs = ids
+		return nil
+	}
+}
+
+func WithCreateOverrideUserID(overrideID int64) CreateOption {
+	return func(o *CreateOptions) error {
+		if overrideID == 0 {
+			return nil
+		}
+		if o.Auth == nil {
+			return errors.New("auth must be set before overriding user ID", errors.WithCode(codes.FailedPrecondition))
+		}
+		o.Auth = auth_util.CloneWithUserID(o.Auth, overrideID)
 		return nil
 	}
 }

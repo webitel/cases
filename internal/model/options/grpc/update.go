@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"github.com/webitel/cases/auth"
+	auth_util "github.com/webitel/cases/auth/util"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
@@ -53,6 +54,19 @@ func WithUpdateFields(
 		}
 		o.Fields, o.UnknownFields = util.SplitKnownAndUnknownFields(o.Fields, md.GetAllFields())
 		o.Fields = util.ParseFieldsForEtag(o.Fields)
+		return nil
+	}
+}
+
+func WithUpdateOverrideUserID(overrideID int64) UpdateOption {
+	return func(o *UpdateOptions) error {
+		if overrideID == 0 {
+			return nil
+		}
+		if o.Auth == nil {
+			return errors.New("auth must be set before overriding user ID", errors.WithCode(codes.FailedPrecondition))
+		}
+		o.Auth = auth_util.CloneWithUserID(o.Auth, overrideID)
 		return nil
 	}
 }
