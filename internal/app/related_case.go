@@ -509,13 +509,48 @@ func normalizeIDs(relatedCases []*cases.RelatedCase) error {
 
 func NewRelatedCaseService(app *App) (*RelatedCaseService, error) {
 	if app == nil {
-		return nil, errors.InvalidArgument("unable to init service, app is nil")
+		return nil, errors.InvalidArgument("app.case.new_related_case_service.check_args.app",
+			errors.WithCause(errors.New("unable to init service, app is nil")))
 	}
-	logger, err := app.wtelLogger.GetObjectedLogger(model.ScopeCases)
+	logger, err := app.wtelLogger.GetObjectedLogger("cases")
 	if err != nil {
 		return nil, err
 	}
-	return &RelatedCaseService{app: app, logger: logger}, nil
+
+	service := &RelatedCaseService{
+		app:    app,
+		logger: logger,
+	}
+
+	watcher := watcherkit.NewDefaultWatcher()
+
+	if app.config.TriggerWatcher.Enabled {
+		mq, err := NewTriggerObserver(app.rabbitPublisher, app.config.TriggerWatcher, formRelatedCaseTriggerModel, slog.With(
+			slog.Group("context",
+				slog.String("scope", "watcher")),
+		))
+
+		if err != nil {
+			return nil, errors.Internal(err.Error())
+		}
+		watcher.Attach(watcherkit.EventTypeCreate, mq)
+		watcher.Attach(watcherkit.EventTypeUpdate, mq)
+		watcher.Attach(watcherkit.EventTypeDelete, mq)
+		watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
+
+		app.caseResolutionTimer.Start()
+	}
+
+	app.watcherManager.AddWatcher(model.BrokerScopeRelatedCases, watcher)
+
+	return service, nil
+}
+
+func formRelatedCaseTriggerModel(item *cases.RelatedCase) (*model.RelatedCaseAMQPMessage, error) {
+	m := &model.RelatedCaseAMQPMessage{
+		RelatedCase: item,
+	}
+	return m, nil
 }
 
 type RelatedCaseWatcherData struct {
