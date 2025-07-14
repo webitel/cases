@@ -282,12 +282,32 @@ func EnsureCustomField(fields []string) []string {
 // EnsureFields ensures that all specified fields are present in the list of fields.
 // If any field is missing, it will be added to the list.
 func EnsureFields(fields []string, requiredFields ...string) []string {
-	for _, requiredField := range requiredFields {
-		if !ContainsField(fields, requiredField) {
-			fields = append(fields, requiredField)
+	fieldSet := make(map[string]struct{}, len(fields))
+	for _, f := range fields {
+		fieldSet[f] = struct{}{}
+	}
+
+	result := make([]string, 0, len(fields)+len(requiredFields))
+	for _, req := range requiredFields {
+		if _, ok := fieldSet[req]; !ok {
+			// prepend "id" if it's the first requiredField
+			if req == "id" {
+				result = append([]string{"id"}, result...)
+			} else {
+				result = append(result, req)
+			}
 		}
 	}
-	return fields
+
+	// Add original fields, skipping "id" if already added
+	for _, f := range fields {
+		if f == "id" {
+			continue // already added first
+		}
+		result = append(result, f)
+	}
+
+	return result
 }
 
 // NormalizeEtag normalizes etag, id, ver fields visibility for the response depending on what fields were requested.
