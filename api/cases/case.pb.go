@@ -912,7 +912,7 @@ type Case struct {
 	DifferenceInReaction int64            `protobuf:"varint,31,opt,name=difference_in_reaction,json=differenceInReaction,proto3" json:"difference_in_reaction,omitempty"`
 	DifferenceInResolve  int64            `protobuf:"varint,32,opt,name=difference_in_resolve,json=differenceInResolve,proto3" json:"difference_in_resolve,omitempty"`
 	SlaCondition         *Lookup          `protobuf:"bytes,33,opt,name=sla_condition,json=slaCondition,proto3" json:"sla_condition,omitempty"` // List of SLA conditions.
-	Service              *Lookup          `protobuf:"bytes,34,opt,name=service,proto3" json:"service,omitempty"`                               // Service associated with the case.
+	Service              *Service         `protobuf:"bytes,34,opt,name=service,proto3" json:"service,omitempty"`                               // Service associated with the case.
 	Comments             *CaseCommentList `protobuf:"bytes,35,opt,name=comments,proto3" json:"comments,omitempty"`                             // List of comments on the case.
 	Related              *RelatedCaseList `protobuf:"bytes,36,opt,name=related,proto3" json:"related,omitempty"`                               // List of related cases.
 	Links                *CaseLinkList    `protobuf:"bytes,37,opt,name=links,proto3" json:"links,omitempty"`                                   // List of attached links.
@@ -1180,7 +1180,7 @@ func (x *Case) GetSlaCondition() *Lookup {
 	return nil
 }
 
-func (x *Case) GetService() *Lookup {
+func (x *Case) GetService() *Service {
 	if x != nil {
 		return x.Service
 	}
@@ -1741,7 +1741,7 @@ const file_case_proto_rawDesc = "" +
 	"\bCaseList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x03R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x12)\n" +
-	"\x05items\x18\x03 \x03(\v2\x13.webitel.cases.CaseR\x05items\"\xa7\r\n" +
+	"\x05items\x18\x03 \x03(\v2\x13.webitel.cases.CaseR\x05items\"\xae\r\n" +
 	"\x04Case\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x10\n" +
 	"\x03ver\x18\x02 \x01(\x05R\x03ver\x12\x12\n" +
@@ -1781,8 +1781,8 @@ const file_case_proto_rawDesc = "" +
 	"reacted_at\x18\x1e \x01(\x03R\treactedAt\x124\n" +
 	"\x16difference_in_reaction\x18\x1f \x01(\x03R\x14differenceInReaction\x122\n" +
 	"\x15difference_in_resolve\x18  \x01(\x03R\x13differenceInResolve\x124\n" +
-	"\rsla_condition\x18! \x01(\v2\x0f.general.LookupR\fslaCondition\x12)\n" +
-	"\aservice\x18\" \x01(\v2\x0f.general.LookupR\aservice\x12:\n" +
+	"\rsla_condition\x18! \x01(\v2\x0f.general.LookupR\fslaCondition\x120\n" +
+	"\aservice\x18\" \x01(\v2\x16.webitel.cases.ServiceR\aservice\x12:\n" +
 	"\bcomments\x18# \x01(\v2\x1e.webitel.cases.CaseCommentListR\bcomments\x128\n" +
 	"\arelated\x18$ \x01(\v2\x1e.webitel.cases.RelatedCaseListR\arelated\x121\n" +
 	"\x05links\x18% \x01(\v2\x1b.webitel.cases.CaseLinkListR\x05links\x121\n" +
@@ -1881,11 +1881,12 @@ var file_case_proto_goTypes = []any{
 	(*ExtendedLookup)(nil),             // 22: general.ExtendedLookup
 	(*Priority)(nil),                   // 23: webitel.cases.Priority
 	(*StatusCondition)(nil),            // 24: webitel.cases.StatusCondition
-	(*CaseCommentList)(nil),            // 25: webitel.cases.CaseCommentList
-	(*RelatedCaseList)(nil),            // 26: webitel.cases.RelatedCaseList
-	(*CaseLinkList)(nil),               // 27: webitel.cases.CaseLinkList
-	(*CaseFileList)(nil),               // 28: webitel.cases.CaseFileList
-	(SourceType)(0),                    // 29: webitel.cases.SourceType
+	(*Service)(nil),                    // 25: webitel.cases.Service
+	(*CaseCommentList)(nil),            // 26: webitel.cases.CaseCommentList
+	(*RelatedCaseList)(nil),            // 27: webitel.cases.RelatedCaseList
+	(*CaseLinkList)(nil),               // 28: webitel.cases.CaseLinkList
+	(*CaseFileList)(nil),               // 29: webitel.cases.CaseFileList
+	(SourceType)(0),                    // 30: webitel.cases.SourceType
 }
 var file_case_proto_depIdxs = []int32{
 	17, // 0: webitel.cases.FieldChange.old_value:type_name -> google.protobuf.Value
@@ -1926,15 +1927,15 @@ var file_case_proto_depIdxs = []int32{
 	24, // 35: webitel.cases.Case.status_condition:type_name -> webitel.cases.StatusCondition
 	18, // 36: webitel.cases.Case.close_reason:type_name -> general.Lookup
 	18, // 37: webitel.cases.Case.sla_condition:type_name -> general.Lookup
-	18, // 38: webitel.cases.Case.service:type_name -> general.Lookup
-	25, // 39: webitel.cases.Case.comments:type_name -> webitel.cases.CaseCommentList
-	26, // 40: webitel.cases.Case.related:type_name -> webitel.cases.RelatedCaseList
-	27, // 41: webitel.cases.Case.links:type_name -> webitel.cases.CaseLinkList
-	28, // 42: webitel.cases.Case.files:type_name -> webitel.cases.CaseFileList
+	25, // 38: webitel.cases.Case.service:type_name -> webitel.cases.Service
+	26, // 39: webitel.cases.Case.comments:type_name -> webitel.cases.CaseCommentList
+	27, // 40: webitel.cases.Case.related:type_name -> webitel.cases.RelatedCaseList
+	28, // 41: webitel.cases.Case.links:type_name -> webitel.cases.CaseLinkList
+	29, // 42: webitel.cases.Case.files:type_name -> webitel.cases.CaseFileList
 	18, // 43: webitel.cases.Case.sla:type_name -> general.Lookup
 	20, // 44: webitel.cases.Case.custom:type_name -> google.protobuf.Struct
 	18, // 45: webitel.cases.CloseInfo.close_reason:type_name -> general.Lookup
-	29, // 46: webitel.cases.SourceTypeLookup.type:type_name -> webitel.cases.SourceType
+	30, // 46: webitel.cases.SourceTypeLookup.type:type_name -> webitel.cases.SourceType
 	18, // 47: webitel.cases.InputCase.assignee:type_name -> general.Lookup
 	18, // 48: webitel.cases.InputCase.reporter:type_name -> general.Lookup
 	18, // 49: webitel.cases.InputCase.impacted:type_name -> general.Lookup
