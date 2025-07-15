@@ -18,6 +18,7 @@ import (
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 
 	"github.com/webitel/cases/util"
+	"sort"
 )
 
 type CatalogStore struct {
@@ -588,6 +589,10 @@ func (s *CatalogStore) buildServiceHierarchy(
 ) []*cases.Service {
 	// Retrieve all children of the current rootID
 	children := serviceMap[rootID]
+	// Sort children by Name (A-Z)
+	sort.SliceStable(children, func(i, j int) bool {
+		return strings.ToLower(children[i].Name) < strings.ToLower(children[j].Name)
+	})
 	for _, child := range children {
 		// Recursively attach sub-services to the current child
 		child.Service = s.buildServiceHierarchy(child.Id, serviceMap)
