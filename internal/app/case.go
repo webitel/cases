@@ -264,8 +264,13 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 		),
-		grpcopts.WithCreateOverrideUserID(req.Input.UserID.GetId()),
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add override user ID after options are built
+	err = grpcopts.WithCreateOverrideUserID(req.Input.UserID.GetId())(createOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -361,8 +366,13 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		),
 		grpcopts.WithUpdateEtag(&tag),
 		grpcopts.WithUpdateMasker(req),
-		grpcopts.WithUpdateOverrideUserID(req.Input.UserID.GetId()),
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add override user ID after options are built
+	err = grpcopts.WithUpdateOverrideUserID(req.Input.UserID.GetId())(updateOpts)
 	if err != nil {
 		return nil, err
 	}
