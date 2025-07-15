@@ -10,11 +10,13 @@ func CloneWithUserID(src auth.Auther, overrideUserID int64) auth.Auther {
 	if !ok {
 		return src
 	}
-	// Clone
+	// Clone session
 	newSession := *session
-	user := *newSession.User
-	user.Id = overrideUserID
-	newSession.User = &user
-
+	// Clone user fully
+	if newSession.User != nil {
+		newUser := *newSession.User
+		newUser.Id = overrideUserID
+		newSession.User = &newUser
+	}
 	return &newSession
 }

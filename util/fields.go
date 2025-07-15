@@ -287,27 +287,20 @@ func EnsureFields(fields []string, requiredFields ...string) []string {
 		fieldSet[f] = struct{}{}
 	}
 
-	result := make([]string, 0, len(fields)+len(requiredFields))
+	needPrependId := false
 	for _, req := range requiredFields {
-		if _, ok := fieldSet[req]; !ok {
-			// prepend "id" if it's the first requiredField
-			if req == "id" {
-				result = append([]string{"id"}, result...)
-			} else {
-				result = append(result, req)
-			}
+		if _, ok := fieldSet[req]; !ok && req == "id" {
+			needPrependId = true
+		} else if _, ok := fieldSet[req]; !ok {
+			fields = append(fields, req)
 		}
 	}
 
-	// Add original fields, skipping "id" if already added
-	for _, f := range fields {
-		if f == "id" {
-			continue // already added first
-		}
-		result = append(result, f)
+	if needPrependId {
+		return append([]string{"id"}, fields...)
 	}
 
-	return result
+	return fields
 }
 
 // NormalizeEtag normalizes etag, id, ver fields visibility for the response depending on what fields were requested.
