@@ -159,6 +159,17 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	return list.Items[0], nil
 }
 
+// lookupToService converts a Lookup to a Service struct
+func lookupToService(lookup *cases.Lookup) *cases.Service {
+	if lookup == nil {
+		return nil
+	}
+	return &cases.Service{
+		Id:   lookup.Id,
+		Name: lookup.Name,
+	}
+}
+
 func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseRequest) (*cases.Case, error) {
 	// Validate required fields
 	appErr := c.ValidateCreateInput(req.Input)
@@ -250,7 +261,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
 		Rating:           req.Input.Rating,
 		RatingComment:    req.Input.RatingComment,
-		Service:          req.Input.Service,
+		Service:          lookupToService(req.Input.Service),
 		Links:            links,
 		Related:          related,
 		Custom:           req.Input.GetCustom(),
@@ -404,7 +415,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		CloseResult:      req.Input.GetCloseResult(),
 		Rating:           req.Input.GetRating(),
 		RatingComment:    req.Input.GetRatingComment(),
-		Service:          req.Input.GetService(),
+		Service:          lookupToService(req.Input.GetService()),
 		Custom:           req.Input.GetCustom(),
 	}
 	if reporter := upd.Reporter; reporter != nil && reporter.GetId() == 0 {

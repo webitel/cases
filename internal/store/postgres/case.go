@@ -2681,9 +2681,103 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				})
 			})
 		case "service":
-			base = base.Column(fmt.Sprintf("ROW(%s.id, %[1]s.name)::text AS service", tableAlias))
+			servicePathSubquery := `
+				WITH RECURSIVE service_path AS (
+					-- Start with the current service
+					SELECT 
+						sc.id,
+						sc.name,
+						sc.root_id,
+						1 as level
+					FROM cases.service_catalog sc
+					WHERE sc.id = ` + storeutils.Ident(caseLeft, "service") + `
+					
+					UNION ALL
+					
+					-- Recursively get parent services up to catalog
+					SELECT 
+						parent.id,
+						parent.name,
+						parent.root_id,
+						sp.level + 1
+					FROM cases.service_catalog parent
+					JOIN service_path sp ON parent.id = sp.root_id
+					WHERE parent.id IS NOT NULL -- Ensure we don't get NULL IDs
+				)
+				SELECT 
+					jsonb_build_object(
+						'current_service', jsonb_build_object(
+							'id', (SELECT id FROM service_path WHERE level = 1),
+							'name', (SELECT name FROM service_path WHERE level = 1)
+						),
+						'parent_services', COALESCE(
+							(SELECT jsonb_agg(jsonb_build_object('id', id, 'name', name, 'level', level) ORDER BY level DESC)
+							 FROM service_path 
+							 WHERE level > 1),
+							'[]'::jsonb
+						)
+					) as service_data
+			`
+
+			base = base.Column(fmt.Sprintf("(%s) AS service", servicePathSubquery))
 			plan = append(plan, func(caseItem *_go.Case) any {
-				return scanner.ScanRowLookup(&caseItem.Service)
+				return scanner.TextDecoder(func(src []byte) error {
+					if len(src) == 0 {
+						return nil
+					}
+
+					var serviceData map[string]interface{}
+					if err := json.Unmarshal(src, &serviceData); err != nil {
+						if caseItem.Service == nil {
+							caseItem.Service = &_go.Service{}
+						}
+						return nil
+					}
+
+					// Extract current service details
+					var currentServiceId int64
+					var currentServiceName string
+
+					if currentServiceObj, ok := serviceData["current_service"].(map[string]interface{}); ok {
+						if id, ok := currentServiceObj["id"].(float64); ok {
+							currentServiceId = int64(id)
+						}
+						if name, ok := currentServiceObj["name"].(string); ok {
+							currentServiceName = name
+						}
+					}
+
+					currentService := &_go.Service{
+						Id:      currentServiceId,
+						Name:    currentServiceName,
+						Service: []*_go.Service{},
+					}
+
+					if parentServices, exists := serviceData["parent_services"].([]interface{}); exists && len(parentServices) > 0 {
+						innerService := currentService
+
+						for i := len(parentServices) - 1; i >= 0; i-- {
+							parentObj := parentServices[i].(map[string]interface{})
+							parentService := &_go.Service{
+								Service: []*_go.Service{},
+							}
+
+							if id, ok := parentObj["id"].(float64); ok {
+								parentService.Id = int64(id)
+							}
+							if name, ok := parentObj["name"].(string); ok {
+								parentService.Name = name
+							}
+
+							innerService.Service = []*_go.Service{parentService}
+							innerService = parentService
+						}
+					}
+
+					caseItem.Service = currentService
+
+					return nil
+				})
 			})
 		case "assignee":
 			base = base.Column(fmt.Sprintf(
