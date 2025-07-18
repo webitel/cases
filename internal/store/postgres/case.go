@@ -1015,6 +1015,35 @@ type customFilterContext struct {
 	joined bool
 }
 
+// buildServiceHierarchyFilter creates a recursive CTE query for filtering cases by parent services
+func buildServiceHierarchyFilter(serviceIDs []int64, columnIdent string) (string, []interface{}) {
+	cte := `
+		WITH RECURSIVE service_hierarchy AS (
+			-- Start with the specified service IDs
+			SELECT id, root_id, 1 as level
+			FROM cases.service_catalog
+			WHERE id = ANY(?::int[])
+			
+			UNION ALL
+			
+			-- Recursively get child services
+			SELECT sc.id, sc.root_id, sh.level + 1
+			FROM cases.service_catalog sc
+			INNER JOIN service_hierarchy sh ON sc.root_id = sh.id
+			WHERE sc.id IS NOT NULL
+		)
+	`
+	query := fmt.Sprintf(`
+		EXISTS (
+			%s
+			SELECT 1 FROM service_hierarchy sh
+			WHERE sh.id = %s
+		)
+	`, cte, columnIdent)
+
+	return query, []interface{}{serviceIDs}
+}
+
 func parseFilterCondition(cond string) (field, op, value string, ok bool) {
 	cond = strings.TrimSpace(cond)
 
@@ -1189,7 +1218,13 @@ func (c *CaseStore) filterToSqlizer(
 		col := storeutils.Ident(caseLeft, dbColumn)
 		if len(valuesInt) > 0 {
 			if op == "=" {
-				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
+				if column == "service" { //parent service recursion filtering
+					query, args := buildServiceHierarchyFilter(valuesInt, col)
+					expr = append(expr, sq.Expr(query, args...))
+				} else {
+					// Standard exact matching for other fields
+					expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
+				}
 			} else {
 				var notExpr sq.And
 				for _, val := range valuesInt {

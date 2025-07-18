@@ -30,7 +30,12 @@ func TestFormAsCTEs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sub, a, _ := FormAsCTEs(tt.args.in)
+			ctes := make([]*CTE, 0, len(tt.args.in))
+			for alias, sqlizer := range tt.args.in {
+				ctes = append(ctes, NewCTE(alias, sqlizer))
+			}
+
+			sub, a, _ := FormAsCTEs(ctes)
 			query, ar, _ := squirrel.Select("one").From("good").Where("name = ?", "yehor").Prefix(sub, a...).PlaceholderFormat(squirrel.Dollar).ToSql()
 
 			t.Log(query, ar)
