@@ -22,7 +22,11 @@ go.work
 # Editor junk
 *.sublime-workspace
 *.swp
-.idea/
+.idea/*
+!.idea/golinter.xml
+!.idea/watcherTasks.xml
+!.idea/inspectionProfiles/
+!.idea/codeStyles/
 .fleet/
 *.iml
 *.tmp

@@ -17,9 +17,6 @@ formatters:
     - gci # Format the block of imports.
 
   settings:
-    gofumpt:
-      extra-rules: true # Choose whether to use the extra rules.
-
     gofmt:
       # Simplify the code.
       # See: https://pkg.go.dev/cmd/gofmt#hdr-The_simplify_command
@@ -28,6 +25,9 @@ formatters:
         # Replace `interface{}` with `any` in the code on format.
         - pattern: "interface{}"
           replacement: "any"
+
+    gofumpt:
+      extra-rules: true # Choose whether to use the extra rules.
 
     # Make sure imports are always in a deterministic order.
     # See: https://github.com/daixiang0/gci/
@@ -74,8 +74,6 @@ linters:
       # These are common false positives in poor code
       # you should not use this on recent code you write from scratch
       # More information: https://golangci-lint.run/usage/false-positives/#comments
-      #
-      # Please uncomment the following line if your code is not using the godoc format
       - comments
 
       # Common false positives
@@ -302,25 +300,28 @@ linters:
         main:
           deny:
             - pkg: io/ioutil
-              desc: "Deprecated: As of Go 1.16, the same functionality is now provided by package io or package os, and those implementations should be preferred in new code. See the specific function documentation for details."
+              desc: "deprecated: As of Go 1.16, the same functionality is now provided by package io or package os, and those implementations should be preferred in new code. See the specific function documentation for details."
 
             - pkg: gopkg.in/yaml.v2
               desc: Not allowed to depend on gopkg.in/yaml.v2 as gopkg.in/yaml.v3 is now available.
 
             - pkg: github.com/pkg/errors
-              desc: "Deprecated: Go 1.13 supports the functionality provided by pkg/errors in the standard library."
+              desc: "deprecated: Go 1.13 supports the functionality provided by pkg/errors in the standard library."
 
             - pkg: github.com/gofrs/uuid
-              desc: Use github.com/google/uuid instead, which we already depend on.
+              desc: use github.com/google/uuid instead, which we already depend on.
 
             - pkg: github.com/bmizerany/assert
               desc: Use github.com/stretchr/testify/assert instead, which we already depend on.
 
             - pkg: "math/rand$"
-              desc: Use math/rand/v2 instead.
+              desc: use math/rand/v2 instead.
 
             - pkg: github.com/golang/protobuf
-              desc: Use google.golang.org/protobuf instead.
+              desc: use google.golang.org/protobuf instead.
+
+            - pkg: log
+              desc: use log/slog instead, which we already depend on.
 
     errcheck:
       # Report `a := b.(MyStruct)` when `a, ok := ...` should be.
