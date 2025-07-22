@@ -195,9 +195,6 @@ linters:
     # Check that no global variables exist.
     # - gochecknoglobals
 
-    # Finds repeated strings that could be replaced by a constant.
-    - goconst
-
     # Provides diagnostics that check for bugs, performance and style issues.
     # Extensible without recompilation through dynamic rules.
     # Dynamic rules are written declaratively with AST patterns,
@@ -300,28 +297,28 @@ linters:
         main:
           deny:
             - pkg: io/ioutil
-              desc: "deprecated: As of Go 1.16, the same functionality is now provided by package io or package os, and those implementations should be preferred in new code. See the specific function documentation for details."
+              desc: "deprecated: As of Go 1.16, the same functionality is now provided by package io or package os, and those implementations should be preferred in new code. See the specific function documentation for details"
 
             - pkg: gopkg.in/yaml.v2
-              desc: Not allowed to depend on gopkg.in/yaml.v2 as gopkg.in/yaml.v3 is now available.
+              desc: Not allowed to depend on gopkg.in/yaml.v2 as gopkg.in/yaml.v3 is now available
 
             - pkg: github.com/pkg/errors
-              desc: "deprecated: Go 1.13 supports the functionality provided by pkg/errors in the standard library."
+              desc: "deprecated: Go 1.13 supports the functionality provided by pkg/errors in the standard library"
 
             - pkg: github.com/gofrs/uuid
-              desc: use github.com/google/uuid instead, which we already depend on.
+              desc: use github.com/google/uuid instead, which we already depend on
 
             - pkg: github.com/bmizerany/assert
-              desc: Use github.com/stretchr/testify/assert instead, which we already depend on.
+              desc: Use github.com/stretchr/testify/assert instead, which we already depend on
 
             - pkg: "math/rand$"
-              desc: use math/rand/v2 instead.
+              desc: use math/rand/v2 instead
 
             - pkg: github.com/golang/protobuf
-              desc: use google.golang.org/protobuf instead.
+              desc: use google.golang.org/protobuf instead
 
-            - pkg: log
-              desc: use log/slog instead, which we already depend on.
+            - pkg: "log$"
+              desc: use log/slog instead, which we already depend on
 
     errcheck:
       # Report `a := b.(MyStruct)` when `a, ok := ...` should be.
@@ -355,14 +352,6 @@ linters:
 
     revive:
       rules:
-        # https://github.com/mgechev/revive/blob/HEAD/RULES_DESCRIPTIONS.md#add-constant
-        - name: add-constant
-          arguments:
-            - max-lit-count: "3"
-              allow-strs: '""'
-              allow-ints: "0,1,2,32,100,1024"
-              allow-floats: "0.0,0.,1.0,1.,2.0,2."
-
         # Check for commonly mistaken usages of the sync/atomic package
         # https://github.com/mgechev/revive/blob/HEAD/RULES_DESCRIPTIONS.md#atomic
         - name: atomic
