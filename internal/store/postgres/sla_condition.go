@@ -3,19 +3,20 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
-	"github.com/georgysavva/scany/v2/pgxscan"
-	"github.com/webitel/cases/internal/model"
-	"github.com/webitel/cases/internal/model/options"
-	storeutil "github.com/webitel/cases/internal/store/util"
 	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/lib/pq"
+
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
+	storeutil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 )
 
@@ -149,6 +150,9 @@ func (s *SLAConditionStore) Update(rpc options.Updator, l *model.SLACondition) (
 	if err := tx.Commit(rpc); err != nil {
 		return nil, ParseError(err)
 	}
+	if len(res) > 0 {
+		return res[0], nil
+	}
 	return l, nil
 }
 
@@ -249,7 +253,7 @@ func buildSLAConditionColumns(queryBuilder sq.SelectBuilder, fields []string, ta
 }
 
 // buildSearchSLAConditionQuery constructs the SQL search query for SLAConditions.
-func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (string, []interface{}, error) {
+func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (string, []any, error) {
 	queryBuilder := sq.Select().
 		From("cases.sla_condition AS g").
 		Where(sq.Eq{"g.dc": rpc.GetAuthOpts().GetDomainId()}).
@@ -269,7 +273,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 	}
 
 	if priorityIdFilters := rpc.GetFilter("priority_id"); len(priorityIdFilters) > 0 {
-		var priorityIDs []interface{}
+		var priorityIDs []any
 		for _, f := range priorityIdFilters {
 			if f.Operator == "=" {
 				priorityIDs = append(priorityIDs, f.Value)
@@ -325,9 +329,9 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 	return storeutil.CompactSQL(query), args, nil
 }
 
-func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc options.Updator, l *model.SLACondition) (string, []interface{}) {
+func (s *SLAConditionStore) buildUpdatePrioritiesQuery(rpc options.Updator, l *model.SLACondition) (string, []any) {
 	// Prepare arguments for the SQL query
-	args := []interface{}{
+	args := []any{
 		l.Id,                            // $1: sla_condition_id
 		rpc.GetAuthOpts().GetUserId(),   // $2: created_by and updated_by
 		rpc.GetAuthOpts().GetDomainId(), // $3: dc
@@ -360,7 +364,7 @@ FROM (SELECT sla_condition_id
 }
 
 // Function to build the update query for sla_condition and return priorities JSON
-func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc options.Updator, l *model.SLACondition) (string, []interface{}, error) {
+func (s *SLAConditionStore) buildUpdateSLAConditionQuery(rpc options.Updator, l *model.SLACondition) (string, []any, error) {
 	updateBuilder := sq.Update("cases.sla_condition").
 		PlaceholderFormat(sq.Dollar). // Set placeholder format to Dollar for PostgreSQL
 		Set("updated_at", rpc.RequestTime()).
@@ -397,11 +401,11 @@ SELECT usc.id,
        usc.reaction_time,
        usc.resolution_time,
        usc.sla_id,
-       usc.created_by,
-       COALESCE(c.name, '')                                    AS created_by_name,
-       usc.updated_by,
-       COALESCE(u.name, '')                                     AS updated_by_name,
-       json_agg(json_build_object('id', p.id, 'name', p.name)) AS priorities_json
+       usc.created_by AS created_by_id,
+       COALESCE(c.name, '') AS created_by_name,
+       usc.updated_by AS updated_by_id,
+       COALESCE(u.name, '') AS updated_by_name,
+       json_agg(json_build_object('id', p.id, 'name', p.name)) AS priorities
 FROM upd_condition usc
          LEFT JOIN directory.wbt_user c ON c.id = usc.created_by
          LEFT JOIN directory.wbt_user u ON u.id = usc.updated_by
@@ -409,7 +413,7 @@ FROM upd_condition usc
          LEFT JOIN cases.priority p ON p.id = psc.priority_id
 GROUP BY usc.id, usc.name, usc.created_at, usc.updated_at,
          usc.reaction_time, usc.resolution_time,
-		 usc.sla_id, usc.created_by, usc.updated_by, c.name, u.name
+         usc.sla_id, usc.created_by, usc.updated_by, c.name, u.name
     `, updateSQL)
 
 	return query, args, nil

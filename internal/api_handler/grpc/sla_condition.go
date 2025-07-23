@@ -56,7 +56,7 @@ func (s *SLAConditionService) CreateSLACondition(ctx context.Context, req *cases
 	// Create a new SLACondition user_session
 	reactionTime := int(req.Input.ReactionTime)
 	resolutionTime := int(req.Input.ResolutionTime)
-	slaId := int(req.SlaId)
+	slaId := int64(req.SlaId)
 	slaCondition := &model.SLACondition{
 		Name:           &req.Input.Name,
 		ReactionTime:   &reactionTime,
@@ -188,9 +188,9 @@ func (s *SLAConditionService) UpdateSLACondition(ctx context.Context, req *cases
 	// Update SLACondition user_session
 	reactionTime := int(req.Input.ReactionTime)
 	resolutionTime := int(req.Input.ResolutionTime)
-	slaId := int(req.SlaId)
+	slaId := int64(req.SlaId)
 	slaCondition := &model.SLACondition{
-		Id:             int(req.Id),
+		Id:             int64(req.Id),
 		Name:           &req.Input.Name,
 		ReactionTime:   &reactionTime,
 		ResolutionTime: &resolutionTime,
