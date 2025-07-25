@@ -106,13 +106,8 @@ func (s *DeleteOptions) RemoveFilter(f string) {
 	s.Filters = util.RemoveSliceElement(s.Filters, f)
 }
 
-func (s *DeleteOptions) GetFilter(f string) (string, bool) {
-	for _, filter := range s.Filters {
-		if filter == f {
-			return filter, true
-		}
-	}
-	return "", false
+func (s *DeleteOptions) GetFilter(f string) []util.FilterExpr {
+	return util.GetFilter(s.Filters, f)
 }
 
 func (s *DeleteOptions) GetParentID() int64 {

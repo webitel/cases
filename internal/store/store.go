@@ -100,9 +100,9 @@ type CaseTimelineStore interface {
 
 // Case connected communications (chats, calls etc.)
 type CaseCommunicationStore interface {
-	Link(options.Creator, []*_go.InputCaseCommunication) ([]*_go.CaseCommunication, error)
+	Link(options.Creator, []*model.CaseCommunication) ([]*model.CaseCommunication, error)
 	Unlink(options.Deleter) (int64, error)
-	List(opts options.Searcher) (*_go.ListCommunicationsResponse, error)
+	List(rpc options.Searcher) ([]*model.CaseCommunication, error)
 }
 
 type CaseFileStore interface {

@@ -2,14 +2,15 @@ package grpc
 
 import (
 	"context"
-	"github.com/webitel/cases/internal/api_handler/grpc/utils"
-	"github.com/webitel/cases/internal/errors"
-	"github.com/webitel/cases/internal/model/options"
-	"google.golang.org/grpc/codes"
 	"strings"
 
+	"google.golang.org/grpc/codes"
+
 	_go "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/internal/api_handler/grpc/utils"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/internal/model/options"
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
 )
@@ -31,14 +32,14 @@ type SourceService struct {
 
 // SourceMetadata defines the fields available for source objects.
 var SourceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*model.Field{
-	{"id", true},
-	{"created_by", true},
-	{"created_at", true},
-	{"updated_by", false},
-	{"updated_at", false},
-	{"name", true},
-	{"description", true},
-	{"type", true},
+	{Name: "id", Default: true},
+	{Name: "created_by", Default: true},
+	{Name: "created_at", Default: true},
+	{Name: "updated_by", Default: false},
+	{Name: "updated_at", Default: false},
+	{Name: "name", Default: true},
+	{Name: "description", Default: true},
+	{Name: "type", Default: true},
 })
 
 // CreateSource handles the gRPC request to create a new source.

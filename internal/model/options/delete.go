@@ -2,8 +2,10 @@ package options
 
 import (
 	"context"
-	"github.com/webitel/cases/auth"
 	"time"
+
+	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/util"
 )
 
 type Deleter interface {
@@ -14,7 +16,7 @@ type Deleter interface {
 
 	// Additional filtering
 
-	GetFilter(string) (string, bool)
+	GetFilter(field string) []util.FilterExpr
 	RemoveFilter(string)
 	AddFilter(string)
 	GetFilters() []string
