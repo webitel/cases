@@ -312,10 +312,14 @@ func (s *CaseCommentService) Marshal(model *model.CaseComment) (*api.CaseComment
 		return nil, nil
 	}
 
+	etg, err := etag.EncodeEtag(etag.EtagCaseComment, model.Id, model.Ver) // Ensure etag is set
+	if err != nil {
+		return nil, err
+	}
 	comment := &api.CaseComment{
 		Id:      model.Id,
 		Ver:     model.Ver,
-		Etag:    model.Etag,
+		Etag:    etg,
 		Text:    model.Text,
 		Edited:  model.Edited,
 		CanEdit: model.CanEdit,

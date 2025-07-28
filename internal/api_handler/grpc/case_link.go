@@ -266,10 +266,14 @@ func (s *CaseLinkService) Marshal(m *model.CaseLink) (*cases.CaseLink, error) {
 	if m == nil {
 		return nil, nil
 	}
+	etg, err := etag.EncodeEtag(etag.EtagCaseLink, m.Id, m.Ver)
+	if err != nil {
+		return nil, err
+	}
 	return &cases.CaseLink{
 		Id:        m.Id,
 		Ver:       m.Ver,
-		Etag:      m.Etag,
+		Etag:      etg,
 		CreatedBy: utils.MarshalLookup(m.Author),
 		CreatedAt: utils.MarshalTime(m.CreatedAt),
 		UpdatedBy: utils.MarshalLookup(m.Editor),

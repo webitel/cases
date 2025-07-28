@@ -171,10 +171,14 @@ func unmarshalInputCaseCommunication(input *api.InputCaseCommunication) *model.C
 }
 
 func (s *CaseCommunicationService) Marshal(m *model.CaseCommunication) (*api.CaseCommunication, error) {
+	etg, err := etag.EncodeEtag(etag.EtagCaseCommunication, m.Id, m.Ver)
+	if err != nil {
+		return nil, err
+	}
 	out := &api.CaseCommunication{
 		Id:                m.Id,
 		Ver:               m.Ver,
-		Etag:              m.Etag,
+		Etag:              etg,
 		CommunicationType: utils.MarshalLookup(m.CommunicationType),
 		CommunicationId:   m.CommunicationId,
 	}

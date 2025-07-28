@@ -1145,7 +1145,6 @@ func formCaseLinkTriggerModel(item *model.CaseLink) (*model.CaseLinkAMQPMessage,
 	// Convert model.CaseLink to cases.CaseLink for AMQP message
 	protoLink := &cases.CaseLink{
 		Id:        item.Id,
-		Etag:      item.Etag,
 		Ver:       item.Ver,
 		Name:      *item.Name,
 		Url:       item.Url,
@@ -1165,7 +1164,6 @@ func formCaseLinkTriggerModel(item *model.CaseLink) (*model.CaseLinkAMQPMessage,
 func formCaseCommentTriggerModel(item *model.CaseComment) (*model.CaseCommentAMQPMessage, error) {
 	protoComment := &cases.CaseComment{
 		Id:        item.Id,
-		Etag:      item.Etag,
 		Ver:       item.Ver,
 		Text:      item.Text,
 		CreatedBy: utils.MarshalLookup(item.Author),
