@@ -86,7 +86,7 @@ func (c *CaseStore) Create(
 	}
 	defer func(tx pgx.Tx, ctx context.Context) {
 		err := tx.Rollback(ctx)
-		if err != nil {
+		if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			log.Println("postgres.case.create.transaction_error", err)
 		}
 	}(tx, rpc)
@@ -341,6 +341,14 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		LIMIT 1
 	)`
 
+	serviceCatalogDefaultsCTE := `
+	   service_catalog_defaults AS (
+			   SELECT group_id, assignee_id
+			   FROM cases.service_catalog
+			   WHERE id = :service
+			   LIMIT 1
+	   )`
+
 	prefixCTE := `
 	    service_cte AS(
 		SELECT catalog_id
@@ -375,6 +383,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	WITH
 		` + prefixCTE + `,
         ` + priorityCTE + `,
+		` + serviceCatalogDefaultsCTE + `,
         ` + statusConditionCTE + `
 		` + caseLeft + ` AS (
 			INSERT INTO cases.case (
@@ -387,9 +396,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
 				:dc, :date, :user, :date, :user,
-				(SELECT priority_id FROM priority_cte), :source, :status, :contact_group, :close_reason_group,
+				(SELECT priority_id FROM priority_cte), :source, :status, 
+				COALESCE(:contact_group, (SELECT group_id FROM service_catalog_defaults)),
+				:close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
-				:service, :description, :assignee, :sla, :sla_condition,
+				:service, :description,
+				COALESCE(:assignee, (SELECT assignee_id FROM service_catalog_defaults)),
+				:sla, :sla_condition,
 				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason, 
                 NULLIF(:rating, 0), NULLIF(:rating_comment, '')
 			)
@@ -2099,10 +2112,12 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 
 		case "assignee":
 			var assignee *int64
-			if id := input.Assignee.GetId(); id > 0 {
+			if input.Assignee != nil && input.Assignee.GetId() > 0 {
+				id := input.Assignee.GetId()
 				assignee = &id
 			}
-			updateBuilder = updateBuilder.Set("assignee", assignee)
+			updateBuilder = updateBuilder.Set("assignee",
+				sq.Expr("COALESCE(?, (SELECT assignee_id FROM cases.service_catalog WHERE id = ?))", assignee, input.Service.GetId()))
 		case "reporter":
 			var reporter *int64
 			if id := input.Reporter.GetId(); id > 0 {
@@ -2119,10 +2134,12 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("impacted", impacted)
 		case "group":
 			var group *int64
-			if id := input.GetGroup().GetId(); id > 0 {
+			if input.Group != nil && input.Group.GetId() > 0 {
+				id := input.Group.GetId()
 				group = &id
 			}
-			updateBuilder = updateBuilder.Set("contact_group", group)
+			updateBuilder = updateBuilder.Set("contact_group",
+				sq.Expr("COALESCE(?, (SELECT group_id FROM cases.service_catalog WHERE id = ?))", group, input.Service.GetId()))
 		case "close_reason":
 			var closeReason *int64
 			if id := input.GetCloseReason().GetId(); id > 0 {
