@@ -1,17 +1,22 @@
 package webitel_app
 
 import (
-	authclient "buf.build/gen/go/webitel/webitel-go/grpc/go/_gogrpc"
-	authmodel "buf.build/gen/go/webitel/webitel-go/protocolbuffers/go"
 	"context"
-	"github.com/webitel/cases/auth"
-	session "github.com/webitel/cases/auth/session/user_session"
-	"github.com/webitel/cases/internal/errors"
+	"net"
+	"strings"
+	"time"
+
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"strings"
-	"time"
+	"google.golang.org/grpc/peer"
+
+	authclient "buf.build/gen/go/webitel/webitel-go/grpc/go/_gogrpc"
+	authmodel "buf.build/gen/go/webitel/webitel-go/protocolbuffers/go"
+
+	"github.com/webitel/cases/auth"
+	session "github.com/webitel/cases/auth/session/user_session"
+	"github.com/webitel/cases/internal/errors"
 )
 
 var _ auth.Manager = &Manager{}
@@ -28,7 +33,9 @@ func New(conn *grpc.ClientConn) (*Manager, error) {
 
 func (i *Manager) AuthorizeFromContext(ctx context.Context, mainObjClassName string, mainAccessMode auth.AccessMode) (auth.Auther, error) {
 	var token []string
+
 	var info metadata.MD
+
 	var ok bool
 
 	v := ctx.Value(session.RequestContextName)
@@ -43,18 +50,22 @@ func (i *Manager) AuthorizeFromContext(ctx context.Context, mainObjClassName str
 	} else {
 		token = info.Get(session.AuthTokenName)
 	}
+
 	newContext := metadata.NewOutgoingContext(ctx, info)
+
 	if len(token) < 1 {
 		return nil, errors.Internal("webitel_manager.authorize_from_from_context.search_token.not_found: token not found")
 	}
+
 	userToken := token[0]
-	sess, err, _ := i.Group.Do(userToken, func() (interface{}, error) {
+
+	sess, err, _ := i.Group.Do(userToken, func() (any, error) {
 		return i.Client.UserInfo(newContext, nil)
 	})
 	if err != nil {
 		return nil, errors.Internal("webitel_manager.authorize_from_from_context.user_info.err", errors.WithCause(err))
 	}
-	return ConstructSessionFromUserInfo(sess.(*authmodel.Userinfo), mainObjClassName, mainAccessMode, getClientIp(ctx)), nil
+	return ConstructSessionFromUserInfo(sess.(*authmodel.Userinfo), mainObjClassName, mainAccessMode, getClientIP(ctx)), nil
 }
 
 func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo, mainObjClass string, mainAccess auth.AccessMode, ip string) *session.UserAuthSession {
@@ -106,26 +117,37 @@ func ConstructSessionFromUserInfo(userinfo *authmodel.Userinfo, mainObjClass str
 		if i == 0 {
 			sess.Roles = make([]*session.Role, 0)
 		}
+
 		sess.Roles = append(sess.Roles, &session.Role{
 			Id:   role.GetId(),
 			Name: role.GetName(),
 		})
 	}
+
 	return sess
 }
 
-func getClientIp(ctx context.Context) string {
-	v := ctx.Value("grpc_ctx")
-	info, ok := v.(metadata.MD)
-	if !ok {
-		info, ok = metadata.FromIncomingContext(ctx)
-	}
+func getClientIP(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return ""
 	}
-	ip := strings.Join(info.Get("x-real-ip"), ",")
+
+	// First try to get IP from headers
+	ip := strings.Join(md.Get("x-real-ip"), ",")
 	if ip == "" {
-		ip = strings.Join(info.Get("x-forwarded-for"), ",")
+		ip = strings.Join(md.Get("x-forwarded-for"), ",")
+	}
+
+	// If no IP from headers, try to get from peer
+	if ip == "" {
+		if p, ok := peer.FromContext(ctx); ok {
+			if addr, ok := p.Addr.(*net.TCPAddr); ok {
+				ip = addr.IP.String()
+			} else if addr, ok := p.Addr.(*net.UDPAddr); ok {
+				ip = addr.IP.String()
+			}
+		}
 	}
 
 	return ip
