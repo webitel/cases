@@ -343,7 +343,8 @@ linters:
 
       # List of words to ignore
       # among the one defined in https://github.com/golangci/misspell/blob/master/words.go
-      ignore-rules: []
+      ignore-rules:
+        - "auther" # Custom authentication-related term, not a misspelling of "author"
 
       # Extra word corrections.
       extra-words: []
