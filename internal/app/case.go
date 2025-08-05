@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"google.golang.org/protobuf/types/known/structpb"
 	"log/slog"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/structpb"
+
 	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
+	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 
 	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
@@ -23,9 +27,6 @@ import (
 	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/internal/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
-	"github.com/webitel/webitel-go-kit/pkg/etag"
-	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
-	"google.golang.org/grpc/metadata"
 )
 
 const (
@@ -354,7 +355,6 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 }
 
 func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.UpdateCaseResponse, error) {
-
 	var original *cases.Case
 
 	appErr := c.ValidateUpdateInput(req.Input, req.XJsonMask)
@@ -489,7 +489,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		}
 	}
 
-	//region diff building
+	// region diff building
 
 	var changes []*cases.FieldChange
 	if util.ContainsField(req.Fields, "diff") && original != nil {
@@ -505,7 +505,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 func BuildCaseDiff(original, updated *cases.Case) []*cases.FieldChange {
 	var changes []*cases.FieldChange
 
-	compare := func(field string, oldVal, newVal interface{}) {
+	compare := func(field string, oldVal, newVal any) {
 		if !reflect.DeepEqual(oldVal, newVal) {
 			changes = append(changes, &cases.FieldChange{
 				Field:    field,
@@ -541,7 +541,7 @@ func BuildCaseDiff(original, updated *cases.Case) []*cases.FieldChange {
 	return changes
 }
 
-func toProtoValue(v interface{}) *structpb.Value {
+func toProtoValue(v any) *structpb.Value {
 	val, err := structpb.NewValue(v)
 	if err != nil {
 		// Fallback to string representation if not convertible
@@ -669,20 +669,20 @@ func (c *CaseService) resolveDynamicGroup(
 
 // Converts a Case object to map[string]interface{} with "case." prefixed keys and lowercase values (except case.etag).
 // Helper method for dynamic contact group resolving.
-func caseToMap(caseObj interface{}) (map[string]interface{}, error) {
+func caseToMap(caseObj any) (map[string]any, error) {
 	caseJSON, err := json.Marshal(caseObj)
 	if err != nil {
 		return nil, err
 	}
 
-	var caseMap map[string]interface{}
+	var caseMap map[string]any
 	err = json.Unmarshal(caseJSON, &caseMap)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create a new map with "case." prefixed keys, handling nested fields
-	prefixedMap := make(map[string]interface{})
+	prefixedMap := make(map[string]any)
 	addPrefixedKeys(prefixedMap, caseMap, "case")
 
 	return prefixedMap, nil
@@ -690,7 +690,7 @@ func caseToMap(caseObj interface{}) (map[string]interface{}, error) {
 
 // Recursively adds prefixed keys for nested maps (all keys and values converted to lowercase except case.etag).
 // Helper method for dynamic contact group resolving.
-func addPrefixedKeys(dest map[string]any, source map[string]any, prefix string) {
+func addPrefixedKeys(dest, source map[string]any, prefix string) {
 	for key, value := range source {
 		fullKey := strings.ToLower(prefix + "." + key)
 
@@ -781,7 +781,7 @@ func evaluateSingleCondition(caseMap map[string]any, condition string) bool {
 
 // Resolves a field path (e.g., "case.assignee.name") to its value in the map.
 // Helper method for dynamic contact group resolving.
-func resolveFieldPath(data map[string]interface{}, path string) interface{} {
+func resolveFieldPath(data map[string]any, path string) any {
 	// Convert path to lowercase to match map keys
 	path = strings.ToLower(path)
 
@@ -892,6 +892,7 @@ func NewCaseService(app *App) (*CaseService, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		watcher.Attach(watcherkit.EventTypeCreate, ftsObserver)
 		watcher.Attach(watcherkit.EventTypeUpdate, ftsObserver)
 		watcher.Attach(watcherkit.EventTypeDelete, ftsObserver)
@@ -902,10 +903,10 @@ func NewCaseService(app *App) (*CaseService, error) {
 			slog.Group("context",
 				slog.String("scope", "watcher")),
 		))
-
 		if err != nil {
 			return nil, err
 		}
+
 		watcher.Attach(watcherkit.EventTypeCreate, mq)
 		watcher.Attach(watcherkit.EventTypeUpdate, mq)
 		watcher.Attach(watcherkit.EventTypeDelete, mq)
@@ -928,6 +929,9 @@ func (c *CaseService) ValidateUpdateInput(
 	input *cases.InputCase,
 	xJsonMask []string,
 ) error {
+	if input == nil {
+		return errors.InvalidArgument("Input is required")
+	}
 	if input.Etag == "" {
 		return errors.InvalidArgument("Etag is required")
 	}
@@ -965,6 +969,9 @@ func (c *CaseService) ValidateUpdateInput(
 // region UTILITY
 
 func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) error {
+	if input == nil {
+		return errors.InvalidArgument("Input is required")
+	}
 	if input.Subject == "" {
 		return errors.InvalidArgument("Case subject is required")
 	}
