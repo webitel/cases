@@ -179,6 +179,8 @@ type ServiceRelatedDefs struct {
 	CalendarID         int
 	StatusID           int
 	CloseReasonGroupID int
+	AssigneeID         int
+	GroupID            int
 }
 
 // ScanServiceDefs fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
@@ -197,7 +199,10 @@ WITH RECURSIVE
                                  sla_id,
                                  status_id,
                                  close_reason_group_id,
-                                 ARRAY [id] AS path
+                                 assignee_id,
+                                 group_id,
+                                 ARRAY [id] AS path,
+                                 0 as level
                           FROM cases.service_catalog
                           WHERE id = $1
 
@@ -208,9 +213,14 @@ WITH RECURSIVE
                                  COALESCE(sc.sla_id, sh.sla_id),
                                  COALESCE(sc.status_id, sh.status_id),
                                  COALESCE(sc.close_reason_group_id, sh.close_reason_group_id),
-                                 sh.path || sc.id
+                                 COALESCE(sc.assignee_id, sh.assignee_id),
+                                 COALESCE(sc.group_id, sh.group_id),
+                                 sh.path || sc.id,
+                                 sh.level + 1
                           FROM cases.service_catalog sc
-                                   INNER JOIN service_hierarchy sh ON sc.id = sh.root_id),
+                                   INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
+                          WHERE sh.level < 10
+),
     -- Fetch the deepest item with an SLA ID regardless of others
     sla_service AS (SELECT *
                     FROM service_hierarchy
@@ -224,6 +234,18 @@ WITH RECURSIVE
                           AND close_reason_group_id IS NOT NULL
                         ORDER BY array_length(path, 1) ASC
                         LIMIT 1),
+    -- Get first non-null assignee and group from hierarchy
+    defaults AS (SELECT 
+                    (SELECT assignee_id 
+                    FROM service_hierarchy 
+                    WHERE assignee_id IS NOT NULL 
+                    ORDER BY level ASC 
+                    LIMIT 1) as assignee_id,
+                    (SELECT group_id 
+                    FROM service_hierarchy 
+                    WHERE group_id IS NOT NULL 
+                    ORDER BY level ASC 
+                    LIMIT 1) as group_id),
     priority_condition AS (SELECT sc.id AS sla_condition_id,
                                   sc.reaction_time,
                                   sc.resolution_time
@@ -238,13 +260,15 @@ SELECT ss.sla_id,
        COALESCE(pc.resolution_time, sla.resolution_time),
        sla.calendar_id,
        pc.sla_condition_id,
-       COALESCE(ss.status_id, fs.status_id)                         AS status_id,
-       COALESCE(ss.close_reason_group_id, fs.close_reason_group_id) AS close_reason_group_id
+       COALESCE(ss.status_id, fs.status_id) AS status_id,
+       COALESCE(ss.close_reason_group_id, fs.close_reason_group_id) AS close_reason_group_id,
+       d.assignee_id,
+       d.group_id
 FROM sla_service ss
          LEFT JOIN fallback_status fs ON true
          LEFT JOIN priority_condition pc ON true
-         LEFT JOIN cases.sla sla ON ss.sla_id = sla.id;
-
+         LEFT JOIN cases.sla sla ON ss.sla_id = sla.id
+         CROSS JOIN defaults d;
 `, serviceID, priorityID).Scan(
 		scanner.ScanInt(&res.SLAID),
 		scanner.ScanInt(&res.ReactionTime),
@@ -253,6 +277,8 @@ FROM sla_service ss
 		scanner.ScanInt(&res.SLAConditionID),
 		scanner.ScanInt(&res.StatusID),
 		scanner.ScanInt(&res.CloseReasonGroupID),
+		scanner.ScanInt(&res.AssigneeID),
+		scanner.ScanInt(&res.GroupID),
 	)
 	if err != nil {
 		return nil, errors.Internal("execution_error")
@@ -270,13 +296,28 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	[]func(caseItem *_go.Case) any,
 	error,
 ) {
-
 	// Extract optional fields via helper utils
 	assignee := storeutils.IDPtr(input.GetAssignee())
+	if assignee == nil || *assignee == 0 {
+		if serviceDefs.AssigneeID != 0 {
+			id := int64(serviceDefs.AssigneeID)
+			assignee = &id
+		} else {
+			assignee = nil
+		}
+	}
 	closeReason := storeutils.IDPtr(input.GetCloseReason())
 	reporter := storeutils.IDPtr(input.GetReporter())
 	impacted := storeutils.IDPtr(input.GetImpacted())
 	group := storeutils.IDPtr(input.Group)
+	if group == nil || *group == 0 {
+		if serviceDefs.GroupID != 0 {
+			id := int64(serviceDefs.GroupID)
+			group = &id
+		} else {
+			group = nil
+		}
+	}
 	description := storeutils.StringPtr(input.Description)
 	closeResult := storeutils.StringPtr(input.GetCloseResult())
 
@@ -341,14 +382,6 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		LIMIT 1
 	)`
 
-	serviceCatalogDefaultsCTE := `
-	   service_catalog_defaults AS (
-			   SELECT group_id, assignee_id
-			   FROM cases.service_catalog
-			   WHERE id = :service
-			   LIMIT 1
-	   )`
-
 	prefixCTE := `
 	    service_cte AS(
 		SELECT catalog_id
@@ -383,8 +416,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	WITH
 		` + prefixCTE + `,
         ` + priorityCTE + `,
-		` + serviceCatalogDefaultsCTE + `,
-        ` + statusConditionCTE + `
+		` + statusConditionCTE + `
 		` + caseLeft + ` AS (
 			INSERT INTO cases.case (
 				id, name, dc, created_at, created_by, updated_at, updated_by,
@@ -397,11 +429,10 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
 				:dc, :date, :user, :date, :user,
 				(SELECT priority_id FROM priority_cte), :source, :status, 
-				COALESCE(:contact_group, (SELECT group_id FROM service_catalog_defaults)),
+				:contact_group,
 				:close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
-				:service, :description,
-				COALESCE(:assignee, (SELECT assignee_id FROM service_catalog_defaults)),
+				:service, :description, :assignee,
 				:sla, :sla_condition,
 				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason, 
                 NULLIF(:rating, 0), NULLIF(:rating_comment, '')
@@ -927,7 +958,7 @@ func (c *CaseStore) Delete(rpc options.Deleter) error {
 	return nil
 }
 
-func (c CaseStore) buildDeleteCaseQuery(rpc options.Deleter) (string, []interface{}, error) {
+func (c CaseStore) buildDeleteCaseQuery(rpc options.Deleter) (string, []any, error) {
 	var err error
 	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
@@ -1029,7 +1060,7 @@ type customFilterContext struct {
 }
 
 // buildServiceHierarchyFilter creates a recursive CTE query for filtering cases by parent services
-func buildServiceHierarchyFilter(serviceIDs []int64, columnIdent string) (string, []interface{}) {
+func buildServiceHierarchyFilter(serviceIDs []int64, columnIdent string) (string, []any) {
 	cte := `
 		WITH RECURSIVE service_hierarchy AS (
 			-- Start with the specified service IDs
@@ -1054,7 +1085,7 @@ func buildServiceHierarchyFilter(serviceIDs []int64, columnIdent string) (string
 		)
 	`, cte, columnIdent)
 
-	return query, []interface{}{serviceIDs}
+	return query, []any{serviceIDs}
 }
 
 func parseFilterCondition(cond string) (field, op, value string, ok bool) {
@@ -1231,7 +1262,7 @@ func (c *CaseStore) filterToSqlizer(
 		col := storeutils.Ident(caseLeft, dbColumn)
 		if len(valuesInt) > 0 {
 			if op == "=" {
-				if column == "service" { //parent service recursion filtering
+				if column == "service" { // parent service recursion filtering
 					query, args := buildServiceHierarchyFilter(valuesInt, col)
 					expr = append(expr, sq.Expr(query, args...))
 				} else {
@@ -1291,6 +1322,7 @@ func (c *CaseStore) filterToSqlizer(
 			valuesInt = append(valuesInt, converted)
 		}
 		col := storeutils.Ident(caseAuthorAlias, "id")
+
 		if len(valuesInt) > 0 {
 			if op == "=" {
 				expr = append(expr, sq.Expr(fmt.Sprintf("%s = ANY(?::int[])", col), valuesInt))
@@ -1816,7 +1848,7 @@ func (c *CaseStore) buildListCaseSqlizer(
 		}
 	}
 
-	var errRef = &err
+	errRef := &err
 	for _, filterStr := range simpleFilters {
 
 		sqlizer := c.filterToSqlizer(filterStr, opts, &custom, errRef)
@@ -2104,6 +2136,46 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(input.GetPlannedResolveAt()))
 			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(input.GetPlannedReactionAt()))
 
+			// When service changes, check if we need to update assignee or group
+			needAssignee := input.GetAssignee() == nil || input.GetAssignee().GetId() == 0
+			needGroup := input.GetGroup() == nil || input.GetGroup().GetId() == 0
+
+			// Only do the hierarchy lookup if we need either value
+			if needAssignee || needGroup {
+				hierarchyCTE := fmt.Sprintf(`service_defaults AS (
+					WITH RECURSIVE service_hierarchy AS (
+						SELECT id, root_id, assignee_id, group_id, 0 as level
+						FROM cases.service_catalog
+						WHERE id = %d
+						
+						UNION ALL
+						
+						SELECT sc.id, sc.root_id, sc.assignee_id, sc.group_id, sh.level + 1
+						FROM cases.service_catalog sc
+						INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
+						WHERE sh.level < 10  -- Prevent infinite recursion
+					)
+					SELECT 
+						COALESCE(
+							(SELECT assignee_id FROM service_hierarchy WHERE assignee_id IS NOT NULL ORDER BY level LIMIT 1),
+							(SELECT assignee_id FROM cases.service_catalog WHERE id = %d)
+						) as assignee_id,
+						COALESCE(
+							(SELECT group_id FROM service_hierarchy WHERE group_id IS NOT NULL ORDER BY level LIMIT 1),
+							(SELECT group_id FROM cases.service_catalog WHERE id = %d)
+						) as group_id
+				)`, input.Service.GetId(), input.Service.GetId(), input.Service.GetId())
+
+				updateBuilder = updateBuilder.Prefix("WITH " + hierarchyCTE)
+
+				if needAssignee {
+					updateBuilder = updateBuilder.Set("assignee", sq.Expr("(SELECT assignee_id FROM service_defaults)"))
+				}
+				if needGroup {
+					updateBuilder = updateBuilder.Set("contact_group", sq.Expr("(SELECT group_id FROM service_defaults)"))
+				}
+			}
+
 			caseIDString := strconv.FormatInt(rpc.GetEtags()[0].GetOid(), 10)
 
 			updateBuilder = updateBuilder.Set("name",
@@ -2111,13 +2183,14 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 					input.Service.GetId(), caseIDString))
 
 		case "assignee":
-			var assignee *int64
-			if input.Assignee != nil && input.Assignee.GetId() > 0 {
-				id := input.Assignee.GetId()
-				assignee = &id
+			if input.Assignee != nil {
+				var assignee *int64
+				if input.Assignee.GetId() > 0 {
+					id := input.Assignee.GetId()
+					assignee = &id
+				}
+				updateBuilder = updateBuilder.Set("assignee", assignee)
 			}
-			updateBuilder = updateBuilder.Set("assignee",
-				sq.Expr("COALESCE(?, (SELECT assignee_id FROM cases.service_catalog WHERE id = ?))", assignee, input.Service.GetId()))
 		case "reporter":
 			var reporter *int64
 			if id := input.Reporter.GetId(); id > 0 {
@@ -2133,13 +2206,14 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			}
 			updateBuilder = updateBuilder.Set("impacted", impacted)
 		case "group":
-			var group *int64
-			if input.Group != nil && input.Group.GetId() > 0 {
-				id := input.Group.GetId()
-				group = &id
+			if input.Group != nil {
+				var group *int64
+				if input.Group.GetId() > 0 {
+					id := input.Group.GetId()
+					group = &id
+				}
+				updateBuilder = updateBuilder.Set("contact_group", group)
 			}
-			updateBuilder = updateBuilder.Set("contact_group",
-				sq.Expr("COALESCE(?, (SELECT group_id FROM cases.service_catalog WHERE id = ?))", group, input.Service.GetId()))
 		case "close_reason":
 			var closeReason *int64
 			if id := input.GetCloseReason().GetId(); id > 0 {
@@ -2264,7 +2338,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq.SelectBuilder, joinedTableAlias string, err error) {
 	var (
 		tableAlias string
-		joinTable  = func(neededAlias string, table string, connection string) {
+		joinTable  = func(neededAlias, table, connection string) {
 			base = base.LeftJoin(fmt.Sprintf("%s %s ON %[2]s.id = %s", table, neededAlias, connection))
 		}
 	)
@@ -2778,7 +2852,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 						return nil
 					}
 
-					var serviceData map[string]interface{}
+					var serviceData map[string]any
 					if err := json.Unmarshal(src, &serviceData); err != nil {
 						if caseItem.Service == nil {
 							caseItem.Service = &_go.Service{}
@@ -2790,7 +2864,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 					var currentServiceId int64
 					var currentServiceName string
 
-					if currentServiceObj, ok := serviceData["current_service"].(map[string]interface{}); ok {
+					if currentServiceObj, ok := serviceData["current_service"].(map[string]any); ok {
 						if id, ok := currentServiceObj["id"].(float64); ok {
 							currentServiceId = int64(id)
 						}
@@ -2805,11 +2879,11 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 						Service: []*_go.Service{},
 					}
 
-					if parentServices, exists := serviceData["parent_services"].([]interface{}); exists && len(parentServices) > 0 {
+					if parentServices, exists := serviceData["parent_services"].([]any); exists && len(parentServices) > 0 {
 						innerService := currentService
 
 						for i := len(parentServices) - 1; i >= 0; i-- {
-							parentObj := parentServices[i].(map[string]interface{})
+							parentObj := parentServices[i].(map[string]any)
 							parentService := &_go.Service{
 								Service: []*_go.Service{},
 							}
@@ -2880,9 +2954,9 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				}
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
-		case "links": //this field uses deprecated method with old scanning function
+		case "links": // this field uses deprecated method with old scanning function
 			linksFields := []string{"id", "ver", "name", "url", "created_by", "author", "created_at"}
-			subquery, scanPlan, dbErr := buildLinkSelectAsSubquery(linksFields, caseLeft) //removed the scanplan parameter
+			subquery, scanPlan, dbErr := buildLinkSelectAsSubquery(linksFields, caseLeft) // removed the scanplan parameter
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
@@ -2909,7 +2983,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				"name",
 				"created_at",
 			}
-			subquery /*scanPlan,*/, dbErr := buildFilesSelectAsSubquery(filesFields, caseLeft) //removed the scanplan and filtersApplied parameters
+			subquery /*scanPlan,*/, dbErr := buildFilesSelectAsSubquery(filesFields, caseLeft) // removed the scanplan and filtersApplied parameters
 			if dbErr != nil {
 				return base, nil, dbErr
 			}
@@ -3011,7 +3085,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 	return base, plan, nil
 }
 
-func AddSubqueryAsColumn(mainQuery sq.SelectBuilder, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) sq.SelectBuilder {
+func AddSubqueryAsColumn(mainQuery, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) sq.SelectBuilder {
 	if filtersApplied {
 		subquery = subquery.Prefix("LATERAL (SELECT ARRAY(SELECT (subq) FROM (").Suffix(fmt.Sprintf(") subq) %s) %[1]s ON array_length(%[1]s.%[1]s, 1) > 0", subAlias))
 		query, args, _ := subquery.ToSql()
@@ -3031,7 +3105,6 @@ func (c *CaseStore) GetRolesById(
 	caseId int64,
 	access auth.AccessMode,
 ) ([]int64, error) {
-
 	db, err := c.storage.Database()
 	if err != nil {
 		return nil, err
@@ -3072,7 +3145,6 @@ func addCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.Sel
 	if auth != nil && auth.IsRbacCheckRequired(model.ScopeCases, access) {
 		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
 			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
-
 	}
 	return query, nil
 }
@@ -3081,7 +3153,6 @@ func addCaseRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, que
 	if auth != nil && auth.IsRbacCheckRequired(model.ScopeCases, access) {
 		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
 			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
-
 	}
 	return query, nil
 }
@@ -3090,10 +3161,10 @@ func addCaseRbacConditionForUpdate(auth auth.Auther, access auth.AccessMode, que
 	if auth != nil && auth.IsRbacCheckRequired(model.ScopeCases, access) {
 		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
 			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
-
 	}
 	return query, nil
 }
+
 func (c *CaseStore) scanCases(rows pgx.Rows, plan []func(link *_go.Case) any) ([]*_go.Case, error) {
 	var res []*_go.Case
 
@@ -3151,7 +3222,6 @@ func mustOverdueCasesQuery(mainTable string) sq.SelectBuilder {
 }
 
 func (c *CaseStore) SetOverdueCases(so options.Searcher) ([]*_go.Case, bool, error) {
-
 	// Define SELECT query for returning updated fields
 	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
 		so, c.overdueCasesQuery,
