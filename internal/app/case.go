@@ -220,7 +220,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	//     * Computed dynamically using SLA rules and calendar settings.
 	//     * Represents the anticipated resolution time for the case.
 	// - status_condition:
-	//     * Set based on the provided status.
+	//     * Set based on the provided status....
 	// - timing:
 	//     * Calculated dynamically by the SLA engine during case lifecycle.
 	//     * Represents SLA-driven timing metrics for reaction and resolution.
