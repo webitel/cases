@@ -76,13 +76,13 @@ func (c *CaseStore) Create(
 	// Get the database connection
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
-		return nil, errors.Internal("execution_error")
+		return nil, ParseError(dbErr)
 	}
 
 	// Begin a transaction
 	tx, err := d.Begin(rpc)
 	if err != nil {
-		return nil, errors.Internal("execution_error")
+		return nil, ParseError(err)
 	}
 	defer func(tx pgx.Tx, ctx context.Context) {
 		err := tx.Rollback(ctx)
@@ -100,7 +100,7 @@ func (c *CaseStore) Create(
 		add.Priority.GetId(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, ParseError(err)
 	}
 
 	if serviceDefs.StatusID == 0 {
@@ -123,7 +123,7 @@ func (c *CaseStore) Create(
 	)
 
 	if err != nil {
-		return nil, errors.Internal("execution_error")
+		return nil, ParseError(err)
 	}
 
 	// Build the query
@@ -133,13 +133,13 @@ func (c *CaseStore) Create(
 		serviceDefs,
 	)
 	if err != nil {
-		return nil, errors.Internal("execution_error")
+		return nil, ParseError(err)
 	}
 
 	// Generate the SQL and arguments
 	query, args, err := selectBuilder.ToSql()
 	if err != nil {
-		return nil, errors.Internal("execution_error")
+		return nil, ParseError(err)
 	}
 
 	query = storeutils.CompactSQL(query)
@@ -149,12 +149,13 @@ func (c *CaseStore) Create(
 
 	// Execute the query
 	if err = txManager.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
-		return nil, errors.Internal("execution_error")
+		return nil, ParseError(err)
 	}
 
 	// Commit the transaction
-	if err := tx.Commit(rpc); err != nil {
-		return nil, errors.Internal("execution_error")
+	err = tx.Commit(rpc)
+	if err != nil {
+		return nil, ParseError(err)
 	}
 
 	for _, field := range rpc.GetFields() {
@@ -281,7 +282,7 @@ FROM sla_service ss
 		scanner.ScanInt(&res.GroupID),
 	)
 	if err != nil {
-		return nil, errors.Internal("execution_error")
+		return nil, ParseError(err)
 	}
 
 	return &res, nil
@@ -477,12 +478,12 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			oid, data, false, // [!]partial
 		)
 		if err != nil {
-			return sq.SelectBuilder{}, nil, errors.Internal("execution_error")
+			return sq.SelectBuilder{}, nil, ParseError(err)
 		}
 		if insertQ != nil {
 			insertQ, _, err := insertQ.ToSql()
 			if err != nil {
-				return sq.SelectBuilder{}, nil, errors.Internal("execution_error")
+				return sq.SelectBuilder{}, nil, ParseError(err)
 			}
 			cte := "x" // alias
 			query += ", " + cte + " AS (" + insertQ + ")"
@@ -535,7 +536,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		),
 	)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, errors.Internal("execution_error")
+		return sq.SelectBuilder{}, nil, ParseError(err)
 	}
 
 	selectBuilder = selectBuilder.From(caseLeft)
@@ -947,7 +948,7 @@ func (c *CaseStore) Delete(rpc options.Deleter) error {
 	// Execute the query
 	res, execErr := d.Exec(rpc, query, args...)
 	if execErr != nil {
-		return errors.Internal("execution_error")
+		return ParseError(execErr)
 	}
 
 	// Check if any rows were affected
@@ -984,7 +985,7 @@ func (c *CaseStore) List(
 	}
 	slct, args, err := query.ToSql()
 	if err != nil {
-		return nil, errors.Internal("execution_error")
+		return nil, ParseError(err)
 	}
 	slct = storeutils.CompactSQL(slct)
 	db, dbErr := c.storage.Database()
@@ -993,7 +994,7 @@ func (c *CaseStore) List(
 	}
 	rows, err := db.Query(opts, storeutils.CompactSQL(slct), args...)
 	if err != nil {
-		return nil, errors.Internal("execution_error")
+		return nil, ParseError(err)
 	}
 	var res _go.CaseList
 	res.Items, err = c.scanCases(rows, plan)
