@@ -53,7 +53,7 @@ func (a *App) DeleteCaseFile(rpc options.Deleter) (*model.CaseFile, error) {
 			rpc.GetAuthOpts().GetDomainId(),
 		))
 	// Check if the user has permission to delete the file
-	accessMode := auth.Delete
+	accessMode := auth.Edit
 	if rpc.GetAuthOpts().IsRbacCheckRequired(grpc.CaseFileMetadata.GetParentScopeName(), accessMode) {
 		access, err := a.Store.Case().CheckRbacAccess(
 			rpc,
