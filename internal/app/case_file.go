@@ -1,6 +1,9 @@
 package app
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strconv"
 
@@ -9,6 +12,7 @@ import (
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
+	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 	"google.golang.org/grpc/codes"
 )
 
@@ -77,5 +81,31 @@ func (a *App) DeleteCaseFile(rpc options.Deleter) (*model.CaseFile, error) {
 		slog.ErrorContext(rpc, err.Error(), logAttributes)
 		return nil, err
 	}
+
+	if notifyErr := a.watcherManager.Notify(
+		model.BrokerScopeFiles,
+		watcherkit.EventTypeDelete,
+		NewCaseFileWatcherData(rpc.GetAuthOpts(), file, []int64{int64(file.Id)}, nil),
+	); notifyErr != nil {
+		slog.ErrorContext(context.Background(), fmt.Sprintf("could not notify case file delete: %s", notifyErr.Error()))
+	}
+
 	return file, nil
+}
+
+type CaseFileWatcherData struct {
+	caseFile *model.CaseFile
+	Args     map[string]any
+}
+
+func NewCaseFileWatcherData(session auth.Auther, caseFile *model.CaseFile, id, roleIds []int64) *CaseFileWatcherData {
+	return &CaseFileWatcherData{caseFile: caseFile, Args: map[string]any{"session": session, "obj": caseFile, "role_ids": roleIds, "id": id}}
+}
+
+func (wd *CaseFileWatcherData) Marshal() ([]byte, error) {
+	return json.Marshal(wd.caseFile)
+}
+
+func (wd *CaseFileWatcherData) GetArgs() map[string]any {
+	return wd.Args
 }

@@ -1168,6 +1168,22 @@ func formCaseLinkTriggerModel(item *model.CaseLink) (*model.CaseLinkAMQPMessage,
 	return m, nil
 }
 
+func formCasefileTriggerModel(item *model.CaseFile) (*model.CaseFileAMQPMessage, error) {
+	// Convert model.CaseLink to cases.CaseLink for AMQP message
+	file := &cases.File{
+		Id:        int64(item.Id),
+		Name:      item.Name,
+		Url:       item.Url,
+		CreatedBy: utils.MarshalExtendedLookup(item.Author),
+		CreatedAt: utils.MarshalTime(item.CreatedAt),
+	}
+	m := &model.CaseFileAMQPMessage{
+		CaseFile: file,
+	}
+
+	return m, nil
+}
+
 func formCaseCommentTriggerModel(item *model.CaseComment) (*model.CaseCommentAMQPMessage, error) {
 	protoComment := &cases.CaseComment{
 		Id:        item.Id,
