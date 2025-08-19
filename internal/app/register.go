@@ -134,6 +134,25 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 		},
 		{
 			init: func(a *App) (any, error) {
+				if a.config.TriggerWatcher.Enabled {
+					watcher := watcherkit.NewDefaultWatcher()
+					mq, err := NewTriggerObserver(a.rabbitPublisher, a.config.TriggerWatcher, formCasefileTriggerModel, slog.With(
+						slog.Group("context",
+							slog.String("scope", "watcher")),
+					))
+					if err != nil {
+						return nil, err
+					}
+					watcher.Attach(watcherkit.EventTypeCreate, mq)
+					watcher.Attach(watcherkit.EventTypeUpdate, mq)
+					watcher.Attach(watcherkit.EventTypeDelete, mq)
+					watcher.Attach(watcherkit.EventTypeResolutionTime, mq)
+
+					if a.caseResolutionTimer != nil {
+						a.caseResolutionTimer.Start()
+					}
+					a.watcherManager.AddWatcher(model.BrokerScopeFiles, watcher)
+				}
 				return grpchandler.NewCaseFileService(a)
 			},
 			register: func(s *grpc.Server, svc any) {
@@ -226,7 +245,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 		svc, err := service.init(appInstance)
 		if err != nil {
 			log.Printf("Error initializing %s service: %v", service.name, err)
-			
+
 			continue
 		}
 		service.register(grpcServer, svc)
