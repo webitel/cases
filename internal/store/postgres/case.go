@@ -2089,6 +2089,9 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	// Increment version
 	updateBuilder = updateBuilder.Set("ver", sq.Expr("ver + 1"))
 
+	// Handle service-related default values (assignee and group)
+	updateBuilder = handleServiceDefaultValues(updateBuilder, input, rpc)
+
 	// region: [custom] fields ..
 	var custom struct {
 		customCtx
@@ -2115,7 +2118,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("status_condition", input.StatusCondition.GetId())
 		case "service":
 			prefixCTE := `
-			WITH service_cte AS (
+			service_cte AS (
 				SELECT catalog_id
 				FROM cases.service_catalog
 				WHERE id = ?
@@ -2126,72 +2129,20 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 				FROM cases.service_catalog
 				WHERE id = ANY(SELECT catalog_id FROM service_cte)
 				LIMIT 1
-			)
-			SELECT prefix FROM prefix_cte`
+			)`
 
-			updateBuilder = updateBuilder.Set("service", input.Service.GetId())
+			// Update service and related fields
+			updateBuilder = updateBuilder.
+				Set("service", input.Service.GetId()).
+				Set("sla", input.Sla.GetId()).
+				Set("sla_condition_id", input.SlaCondition.GetId()).
+				Set("planned_resolve_at", util.LocalTime(input.GetPlannedResolveAt())).
+				Set("planned_reaction_at", util.LocalTime(input.GetPlannedReactionAt())).
+				Set("name", sq.Expr("CONCAT((SELECT prefix FROM prefix_cte), '_', CAST(? AS TEXT))",
+					strconv.FormatInt(rpc.GetEtags()[0].GetOid(), 10)))
 
-			// Update SLA, SLA condition, and planned times
-			updateBuilder = updateBuilder.Set("sla", input.Sla.GetId())
-			updateBuilder = updateBuilder.Set("sla_condition_id", input.SlaCondition.GetId())
-			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(input.GetPlannedResolveAt()))
-			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(input.GetPlannedReactionAt()))
-
-			// When service changes, check if we need to update assignee or group
-			needAssignee := input.GetAssignee() == nil || input.GetAssignee().GetId() == 0
-			needGroup := input.GetGroup() == nil || input.GetGroup().GetId() == 0
-
-			// Only do the hierarchy lookup if we need either value
-			if needAssignee || needGroup {
-				hierarchyCTE := fmt.Sprintf(`service_defaults AS (
-					WITH RECURSIVE service_hierarchy AS (
-						SELECT id, root_id, assignee_id, group_id, 0 as level
-						FROM cases.service_catalog
-						WHERE id = %d
-						
-						UNION ALL
-						
-						SELECT sc.id, sc.root_id, sc.assignee_id, sc.group_id, sh.level + 1
-						FROM cases.service_catalog sc
-						INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
-						WHERE sh.level < 10  -- Prevent infinite recursion
-					)
-					SELECT 
-						COALESCE(
-							(SELECT assignee_id FROM service_hierarchy WHERE assignee_id IS NOT NULL ORDER BY level LIMIT 1),
-							(SELECT assignee_id FROM cases.service_catalog WHERE id = %d)
-						) as assignee_id,
-						COALESCE(
-							(SELECT group_id FROM service_hierarchy WHERE group_id IS NOT NULL ORDER BY level LIMIT 1),
-							(SELECT group_id FROM cases.service_catalog WHERE id = %d)
-						) as group_id
-				)`, input.Service.GetId(), input.Service.GetId(), input.Service.GetId())
-
-				updateBuilder = updateBuilder.Prefix("WITH " + hierarchyCTE)
-
-				if needAssignee {
-					updateBuilder = updateBuilder.Set("assignee", sq.Expr("(SELECT assignee_id FROM service_defaults)"))
-				}
-				if needGroup {
-					updateBuilder = updateBuilder.Set("contact_group", sq.Expr("(SELECT group_id FROM service_defaults)"))
-				}
-			}
-
-			caseIDString := strconv.FormatInt(rpc.GetEtags()[0].GetOid(), 10)
-
-			updateBuilder = updateBuilder.Set("name",
-				sq.Expr("CONCAT(("+prefixCTE+"), '_', CAST(? AS TEXT))",
-					input.Service.GetId(), caseIDString))
-
-		case "assignee":
-			if input.Assignee != nil {
-				var assignee *int64
-				if input.Assignee.GetId() > 0 {
-					id := input.Assignee.GetId()
-					assignee = &id
-				}
-				updateBuilder = updateBuilder.Set("assignee", assignee)
-			}
+			// Add prefix CTE
+			updateBuilder = updateBuilder.Prefix(", "+prefixCTE, input.Service.GetId())
 		case "reporter":
 			var reporter *int64
 			if id := input.Reporter.GetId(); id > 0 {
@@ -2206,15 +2157,6 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 				impacted = &imp
 			}
 			updateBuilder = updateBuilder.Set("impacted", impacted)
-		case "group":
-			if input.Group != nil {
-				var group *int64
-				if input.Group.GetId() > 0 {
-					id := input.Group.GetId()
-					group = &id
-				}
-				updateBuilder = updateBuilder.Set("contact_group", group)
-			}
 		case "close_reason":
 			var closeReason *int64
 			if id := input.GetCloseReason().GetId(); id > 0 {
@@ -2334,6 +2276,92 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	selectBuilder = selectBuilder.From(caseLeft)
 
 	return selectBuilder, plan, nil
+}
+
+// handleServiceDefaultValues handles setting default values for assignee and group based on service hierarchy
+func handleServiceDefaultValues(builder sq.UpdateBuilder, input *_go.Case, rpc options.Updator) sq.UpdateBuilder {
+	// When service changes, use hierarchy CTE to get assignee and group
+	hierarchyCTE := fmt.Sprintf(`service_defaults AS (
+		WITH RECURSIVE service_hierarchy AS (
+			SELECT id, root_id, assignee_id, group_id, 0 as level
+			FROM cases.service_catalog
+			WHERE id = %d
+			
+			UNION ALL
+			
+			SELECT sc.id, sc.root_id, sc.assignee_id, sc.group_id, sh.level + 1
+			FROM cases.service_catalog sc
+			INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
+			WHERE sh.level < 10  -- Prevent infinite recursion
+		)
+		SELECT 
+			COALESCE(
+				(SELECT assignee_id FROM service_hierarchy WHERE assignee_id IS NOT NULL ORDER BY level LIMIT 1),
+				(SELECT assignee_id FROM cases.service_catalog WHERE id = %d)
+			) as assignee_id,
+			COALESCE(
+				(SELECT group_id FROM service_hierarchy WHERE group_id IS NOT NULL ORDER BY level LIMIT 1),
+				(SELECT group_id FROM cases.service_catalog WHERE id = %d)
+			) as group_id
+	)`, input.Service.GetId(), input.Service.GetId(), input.Service.GetId())
+
+	// Check if service is changing
+	isServiceChanging := fmt.Sprintf("(SELECT service != %d FROM current_service)", input.Service.GetId())
+
+	// Set assignee and group based on service hierarchy and mask fields
+	if util.ContainsField(rpc.GetMask(), "service") {
+		// Service is in mask - check if it's changing
+		builder = builder.Prefix("WITH current_service AS ("+
+			"SELECT service "+
+			"FROM cases.case "+
+			"WHERE id = ? "+
+			"LIMIT 1"+
+			"), "+hierarchyCTE, rpc.GetEtags()[0].GetOid())
+
+		// If service is changing, use hierarchy CTE, otherwise check request fields
+		builder = builder.
+			Set("assignee", sq.Expr("CASE WHEN "+isServiceChanging+" THEN (SELECT assignee_id FROM service_defaults) ELSE ? END",
+				func() any {
+					if util.ContainsField(rpc.GetMask(), "assignee") {
+						if input.Assignee == nil || input.Assignee.Id == 0 {
+							return nil
+						}
+						return input.Assignee.GetId()
+					}
+					return sq.Expr("assignee")
+				}(),
+			)).
+			Set("contact_group", sq.Expr("CASE WHEN "+isServiceChanging+" THEN (SELECT group_id FROM service_defaults) ELSE ? END",
+				func() any {
+					if util.ContainsField(rpc.GetMask(), "group") {
+						if input.Group == nil || input.Group.Id == 0 {
+							return nil
+						}
+						return input.GetGroup().GetId()
+					}
+					return sq.Expr("contact_group")
+				}(),
+			))
+	} else {
+		if util.ContainsField(rpc.GetMask(), "assignee") {
+			// If assignee is in mask but empty in request, set to NULL
+			if input.Assignee == nil || input.Assignee.Id == 0 {
+				builder = builder.Set("assignee", nil)
+			} else {
+				builder = builder.Set("assignee", input.Assignee.GetId())
+			}
+		}
+		if util.ContainsField(rpc.GetMask(), "group") {
+			// If group is in mask but empty in request, set to NULL
+			if input.Group == nil || input.Group.Id == 0 {
+				builder = builder.Set("contact_group", nil)
+			} else {
+				builder = builder.Set("contact_group", input.GetGroup().GetId())
+			}
+		}
+	}
+
+	return builder
 }
 
 func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq.SelectBuilder, joinedTableAlias string, err error) {
