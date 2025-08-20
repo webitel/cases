@@ -4,7 +4,7 @@ import (
 	"context"
 	defErr "errors"
 	"fmt"
-
+	grpcoptions "github.com/webitel/cases/internal/api_handler/grpc/options"
 	"google.golang.org/grpc/codes"
 
 	"github.com/webitel/webitel-go-kit/pkg/etag"
@@ -14,7 +14,6 @@ import (
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
-	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
 )
 
@@ -46,16 +45,16 @@ func NewCaseCommunicationService(app CaseCommunicationHandler) (*CaseCommunicati
 }
 
 func (s *CaseCommunicationService) ListCommunications(ctx context.Context, req *api.ListCommunicationsRequest) (*api.ListCommunicationsResponse, error) {
-	searchOpts, err := grpcopts.NewSearchOptions(
+	searchOpts, err := grpcoptions.NewSearchOptions(
 		ctx,
-		grpcopts.WithSearch(req),
-		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, CaseCommunicationMetadata,
+		grpcoptions.WithSearch(req),
+		grpcoptions.WithPagination(req),
+		grpcoptions.WithFields(req, CaseCommunicationMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
 		),
-		grpcopts.WithSort(req),
+		grpcoptions.WithSort(req),
 	)
 	if err != nil {
 		return nil, err
@@ -104,14 +103,14 @@ func (s *CaseCommunicationService) LinkCommunication(ctx context.Context, req *a
 		return nil, errors.InvalidArgument("invalid case etag", errors.WithCause(err))
 	}
 
-	createOpts, err := grpcopts.NewCreateOptions(
+	createOpts, err := grpcoptions.NewCreateOptions(
 		ctx,
-		grpcopts.WithCreateFields(req, CaseCommunicationMetadata,
+		grpcoptions.WithCreateFields(req, CaseCommunicationMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
 		),
-		grpcopts.WithCreateParentID(tag.GetOid()),
+		grpcoptions.WithCreateParentID(tag.GetOid()),
 	)
 	if err != nil {
 		return nil, err
@@ -146,7 +145,7 @@ func (s *CaseCommunicationService) UnlinkCommunication(ctx context.Context, req 
 		return nil, errors.InvalidArgument("invalid case etag", errors.WithCause(err))
 	}
 
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(commTag.GetOid()))
+	deleteOpts, err := grpcoptions.NewDeleteOptions(ctx, grpcoptions.WithDeleteID(commTag.GetOid()))
 	if err != nil {
 		return nil, err
 	}

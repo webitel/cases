@@ -1,12 +1,12 @@
 package app
 
 import (
+	options2 "github.com/webitel/cases/internal/api_handler/grpc"
 	"strconv"
 
 	"google.golang.org/grpc/codes"
 
 	"github.com/webitel/cases/auth"
-	"github.com/webitel/cases/internal/api_handler/grpc"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
@@ -23,7 +23,7 @@ func (c *App) ListCommunications(searcher options.Searcher) ([]*model.CaseCommun
 	}
 	accessMode := auth.Read
 	authOpts := searcher.GetAuthOpts()
-	if authOpts.GetObjectScope(grpc.CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
+	if authOpts.GetObjectScope(options2.CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
 		access, err := c.Store.Case().CheckRbacAccess(searcher, authOpts, accessMode, caseID)
 		if err != nil {
 			return nil, err
@@ -42,11 +42,11 @@ func (c *App) ListCommunications(searcher options.Searcher) ([]*model.CaseCommun
 
 func (c *App) LinkCommunication(createOpts options.Creator, input []*model.CaseCommunication) ([]*model.CaseCommunication, error) {
 	accessMode := auth.Edit
-	if !createOpts.GetAuthOpts().CheckObacAccess(grpc.CaseCommunicationMetadata.GetParentScopeName(), accessMode) {
+	if !createOpts.GetAuthOpts().CheckObacAccess(options2.CaseCommunicationMetadata.GetParentScopeName(), accessMode) {
 		return nil, errors.New("user doesn't have required (EDIT) access to the case", errors.WithCode(codes.PermissionDenied))
 	}
 
-	if createOpts.GetAuthOpts().GetObjectScope(grpc.CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
+	if createOpts.GetAuthOpts().GetObjectScope(options2.CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
 		access, err := c.Store.Case().CheckRbacAccess(createOpts, createOpts.GetAuthOpts(), accessMode, createOpts.GetParentID())
 		if err != nil {
 			return nil, errors.New("user doesn't have required (EDIT) access to the case", errors.WithCode(codes.PermissionDenied))
@@ -77,7 +77,7 @@ func (c *App) UnlinkCommunication(deleteOpts options.Deleter) (int64, error) {
 		return 0, errors.New("invalid case id", errors.WithCode(codes.InvalidArgument))
 	}
 	accessMode := auth.Edit
-	if deleteOpts.GetAuthOpts().GetObjectScope(grpc.CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
+	if deleteOpts.GetAuthOpts().GetObjectScope(options2.CaseCommunicationMetadata.GetParentScopeName()).IsRbacUsed() {
 		access, err := c.Store.Case().CheckRbacAccess(deleteOpts, deleteOpts.GetAuthOpts(), accessMode, caseID)
 		if err != nil {
 			return 0, errors.New("user doesn't have required (EDIT) access to the case", errors.WithCode(codes.PermissionDenied))

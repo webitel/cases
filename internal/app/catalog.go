@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/webitel/cases/internal/api_handler/grpc/options"
 	"log/slog"
 
 	"github.com/webitel/cases/api/cases"
@@ -10,7 +11,6 @@ import (
 	"github.com/webitel/cases/auth"
 	errors "github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
-	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"google.golang.org/grpc/metadata"
 )
@@ -64,9 +64,9 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		return nil, errors.InvalidArgument("Close reason group is required")
 	}
 	// Define create options
-	createOpts, err := grpcopts.NewCreateOptions(
+	createOpts, err := options.NewCreateOptions(
 		ctx,
-		grpcopts.WithCreateFields(req, CatalogMetadata),
+		options.WithCreateFields(req, CatalogMetadata),
 	)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func (s *CatalogService) DeleteCatalog(ctx context.Context, req *cases.DeleteCat
 	if len(req.Id) == 0 {
 		return nil, errors.InvalidArgument("Catalog ID is required")
 	}
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteIDs(req.Id))
+	deleteOpts, err := options.NewDeleteOptions(ctx, options.WithDeleteIDs(req.Id))
 	if err != nil {
 		return nil, err
 	}
@@ -133,27 +133,27 @@ func (s *CatalogService) ListCatalogs(
 	ctx context.Context,
 	req *cases.ListCatalogRequest,
 ) (*cases.CatalogList, error) {
-	opts := []grpcopts.SearchOption{
-		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, CatalogMetadata,
+	opts := []options.SearchOption{
+		options.WithPagination(req),
+		options.WithFields(req, CatalogMetadata,
 			util.DeduplicateFields,
 			func(in []string) []string {
 				return util.EnsureFields(in, "services", "id")
 			},
 		),
-		grpcopts.WithIDs(req.Id),
-		grpcopts.WithSort(req),
+		options.WithIDs(req.Id),
+		options.WithSort(req),
 	}
 
 	// Conditionally add search if query is not empty
 	if req.Query != "" {
-		opts = append(opts, grpcopts.WithSearchAsParam(req.Query))
-		opts = append(opts, func(options *grpcopts.SearchOptions) error {
+		opts = append(opts, options.WithSearchAsParam(req.Query))
+		opts = append(opts, func(options *options.SearchOptions) error {
 			options.Fields = util.EnsureFields(options.Fields, "searched")
 			return nil
 		})
 	}
-	searchOptions, err := grpcopts.NewSearchOptions(ctx, opts...)
+	searchOptions, err := options.NewSearchOptions(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -250,10 +250,10 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 	}
 
 	// Build update options
-	updateOpts, err := grpcopts.NewUpdateOptions(
+	updateOpts, err := options.NewUpdateOptions(
 		ctx,
-		grpcopts.WithUpdateFields(req, CaseMetadata),
-		grpcopts.WithUpdateMasker(req),
+		options.WithUpdateFields(req, CaseMetadata),
+		options.WithUpdateMasker(req),
 	)
 	if err != nil {
 		return nil, err

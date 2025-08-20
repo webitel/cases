@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	grpcopts "github.com/webitel/cases/internal/api_handler/grpc/options"
 	"strings"
 
 	"google.golang.org/grpc/codes"
@@ -11,7 +12,6 @@ import (
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
-	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
 )
 

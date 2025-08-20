@@ -226,7 +226,7 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 		svc, err := service.init(appInstance)
 		if err != nil {
 			log.Printf("Error initializing %s service: %v", service.name, err)
-			
+
 			continue
 		}
 		service.register(grpcServer, svc)

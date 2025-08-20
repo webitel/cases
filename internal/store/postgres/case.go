@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	common "github.com/webitel/cases/internal/api_handler/grpc/options"
+
 	"github.com/webitel/cases/internal/errors"
 
 	"github.com/webitel/cases/auth"
@@ -23,7 +25,6 @@ import (
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/model/options/defaults"
-	common "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/internal/store"
 	"github.com/webitel/cases/internal/store/postgres/scanner"
 	"github.com/webitel/cases/internal/store/postgres/transaction"
@@ -236,16 +237,16 @@ WITH RECURSIVE
                         ORDER BY array_length(path, 1) ASC
                         LIMIT 1),
     -- Get first non-null assignee and group from hierarchy
-    defaults AS (SELECT 
-                    (SELECT assignee_id 
-                    FROM service_hierarchy 
-                    WHERE assignee_id IS NOT NULL 
-                    ORDER BY level ASC 
+    defaults AS (SELECT
+                    (SELECT assignee_id
+                    FROM service_hierarchy
+                    WHERE assignee_id IS NOT NULL
+                    ORDER BY level ASC
                     LIMIT 1) as assignee_id,
-                    (SELECT group_id 
-                    FROM service_hierarchy 
-                    WHERE group_id IS NOT NULL 
-                    ORDER BY level ASC 
+                    (SELECT group_id
+                    FROM service_hierarchy
+                    WHERE group_id IS NOT NULL
+                    ORDER BY level ASC
                     LIMIT 1) as group_id),
     priority_condition AS (SELECT sc.id AS sla_condition_id,
                                   sc.reaction_time,
@@ -429,13 +430,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
 				:dc, :date, :user, :date, :user,
-				(SELECT priority_id FROM priority_cte), :source, :status, 
+				(SELECT priority_id FROM priority_cte), :source, :status,
 				:contact_group,
 				:close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee,
 				:sla, :sla_condition,
-				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason, 
+				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason,
                 NULLIF(:rating, 0), NULLIF(:rating_comment, '')
 			)
 			RETURNING *
@@ -959,7 +960,7 @@ func (c *CaseStore) Delete(rpc options.Deleter) error {
 	return nil
 }
 
-func (c CaseStore) buildDeleteCaseQuery(rpc options.Deleter) (string, []any, error) {
+func (c *CaseStore) buildDeleteCaseQuery(rpc options.Deleter) (string, []any, error) {
 	var err error
 	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
@@ -1068,9 +1069,9 @@ func buildServiceHierarchyFilter(serviceIDs []int64, columnIdent string) (string
 			SELECT id, root_id, 1 as level
 			FROM cases.service_catalog
 			WHERE id = ANY(?::int[])
-			
+
 			UNION ALL
-			
+
 			-- Recursively get child services
 			SELECT sc.id, sc.root_id, sh.level + 1
 			FROM cases.service_catalog sc
@@ -1866,7 +1867,15 @@ func (c *CaseStore) buildListCaseSqlizer(
 			return base, nil, err
 		}
 		base = base.Where(sqlizer)
+	}
 
+	base, err = storeutils.NormalizeFilters(base, opts.GetFilters(), caseLeft, c.joinRequiredTable)
+	if err != nil {
+		return base, nil, err
+	}
+	base, err = storeutils.ApplyFilters(base, opts.GetFilters())
+	if err != nil {
+		return base, nil, err
 	}
 
 	if sess := opts.GetAuthOpts(); sess != nil {
@@ -2148,15 +2157,15 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 						SELECT id, root_id, assignee_id, group_id, 0 as level
 						FROM cases.service_catalog
 						WHERE id = %d
-						
+
 						UNION ALL
-						
+
 						SELECT sc.id, sc.root_id, sc.assignee_id, sc.group_id, sh.level + 1
 						FROM cases.service_catalog sc
 						INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
 						WHERE sh.level < 10  -- Prevent infinite recursion
 					)
-					SELECT 
+					SELECT
 						COALESCE(
 							(SELECT assignee_id FROM service_hierarchy WHERE assignee_id IS NOT NULL ORDER BY level LIMIT 1),
 							(SELECT assignee_id FROM cases.service_catalog WHERE id = %d)
@@ -2395,6 +2404,19 @@ func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq
 	case "status_condition":
 		tableAlias = caseStatusConditionAlias
 		joinTable(tableAlias, "cases.status_condition", storeutils.Ident(caseLeft, "status_condition"))
+	case "custom":
+		// join extension table
+		customFieldsMetadata := c.custom(context.Background())
+		if customFieldsMetadata == nil || customFieldsMetadata.refer == nil {
+			return base, "", fmt.Errorf("custom fields metadata not found or refer is nil")
+		}
+		tableAlias = "xc"
+		customFieldsMetadata.table = tableAlias
+		base = base.LeftJoin(fmt.Sprintf("%s %s ON %s.id = %s.id",
+			customFieldsMetadata.refer.Table(),
+			customFieldsMetadata.table,
+			caseLeft,
+			customFieldsMetadata.table))
 	}
 	return base, tableAlias, nil
 }
@@ -2811,18 +2833,18 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			servicePathSubquery := `
 				WITH RECURSIVE service_path AS (
 					-- Start with the current service
-					SELECT 
+					SELECT
 						sc.id,
 						sc.name,
 						sc.root_id,
 						1 as level
 					FROM cases.service_catalog sc
 					WHERE sc.id = ` + storeutils.Ident(caseLeft, "service") + `
-					
+
 					UNION ALL
-					
+
 					-- Recursively get parent services up to catalog
-					SELECT 
+					SELECT
 						parent.id,
 						parent.name,
 						parent.root_id,
@@ -2831,7 +2853,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 					JOIN service_path sp ON parent.id = sp.root_id
 					WHERE parent.id IS NOT NULL -- Ensure we don't get NULL IDs
 				)
-				SELECT 
+				SELECT
 					jsonb_build_object(
 						'current_service', jsonb_build_object(
 							'id', (SELECT id FROM service_path WHERE level = 1),
@@ -2839,7 +2861,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 						),
 						'parent_services', COALESCE(
 							(SELECT jsonb_agg(jsonb_build_object('id', id, 'name', name, 'level', level) ORDER BY level DESC)
-							 FROM service_path 
+							 FROM service_path
 							 WHERE level > 1),
 							'[]'::jsonb
 						)

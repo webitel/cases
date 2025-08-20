@@ -1,19 +1,22 @@
-package grpc
+package options
 
 import (
 	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/cel-go/cel"
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/api_handler/grpc/options/shared"
+	optsutil "github.com/webitel/cases/internal/api_handler/grpc/options/util"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/model/options/defaults"
-	"github.com/webitel/cases/internal/model/options/grpc/shared"
-	optsutil "github.com/webitel/cases/internal/model/options/grpc/util"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"google.golang.org/grpc/codes"
-	"strings"
-	"time"
 )
 
 type SearchOption func(options *SearchOptions) error
@@ -25,7 +28,8 @@ type SearchOptions struct {
 	context.Context
 	// filters
 	IDs     []int64
-	Filters []string
+	Filters model.Filterer
+	Preset  map[string]any
 	// search
 	Search string
 	// output
@@ -59,6 +63,25 @@ type Filterer interface {
 	GetFilters() []string
 }
 
+func WithFilters(env *cel.Env, query string) SearchOption {
+	return func(options *SearchOptions) error {
+		ast, iss := env.Compile(query)
+		if iss.Err() != nil {
+			return errors.New(iss.String(), errors.WithCode(codes.InvalidArgument))
+		}
+		expr, err := cel.AstToCheckedExpr(ast)
+		if err != nil {
+			return errors.New(err.Error(), errors.WithCode(codes.InvalidArgument))
+		}
+		filters, err := ParseCELASTToFilter(expr.GetExpr())
+		if err != nil {
+			return errors.New(fmt.Sprintf("error parsing filters: %v", err), errors.WithCode(codes.InvalidArgument))
+		}
+		options.Filters = filters
+		return nil
+	}
+}
+
 func WithFields(fielder shared.Fielder, md model.ObjectMetadatter, fieldModifiers ...func(in []string) []string) SearchOption {
 	return func(options *SearchOptions) error {
 		if requestedFields := fielder.GetFields(); len(requestedFields) == 0 {
@@ -89,13 +112,6 @@ func WithPagination(pager Pager) SearchOption {
 		if ops.Size == 0 {
 			ops.Size = options.DefaultSearchSize
 		}
-		return nil
-	}
-}
-
-func WithFilters(filters []string) SearchOption {
-	return func(options *SearchOptions) error {
-		options.Filters = filters
 		return nil
 	}
 }
@@ -207,21 +223,18 @@ func (s *SearchOptions) GetSort() string {
 	return s.Sort
 }
 
-func (s *SearchOptions) AddFilter(f string) {
-	s.Filters = append(s.Filters, f)
-}
-
-func (s *SearchOptions) GetFilters() []string {
+func (s *SearchOptions) GetFilters() model.Filterer {
 	return s.Filters
 }
 
-// GetFilter returns all filters for a given field, with operator and value
-func (s *SearchOptions) GetFilter(f string) []util.FilterExpr {
-	return util.GetFilter(s.Filters, f)
-}
-
-func (s *SearchOptions) RemoveFilter(f string) {
-	s.Filters = util.RemoveSliceElement(s.Filters, f)
+func (s *SearchOptions) AddFilter(connectionType model.ConnectionType, filter model.Filterer) {
+	switch data := s.GetFilters().(type) {
+	case *model.Filter, *model.FilterNode:
+		s.Filters = &model.FilterNode{
+			Nodes:      []model.Filterer{data, filter},
+			Connection: connectionType,
+		}
+	}
 }
 
 func (s *SearchOptions) GetCustomContext() map[string]any {

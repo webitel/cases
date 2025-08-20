@@ -2,9 +2,9 @@ package util
 
 import (
 	"fmt"
-	"github.com/Masterminds/squirrel"
-	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"strings"
+
+	"github.com/Masterminds/squirrel"
 )
 
 const (
@@ -124,7 +124,11 @@ func ResolvePaging[T any](size int, items []*T) (updatedItems []*T, next bool) {
 	return
 }
 
-func ApplyDefaultSorting(opts grpcopts.Sorter, base squirrel.SelectBuilder, defaultSort string) squirrel.SelectBuilder {
+type Sorter interface {
+	GetSort() string
+}
+
+func ApplyDefaultSorting(opts Sorter, base squirrel.SelectBuilder, defaultSort string) squirrel.SelectBuilder {
 	if s := opts.GetSort(); len(s) != 0 {
 
 		// Check for + or - prefix

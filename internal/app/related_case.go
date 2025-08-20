@@ -6,9 +6,9 @@ import (
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/api_handler/grpc"
+	"github.com/webitel/cases/internal/api_handler/grpc/options"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
-	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
 	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
@@ -43,15 +43,15 @@ func (r *RelatedCaseService) LocateRelatedCase(ctx context.Context, req *cases.L
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid primary case etag", errors.WithCause(err))
 	}
-	searchOpts, err := grpcopts.NewLocateOptions(
+	searchOpts, err := options.NewLocateOptions(
 		ctx,
-		grpcopts.WithFields(req, grpc.CaseCommentMetadata,
+		options.WithFields(req, grpc.CaseCommentMetadata,
 			util.DeduplicateFields,
 			func(in []string) []string {
 				return util.EnsureFields(in, "created_at", "id")
 			},
 		),
-		grpcopts.WithIDsAsEtags(etag.EtagRelatedCase, req.GetEtag()),
+		options.WithIDsAsEtags(etag.EtagRelatedCase, req.GetEtag()),
 	)
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid search options", errors.WithCause(err))
@@ -110,14 +110,14 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		return nil, errors.InvalidArgument("Invalid related case etag", errors.WithCause(err))
 	}
 
-	createOpts, err := grpcopts.NewCreateOptions(
+	createOpts, err := options.NewCreateOptions(
 		ctx,
-		grpcopts.WithCreateFields(req, RelatedCaseMetadata,
+		options.WithCreateFields(req, RelatedCaseMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField),
-		grpcopts.WithCreateParentID(primaryCaseTag.GetOid()),
-		grpcopts.WithCreateChildID(relatedCaseTag.GetOid()),
+		options.WithCreateParentID(primaryCaseTag.GetOid()),
+		options.WithCreateChildID(relatedCaseTag.GetOid()),
 	)
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid create options", errors.WithCause(err))
@@ -222,11 +222,11 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid related case etag", errors.WithCause(err))
 	}
-	updateOpts, err := grpcopts.NewUpdateOptions(
+	updateOpts, err := options.NewUpdateOptions(
 		ctx,
-		grpcopts.WithUpdateFields(req, RelatedCaseMetadata),
-		grpcopts.WithUpdateEtag(&tag),
-		grpcopts.WithUpdateMasker(req),
+		options.WithUpdateFields(req, RelatedCaseMetadata),
+		options.WithUpdateEtag(&tag),
+		options.WithUpdateMasker(req),
 	)
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid update options", errors.WithCause(err))
@@ -339,12 +339,12 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 	if req.GetPrimaryCaseEtag() == "" {
 		return nil, errors.InvalidArgument("Primary case ID required")
 	}
-	deleteOpts, err := grpcopts.NewDeleteOptions(
+	deleteOpts, err := options.NewDeleteOptions(
 		ctx,
-		grpcopts.WithDeleteIDsAsEtags(
+		options.WithDeleteIDsAsEtags(
 			etag.EtagRelatedCase,
 			req.GetEtag()),
-		grpcopts.WithDeleteParentIDAsEtag(
+		options.WithDeleteParentIDAsEtag(
 			etag.EtagCase,
 			req.GetPrimaryCaseEtag(),
 		),
@@ -434,18 +434,18 @@ func (r *RelatedCaseService) ListRelatedCases(ctx context.Context, req *cases.Li
 	if req.GetPrimaryCaseEtag() == "" {
 		return nil, errors.InvalidArgument("Primary case ID required")
 	}
-	searchOpts, err := grpcopts.NewSearchOptions(
+	searchOpts, err := options.NewSearchOptions(
 		ctx,
-		grpcopts.WithSearch(req),
-		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, RelatedCaseMetadata,
+		options.WithSearch(req),
+		options.WithPagination(req),
+		options.WithFields(req, RelatedCaseMetadata,
 			util.DeduplicateFields,
 			func(in []string) []string {
 				return util.EnsureFields(in, "created_at", "id")
 			},
 		),
-		grpcopts.WithSort(req),
-		grpcopts.WithIDsAsEtags(etag.EtagRelatedCase, req.GetIds()...),
+		options.WithSort(req),
+		options.WithIDsAsEtags(etag.EtagRelatedCase, req.GetIds()...),
 	)
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid search options", errors.WithCause(err))

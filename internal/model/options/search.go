@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/webitel/cases/auth"
-	"github.com/webitel/cases/util"
+	"github.com/webitel/cases/internal/model"
 )
 
 const DefaultSearchSize = 10
@@ -23,13 +23,9 @@ type Searcher interface {
 	// Sorting
 	GetSort() string
 	// Filtering
-	AddFilter(string)
-	GetFilter(field string) []util.FilterExpr
-	GetFilters() []string
-	RemoveFilter(string)
+	GetFilters() model.Filterer
+	AddFilter(model.ConnectionType, model.Filterer)
 	// shortcuts
 	GetIDs() []int64
-	AddCustomContext(key string, value any)
-	GetCustomContext() map[string]any
 	GetQin() string
 }

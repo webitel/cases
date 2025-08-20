@@ -3,11 +3,11 @@ package grpc
 import (
 	"context"
 	"github.com/webitel/cases/api/cases"
+	grpcoptions "github.com/webitel/cases/internal/api_handler/grpc/options"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
-	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"google.golang.org/grpc/codes"
@@ -46,12 +46,12 @@ func (s *CaseFileService) ListFiles(ctx context.Context, req *cases.ListFilesReq
 		return nil, errors.New("case etag is required", errors.WithCode(codes.InvalidArgument))
 	}
 
-	searchOpts, err := grpcopts.NewSearchOptions(
+	searchOpts, err := grpcoptions.NewSearchOptions(
 		ctx,
-		grpcopts.WithSearch(req),
-		grpcopts.WithPagination(req),
-		grpcopts.WithSort(req),
-		grpcopts.WithFields(req, CaseFileMetadata,
+		grpcoptions.WithSearch(req),
+		grpcoptions.WithPagination(req),
+		grpcoptions.WithSort(req),
+		grpcoptions.WithFields(req, CaseFileMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
@@ -89,10 +89,10 @@ func (s *CaseFileService) DeleteFile(ctx context.Context, req *cases.DeleteFileR
 	if req.Id == 0 {
 		return nil, errors.New("file id is required", errors.WithCode(codes.InvalidArgument))
 	}
-	deleteOpts, err := grpcopts.NewDeleteOptions(
+	deleteOpts, err := grpcoptions.NewDeleteOptions(
 		ctx,
-		grpcopts.WithDeleteID(req.GetId()),
-		grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()),
+		grpcoptions.WithDeleteID(req.GetId()),
+		grpcoptions.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()),
 	)
 	if err != nil {
 		return nil, errors.New(err.Error(), errors.WithCode(codes.InvalidArgument))

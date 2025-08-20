@@ -3,13 +3,12 @@ package grpc
 import (
 	"context"
 	"fmt"
-
 	"github.com/webitel/cases/api/cases"
+	grpcopts "github.com/webitel/cases/internal/api_handler/grpc/options"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
-	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"google.golang.org/grpc/codes"
