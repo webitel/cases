@@ -2281,46 +2281,62 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 // handleServiceDefaultValues handles setting default values for assignee and group based on service hierarchy
 func handleServiceDefaultValues(builder sq.UpdateBuilder, input *_go.Case, rpc options.Updator) sq.UpdateBuilder {
 	// When service changes, use hierarchy CTE to get assignee and group
-	hierarchyCTE := fmt.Sprintf(`service_defaults AS (
-		WITH RECURSIVE service_hierarchy AS (
-			SELECT id, root_id, assignee_id, group_id, 0 as level
-			FROM cases.service_catalog
-			WHERE id = %d
-			
-			UNION ALL
-			
-			SELECT sc.id, sc.root_id, sc.assignee_id, sc.group_id, sh.level + 1
-			FROM cases.service_catalog sc
-			INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
-			WHERE sh.level < 10  -- Prevent infinite recursion
-		)
-		SELECT 
-			COALESCE(
-				(SELECT assignee_id FROM service_hierarchy WHERE assignee_id IS NOT NULL ORDER BY level LIMIT 1),
-				(SELECT assignee_id FROM cases.service_catalog WHERE id = %d)
-			) as assignee_id,
-			COALESCE(
-				(SELECT group_id FROM service_hierarchy WHERE group_id IS NOT NULL ORDER BY level LIMIT 1),
-				(SELECT group_id FROM cases.service_catalog WHERE id = %d)
-			) as group_id
-	)`, input.Service.GetId(), input.Service.GetId(), input.Service.GetId())
-
-	// Check if service is changing
-	isServiceChanging := fmt.Sprintf("(SELECT service != %d FROM current_service)", input.Service.GetId())
+	hierarchyCTE := fmt.Sprintf(`WITH RECURSIVE current_case AS (
+		SELECT service, status_condition, COALESCE(sc.final, false) as is_final
+		FROM cases.case c
+		LEFT JOIN cases.status_condition sc ON c.status_condition = sc.id
+		WHERE c.id = %d
+		LIMIT 1
+	),
+	service_hierarchy AS (
+		-- Start with current service
+		SELECT id, root_id, assignee_id, group_id, 0 as level
+		FROM cases.service_catalog
+		WHERE id = %d
+		
+		UNION ALL
+		
+		-- Recursively go up until we find first assignee/group
+		SELECT sc.id, sc.root_id, sc.assignee_id, sc.group_id, sh.level + 1
+		FROM cases.service_catalog sc
+		INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
+		WHERE sh.assignee_id IS NULL AND sh.group_id IS NULL
+			AND sh.level < 10  -- Prevent infinite recursion
+	),
+	service_defaults AS (
+		SELECT assignee_id, group_id
+		FROM service_hierarchy
+		WHERE assignee_id IS NOT NULL OR group_id IS NOT NULL
+		ORDER BY level ASC
+		LIMIT 1
+	)`, rpc.GetEtags()[0].GetOid(), input.Service.GetId())
 
 	// Set assignee and group based on service hierarchy and mask fields
 	if util.ContainsField(rpc.GetMask(), "service") {
-		// Service is in mask - check if it's changing
-		builder = builder.Prefix("WITH current_service AS ("+
-			"SELECT service "+
-			"FROM cases.case "+
-			"WHERE id = ? "+
-			"LIMIT 1"+
-			"), "+hierarchyCTE, rpc.GetEtags()[0].GetOid())
+		// Add CTEs
+		builder = builder.Prefix(hierarchyCTE)
 
-		// If service is changing, use hierarchy CTE, otherwise check request fields
 		builder = builder.
-			Set("assignee", sq.Expr("CASE WHEN "+isServiceChanging+" THEN (SELECT assignee_id FROM service_defaults) ELSE ? END",
+			// If status is final:
+			//   - Only use explicitly provided values from request (if in mask)
+			// If not final:
+			//   - If service is changing, use hierarchy defaults
+			//   - If service is not changing but fields are in mask, use provided values
+			//   - Otherwise keep existing values
+			Set("assignee", sq.Expr(`CASE 
+				WHEN (SELECT is_final FROM current_case) = true THEN 
+					CASE WHEN ? THEN ? ELSE assignee END
+				WHEN service != ? THEN (SELECT assignee_id FROM service_defaults)
+				ELSE ? 
+			END`,
+				util.ContainsField(rpc.GetMask(), "assignee"), // Check if assignee is in mask
+				func() any {
+					if input.Assignee == nil || input.Assignee.Id == 0 {
+						return nil // Explicitly set to NULL if empty in request
+					}
+					return input.Assignee.GetId()
+				}(),
+				input.Service.GetId(),
 				func() any {
 					if util.ContainsField(rpc.GetMask(), "assignee") {
 						if input.Assignee == nil || input.Assignee.Id == 0 {
@@ -2331,7 +2347,20 @@ func handleServiceDefaultValues(builder sq.UpdateBuilder, input *_go.Case, rpc o
 					return sq.Expr("assignee")
 				}(),
 			)).
-			Set("contact_group", sq.Expr("CASE WHEN "+isServiceChanging+" THEN (SELECT group_id FROM service_defaults) ELSE ? END",
+			Set("contact_group", sq.Expr(`CASE 
+				WHEN (SELECT is_final FROM current_case) = true THEN 
+					CASE WHEN ? THEN ? ELSE contact_group END
+				WHEN service != ? THEN (SELECT group_id FROM service_defaults)
+				ELSE ? 
+			END`,
+				util.ContainsField(rpc.GetMask(), "group"), // Check if group is in mask
+				func() any {
+					if input.Group == nil || input.Group.Id == 0 {
+						return nil // Explicitly set to NULL if empty in request
+					}
+					return input.Group.GetId()
+				}(),
+				input.Service.GetId(),
 				func() any {
 					if util.ContainsField(rpc.GetMask(), "group") {
 						if input.Group == nil || input.Group.Id == 0 {
