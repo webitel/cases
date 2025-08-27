@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+
 	"github.com/webitel/cases/internal/errors"
 	"google.golang.org/grpc/codes"
 
@@ -118,6 +119,7 @@ func (s *CloseReasonService) UpdateCloseReason(
 ) (*cases.CloseReason, error) {
 	updator, err := grpcopts.NewUpdateOptions(
 		ctx,
+		grpcopts.WithUpdateIDs([]int64{req.Id}),
 		grpcopts.WithUpdateFields(req, CloseReasonMetadata),
 		grpcopts.WithUpdateMasker(req),
 	)
