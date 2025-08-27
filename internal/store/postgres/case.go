@@ -1869,11 +1869,11 @@ func (c *CaseStore) buildListCaseSqlizer(
 		base = base.Where(sqlizer)
 	}
 
-	base, err = storeutils.NormalizeFilters(base, opts.GetFilters(), caseLeft, c.joinRequiredTable)
+	base, err = storeutils.NormalizeFilters(base, opts.GetFiltersV1(), caseLeft, c.joinRequiredTable)
 	if err != nil {
 		return base, nil, err
 	}
-	base, err = storeutils.ApplyFilters(base, opts.GetFilters())
+	base, err = storeutils.ApplyFilters(base, opts.GetFiltersV1())
 	if err != nil {
 		return base, nil, err
 	}
@@ -1892,7 +1892,7 @@ func (c *CaseStore) buildListCaseSqlizer(
 	field, direction := storeutils.GetSortingOperator(sort)
 	var tableAlias string
 	if !util.ContainsStringIgnoreCase(opts.GetFields(), field) { // not joined yet
-		base, tableAlias, err = c.joinRequiredTable(base, field)
+		base, tableAlias, err = c.joinRequiredTable(base, field, "")
 		if err != nil {
 			return base, nil, err
 		}
@@ -2345,11 +2345,11 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	return selectBuilder, plan, nil
 }
 
-func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string) (q sq.SelectBuilder, joinedTableAlias string, err error) {
+func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string, prefix string) (q sq.SelectBuilder, joinedTableAlias string, err error) {
 	var (
 		tableAlias string
 		joinTable  = func(neededAlias, table, connection string) {
-			base = base.LeftJoin(fmt.Sprintf("%s %s ON %[2]s.id = %s", table, neededAlias, connection))
+			base = base.LeftJoin(fmt.Sprintf("%s %s ON %[2]s.id = %s", table, prefix+neededAlias, connection))
 		}
 	)
 
@@ -2437,7 +2437,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 	)
 
 	for _, field := range fields {
-		base, tableAlias, err = c.joinRequiredTable(base, field)
+		base, tableAlias, err = c.joinRequiredTable(base, field, "")
 		if err != nil {
 			return base, nil, err
 		}
