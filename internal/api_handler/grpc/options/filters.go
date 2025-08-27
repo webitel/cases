@@ -44,9 +44,9 @@ func parseLogicalExpr(call *expr.Expr_Call) (*model.FilterNode, error) {
 
 	var connection model.ConnectionType
 	if call.Function == "_&&_" {
-		connection = model.AND
+		connection = model.And
 	} else {
-		connection = model.OR
+		connection = model.Or
 	}
 
 	left, err := parseExpr(call.Args[0])

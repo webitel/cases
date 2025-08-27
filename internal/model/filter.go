@@ -15,7 +15,7 @@ type Filter struct {
 func (f *Filter) Filter() {}
 
 // FilterNode is a node in a filter tree.
-// It can contain multiple Filter or FilterNode instances and represents a logical connection (AND/OR)
+// It can contain multiple Filter or FilterNode instances and represents a logical connection (And/Or)
 type FilterNode struct {
 	Nodes      []Filterer
 	Connection ConnectionType
@@ -39,6 +39,6 @@ const (
 type ConnectionType int64
 
 const (
-	AND ConnectionType = 0
-	OR  ConnectionType = 1
+	And ConnectionType = 0
+	Or  ConnectionType = 1
 )

@@ -110,7 +110,8 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
 		),
-		options.WithFilters(c.filtrationEnv, req.GetFilters()[0]),
+		options.WithFiltersV1(c.filtrationEnv, req.GetFiltersV1()),
+		options.WithFilters(req.GetFilters()),
 		options.WithIDsAsEtags(etag.EtagCase, req.GetIds()...),
 		options.WithSort(req),
 		options.WithQin(req.GetQin()),
@@ -714,18 +715,18 @@ func addPrefixedKeys(dest, source map[string]any, prefix string) {
 	}
 }
 
-// Evaluates complex condition strings with support for AND (&&) and OR (||) operators using bitwise operations.
+// Evaluates complex condition strings with support for And (&&) and Or (||) operators using bitwise operations.
 // Helper method for dynamic contact group resolving.
 func evaluateDynamicCondition(caseMap map[string]any, condition string) bool {
 	// Convert condition to lowercase to ensure case-insensitive matching
 	condition = strings.ToLower(condition)
 
-	// Split conditions by OR (||)
+	// Split conditions by Or (||)
 	orConditions := strings.Split(condition, "||")
 	for _, orCondition := range orConditions {
-		// Split each OR condition into AND (&&) conditions
+		// Split each Or condition into And (&&) conditions
 		andConditions := strings.Split(orCondition, "&&")
-		// Use a bitmask to track whether all AND conditions are met
+		// Use a bitmask to track whether all And conditions are met
 		var andMask uint = 0
 		for i, andCondition := range andConditions {
 			andCondition = strings.TrimSpace(andCondition)
@@ -734,7 +735,7 @@ func evaluateDynamicCondition(caseMap map[string]any, condition string) bool {
 				andMask |= 1 << i
 			}
 		}
-		// Check if all AND conditions are met (all bits set in the mask)
+		// Check if all And conditions are met (all bits set in the mask)
 		if andMask == (1<<len(andConditions) - 1) {
 			return true
 		}

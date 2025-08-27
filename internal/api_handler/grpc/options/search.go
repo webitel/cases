@@ -27,9 +27,10 @@ type SearchOptions struct {
 	createdAt time.Time
 	context.Context
 	// filters
-	IDs     []int64
-	Filters model.Filterer
-	Preset  map[string]any
+	IDs []int64
+	// Deprecated: use FiltersV1
+	Filters   []string
+	FiltersV1 model.Filterer
 	// search
 	Search string
 	// output
@@ -63,7 +64,14 @@ type Filterer interface {
 	GetFilters() []string
 }
 
-func WithFilters(env *cel.Env, query string) SearchOption {
+func WithFilters(filters []string) SearchOption {
+	return func(options *SearchOptions) error {
+		options.Filters = filters
+		return nil
+	}
+}
+
+func WithFiltersV1(env *cel.Env, query string) SearchOption {
 	return func(options *SearchOptions) error {
 		ast, iss := env.Compile(query)
 		if iss.Err() != nil {
@@ -77,7 +85,7 @@ func WithFilters(env *cel.Env, query string) SearchOption {
 		if err != nil {
 			return errors.New(fmt.Sprintf("error parsing filters: %v", err), errors.WithCode(codes.InvalidArgument))
 		}
-		options.Filters = filters
+		options.FiltersV1 = filters
 		return nil
 	}
 }
@@ -223,18 +231,23 @@ func (s *SearchOptions) GetSort() string {
 	return s.Sort
 }
 
-func (s *SearchOptions) GetFilters() model.Filterer {
+func (s *SearchOptions) GetFiltersV1() model.Filterer {
+	return s.FiltersV1
+}
+
+// Deprecated: use GetFiltersV1
+func (s *SearchOptions) GetFilters() []string {
 	return s.Filters
 }
 
-func (s *SearchOptions) AddFilter(connectionType model.ConnectionType, filter model.Filterer) {
-	switch data := s.GetFilters().(type) {
-	case *model.Filter, *model.FilterNode:
-		s.Filters = &model.FilterNode{
-			Nodes:      []model.Filterer{data, filter},
-			Connection: connectionType,
-		}
-	}
+func (s *SearchOptions) AddFilter(f string) {
+	s.Filters = append(s.Filters, f)
+}
+
+// Deprecated
+// GetFilter returns all filters for a given field, with operator and value
+func (s *SearchOptions) GetFilter(f string) []util.FilterExpr {
+	return util.GetFilter(s.Filters, f)
 }
 
 func (s *SearchOptions) GetCustomContext() map[string]any {

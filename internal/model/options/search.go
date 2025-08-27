@@ -6,6 +6,7 @@ import (
 
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/model"
+	"github.com/webitel/cases/util"
 )
 
 const DefaultSearchSize = 10
@@ -23,9 +24,18 @@ type Searcher interface {
 	// Sorting
 	GetSort() string
 	// Filtering
-	GetFilters() model.Filterer
-	AddFilter(model.ConnectionType, model.Filterer)
+	// Deprecated: use GetFiltersV1
+	GetFilters() []string
+	// Deprecated: use FiltersV1
+	AddFilter(string)
+	// Deprecated: use FiltersV1
+	GetFilter(f string) []util.FilterExpr
+
+	GetFiltersV1() model.Filterer
 	// shortcuts
 	GetIDs() []int64
 	GetQin() string
+
+	AddCustomContext(key string, value any)
+	GetCustomContext() map[string]any
 }

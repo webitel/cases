@@ -31,7 +31,7 @@ func ApplyFiltersToQuery(qb sq.SelectBuilder, column string, filters []util.Filt
 }
 
 // NormalizeFilters normalizes the filters by applying the join function to each filter and changing column names that they become valid sql in format: "table.column".
-func NormalizeFilters(base sq.SelectBuilder, filters model.Filterer, rootTableAlias string, join func(sq.SelectBuilder, string) (sq.SelectBuilder, string, error)) (sq.SelectBuilder, error) {
+func NormalizeFilters(base sq.SelectBuilder, filters model.Filterer, rootTableAlias string, join func(sq.SelectBuilder, string, string) (sq.SelectBuilder, string, error)) (sq.SelectBuilder, error) {
 	if filters == nil {
 		return base, nil
 	}
@@ -76,8 +76,9 @@ func NormalizeFilters(base sq.SelectBuilder, filters model.Filterer, rootTableAl
 				)
 				fkColumn := splittedNaming[0]
 				referencedColumn = splittedNaming[1]
+
 				if fkTable, found = fieldTableMap[fkColumn]; !found {
-					base, fkTable, err = join(base, fkColumn)
+					base, fkTable, err = join(base, fkColumn, "filter")
 					if err != nil {
 						return base, err
 					}
@@ -116,7 +117,7 @@ func ParseFilters(filters model.Filterer) (sq.Sqlizer, error) {
 	switch data := filters.(type) {
 	case *model.FilterNode:
 		switch data.Connection {
-		case model.AND:
+		case model.And:
 			and := sq.And{}
 			for _, bunch := range data.Nodes {
 				switch bunchType := bunch.(type) {
@@ -136,7 +137,7 @@ func ParseFilters(filters model.Filterer) (sq.Sqlizer, error) {
 
 			}
 			res = and
-		case model.OR:
+		case model.Or:
 			or := sq.Or{}
 			for _, bunch := range data.Nodes {
 				switch v := bunch.(type) {

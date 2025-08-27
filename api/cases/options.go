@@ -29,7 +29,7 @@ type HttpBinding struct {
 
 var WebitelAPI = WebitelServicesInfo{
 	"Services": WebitelServices{
-		ObjClass:           "dictionaries",
+		ObjClass:           "case_lookups",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListServices": WebitelMethod{
@@ -317,7 +317,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"Priorities": WebitelServices{
-		ObjClass:           "dictionaries",
+		ObjClass:           "case_lookups",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListPriorities": WebitelMethod{
@@ -382,7 +382,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"StatusConditions": WebitelServices{
-		ObjClass:           "dictionaries",
+		ObjClass:           "case_lookups",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListStatusConditions": WebitelMethod{
@@ -447,7 +447,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"Sources": WebitelServices{
-		ObjClass:           "dictionaries",
+		ObjClass:           "case_lookups",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListSources": WebitelMethod{
@@ -512,7 +512,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"SLAConditions": WebitelServices{
-		ObjClass:           "dictionaries",
+		ObjClass:           "case_lookups",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListSLAConditions": WebitelMethod{
@@ -713,7 +713,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"Catalogs": WebitelServices{
-		ObjClass:           "dictionaries",
+		ObjClass:           "case_lookups",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListCatalogs": WebitelMethod{
@@ -778,7 +778,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"CloseReasons": WebitelServices{
-		ObjClass:           "dictionaries",
+		ObjClass:           "case_lookups",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListCloseReasons": WebitelMethod{
@@ -843,7 +843,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"CloseReasonGroups": WebitelServices{
-		ObjClass:           "dictionaries",
+		ObjClass:           "case_lookups",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListCloseReasonGroups": WebitelMethod{
@@ -908,7 +908,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"SLAs": WebitelServices{
-		ObjClass:           "dictionaries",
+		ObjClass:           "case_lookups",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListSLAs": WebitelMethod{
@@ -973,7 +973,7 @@ var WebitelAPI = WebitelServicesInfo{
 		},
 	},
 	"Statuses": WebitelServices{
-		ObjClass:           "dictionaries",
+		ObjClass:           "case_lookups",
 		AdditionalLicenses: []string{},
 		WebitelMethods: map[string]WebitelMethod{
 			"ListStatuses": WebitelMethod{
