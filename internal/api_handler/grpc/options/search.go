@@ -2,7 +2,6 @@ package options
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/webitel/cases/internal/model/options/defaults"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
+	"github.com/webitel/webitel-go-kit/pkg/filters"
 	"google.golang.org/grpc/codes"
 )
 
@@ -30,7 +30,7 @@ type SearchOptions struct {
 	IDs []int64
 	// Deprecated: use FiltersV1
 	Filters   []string
-	FiltersV1 model.Filterer
+	FiltersV1 filters.Filterer
 	// search
 	Search string
 	// output
@@ -73,17 +73,9 @@ func WithFilters(filters []string) SearchOption {
 
 func WithFiltersV1(env *cel.Env, query string) SearchOption {
 	return func(options *SearchOptions) error {
-		ast, iss := env.Compile(query)
-		if iss.Err() != nil {
-			return errors.New(iss.String(), errors.WithCode(codes.InvalidArgument))
-		}
-		expr, err := cel.AstToCheckedExpr(ast)
+		filters, err := filters.ParseFilters(env, query)
 		if err != nil {
-			return errors.New(err.Error(), errors.WithCode(codes.InvalidArgument))
-		}
-		filters, err := ParseCELASTToFilter(expr.GetExpr())
-		if err != nil {
-			return errors.New(fmt.Sprintf("error parsing filters: %v", err), errors.WithCode(codes.InvalidArgument))
+			return err
 		}
 		options.FiltersV1 = filters
 		return nil
@@ -231,7 +223,7 @@ func (s *SearchOptions) GetSort() string {
 	return s.Sort
 }
 
-func (s *SearchOptions) GetFiltersV1() model.Filterer {
+func (s *SearchOptions) GetFiltersV1() filters.Filterer {
 	return s.FiltersV1
 }
 

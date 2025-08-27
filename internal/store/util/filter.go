@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/util"
+	"github.com/webitel/webitel-go-kit/pkg/filters"
 )
 
 // ApplyFiltersToQuery applies the filters to the given SelectBuilder query.
@@ -31,14 +31,14 @@ func ApplyFiltersToQuery(qb sq.SelectBuilder, column string, filters []util.Filt
 }
 
 // NormalizeFilters normalizes the filters by applying the join function to each filter and changing column names that they become valid sql in format: "table.column".
-func NormalizeFilters(base sq.SelectBuilder, filters model.Filterer, rootTableAlias string, join func(sq.SelectBuilder, string, string) (sq.SelectBuilder, string, error)) (sq.SelectBuilder, error) {
-	if filters == nil {
+func NormalizeFilters(base sq.SelectBuilder, nodes filters.Filterer, rootTableAlias string, join func(sq.SelectBuilder, string, string) (sq.SelectBuilder, string, error)) (sq.SelectBuilder, error) {
+	if nodes == nil {
 		return base, nil
 	}
 
 	// Use a stack to process filters iteratively
 	var (
-		stack         = []model.Filterer{filters}
+		stack         = []filters.Filterer{nodes}
 		fieldTableMap = map[string]string{}
 	)
 
@@ -48,12 +48,12 @@ func NormalizeFilters(base sq.SelectBuilder, filters model.Filterer, rootTableAl
 		stack = stack[:len(stack)-1]
 
 		switch data := current.(type) {
-		case *model.FilterNode:
+		case *filters.FilterNode:
 			// Add all child nodes to stack (in reverse order to maintain processing order)
 			for i := len(data.Nodes) - 1; i >= 0; i-- {
 				stack = append(stack, data.Nodes[i])
 			}
-		case *model.Filter:
+		case *filters.Filter:
 			var (
 				splittedNaming = strings.Split(data.Column, ".")
 			)
@@ -99,7 +99,7 @@ func NormalizeFilters(base sq.SelectBuilder, filters model.Filterer, rootTableAl
 	return base, nil
 }
 
-func ApplyFilters(base sq.SelectBuilder, filters model.Filterer) (sq.SelectBuilder, error) {
+func ApplyFilters(base sq.SelectBuilder, filters filters.Filterer) (sq.SelectBuilder, error) {
 	parsedFilters, err := ParseFilters(filters)
 	if err != nil {
 		return base, err
@@ -107,27 +107,27 @@ func ApplyFilters(base sq.SelectBuilder, filters model.Filterer) (sq.SelectBuild
 	return base.Where(parsedFilters), nil
 }
 
-func ParseFilters(filters model.Filterer) (sq.Sqlizer, error) {
-	if filters == nil {
+func ParseFilters(nodes filters.Filterer) (sq.Sqlizer, error) {
+	if nodes == nil {
 		return sq.Expr("1=1"), nil
 	}
 	var (
 		res sq.Sqlizer
 	)
-	switch data := filters.(type) {
-	case *model.FilterNode:
+	switch data := nodes.(type) {
+	case *filters.FilterNode:
 		switch data.Connection {
-		case model.And:
+		case filters.And:
 			and := sq.And{}
 			for _, bunch := range data.Nodes {
 				switch bunchType := bunch.(type) {
-				case *model.FilterNode:
+				case *filters.FilterNode:
 					lowerResult, err := ParseFilters(bunchType)
 					if err != nil {
 						return nil, err
 					}
 					and = append(and, lowerResult)
-				case *model.Filter:
+				case *filters.Filter:
 					filter, err := applyFilter(bunchType)
 					if err != nil {
 						return nil, err
@@ -137,17 +137,17 @@ func ParseFilters(filters model.Filterer) (sq.Sqlizer, error) {
 
 			}
 			res = and
-		case model.Or:
+		case filters.Or:
 			or := sq.Or{}
 			for _, bunch := range data.Nodes {
 				switch v := bunch.(type) {
-				case *model.FilterNode:
+				case *filters.FilterNode:
 					lowerResult, err := ParseFilters(v)
 					if err != nil {
 						return nil, err
 					}
 					or = append(or, lowerResult)
-				case *model.Filter:
+				case *filters.Filter:
 					filter, err := applyFilter(v)
 					if err != nil {
 						return nil, err
@@ -159,20 +159,20 @@ func ParseFilters(filters model.Filterer) (sq.Sqlizer, error) {
 		default:
 			return nil, fmt.Errorf("invalid connection type in filter node: %d", data.Connection)
 		}
-	case *model.Filter:
+	case *filters.Filter:
 		filter, err := applyFilter(data)
 		if err != nil {
 			return nil, err
 		}
 		return filter, nil
 	default:
-		return nil, fmt.Errorf("unsupported filter type: %T", filters)
+		return nil, fmt.Errorf("unsupported filter type: %T", nodes)
 	}
 	return res, nil
 }
 
 // Apply filter performs conversion between model.Filter and sq.Sqlizer.
-func applyFilter(filter *model.Filter) (sq.Sqlizer, error) {
+func applyFilter(filter *filters.Filter) (sq.Sqlizer, error) {
 	if filter == nil {
 		return sq.Expr("1=1"), nil
 	}
@@ -183,21 +183,21 @@ func applyFilter(filter *model.Filter) (sq.Sqlizer, error) {
 
 	var result sq.Sqlizer
 	switch filter.ComparisonType {
-	case model.GreaterThan:
+	case filters.GreaterThan:
 		result = sq.Gt{columnName: filter.Value}
-	case model.GreaterThanOrEqual:
+	case filters.GreaterThanOrEqual:
 		result = sq.GtOrEq{columnName: filter.Value}
-	case model.LessThan:
+	case filters.LessThan:
 		result = sq.Lt{columnName: filter.Value}
-	case model.LessThanOrEqual:
+	case filters.LessThanOrEqual:
 		result = sq.LtOrEq{columnName: filter.Value}
-	case model.NotEqual:
+	case filters.NotEqual:
 		result = sq.NotEq{columnName: filter.Value}
-	case model.Like:
+	case filters.Like:
 		result = sq.Like{columnName: filter.Value}
-	case model.ILike:
+	case filters.ILike:
 		result = sq.ILike{columnName: filter.Value}
-	case model.Equal:
+	case filters.Equal:
 		result = sq.Eq{columnName: filter.Value}
 	default:
 		return nil, fmt.Errorf("invalid filter type: %d", filter.ComparisonType)

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/webitel/cases/auth"
-	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/util"
+	"github.com/webitel/webitel-go-kit/pkg/filters"
 )
 
 const DefaultSearchSize = 10
@@ -31,7 +31,7 @@ type Searcher interface {
 	// Deprecated: use FiltersV1
 	GetFilter(f string) []util.FilterExpr
 
-	GetFiltersV1() model.Filterer
+	GetFiltersV1() filters.Filterer
 	// shortcuts
 	GetIDs() []int64
 	GetQin() string
