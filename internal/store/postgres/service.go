@@ -280,12 +280,16 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc options.Updator, input *model
 		case "sla":
 			updateQueryBuilder = updateQueryBuilder.Set("sla_id", input.Sla.Id)
 		case "group":
-			if input.Group != nil && input.Group.Id != nil {
-				updateQueryBuilder = updateQueryBuilder.Set("group_id", input.Group.Id)
+			if input.Group == nil || input.Group.Id == nil {
+				updateQueryBuilder = updateQueryBuilder.Set("group_id", nil)
+			} else {
+				updateQueryBuilder = updateQueryBuilder.Set("group_id", sq.Expr("NULLIF(?, 0)", input.Group.Id))
 			}
 		case "assignee":
-			if input.Assignee != nil && input.Assignee.Id != nil {
-				updateQueryBuilder = updateQueryBuilder.Set("assignee_id", input.Assignee.Id)
+			if input.Assignee == nil || input.Assignee.Id == nil {
+				updateQueryBuilder = updateQueryBuilder.Set("assignee_id", nil)
+			} else {
+				updateQueryBuilder = updateQueryBuilder.Set("assignee_id", sq.Expr("NULLIF(?, 0)", input.Assignee.Id))
 			}
 		case "state":
 			updateQueryBuilder = updateQueryBuilder.Set("state", input.State)
