@@ -1229,14 +1229,14 @@ func (c *CaseService) scheduleResolutionTime(app *App) {
 	var retry bool
 
 	if css, retry, err = app.Store.Case().SetOverdueCases(resolutionTimeSO); err != nil {
-		slog.Error(err.Error())
+		slog.Error(errors.Details(err))
 		return
 	}
 
 	for _, cs := range css {
 		err = c.NormalizeResponseCase(cs, resolutionTimeSO)
 		if err != nil {
-			slog.Error(err.Error())
+			slog.Error(errors.Details(err))
 			continue
 		}
 

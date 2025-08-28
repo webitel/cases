@@ -73,11 +73,14 @@ func WithFilters(filters []string) SearchOption {
 
 func WithFiltersV1(env *cel.Env, query string) SearchOption {
 	return func(options *SearchOptions) error {
-		filters, err := filters.ParseFilters(env, query)
-		if err != nil {
-			return err
+		if query != "" {
+			filters, err := filters.ParseFilters(env, query)
+			if err != nil {
+				return err
+			}
+			options.FiltersV1 = filters
 		}
-		options.FiltersV1 = filters
+
 		return nil
 	}
 }

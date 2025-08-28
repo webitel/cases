@@ -69,6 +69,37 @@ const (
 	overdueCasesLimit = 100
 )
 
+var (
+	timeEncoder = func(v any) any {
+		switch t := v.(type) {
+		case nil:
+			return nil
+		case time.Time:
+			return t
+		case *time.Time:
+			if t == nil {
+				return nil
+			}
+			return *t
+		case int64:
+			return time.Unix(t, 0)
+		case int:
+			return time.Unix(int64(t), 0)
+		default:
+			return nil
+		}
+	}
+	specialFieldsEncoding = map[string]func(v any) any{
+		"created_at":          timeEncoder,
+		"updated_at":          timeEncoder,
+		"planned_reaction_at": timeEncoder,
+		"planned_resolve_at":  timeEncoder,
+		"closed_at":           timeEncoder,
+		"reacted_at":          timeEncoder,
+		"resolved_at":         timeEncoder,
+	}
+)
+
 func (c *CaseStore) Create(
 	rpc options.Creator,
 	add *_go.Case,
@@ -294,7 +325,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	input *_go.Case,
 	serviceDefs *ServiceRelatedDefs,
 ) (
-	sq.SelectBuilder,
+	*storeutils.Select,
 	[]func(caseItem *_go.Case) any,
 	error,
 ) {
@@ -471,7 +502,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		if custom == nil || custom.refer == nil {
 			// No [custom] extensions/cases -BUT- case.Custom data specified !
 			err := fmt.Errorf("custom: no specification")
-			return sq.SelectBuilder{}, nil, err
+			return nil, nil, err
 		}
 		// PREPARE Statement !..
 		oid := sq.Expr("(SELECT id FROM " + caseLeft + ")")
@@ -479,12 +510,12 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			oid, data, false, // [!]partial
 		)
 		if err != nil {
-			return sq.SelectBuilder{}, nil, ParseError(err)
+			return nil, nil, ParseError(err)
 		}
 		if insertQ != nil {
 			insertQ, _, err := insertQ.ToSql()
 			if err != nil {
-				return sq.SelectBuilder{}, nil, ParseError(err)
+				return nil, nil, ParseError(err)
 			}
 			cte := "x" // alias
 			query += ", " + cte + " AS (" + insertQ + ")"
@@ -513,11 +544,18 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	// **  Result: "INSERT INTO cases.case (name, col2) subject ($1, $2)", []interface{}{"test_name", "test_subject"}**
 	boundQuery, args, err := storeutils.BindNamed(query, params)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, errors.Internal("postgres.case.create.bind_named_error")
+		return nil, nil, errors.Internal("postgres.case.create.bind_named_error")
 	}
 
+	base := storeutils.NewSelectBuilderMetadata(caseLeft, sq.Select().From(caseLeft).PrefixExpr(
+		sq.Expr(
+			boundQuery,
+			args...,
+		),
+	), specialFieldsEncoding)
+
 	// Construct SELECT query to return case data
-	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
+	plan, err := c.buildCaseSelectColumnsAndPlan(
 		withSearchOptions(rpc, func(search *common.SearchOptions) (_ error) {
 			if custom != nil {
 				// Output query custom fields ..
@@ -529,20 +567,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			}
 			return
 		}),
-		sq.Select().PrefixExpr(
-			sq.Expr(
-				boundQuery,
-				args...,
-			),
-		),
+		base,
 	)
 	if err != nil {
-		return sq.SelectBuilder{}, nil, ParseError(err)
+		return nil, nil, ParseError(err)
 	}
 
-	selectBuilder = selectBuilder.From(caseLeft)
-
-	return selectBuilder, plan, nil
+	return base, plan, nil
 }
 
 // Helper functions to generate JSON arrays for links and related cases
@@ -1680,13 +1711,164 @@ func isComplexFilter(filterStr string) bool {
 
 func (c *CaseStore) buildListCaseSqlizer(
 	opts options.Searcher,
-) (sq.SelectBuilder, []func(caseItem *_go.Case) any, error) {
-	base := sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar)
-	base, plan, err := c.buildCaseSelectColumnsAndPlan(opts, base)
+) (*storeutils.Select, []func(caseItem *_go.Case) any, error) {
+	query := storeutils.NewSelectBuilderMetadata(caseLeft, sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar), specialFieldsEncoding)
+
+	plan, err := c.buildCaseSelectColumnsAndPlan(opts, query)
 	if err != nil {
-		return base, nil, err
+		return nil, nil, err
 	}
 
+	err = c.applySearch(opts, query)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = c.applyFilters(opts, query)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if sess := opts.GetAuthOpts(); sess != nil {
+		query.Query = query.Query.Where(storeutils.Ident(caseLeft, "dc = ?"), opts.GetAuthOpts().GetDomainId())
+		query.Query, err = addCaseRbacCondition(sess, auth.Read, query.Query, storeutils.Ident(caseLeft, "id"))
+	}
+	// pagination
+	query.Query = storeutils.ApplyPaging(opts.GetPage(), opts.GetSize(), query.Query)
+
+	// sort
+	err = c.applySorting(opts, query)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return query, plan, nil
+}
+
+func (c *CaseStore) applySorting(opts options.Searcher, query *storeutils.Select) error {
+	sort := opts.GetSort()
+	if sort == "" {
+		sort = caseDefaultSort
+	}
+	field, direction := storeutils.GetSortingOperator(sort)
+	tableAlias, err := c.joinRequiredTable(opts, query, field)
+	if err != nil {
+		return err
+	}
+	if tableAlias == "" {
+		tableAlias = query.TableAlias
+	}
+	switch field {
+	case "id", "ver", "created_at", "updated_at", "name", "subject", "description", "planned_reaction_at", "planned_resolve_at", "reacted_at", "resolved_at", "contact_info", "close_result", "rating_comment", "rating":
+		query.Query = query.Query.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, field), direction))
+	case "created_by", "updated_by", "source", "close_reason_group", "close_reason", "sla", "status_condition", "status", "priority", "service", "group":
+		query.Query = query.Query.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
+	case "author", "assignee", "reporter", "impacted":
+		query.Query = query.Query.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "common_name"), direction))
+	case "sla_condition":
+		query.Query = query.Query.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
+	}
+	return nil
+}
+
+func (c *CaseStore) applyFilters(opts options.Searcher, query *storeutils.Select) error {
+	if opts == nil || query == nil {
+		return fmt.Errorf("cannot apply filters")
+	}
+	if len(opts.GetIDs()) > 0 {
+		query.Query = query.Query.Where(fmt.Sprintf("%s = ANY(?)", storeutils.Ident(caseLeft, "id")), opts.GetIDs())
+	}
+
+	// region: custom fields
+	var (
+		custom         customFilterContext
+		simpleFilters  []string
+		complexFilters []string
+		err            error
+	)
+
+	needsCustom := util.ContainsStringIgnoreCase(opts.GetFields(), "custom")
+	if !needsCustom {
+		// Check if any filters need custom fields
+		for _, filterStr := range opts.GetFilters() {
+			if filterStr != "" {
+				if isComplexFilter(filterStr) {
+					if c.complexFilterNeedsCustomFields(filterStr, opts) {
+						needsCustom = true
+						break
+					}
+				} else {
+					if c.needsCustomFieldsForFilter(filterStr, opts) {
+						needsCustom = true
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Separate simple and complex filters
+	for _, filterStr := range opts.GetFilters() {
+		if filterStr == "" {
+			continue
+		}
+
+		if isComplexFilter(filterStr) {
+			complexFilters = append(complexFilters, filterStr)
+		} else {
+			simpleFilters = append(simpleFilters, filterStr)
+		}
+	}
+
+	// Initialize custom context and join if needed
+	if needsCustom {
+		custom.ctx = c.custom(opts)
+		if custom.ctx != nil && custom.ctx.refer != nil {
+			custom.ctx.table = "xc"
+			query.Query = query.Query.LeftJoin(fmt.Sprintf("%s %s ON %s.id = %s.id",
+				custom.ctx.refer.Table(),
+				custom.ctx.table,
+				caseLeft,
+				custom.ctx.table))
+			custom.joined = true
+		}
+	}
+
+	errRef := &err
+	for _, filterStr := range simpleFilters {
+
+		sqlizer := c.filterToSqlizer(filterStr, opts, &custom, errRef)
+		if *errRef != nil {
+			return *errRef
+		}
+		if sqlizer != nil {
+			query.Query = query.Query.Where(sqlizer)
+		}
+	}
+	for _, expr := range complexFilters {
+		sqlizer := c.parseComplexFilter(expr, opts, &custom, errRef)
+		if err != nil {
+			return err
+		}
+		query.Query = query.Query.Where(sqlizer)
+	}
+
+	// FiltersV1 apply
+	err = storeutils.NormalizeFilters(query, opts, c.joinRequiredTable)
+	if err != nil {
+		return err
+	}
+	query.Query, err = storeutils.ApplyFilters(query.Query, opts.GetFiltersV1())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *CaseStore) applySearch(opts options.Searcher, query *storeutils.Select) error {
+	if opts == nil || query == nil {
+		return fmt.Errorf("cannot apply search query")
+	}
 	if search := opts.GetSearch(); search != "" {
 		qin := strings.ToLower(opts.GetQin())
 		searchTerm, operator := storeutils.ParseSearchTerm(search)
@@ -1740,22 +1922,22 @@ func (c *CaseStore) buildListCaseSqlizer(
 				sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "name"), operator), searchTerm),
 			)
 
-			base = base.Where(where)
+			query.Query = query.Query.Where(where)
 
 		case "id":
 			if id, err := strconv.ParseInt(search, 10, 64); err == nil {
-				base = base.Where(sq.Expr(fmt.Sprintf("%s.id = ?", caseLeft), id))
-				return base, plan, nil // short-circuit
+				query.Query = query.Query.Where(sq.Expr(fmt.Sprintf("%s.id = ?", caseLeft), id))
+				return nil // short-circuit
 			}
 
 		case "name":
-			base = base.Where(sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "name"), operator), searchTerm))
+			query.Query = query.Query.Where(sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "name"), operator), searchTerm))
 
 		case "subject":
-			base = base.Where(sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "subject"), operator), searchTerm))
+			query.Query = query.Query.Where(sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "subject"), operator), searchTerm))
 
 		case "contact_info":
-			base = base.Where(sq.Or{
+			query.Query = query.Query.Where(sq.Or{
 				// contact_info field
 				sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "contact_info"), operator), searchTerm),
 
@@ -1793,160 +1975,7 @@ func (c *CaseStore) buildListCaseSqlizer(
 			// optionally return error or skip filter
 		}
 	}
-
-	if len(opts.GetIDs()) > 0 {
-		base = base.Where(fmt.Sprintf("%s = ANY(?)", storeutils.Ident(caseLeft, "id")), opts.GetIDs())
-	}
-
-	// region: custom fields
-	var custom customFilterContext
-	var simpleFilters []string
-	var complexFilters []string
-
-	needsCustom := util.ContainsStringIgnoreCase(opts.GetFields(), "custom")
-	if !needsCustom {
-		// Check if any filters need custom fields
-		for _, filterStr := range opts.GetFilters() {
-			if filterStr != "" {
-				if isComplexFilter(filterStr) {
-					if c.complexFilterNeedsCustomFields(filterStr, opts) {
-						needsCustom = true
-						break
-					}
-				} else {
-					if c.needsCustomFieldsForFilter(filterStr, opts) {
-						needsCustom = true
-						break
-					}
-				}
-			}
-		}
-	}
-
-	// Separate simple and complex filters
-	for _, filterStr := range opts.GetFilters() {
-		if filterStr == "" {
-			continue
-		}
-
-		if isComplexFilter(filterStr) {
-			complexFilters = append(complexFilters, filterStr)
-		} else {
-			simpleFilters = append(simpleFilters, filterStr)
-		}
-	}
-
-	// Initialize custom context and join if needed
-	if needsCustom {
-		custom.ctx = c.custom(opts)
-		if custom.ctx != nil && custom.ctx.refer != nil {
-			custom.ctx.table = "xc"
-			base = base.LeftJoin(fmt.Sprintf("%s %s ON %s.id = %s.id",
-				custom.ctx.refer.Table(),
-				custom.ctx.table,
-				caseLeft,
-				custom.ctx.table))
-			custom.joined = true
-		}
-	}
-
-	errRef := &err
-	for _, filterStr := range simpleFilters {
-
-		sqlizer := c.filterToSqlizer(filterStr, opts, &custom, errRef)
-		if *errRef != nil {
-			return base, nil, *errRef
-		}
-		if sqlizer != nil {
-			base = base.Where(sqlizer)
-		}
-	}
-	for _, expr := range complexFilters {
-		sqlizer := c.parseComplexFilter(expr, opts, &custom, errRef)
-		if err != nil {
-			return base, nil, err
-		}
-		base = base.Where(sqlizer)
-	}
-
-	base, err = storeutils.NormalizeFilters(base, opts.GetFiltersV1(), caseLeft, c.joinRequiredTable)
-	if err != nil {
-		return base, nil, err
-	}
-	base, err = storeutils.ApplyFilters(base, opts.GetFiltersV1())
-	if err != nil {
-		return base, nil, err
-	}
-
-	if sess := opts.GetAuthOpts(); sess != nil {
-		base = base.Where(storeutils.Ident(caseLeft, "dc = ?"), opts.GetAuthOpts().GetDomainId())
-		base, err = addCaseRbacCondition(sess, auth.Read, base, storeutils.Ident(caseLeft, "id"))
-	}
-	// pagination
-	base = storeutils.ApplyPaging(opts.GetPage(), opts.GetSize(), base)
-	// sort
-	sort := opts.GetSort()
-	if sort == "" {
-		sort = caseDefaultSort
-	}
-	field, direction := storeutils.GetSortingOperator(sort)
-	var tableAlias string
-	if !util.ContainsStringIgnoreCase(opts.GetFields(), field) { // not joined yet
-		base, tableAlias, err = c.joinRequiredTable(base, field, "")
-		if err != nil {
-			return base, nil, err
-		}
-	} else { // get alias
-		switch field {
-		case "created_by":
-			tableAlias = caseCreatedByAlias
-		case "updated_by":
-			tableAlias = caseUpdatedByAlias
-		case "source":
-			tableAlias = caseSourceAlias
-		case "close_reason_group":
-			tableAlias = caseCloseReasonGroupAlias
-		case "sla":
-			tableAlias = caseSlaAlias
-		case "status":
-			tableAlias = caseStatusAlias
-		case "priority":
-			tableAlias = casePriorityAlias
-		case "service":
-			tableAlias = caseServiceAlias
-		case "author":
-			tableAlias = caseAuthorAlias
-		case "assignee":
-			tableAlias = caseAssigneeAlias
-		case "reporter":
-			tableAlias = caseReporterAlias
-		case "impacted":
-			tableAlias = caseImpactedAlias
-		case "group":
-			tableAlias = caseGroupAlias
-		case "close_reason":
-			tableAlias = caseCloseReasonAlias
-		case "sla_condition":
-			tableAlias = caseSlaConditionAlias
-		case "status_condition":
-			tableAlias = caseStatusConditionAlias
-		}
-	}
-	if tableAlias == "" {
-		tableAlias = caseLeft
-	}
-	switch field {
-	case "id", "ver", "created_at", "updated_at", "name", "subject", "description", "planned_reaction_at", "planned_resolve_at", "reacted_at", "resolved_at", "contact_info", "close_result", "rating_comment", "rating":
-		base = base.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, field), direction))
-	case "created_by", "updated_by", "source", "close_reason_group", "close_reason", "sla", "status_condition", "status", "priority", "service", "group":
-		base = base.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
-	case "author", "assignee", "reporter", "impacted":
-		base = base.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "common_name"), direction))
-	case "sla_condition":
-		base = base.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
-	}
-
-	return base, plan, nil
+	return nil
 }
 
 // region UPDATE
@@ -2067,7 +2096,7 @@ func (c *CaseStore) Update(
 func (c *CaseStore) buildUpdateCaseSqlizer(
 	rpc options.Updator,
 	input *_go.Case,
-) (sq.Sqlizer, []func(caseItem *_go.Case) any, error) {
+) (*storeutils.Select, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included
 	fields := rpc.GetFields()
 	fields = util.EnsureIdAndVerField(fields)
@@ -2299,7 +2328,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		sq.Expr("WITH "+caseLeft+" AS (?)",
 			updateBuilder.Suffix("RETURNING *"),
 		),
-	) //.PlaceholderFormat(sq.Dollar)
+	).From(caseLeft) //.PlaceholderFormat(sq.Dollar)
 
 	if custom.update != nil {
 		// [RE]Bind (inject) :named paramenters !
@@ -2332,100 +2361,104 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		)
 	}
 
+	base := storeutils.NewSelectBuilderMetadata(caseLeft, WITH, specialFieldsEncoding)
+
 	// Define SELECT query for returning updated fields
-	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		withSearchOptions(rpc, custom.output...), WITH,
+	plan, err := c.buildCaseSelectColumnsAndPlan(
+		withSearchOptions(rpc, custom.output...), base,
 	)
 	if err != nil {
 		return nil, nil, ParseError(err)
 	}
 
-	selectBuilder = selectBuilder.From(caseLeft)
-
-	return selectBuilder, plan, nil
+	return base, plan, nil
 }
 
-func (c *CaseStore) joinRequiredTable(base sq.SelectBuilder, field string, prefix string) (q sq.SelectBuilder, joinedTableAlias string, err error) {
+func (c *CaseStore) joinRequiredTable(searcher options.Searcher, base *storeutils.Select, field string) (joinedTableAlias string, err error) {
 	var (
 		tableAlias string
 		joinTable  = func(neededAlias, table, connection string) {
-			base = base.LeftJoin(fmt.Sprintf("%s %s ON %[2]s.id = %s", table, prefix+neededAlias, connection))
+			if _, ok := base.Joins[field]; !ok {
+				base.Query = base.Query.LeftJoin(fmt.Sprintf("%s %s ON %[2]s.id = %s", table, neededAlias, connection))
+				base.Joins[field] = neededAlias
+			}
 		}
 	)
 
 	switch field {
 	case "created_by":
 		tableAlias = caseCreatedByAlias
-		joinTable(tableAlias, "directory.wbt_user", storeutils.Ident(caseLeft, "created_by"))
+		joinTable(tableAlias, "directory.wbt_user", storeutils.Ident(base.TableAlias, "created_by"))
 	case "updated_by":
 		tableAlias = caseUpdatedByAlias
-		joinTable(tableAlias, "directory.wbt_user", storeutils.Ident(caseLeft, "updated_by"))
+		joinTable(tableAlias, "directory.wbt_user", storeutils.Ident(base.TableAlias, "updated_by"))
 	case "source":
 		tableAlias = caseSourceAlias
-		joinTable(tableAlias, "cases.source", storeutils.Ident(caseLeft, "source"))
+		joinTable(tableAlias, "cases.source", storeutils.Ident(base.TableAlias, "source"))
 	case "close_reason_group":
 		tableAlias = caseCloseReasonGroupAlias
-		joinTable(tableAlias, "cases.close_reason_group", storeutils.Ident(caseLeft, "close_reason_group"))
+		joinTable(tableAlias, "cases.close_reason_group", storeutils.Ident(base.TableAlias, "close_reason_group"))
 	case "author":
-		createdByAlias := "cb_au"
+		cbAlias, err := c.joinRequiredTable(searcher, base, "created_by")
+		if err != nil {
+			return "", err
+		}
 		tableAlias = caseAuthorAlias
-		joinTable(createdByAlias, "directory.wbt_user", storeutils.Ident(caseLeft, "created_by"))
-		joinTable(tableAlias, "contacts.contact", storeutils.Ident(createdByAlias, "contact_id"))
+		joinTable(tableAlias, "contacts.contact", storeutils.Ident(cbAlias, "contact_id"))
 	case "close_reason":
 		tableAlias = caseCloseReasonAlias
-		joinTable(tableAlias, "cases.close_reason", storeutils.Ident(caseLeft, "close_reason"))
+		joinTable(tableAlias, "cases.close_reason", storeutils.Ident(base.TableAlias, "close_reason"))
 	case "sla":
 		tableAlias = caseSlaAlias
-		joinTable(tableAlias, "cases.sla", storeutils.Ident(caseLeft, "sla"))
+		joinTable(tableAlias, "cases.sla", storeutils.Ident(base.TableAlias, "sla"))
 	case "status":
 		tableAlias = caseStatusAlias
-		joinTable(tableAlias, "cases.status", storeutils.Ident(caseLeft, "status"))
+		joinTable(tableAlias, "cases.status", storeutils.Ident(base.TableAlias, "status"))
 	case "priority":
 		tableAlias = casePriorityAlias
-		joinTable(tableAlias, "cases.priority", storeutils.Ident(caseLeft, "priority"))
+		joinTable(tableAlias, "cases.priority", storeutils.Ident(base.TableAlias, "priority"))
 	case "service":
 		tableAlias = caseServiceAlias
-		joinTable(tableAlias, "cases.service_catalog", storeutils.Ident(caseLeft, "service"))
+		joinTable(tableAlias, "cases.service_catalog", storeutils.Ident(base.TableAlias, "service"))
 	case "assignee":
 		tableAlias = caseAssigneeAlias
-		joinTable(tableAlias, "contacts.contact", storeutils.Ident(caseLeft, "assignee"))
+		joinTable(tableAlias, "contacts.contact", storeutils.Ident(base.TableAlias, "assignee"))
 	case "reporter":
 		tableAlias = caseReporterAlias
-		joinTable(tableAlias, "contacts.contact", storeutils.Ident(caseLeft, "reporter"))
+		joinTable(tableAlias, "contacts.contact", storeutils.Ident(base.TableAlias, "reporter"))
 	case "impacted":
 		tableAlias = caseImpactedAlias
-		joinTable(tableAlias, "contacts.contact", storeutils.Ident(caseLeft, "impacted"))
+		joinTable(tableAlias, "contacts.contact", storeutils.Ident(base.TableAlias, "impacted"))
 	case "group":
 		tableAlias = caseGroupAlias
-		joinTable(tableAlias, "contacts.group", storeutils.Ident(caseLeft, "contact_group"))
+		joinTable(tableAlias, "contacts.group", storeutils.Ident(base.TableAlias, "contact_group"))
 	case "sla_condition":
 		tableAlias = caseSlaConditionAlias
-		joinTable(tableAlias, "cases.sla_condition", storeutils.Ident(caseLeft, "sla_condition_id"))
+		joinTable(tableAlias, "cases.sla_condition", storeutils.Ident(base.TableAlias, "sla_condition_id"))
 	case "status_condition":
 		tableAlias = caseStatusConditionAlias
-		joinTable(tableAlias, "cases.status_condition", storeutils.Ident(caseLeft, "status_condition"))
+		joinTable(tableAlias, "cases.status_condition", storeutils.Ident(base.TableAlias, "status_condition"))
 	case "custom":
-		// join extension table
-		customFieldsMetadata := c.custom(context.Background())
-		if customFieldsMetadata == nil || customFieldsMetadata.refer == nil {
-			return base, "", fmt.Errorf("custom fields metadata not found or refer is nil")
+		if _, ok := base.Joins[field]; !ok {
+			// join extension table
+			customFieldsMetadata := c.custom(searcher)
+			if customFieldsMetadata == nil || customFieldsMetadata.refer == nil {
+				return "", fmt.Errorf("custom fields metadata not found or refer is nil")
+			}
+			tableAlias = "xc"
+			joinTable(tableAlias, customFieldsMetadata.refer.Table(), storeutils.Ident(base.TableAlias, "id"))
+
 		}
-		tableAlias = "xc"
-		customFieldsMetadata.table = tableAlias
-		base = base.LeftJoin(fmt.Sprintf("%s %s ON %s.id = %s.id",
-			customFieldsMetadata.refer.Table(),
-			customFieldsMetadata.table,
-			caseLeft,
-			customFieldsMetadata.table))
+
 	}
-	return base, tableAlias, nil
+	return tableAlias, nil
 }
 
 // session required to get some columns
 func (c *CaseStore) buildCaseSelectColumnsAndPlan(
-	req options.Searcher, base sq.SelectBuilder,
+	req options.Searcher, base *storeutils.Select,
 ) (
-	sq.SelectBuilder, []func(caseItem *_go.Case) any, error,
+	[]func(caseItem *_go.Case) any, error,
 ) {
 	var (
 		plan       []func(caseItem *_go.Case) any
@@ -2437,66 +2470,66 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 	)
 
 	for _, field := range fields {
-		base, tableAlias, err = c.joinRequiredTable(base, field, "")
+		tableAlias, err = c.joinRequiredTable(req, base, field)
 		if err != nil {
-			return base, nil, err
+			return nil, err
 		}
 		// no table was joined
 		if tableAlias == "" {
-			tableAlias = caseLeft
+			tableAlias = base.TableAlias
 		}
 		switch field {
 		case "diff":
 			continue
 		case "id":
-			base = base.Column(storeutils.Ident(tableAlias, "id AS case_id"))
+			base.Query = base.Query.Column(storeutils.Ident(tableAlias, "id AS case_id"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Id
 			})
 		case "ver":
-			base = base.Column(storeutils.Ident(tableAlias, "ver"))
+			base.Query = base.Query.Column(storeutils.Ident(tableAlias, "ver"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Ver
 			})
 		case "created_by":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				"ROW(%[1]s.id, coalesce(%[1]s.name, %[1]s.username))::text AS created_by", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.CreatedBy)
 			})
 		case "created_at":
-			base = base.Column(storeutils.Ident(tableAlias, "created_at"))
+			base.Query = base.Query.Column(storeutils.Ident(tableAlias, "created_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.CreatedAt)
 			})
 		case "updated_by":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				"ROW(%[1]s.id, coalesce(%[1]s.name, %[1]s.username))::text AS updated_by", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.UpdatedBy)
 			})
 		case "updated_at":
-			base = base.Column(storeutils.Ident(tableAlias, "updated_at"))
+			base.Query = base.Query.Column(storeutils.Ident(tableAlias, "updated_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.UpdatedAt)
 			})
 		case "name":
-			base = base.Column(storeutils.Ident(tableAlias, "name"))
+			base.Query = base.Query.Column(storeutils.Ident(tableAlias, "name"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Name
 			})
 		case "subject":
-			base = base.Column(storeutils.Ident(tableAlias, "subject"))
+			base.Query = base.Query.Column(storeutils.Ident(tableAlias, "subject"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return &caseItem.Subject
 			})
 		case "description":
-			base = base.Column(storeutils.Ident(tableAlias, "description"))
+			base.Query = base.Query.Column(storeutils.Ident(tableAlias, "description"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanText(&caseItem.Description)
 			})
 		case "group":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				`ROW(%s.id, %[1]s.name,
 							CASE
 								WHEN EXISTS(SELECT id FROM contacts.dynamic_group WHERE id = %[1]s.id) THEN 'dynamic'
@@ -2509,12 +2542,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 		case "role_ids":
 			// skip
 		case "dc":
-			base = base.Column(storeutils.Ident(tableAlias, "dc"))
+			base.Query = base.Query.Column(storeutils.Ident(tableAlias, "dc"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanInt64(&caseItem.Dc)
 			})
 		case "source":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				"ROW(%s.source, %[2]s.name, %[2]s.type)::text AS source", caseLeft, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
@@ -2593,61 +2626,61 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				})
 			})
 		case "planned_reaction_at":
-			base = base.Column(storeutils.Ident(caseLeft, "planned_reaction_at"))
+			base.Query = base.Query.Column(storeutils.Ident(caseLeft, "planned_reaction_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.PlannedReactionAt)
 			})
 		case "planned_resolve_at":
-			base = base.Column(storeutils.Ident(caseLeft, "planned_resolve_at"))
+			base.Query = base.Query.Column(storeutils.Ident(caseLeft, "planned_resolve_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.PlannedResolveAt)
 			})
 		case "close_reason_group":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				"ROW(%s.id, %[1]s.name)::text  AS close_reason_group", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.CloseReasonGroup)
 			})
 		case "author":
-			base = base.Column(fmt.Sprintf(`ROW(%s.id, %[1]s.common_name)::text AS author`, tableAlias))
+			base.Query = base.Query.Column(fmt.Sprintf(`ROW(%s.id, %[1]s.common_name)::text AS author`, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Author)
 			})
 		case "close_result":
-			base = base.Column(storeutils.Ident(caseLeft, "close_result"))
+			base.Query = base.Query.Column(storeutils.Ident(caseLeft, "close_result"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanText(&caseItem.CloseResult)
 			})
 		case "close_reason":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				"ROW(%s.id, %[1]s.name)::text AS close_reason", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.CloseReason)
 			})
 		case "rating":
-			base = base.Column(storeutils.Ident(caseLeft, "rating"))
+			base.Query = base.Query.Column(storeutils.Ident(caseLeft, "rating"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanInt64(&caseItem.Rating)
 			})
 		case "rating_comment":
-			base = base.Column(storeutils.Ident(caseLeft, "rating_comment"))
+			base.Query = base.Query.Column(storeutils.Ident(caseLeft, "rating_comment"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanText(&caseItem.RatingComment)
 			})
 		case "resolved_at":
-			base = base.
+			base.Query = base.Query.
 				Column(storeutils.Ident(caseLeft, "resolved_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.ResolvedAt)
 			})
 		case "reacted_at":
-			base = base.
+			base.Query = base.Query.
 				Column(storeutils.Ident(caseLeft, "reacted_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.ReactedAt)
 			})
 		case "difference_in_reaction":
-			base = base.
+			base.Query = base.Query.
 				Column(fmt.Sprintf(
 					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.reacted_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_reaction",
 					caseLeft,
@@ -2656,7 +2689,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				return scanner.ScanTimestamp(&caseItem.DifferenceInReaction)
 			})
 		case "difference_in_resolve":
-			base = base.
+			base.Query = base.Query.
 				Column(fmt.Sprintf(
 					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.resolved_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_resolve",
 					caseLeft,
@@ -2665,13 +2698,13 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				return scanner.ScanTimestamp(&caseItem.DifferenceInResolve)
 			})
 		case "sla":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				"ROW(%s.id, %[1]s.name)::text AS sla", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Sla)
 			})
 		case "status_condition":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				"ROW(%s.id, %[1]s.name, %[1]s.initial, %[1]s.final)::text AS status_condition",
 				tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
@@ -2755,12 +2788,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				})
 			})
 		case "status":
-			base = base.Column(fmt.Sprintf(`ROW(%s.id, %[1]s.name)::text AS status`, tableAlias))
+			base.Query = base.Query.Column(fmt.Sprintf(`ROW(%s.id, %[1]s.name)::text AS status`, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Status)
 			})
 		case "priority":
-			base = base.Column(fmt.Sprintf("ROW(%s.id, %[1]s.name, %[1]s.color)::text AS priority", tableAlias))
+			base.Query = base.Query.Column(fmt.Sprintf("ROW(%s.id, %[1]s.name, %[1]s.color)::text AS priority", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
@@ -2868,7 +2901,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 					) as service_data
 			`
 
-			base = base.Column(fmt.Sprintf("(%s) AS service", servicePathSubquery))
+			base.Query = base.Query.Column(fmt.Sprintf("(%s) AS service", servicePathSubquery))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
@@ -2929,30 +2962,30 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				})
 			})
 		case "assignee":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				"ROW(%s.id, %[1]s.common_name)::text AS assignee", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Assignee)
 			})
 		case "reporter":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				"ROW(%s.id, %[1]s.common_name)::text AS reporter", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Reporter)
 			})
 		case "contact_info":
-			base = base.Column(storeutils.Ident(caseLeft, field))
+			base.Query = base.Query.Column(storeutils.Ident(caseLeft, field))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanText(&caseItem.ContactInfo)
 			})
 		case "impacted":
-			base = base.Column(fmt.Sprintf(
+			base.Query = base.Query.Column(fmt.Sprintf(
 				"ROW(%s.id, %[1]s.common_name)::text AS impacted", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Impacted)
 			})
 		case "sla_condition":
-			base = base.Column(fmt.Sprintf("ROW(%s.id, %[1]s.name)::text AS sla_condition", tableAlias))
+			base.Query = base.Query.Column(fmt.Sprintf("ROW(%s.id, %[1]s.name)::text AS sla_condition", tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.SlaCondition)
 			})
@@ -2960,9 +2993,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			commentFields := []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"}
 			subquery, scanPlan, dbErr := buildCommentsSelectAsSubquery(auther, commentFields, caseLeft)
 			if dbErr != nil {
-				return base, nil, dbErr
+				return nil, dbErr
 			}
-			base = AddSubqueryAsColumn(base, subquery, "comments", false)
+			err = AddSubqueryAsColumn(base, subquery, "comments", false)
+			if err != nil {
+				return nil, err
+			}
 			plan = append(plan, func(value *_go.Case) any {
 				var items []*_go.CaseComment
 				postProcessing := func() error {
@@ -2981,9 +3017,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			linksFields := []string{"id", "ver", "name", "url", "created_by", "author", "created_at"}
 			subquery, scanPlan, dbErr := buildLinkSelectAsSubquery(linksFields, caseLeft) // removed the scanplan parameter
 			if dbErr != nil {
-				return base, nil, dbErr
+				return nil, dbErr
 			}
-			base = AddSubqueryAsColumn(base, subquery, field, false)
+			err = AddSubqueryAsColumn(base, subquery, field, false)
+			if err != nil {
+				return nil, err
+			}
 			plan = append(plan, func(value *_go.Case) any {
 				var items []*_go.CaseLink
 				postProcessing := func() error {
@@ -3008,9 +3047,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			}
 			subquery /*scanPlan,*/, dbErr := buildFilesSelectAsSubquery(filesFields, caseLeft) // removed the scanplan and filtersApplied parameters
 			if dbErr != nil {
-				return base, nil, dbErr
+				return nil, dbErr
 			}
-			base = AddSubqueryAsColumn(base, subquery, field, false /*filtersApplied > 0 */)
+			err = AddSubqueryAsColumn(base, subquery, field, false /*filtersApplied > 0 */)
+			if err != nil {
+				return nil, err
+			}
 			plan = append(plan, func(value *_go.Case) any {
 				var items []*_go.File
 				postProcessing := func() error {
@@ -3029,9 +3071,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			relatedFields := []string{"id", "ver", "related_case", "created_at", "created_by", "updated_by", "relation", "primary_case"}
 			subquery, scanPlan, dbErr := buildRelatedCasesSelectAsSubquery(auther, relatedFields, caseLeft)
 			if dbErr != nil {
-				return base, nil, dbErr
+				return nil, dbErr
 			}
-			base = AddSubqueryAsColumn(base, subquery, "related", false)
+			err = AddSubqueryAsColumn(base, subquery, "related", false)
+			if err != nil {
+				return nil, err
+			}
 			plan = append(plan, func(value *_go.Case) any {
 				var items []*_go.RelatedCase
 				postProcessing := func() error {
@@ -3045,7 +3090,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				return scanner.GetCompositeTextScanFunction(scanPlan, &items, postProcessing)
 			})
 		default:
-			return sq.SelectBuilder{}, nil, fmt.Errorf("unknown field: %s", field)
+			return nil, fmt.Errorf("unknown field: %s", field)
 		}
 	}
 
@@ -3080,18 +3125,18 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			// ?fields=custom{..} requested ?
 			if ok || len(nested) > 0 {
 				// custom.table AS alias
-				base, custom.table = custom.refer.Join(
-					base, tableAlias, custom.table, "",
+				base.Query, custom.table = custom.refer.Join(
+					base.Query, tableAlias, custom.table, "",
 				)
 				// Chain prepared query context for filtering stage next ...
 				req.AddCustomContext(customCtxState, custom)
 				var scan func(custompgx.RecordExtendable) sql.Scanner
-				base, scan, err = custom.refer.Columns(
-					base, custom.table, nested...,
+				base.Query, scan, err = custom.refer.Columns(
+					base.Query, custom.table, nested...,
 				)
 				if err != nil {
 					// failed to build query columns
-					return sq.SelectBuilder{}, nil, err
+					return nil, err
 				}
 				plan = append(plan, func(row *_go.Case) any {
 					return scan(custompgx.ProtoExtendable(row))
@@ -3102,25 +3147,25 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 	}
 
 	if len(plan) == 0 {
-		return sq.SelectBuilder{}, nil, fmt.Errorf("no fields specified for selection")
+		return nil, fmt.Errorf("no fields specified for selection")
 	}
 
-	return base, plan, nil
+	return plan, nil
 }
 
-func AddSubqueryAsColumn(mainQuery, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) sq.SelectBuilder {
+func AddSubqueryAsColumn(mainQuery *storeutils.Select, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) error {
 	if filtersApplied {
 		subquery = subquery.Prefix("LATERAL (SELECT ARRAY(SELECT (subq) FROM (").Suffix(fmt.Sprintf(") subq) %s) %[1]s ON array_length(%[1]s.%[1]s, 1) > 0", subAlias))
 		query, args, _ := subquery.ToSql()
-		mainQuery = mainQuery.Join(query, args...)
+		mainQuery.Query = mainQuery.Query.Join(query, args...)
 	} else {
 		subquery = subquery.Prefix("LATERAL (SELECT ARRAY(SELECT (subq) FROM (").Suffix(fmt.Sprintf(") subq) %s) %[1]s ON true", subAlias))
 		query, args, _ := subquery.ToSql()
-		mainQuery = mainQuery.LeftJoin(query, args...)
+		mainQuery.Query = mainQuery.Query.LeftJoin(query, args...)
 	}
-	mainQuery = mainQuery.Column(subAlias + "::text")
+	mainQuery.Query = mainQuery.Query.Column(subAlias + "::text")
 
-	return mainQuery
+	return nil
 }
 
 func (c *CaseStore) GetRolesById(
@@ -3245,15 +3290,17 @@ func mustOverdueCasesQuery(mainTable string) sq.SelectBuilder {
 }
 
 func (c *CaseStore) SetOverdueCases(so options.Searcher) ([]*_go.Case, bool, error) {
+	base := storeutils.NewSelectBuilderMetadata(caseLeft, c.overdueCasesQuery, specialFieldsEncoding)
+
 	// Define SELECT query for returning updated fields
-	selectBuilder, plan, err := c.buildCaseSelectColumnsAndPlan(
-		so, c.overdueCasesQuery,
+	plan, err := c.buildCaseSelectColumnsAndPlan(
+		so, base,
 	)
 	if err != nil {
 		return nil, false, err
 	}
 
-	query, args, err := selectBuilder.ToSql()
+	query, args, err := base.ToSql()
 	if err != nil {
 		return nil, false, err
 	}

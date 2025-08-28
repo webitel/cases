@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/filters"
 )
@@ -31,15 +32,15 @@ func ApplyFiltersToQuery(qb sq.SelectBuilder, column string, filters []util.Filt
 }
 
 // NormalizeFilters normalizes the filters by applying the join function to each filter and changing column names that they become valid sql in format: "table.column".
-func NormalizeFilters(base sq.SelectBuilder, nodes filters.Filterer, rootTableAlias string, join func(sq.SelectBuilder, string, string) (sq.SelectBuilder, string, error)) (sq.SelectBuilder, error) {
-	if nodes == nil {
-		return base, nil
+func NormalizeFilters(base *Select, opts options.Searcher, join func(options.Searcher, *Select, string) (string, error)) error {
+	if opts.GetFiltersV1() == nil {
+		return nil
 	}
 
 	// Use a stack to process filters iteratively
 	var (
-		stack         = []filters.Filterer{nodes}
-		fieldTableMap = map[string]string{}
+		nodes = opts.GetFiltersV1()
+		stack = []filters.Filterer{nodes}
 	)
 
 	for len(stack) > 0 {
@@ -56,17 +57,21 @@ func NormalizeFilters(base sq.SelectBuilder, nodes filters.Filterer, rootTableAl
 		case *filters.Filter:
 			var (
 				splittedNaming = strings.Split(data.Column, ".")
+				value          = data.Value
 			)
+			if encoder, ok := base.FilterSpecialFieldsEncoder[data.Column]; ok {
+				data.Value = encoder(value)
+			}
 			if len(splittedNaming) == 0 || splittedNaming[0] == "" {
 				// if column is empty, we cannot apply filter
-				return base, fmt.Errorf("no filter column name")
+				return fmt.Errorf("no filter column name")
 			}
 			switch len(splittedNaming) {
 			case 1: // not nested, just column name
 				var (
 					column = splittedNaming[0]
 				)
-				data.Column = Ident(rootTableAlias, column)
+				data.Column = Ident(base.TableAlias, column)
 			case 2: // nested, table.column
 				var (
 					fkTable          string
@@ -77,26 +82,24 @@ func NormalizeFilters(base sq.SelectBuilder, nodes filters.Filterer, rootTableAl
 				fkColumn := splittedNaming[0]
 				referencedColumn = splittedNaming[1]
 
-				if fkTable, found = fieldTableMap[fkColumn]; !found {
-					base, fkTable, err = join(base, fkColumn, "filter")
+				if fkTable, found = base.Joins[fkColumn]; !found {
+					fkTable, err = join(opts, base, fkColumn)
 					if err != nil {
-						return base, err
+						return err
 					}
-					fieldTableMap[fkColumn] = fkTable
 				}
-
 				data.Column = Ident(fkTable, referencedColumn)
 
 			default:
-				return base, fmt.Errorf("unsupported nest depth, max 1 level of nesting")
+				return fmt.Errorf("unsupported nest depth, max 1 level of nesting")
 			}
 
 		default:
-			return base, fmt.Errorf("unsupported filter type: %T", current)
+			return fmt.Errorf("unsupported filter type: %T", current)
 		}
 	}
 
-	return base, nil
+	return nil
 }
 
 func ApplyFilters(base sq.SelectBuilder, filters filters.Filterer) (sq.SelectBuilder, error) {
@@ -178,27 +181,27 @@ func applyFilter(filter *filters.Filter) (sq.Sqlizer, error) {
 	}
 	var (
 		columnName = filter.Column
-		//isCustomField = strings.HasPrefix(columnName, "custom.")
+		value      = filter.Value
 	)
 
 	var result sq.Sqlizer
 	switch filter.ComparisonType {
 	case filters.GreaterThan:
-		result = sq.Gt{columnName: filter.Value}
+		result = sq.Gt{columnName: value}
 	case filters.GreaterThanOrEqual:
-		result = sq.GtOrEq{columnName: filter.Value}
+		result = sq.GtOrEq{columnName: value}
 	case filters.LessThan:
-		result = sq.Lt{columnName: filter.Value}
+		result = sq.Lt{columnName: value}
 	case filters.LessThanOrEqual:
-		result = sq.LtOrEq{columnName: filter.Value}
+		result = sq.LtOrEq{columnName: value}
 	case filters.NotEqual:
-		result = sq.NotEq{columnName: filter.Value}
+		result = sq.NotEq{columnName: value}
 	case filters.Like:
-		result = sq.Like{columnName: filter.Value}
+		result = sq.Like{columnName: value}
 	case filters.ILike:
-		result = sq.ILike{columnName: filter.Value}
+		result = sq.ILike{columnName: value}
 	case filters.Equal:
-		result = sq.Eq{columnName: filter.Value}
+		result = sq.Eq{columnName: value}
 	default:
 		return nil, fmt.Errorf("invalid filter type: %d", filter.ComparisonType)
 	}
