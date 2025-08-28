@@ -195,67 +195,68 @@ func (c *CaseStore) ScanServiceDefs(
 
 	err := txManager.QueryRow(ctx, `
 WITH RECURSIVE
-    service_hierarchy AS (SELECT id,
-                                 root_id,
-                                 sla_id,
-                                 status_id,
-                                 close_reason_group_id,
-                                 assignee_id,
-                                 group_id,
-                                 ARRAY [id] AS path,
-                                 0 as level
-                          FROM cases.service_catalog
-                          WHERE id = $1
+    service_hierarchy AS (
+        SELECT id,
+               root_id,
+               sla_id,
+               status_id,
+               close_reason_group_id,
+               assignee_id,
+               group_id,
+               ARRAY [id] AS path,
+               0 as level
+        FROM cases.service_catalog
+        WHERE id = $1
 
-                          UNION ALL
+        UNION ALL
 
-                          SELECT sc.id,
-                                 sc.root_id,
-                                 COALESCE(sc.sla_id, sh.sla_id),
-                                 COALESCE(sc.status_id, sh.status_id),
-                                 COALESCE(sc.close_reason_group_id, sh.close_reason_group_id),
-                                 COALESCE(sc.assignee_id, sh.assignee_id),
-                                 COALESCE(sc.group_id, sh.group_id),
-                                 sh.path || sc.id,
-                                 sh.level + 1
-                          FROM cases.service_catalog sc
-                                   INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
-                          WHERE sh.level < 10
-),
-    -- Fetch the deepest item with an SLA ID regardless of others
-    sla_service AS (SELECT *
-                    FROM service_hierarchy
-                    WHERE sla_id IS NOT NULL
-                    ORDER BY array_length(path, 1) ASC
-                    LIMIT 1),
-    -- From there, get status and close_reason from any deepest with both fields filled
-    fallback_status AS (SELECT *
-                        FROM service_hierarchy
-                        WHERE status_id IS NOT NULL
-                          AND close_reason_group_id IS NOT NULL
-                        ORDER BY array_length(path, 1) ASC
-                        LIMIT 1),
-    -- Get first non-null assignee and group from hierarchy
-    defaults AS (SELECT 
-                    (SELECT assignee_id 
-                    FROM service_hierarchy 
-                    WHERE assignee_id IS NOT NULL 
-                    ORDER BY level ASC 
-                    LIMIT 1) as assignee_id,
-                    (SELECT group_id 
-                    FROM service_hierarchy 
-                    WHERE group_id IS NOT NULL 
-                    ORDER BY level ASC 
-                    LIMIT 1) as group_id),
-    priority_condition AS (SELECT sc.id AS sla_condition_id,
-                                  sc.reaction_time,
-                                  sc.resolution_time
-                           FROM cases.sla_condition sc
-                                    INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
-                                    INNER JOIN cases.sla sla ON sc.sla_id = sla.id
-                                    INNER JOIN sla_service ss ON sla.id = ss.sla_id
-                           WHERE psc.priority_id = $2
-                           LIMIT 1)
+        SELECT sc.id,
+               sc.root_id,
+               COALESCE(sc.sla_id, sh.sla_id),
+               COALESCE(sc.status_id, sh.status_id),
+               COALESCE(sc.close_reason_group_id, sh.close_reason_group_id),
+               sc.assignee_id,
+               sc.group_id,
+               sh.path || sc.id,
+               sh.level + 1
+        FROM cases.service_catalog sc
+        INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
+        WHERE sh.level < 10
+    ),
+    sla_service AS (
+        SELECT *
+        FROM service_hierarchy
+        WHERE sla_id IS NOT NULL
+        ORDER BY array_length(path, 1) ASC
+        LIMIT 1
+    ),
+    fallback_status AS (
+        SELECT *
+        FROM service_hierarchy
+        WHERE status_id IS NOT NULL
+          AND close_reason_group_id IS NOT NULL
+        ORDER BY array_length(path, 1) ASC
+        LIMIT 1
+    ),
+    -- take assignee+group from the *same* level where at least one is non-null
+    defaults AS (
+        SELECT sh.assignee_id, sh.group_id
+        FROM service_hierarchy sh
+        WHERE sh.assignee_id IS NOT NULL OR sh.group_id IS NOT NULL
+        ORDER BY sh.level ASC
+        LIMIT 1
+    ),
+    priority_condition AS (
+        SELECT sc.id AS sla_condition_id,
+               sc.reaction_time,
+               sc.resolution_time
+        FROM cases.sla_condition sc
+        INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+        INNER JOIN cases.sla sla ON sc.sla_id = sla.id
+        INNER JOIN sla_service ss ON sla.id = ss.sla_id
+        WHERE psc.priority_id = $2
+        LIMIT 1
+    )
 SELECT ss.sla_id,
        COALESCE(pc.reaction_time, sla.reaction_time),
        COALESCE(pc.resolution_time, sla.resolution_time),
@@ -266,10 +267,10 @@ SELECT ss.sla_id,
        d.assignee_id,
        d.group_id
 FROM sla_service ss
-         LEFT JOIN fallback_status fs ON true
-         LEFT JOIN priority_condition pc ON true
-         LEFT JOIN cases.sla sla ON ss.sla_id = sla.id
-         CROSS JOIN defaults d;
+LEFT JOIN fallback_status fs ON true
+LEFT JOIN priority_condition pc ON true
+LEFT JOIN cases.sla sla ON ss.sla_id = sla.id
+CROSS JOIN defaults d;
 `, serviceID, priorityID).Scan(
 		scanner.ScanInt(&res.SLAID),
 		scanner.ScanInt(&res.ReactionTime),
@@ -429,13 +430,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
 				:dc, :date, :user, :date, :user,
-				(SELECT priority_id FROM priority_cte), :source, :status, 
+				(SELECT priority_id FROM priority_cte), :source, :status,
 				:contact_group,
 				:close_reason_group,
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee,
 				:sla, :sla_condition,
-				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason, 
+				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason,
                 NULLIF(:rating, 0), NULLIF(:rating_comment, '')
 			)
 			RETURNING *
@@ -1068,9 +1069,9 @@ func buildServiceHierarchyFilter(serviceIDs []int64, columnIdent string) (string
 			SELECT id, root_id, 1 as level
 			FROM cases.service_catalog
 			WHERE id = ANY(?::int[])
-			
+
 			UNION ALL
-			
+
 			-- Recursively get child services
 			SELECT sc.id, sc.root_id, sh.level + 1
 			FROM cases.service_catalog sc
@@ -2293,9 +2294,9 @@ func handleServiceDefaultValues(builder sq.UpdateBuilder, input *_go.Case, rpc o
 		SELECT id, root_id, assignee_id, group_id, 0 as level
 		FROM cases.service_catalog
 		WHERE id = %d
-		
+
 		UNION ALL
-		
+
 		-- Recursively go up until we find first assignee/group
 		SELECT sc.id, sc.root_id, sc.assignee_id, sc.group_id, sh.level + 1
 		FROM cases.service_catalog sc
@@ -2323,11 +2324,11 @@ func handleServiceDefaultValues(builder sq.UpdateBuilder, input *_go.Case, rpc o
 			//   - If service is changing, use hierarchy defaults
 			//   - If service is not changing but fields are in mask, use provided values
 			//   - Otherwise keep existing values
-			Set("assignee", sq.Expr(`CASE 
-				WHEN (SELECT is_final FROM current_case) = true THEN 
+			Set("assignee", sq.Expr(`CASE
+				WHEN (SELECT is_final FROM current_case) = true THEN
 					CASE WHEN ? THEN ? ELSE assignee END
 				WHEN service != ? THEN (SELECT assignee_id FROM service_defaults)
-				ELSE ? 
+				ELSE ?
 			END`,
 				util.ContainsField(rpc.GetMask(), "assignee"), // Check if assignee is in mask
 				func() any {
@@ -2347,11 +2348,11 @@ func handleServiceDefaultValues(builder sq.UpdateBuilder, input *_go.Case, rpc o
 					return sq.Expr("assignee")
 				}(),
 			)).
-			Set("contact_group", sq.Expr(`CASE 
-				WHEN (SELECT is_final FROM current_case) = true THEN 
+			Set("contact_group", sq.Expr(`CASE
+				WHEN (SELECT is_final FROM current_case) = true THEN
 					CASE WHEN ? THEN ? ELSE contact_group END
 				WHEN service != ? THEN (SELECT group_id FROM service_defaults)
-				ELSE ? 
+				ELSE ?
 			END`,
 				util.ContainsField(rpc.GetMask(), "group"), // Check if group is in mask
 				func() any {
@@ -2868,18 +2869,18 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			servicePathSubquery := `
 				WITH RECURSIVE service_path AS (
 					-- Start with the current service
-					SELECT 
+					SELECT
 						sc.id,
 						sc.name,
 						sc.root_id,
 						1 as level
 					FROM cases.service_catalog sc
 					WHERE sc.id = ` + storeutils.Ident(caseLeft, "service") + `
-					
+
 					UNION ALL
-					
+
 					-- Recursively get parent services up to catalog
-					SELECT 
+					SELECT
 						parent.id,
 						parent.name,
 						parent.root_id,
@@ -2888,7 +2889,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 					JOIN service_path sp ON parent.id = sp.root_id
 					WHERE parent.id IS NOT NULL -- Ensure we don't get NULL IDs
 				)
-				SELECT 
+				SELECT
 					jsonb_build_object(
 						'current_service', jsonb_build_object(
 							'id', (SELECT id FROM service_path WHERE level = 1),
@@ -2896,7 +2897,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 						),
 						'parent_services', COALESCE(
 							(SELECT jsonb_agg(jsonb_build_object('id', id, 'name', name, 'level', level) ORDER BY level DESC)
-							 FROM service_path 
+							 FROM service_path
 							 WHERE level > 1),
 							'[]'::jsonb
 						)
