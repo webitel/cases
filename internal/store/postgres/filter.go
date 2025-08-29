@@ -1,11 +1,13 @@
-package util
+package postgres
 
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/internal/model/options"
+	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/filters"
 )
@@ -71,7 +73,7 @@ func NormalizeFilters(base *Select, opts options.Searcher, join func(options.Sea
 				var (
 					column = splittedNaming[0]
 				)
-				data.Column = Ident(base.TableAlias, column)
+				data.Column = util2.Ident(base.TableAlias, column)
 			case 2: // nested, table.column
 				var (
 					fkTable          string
@@ -88,7 +90,7 @@ func NormalizeFilters(base *Select, opts options.Searcher, join func(options.Sea
 						return err
 					}
 				}
-				data.Column = Ident(fkTable, referencedColumn)
+				data.Column = util2.Ident(fkTable, referencedColumn)
 
 			default:
 				return fmt.Errorf("unsupported nest depth, max 1 level of nesting")
@@ -207,3 +209,25 @@ func applyFilter(filter *filters.Filter) (sq.Sqlizer, error) {
 	}
 	return result, nil
 }
+
+var (
+	timeEncoder = func(v any) any {
+		switch t := v.(type) {
+		case nil:
+			return nil
+		case time.Time:
+			return t
+		case *time.Time:
+			if t == nil {
+				return nil
+			}
+			return *t
+		case int64:
+			return time.Unix(t, 0)
+		case int:
+			return time.Unix(int64(t), 0)
+		default:
+			return nil
+		}
+	}
+)

@@ -1,4 +1,4 @@
-package util
+package postgres
 
 import sq "github.com/Masterminds/squirrel"
 

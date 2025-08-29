@@ -1,9 +1,10 @@
-package util
+package postgres
 
 import (
+	"testing"
+
 	"github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/util"
-	"testing"
 )
 
 func TestApplyFiltersToQuery(t *testing.T) {

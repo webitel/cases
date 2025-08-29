@@ -70,25 +70,6 @@ const (
 )
 
 var (
-	timeEncoder = func(v any) any {
-		switch t := v.(type) {
-		case nil:
-			return nil
-		case time.Time:
-			return t
-		case *time.Time:
-			if t == nil {
-				return nil
-			}
-			return *t
-		case int64:
-			return time.Unix(t, 0)
-		case int:
-			return time.Unix(int64(t), 0)
-		default:
-			return nil
-		}
-	}
 	specialFieldsEncoding = map[string]func(v any) any{
 		"created_at":          timeEncoder,
 		"updated_at":          timeEncoder,
@@ -325,7 +306,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 	input *_go.Case,
 	serviceDefs *ServiceRelatedDefs,
 ) (
-	*storeutils.Select,
+	*Select,
 	[]func(caseItem *_go.Case) any,
 	error,
 ) {
@@ -547,7 +528,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		return nil, nil, errors.Internal("postgres.case.create.bind_named_error")
 	}
 
-	base := storeutils.NewSelectBuilderMetadata(caseLeft, sq.Select().From(caseLeft).PrefixExpr(
+	base := NewSelectBuilderMetadata(caseLeft, sq.Select().From(caseLeft).PrefixExpr(
 		sq.Expr(
 			boundQuery,
 			args...,
@@ -1711,8 +1692,8 @@ func isComplexFilter(filterStr string) bool {
 
 func (c *CaseStore) buildListCaseSqlizer(
 	opts options.Searcher,
-) (*storeutils.Select, []func(caseItem *_go.Case) any, error) {
-	query := storeutils.NewSelectBuilderMetadata(caseLeft, sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar), specialFieldsEncoding)
+) (*Select, []func(caseItem *_go.Case) any, error) {
+	query := NewSelectBuilderMetadata(caseLeft, sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar), specialFieldsEncoding)
 
 	plan, err := c.buildCaseSelectColumnsAndPlan(opts, query)
 	if err != nil {
@@ -1745,7 +1726,7 @@ func (c *CaseStore) buildListCaseSqlizer(
 	return query, plan, nil
 }
 
-func (c *CaseStore) applySorting(opts options.Searcher, query *storeutils.Select) error {
+func (c *CaseStore) applySorting(opts options.Searcher, query *Select) error {
 	sort := opts.GetSort()
 	if sort == "" {
 		sort = caseDefaultSort
@@ -1771,7 +1752,7 @@ func (c *CaseStore) applySorting(opts options.Searcher, query *storeutils.Select
 	return nil
 }
 
-func (c *CaseStore) applyFilters(opts options.Searcher, query *storeutils.Select) error {
+func (c *CaseStore) applyFilters(opts options.Searcher, query *Select) error {
 	if opts == nil || query == nil {
 		return fmt.Errorf("cannot apply filters")
 	}
@@ -1854,18 +1835,18 @@ func (c *CaseStore) applyFilters(opts options.Searcher, query *storeutils.Select
 	}
 
 	// FiltersV1 apply
-	err = storeutils.NormalizeFilters(query, opts, c.joinRequiredTable)
+	err = NormalizeFilters(query, opts, c.joinRequiredTable)
 	if err != nil {
 		return err
 	}
-	query.Query, err = storeutils.ApplyFilters(query.Query, opts.GetFiltersV1())
+	query.Query, err = ApplyFilters(query.Query, opts.GetFiltersV1())
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *CaseStore) applySearch(opts options.Searcher, query *storeutils.Select) error {
+func (c *CaseStore) applySearch(opts options.Searcher, query *Select) error {
 	if opts == nil || query == nil {
 		return fmt.Errorf("cannot apply search query")
 	}
@@ -2096,7 +2077,7 @@ func (c *CaseStore) Update(
 func (c *CaseStore) buildUpdateCaseSqlizer(
 	rpc options.Updator,
 	input *_go.Case,
-) (*storeutils.Select, []func(caseItem *_go.Case) any, error) {
+) (*Select, []func(caseItem *_go.Case) any, error) {
 	// Ensure required fields (ID and Version) are included
 	fields := rpc.GetFields()
 	fields = util.EnsureIdAndVerField(fields)
@@ -2361,7 +2342,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		)
 	}
 
-	base := storeutils.NewSelectBuilderMetadata(caseLeft, WITH, specialFieldsEncoding)
+	base := NewSelectBuilderMetadata(caseLeft, WITH, specialFieldsEncoding)
 
 	// Define SELECT query for returning updated fields
 	plan, err := c.buildCaseSelectColumnsAndPlan(
@@ -2374,7 +2355,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	return base, plan, nil
 }
 
-func (c *CaseStore) joinRequiredTable(searcher options.Searcher, base *storeutils.Select, field string) (joinedTableAlias string, err error) {
+func (c *CaseStore) joinRequiredTable(searcher options.Searcher, base *Select, field string) (joinedTableAlias string, err error) {
 	var (
 		tableAlias string
 		joinTable  = func(neededAlias, table, connection string) {
@@ -2456,7 +2437,7 @@ func (c *CaseStore) joinRequiredTable(searcher options.Searcher, base *storeutil
 
 // session required to get some columns
 func (c *CaseStore) buildCaseSelectColumnsAndPlan(
-	req options.Searcher, base *storeutils.Select,
+	req options.Searcher, base *Select,
 ) (
 	[]func(caseItem *_go.Case) any, error,
 ) {
@@ -3153,7 +3134,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 	return plan, nil
 }
 
-func AddSubqueryAsColumn(mainQuery *storeutils.Select, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) error {
+func AddSubqueryAsColumn(mainQuery *Select, subquery sq.SelectBuilder, subAlias string, filtersApplied bool) error {
 	if filtersApplied {
 		subquery = subquery.Prefix("LATERAL (SELECT ARRAY(SELECT (subq) FROM (").Suffix(fmt.Sprintf(") subq) %s) %[1]s ON array_length(%[1]s.%[1]s, 1) > 0", subAlias))
 		query, args, _ := subquery.ToSql()
@@ -3290,7 +3271,7 @@ func mustOverdueCasesQuery(mainTable string) sq.SelectBuilder {
 }
 
 func (c *CaseStore) SetOverdueCases(so options.Searcher) ([]*_go.Case, bool, error) {
-	base := storeutils.NewSelectBuilderMetadata(caseLeft, c.overdueCasesQuery, specialFieldsEncoding)
+	base := NewSelectBuilderMetadata(caseLeft, c.overdueCasesQuery, specialFieldsEncoding)
 
 	// Define SELECT query for returning updated fields
 	plan, err := c.buildCaseSelectColumnsAndPlan(

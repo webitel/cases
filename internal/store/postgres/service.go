@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/lib/pq"
@@ -185,7 +186,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 
 	// Apply filters
 	if rootIDFilters := rpc.GetFilter("root_id"); len(rootIDFilters) > 0 {
-		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "service.root_id", rootIDFilters)
+		queryBuilder = ApplyFiltersToQuery(queryBuilder, "service.root_id", rootIDFilters)
 	}
 
 	// Updated name filter logic for consistency
@@ -198,7 +199,7 @@ func (s *ServiceStore) buildSearchServiceQuery(rpc options.Searcher) (string, []
 	}
 
 	if stateFilters := rpc.GetFilter("state"); len(stateFilters) > 0 {
-		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "service.state", stateFilters)
+		queryBuilder = ApplyFiltersToQuery(queryBuilder, "service.state", stateFilters)
 	}
 
 	if len(rpc.GetIDs()) > 0 {
