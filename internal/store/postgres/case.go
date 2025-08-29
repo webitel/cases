@@ -528,12 +528,15 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		return nil, nil, errors.Internal("postgres.case.create.bind_named_error")
 	}
 
-	base := NewSelectBuilderMetadata(caseLeft, sq.Select().From(caseLeft).PrefixExpr(
+	base, err := NewSelect(caseLeft, sq.Select().From(caseLeft).PrefixExpr(
 		sq.Expr(
 			boundQuery,
 			args...,
 		),
-	), specialFieldsEncoding)
+	), WithFiltersEncoder(specialFieldsEncoding))
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// Construct SELECT query to return case data
 	plan, err := c.buildCaseSelectColumnsAndPlan(
@@ -1693,7 +1696,10 @@ func isComplexFilter(filterStr string) bool {
 func (c *CaseStore) buildListCaseSqlizer(
 	opts options.Searcher,
 ) (*Select, []func(caseItem *_go.Case) any, error) {
-	query := NewSelectBuilderMetadata(caseLeft, sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar), specialFieldsEncoding)
+	query, err := NewSelect(caseLeft, sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar), WithFiltersEncoder(specialFieldsEncoding))
+	if err != nil {
+		return nil, nil, err
+	}
 
 	plan, err := c.buildCaseSelectColumnsAndPlan(opts, query)
 	if err != nil {
@@ -2342,7 +2348,10 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		)
 	}
 
-	base := NewSelectBuilderMetadata(caseLeft, WITH, specialFieldsEncoding)
+	base, err := NewSelect(caseLeft, WITH, WithFiltersEncoder(specialFieldsEncoding))
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// Define SELECT query for returning updated fields
 	plan, err := c.buildCaseSelectColumnsAndPlan(
@@ -3271,7 +3280,10 @@ func mustOverdueCasesQuery(mainTable string) sq.SelectBuilder {
 }
 
 func (c *CaseStore) SetOverdueCases(so options.Searcher) ([]*_go.Case, bool, error) {
-	base := NewSelectBuilderMetadata(caseLeft, c.overdueCasesQuery, specialFieldsEncoding)
+	base, err := NewSelect(caseLeft, c.overdueCasesQuery, WithFiltersEncoder(specialFieldsEncoding))
+	if err != nil {
+		return nil, false, err
+	}
 
 	// Define SELECT query for returning updated fields
 	plan, err := c.buildCaseSelectColumnsAndPlan(

@@ -9,12 +9,28 @@ type Select struct {
 	FilterSpecialFieldsEncoder map[string]func(any) any
 }
 
-func NewSelectBuilderMetadata(rootTableAlias string, builder sq.SelectBuilder, filtersEncoder map[string]func(v any) any) *Select {
-	return &Select{
+func NewSelect(rootTableAlias string, builder sq.SelectBuilder, opts ...BuilderOptions) (*Select, error) {
+	query := &Select{
 		TableAlias:                 rootTableAlias,
 		Joins:                      make(map[string]string),
 		Query:                      builder,
-		FilterSpecialFieldsEncoder: filtersEncoder,
+		FilterSpecialFieldsEncoder: make(map[string]func(any) any),
+	}
+	for _, opt := range opts {
+		err := opt(query)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return query, nil
+}
+
+type BuilderOptions func(s *Select) error
+
+func WithFiltersEncoder(encoder map[string]func(any) any) BuilderOptions {
+	return func(s *Select) error {
+		s.FilterSpecialFieldsEncoder = encoder
+		return nil
 	}
 }
 
