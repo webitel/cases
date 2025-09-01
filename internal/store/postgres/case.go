@@ -2365,13 +2365,14 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 }
 
 func (c *CaseStore) joinRequiredTable(searcher options.Searcher, base *Select, field string) (joinedTableAlias string, err error) {
+	if alias, ok := base.Joins[field]; ok {
+		return alias, nil
+	}
 	var (
 		tableAlias string
 		joinTable  = func(neededAlias, table, connection string) {
-			if _, ok := base.Joins[field]; !ok {
-				base.Query = base.Query.LeftJoin(fmt.Sprintf("%s %s ON %[2]s.id = %s", table, neededAlias, connection))
-				base.Joins[field] = neededAlias
-			}
+			base.Query = base.Query.LeftJoin(fmt.Sprintf("%s %s ON %[2]s.id = %s", table, neededAlias, connection))
+			base.Joins[field] = neededAlias
 		}
 	)
 
@@ -2429,16 +2430,13 @@ func (c *CaseStore) joinRequiredTable(searcher options.Searcher, base *Select, f
 		tableAlias = caseStatusConditionAlias
 		joinTable(tableAlias, "cases.status_condition", storeutils.Ident(base.TableAlias, "status_condition"))
 	case "custom":
-		if _, ok := base.Joins[field]; !ok {
-			// join extension table
-			customFieldsMetadata := c.custom(searcher)
-			if customFieldsMetadata == nil || customFieldsMetadata.refer == nil {
-				return "", fmt.Errorf("custom fields metadata not found or refer is nil")
-			}
-			tableAlias = "xc"
-			joinTable(tableAlias, customFieldsMetadata.refer.Table(), storeutils.Ident(base.TableAlias, "id"))
-
+		// join extension table
+		customFieldsMetadata := c.custom(searcher)
+		if customFieldsMetadata == nil || customFieldsMetadata.refer == nil {
+			return "", fmt.Errorf("custom fields metadata not found or refer is nil")
 		}
+		tableAlias = "xc"
+		joinTable(tableAlias, customFieldsMetadata.refer.Table(), storeutils.Ident(base.TableAlias, "id"))
 
 	}
 	return tableAlias, nil
