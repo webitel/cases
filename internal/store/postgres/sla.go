@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 
@@ -93,6 +94,11 @@ func buildSLASelectColumns(
 func (s *SLAStore) buildCreateSLAQuery(rpc options.Creator, sla *model.SLA) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(fields)
+
+	var desc any = nil
+	if sla.Description != nil && *sla.Description != "" {
+		desc = *sla.Description
+	}
 	// Build the INSERT query with a RETURNING clause
 	insertBuilder := sq.Insert("cases.sla").
 		Columns(
@@ -105,7 +111,7 @@ func (s *SLAStore) buildCreateSLAQuery(rpc options.Creator, sla *model.SLA) (sq.
 			sla.Name,
 			rpc.GetAuthOpts().GetDomainId(),
 			rpc.RequestTime(),
-			sla.Description,
+			desc,
 			rpc.GetAuthOpts().GetUserId(),
 			rpc.RequestTime(),
 			rpc.GetAuthOpts().GetUserId(),
