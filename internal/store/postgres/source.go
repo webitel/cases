@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"fmt"
+	"strings"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	_go "github.com/webitel/cases/api/cases"
@@ -12,7 +14,6 @@ import (
 	storeutil "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 	"google.golang.org/grpc/codes"
-	"strings"
 )
 
 const (
@@ -53,13 +54,19 @@ func buildSourceSelectColumnsAndPlan(base sq.SelectBuilder, fields []string) (sq
 func (s *Source) buildCreateSourceQuery(rpc options.Creator, source *model.Source) (sq.SelectBuilder, error) {
 	fields := rpc.GetFields()
 	fields = util.EnsureIdField(rpc.GetFields())
+
+	var desc any = nil
+	if source.Description != nil && *source.Description != "" {
+		desc = *source.Description
+	}
+
 	insertBuilder := sq.Insert("cases.source").
 		Columns("name", "dc", "created_at", "description", "type", "created_by", "updated_at", "updated_by").
 		Values(
 			source.Name,
 			rpc.GetAuthOpts().GetDomainId(),
 			rpc.RequestTime(),
-			source.Description,
+			desc,
 			source.Type,
 			rpc.GetAuthOpts().GetUserId(),
 			rpc.RequestTime(),
