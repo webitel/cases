@@ -10,14 +10,14 @@ replace github.com/webitel/proto/gen => github.com/webitel/custom/proto/gen v0.0
 
 require (
 	buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2
-	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250121132426-2c80753dfee6.1
+	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.8-20250722101930-930ffcd444d7.1
 	github.com/gammazero/deque v1.0.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3
 	github.com/jackc/pgtype v1.14.4
 	github.com/webitel/custom v0.0.0-20250507094703-36254da8d7d5
 	github.com/webitel/proto/gen v0.0.0-00010101000000-000000000000 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250519155744-55703ea1f237
-	google.golang.org/protobuf v1.36.6
+	google.golang.org/protobuf v1.36.8
 )
 
 require (
