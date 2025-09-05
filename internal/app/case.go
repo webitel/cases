@@ -13,7 +13,7 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/webitel/cases/internal/api_handler/grpc/options"
 	"github.com/webitel/cases/internal/api_handler/grpc/options/shared"
-
+	"github.com/webitel/webitel-go-kit/pkg/filters"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -878,7 +878,7 @@ func NewCaseService(app *App) (*CaseService, error) {
 		logger: objectedLogger,
 	}
 	// Create a new CEL environment for case filtering
-	filtrationEnv, err := cel.NewEnv(cel.Types(&cases.Case{}), cel.Variable("case", cel.ObjectType("webitel.cases.Case")))
+	filtrationEnv, err := cel.NewEnv(filters.ProtoToCELVariables(&cases.Case{})...)
 	service.filtrationEnv = filtrationEnv
 
 	watcher := watcherkit.NewDefaultWatcher()
