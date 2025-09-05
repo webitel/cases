@@ -116,17 +116,17 @@ func ParseFilters(expr *filters.FilterExpr) (sq.Sqlizer, error) {
 	}
 	var (
 		res        sq.Sqlizer
-		parseNodes = func(nodes []*filters.FilterExpr) (sq.Sqlizer, error) {
+		parseNodes = func(nodes []*filters.FilterExpr) ([]sq.Sqlizer, error) {
+			var sqlizers []sq.Sqlizer
 			for _, nestedExpr := range nodes {
-				if nestedExpr.GetFilterNode() != nil {
-					lowerResult, err := ParseFilters(nestedExpr)
-					if err != nil {
-						return nil, err
-					}
-					return lowerResult, nil
+				lowerResult, err := ParseFilters(nestedExpr)
+				if err != nil {
+					return nil, err
 				}
+				sqlizers = append(sqlizers, lowerResult)
+
 			}
-			return nil, nil
+			return sqlizers, nil
 		}
 	)
 	if data := expr.GetFilterNode(); data != nil {
@@ -136,20 +136,20 @@ func ParseFilters(expr *filters.FilterExpr) (sq.Sqlizer, error) {
 		}
 		switch data.Connection {
 		case filters.And:
-			and := sq.And{lowerResult}
+			and := append(sq.And{}, lowerResult...)
 			res = and
 		case filters.Or:
-			or := sq.Or{lowerResult}
+			or := append(sq.Or{}, lowerResult...)
 			res = or
 		default:
 			return nil, fmt.Errorf("invalid connection type in filter node: %d", data.Connection)
 		}
 	} else if filter := expr.GetFilter(); filter != nil {
-		filter, err := applyFilter(filter)
+		appliedFilter, err := applyFilter(filter)
 		if err != nil {
 			return nil, err
 		}
-		return filter, nil
+		return appliedFilter, nil
 	}
 	return res, nil
 }
