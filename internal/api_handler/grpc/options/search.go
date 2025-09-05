@@ -30,7 +30,7 @@ type SearchOptions struct {
 	IDs []int64
 	// Deprecated: use FiltersV1
 	Filters   []string
-	FiltersV1 filters.Filterer
+	FiltersV1 *filters.FilterExpr
 	// search
 	Search string
 	// output
@@ -226,7 +226,7 @@ func (s *SearchOptions) GetSort() string {
 	return s.Sort
 }
 
-func (s *SearchOptions) GetFiltersV1() filters.Filterer {
+func (s *SearchOptions) GetFiltersV1() *filters.FilterExpr {
 	return s.FiltersV1
 }
 

@@ -31,7 +31,7 @@ type Searcher interface {
 	// Deprecated: use FiltersV1
 	GetFilter(f string) []util.FilterExpr
 
-	GetFiltersV1() filters.Filterer
+	GetFiltersV1() *filters.FilterExpr
 	// shortcuts
 	GetIDs() []int64
 	GetQin() string

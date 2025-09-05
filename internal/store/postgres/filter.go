@@ -42,27 +42,28 @@ func NormalizeFilters(base *Select, opts options.Searcher, join func(options.Sea
 	// Use a stack to process filters iteratively
 	var (
 		nodes = opts.GetFiltersV1()
-		stack = []filters.Filterer{nodes}
+		stack = []*filters.FilterExpr{nodes}
 	)
 
 	for len(stack) > 0 {
 		// Pop from stack
 		current := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-
-		switch data := current.(type) {
-		case *filters.FilterNode:
+		if current == nil {
+			continue
+		}
+		if node := current.GetFilterNode(); node != nil {
 			// Add all child nodes to stack (in reverse order to maintain processing order)
-			for i := len(data.Nodes) - 1; i >= 0; i-- {
-				stack = append(stack, data.Nodes[i])
+			for i := len(node.Nodes) - 1; i >= 0; i-- {
+				stack = append(stack, node.Nodes[i])
 			}
-		case *filters.Filter:
+		} else if filter := current.GetFilter(); filter != nil {
 			var (
-				splittedNaming = strings.Split(data.Column, ".")
-				value          = data.Value
+				splittedNaming = strings.Split(filter.Column, ".")
+				value          = filter.Value
 			)
-			if encoder, ok := base.FilterSpecialFieldsEncoder[data.Column]; ok {
-				data.Value = encoder(value)
+			if encoder, ok := base.FilterSpecialFieldsEncoder[filter.Column]; ok {
+				filter.Value = encoder(value)
 			}
 			if len(splittedNaming) == 0 || splittedNaming[0] == "" {
 				// if column is empty, we cannot apply filter
@@ -73,7 +74,7 @@ func NormalizeFilters(base *Select, opts options.Searcher, join func(options.Sea
 				var (
 					column = splittedNaming[0]
 				)
-				data.Column = util2.Ident(base.TableAlias, column)
+				filter.Column = util2.Ident(base.TableAlias, column)
 			case 2: // nested, table.column
 				var (
 					fkTable          string
@@ -90,21 +91,18 @@ func NormalizeFilters(base *Select, opts options.Searcher, join func(options.Sea
 						return err
 					}
 				}
-				data.Column = util2.Ident(fkTable, referencedColumn)
+				filter.Column = util2.Ident(fkTable, referencedColumn)
 
 			default:
 				return fmt.Errorf("unsupported nest depth, max 1 level of nesting")
 			}
-
-		default:
-			return fmt.Errorf("unsupported filter type: %T", current)
 		}
 	}
 
 	return nil
 }
 
-func ApplyFilters(base sq.SelectBuilder, filters filters.Filterer) (sq.SelectBuilder, error) {
+func ApplyFilters(base sq.SelectBuilder, filters *filters.FilterExpr) (sq.SelectBuilder, error) {
 	parsedFilters, err := ParseFilters(filters)
 	if err != nil {
 		return base, err
@@ -112,66 +110,46 @@ func ApplyFilters(base sq.SelectBuilder, filters filters.Filterer) (sq.SelectBui
 	return base.Where(parsedFilters), nil
 }
 
-func ParseFilters(nodes filters.Filterer) (sq.Sqlizer, error) {
-	if nodes == nil {
+func ParseFilters(expr *filters.FilterExpr) (sq.Sqlizer, error) {
+	if expr == nil {
 		return sq.Expr("1=1"), nil
 	}
 	var (
-		res sq.Sqlizer
+		res        sq.Sqlizer
+		parseNodes = func(nodes []*filters.FilterExpr) (sq.Sqlizer, error) {
+			for _, nestedExpr := range nodes {
+				if nestedExpr.GetFilterNode() != nil {
+					lowerResult, err := ParseFilters(nestedExpr)
+					if err != nil {
+						return nil, err
+					}
+					return lowerResult, nil
+				}
+			}
+			return nil, nil
+		}
 	)
-	switch data := nodes.(type) {
-	case *filters.FilterNode:
+	if data := expr.GetFilterNode(); data != nil {
+		lowerResult, err := parseNodes(data.Nodes)
+		if err != nil {
+			return nil, err
+		}
 		switch data.Connection {
 		case filters.And:
-			and := sq.And{}
-			for _, bunch := range data.Nodes {
-				switch bunchType := bunch.(type) {
-				case *filters.FilterNode:
-					lowerResult, err := ParseFilters(bunchType)
-					if err != nil {
-						return nil, err
-					}
-					and = append(and, lowerResult)
-				case *filters.Filter:
-					filter, err := applyFilter(bunchType)
-					if err != nil {
-						return nil, err
-					}
-					and = append(and, filter)
-				}
-
-			}
+			and := sq.And{lowerResult}
 			res = and
 		case filters.Or:
-			or := sq.Or{}
-			for _, bunch := range data.Nodes {
-				switch v := bunch.(type) {
-				case *filters.FilterNode:
-					lowerResult, err := ParseFilters(v)
-					if err != nil {
-						return nil, err
-					}
-					or = append(or, lowerResult)
-				case *filters.Filter:
-					filter, err := applyFilter(v)
-					if err != nil {
-						return nil, err
-					}
-					or = append(or, filter)
-				}
-			}
+			or := sq.Or{lowerResult}
 			res = or
 		default:
 			return nil, fmt.Errorf("invalid connection type in filter node: %d", data.Connection)
 		}
-	case *filters.Filter:
-		filter, err := applyFilter(data)
+	} else if filter := expr.GetFilter(); filter != nil {
+		filter, err := applyFilter(filter)
 		if err != nil {
 			return nil, err
 		}
 		return filter, nil
-	default:
-		return nil, fmt.Errorf("unsupported filter type: %T", nodes)
 	}
 	return res, nil
 }
