@@ -879,6 +879,9 @@ func NewCaseService(app *App) (*CaseService, error) {
 	}
 	// Create a new CEL environment for case filtering
 	filtrationEnv, err := cel.NewEnv(filters.ProtoToCELVariables(&cases.Case{})...)
+	if err != nil {
+		return nil, err
+	}
 	service.filtrationEnv = filtrationEnv
 
 	watcher := watcherkit.NewDefaultWatcher()

@@ -182,6 +182,10 @@ func applyFilter(filter *filters.Filter) (sq.Sqlizer, error) {
 		result = sq.ILike{columnName: value}
 	case filters.Equal:
 		result = sq.Eq{columnName: value}
+	case filters.IsNull:
+		result = sq.Expr(fmt.Sprintf("%s IS NULL", columnName))
+	case filters.NotNull:
+		result = sq.Expr(fmt.Sprintf("%s IS NOT NULL", columnName))
 	default:
 		return nil, fmt.Errorf("invalid filter type: %d", filter.ComparisonType)
 	}
