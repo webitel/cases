@@ -2323,63 +2323,61 @@ func handleServiceDefaultValues(builder sq.UpdateBuilder, input *_go.Case, rpc o
 			Set("assignee", sq.Expr(`CASE
 				WHEN (SELECT is_final FROM current_case) = true THEN
 					CASE WHEN ? THEN ? ELSE assignee END
+				WHEN ? THEN ? -- If assignee in mask, use its value (including NULL)
 				WHEN service != ? THEN (SELECT assignee_id FROM service_defaults)
-				ELSE ?
+				ELSE assignee
 			END`,
-				util.ContainsField(rpc.GetMask(), "assignee"), // Check if assignee is in mask
+				util.ContainsField(rpc.GetMask(), "assignee"),
 				func() any {
-					if input.Assignee == nil || input.Assignee.Id == 0 {
-						return nil // Explicitly set to NULL if empty in request
+					if input.GetAssignee() == nil || input.GetAssignee().GetId() == 0 {
+						return nil
 					}
 					return input.Assignee.GetId()
 				}(),
-				input.Service.GetId(),
+				util.ContainsField(rpc.GetMask(), "assignee"),
 				func() any {
-					if util.ContainsField(rpc.GetMask(), "assignee") {
-						if input.Assignee == nil || input.Assignee.Id == 0 {
-							return nil
-						}
-						return input.Assignee.GetId()
+					if input.GetAssignee() == nil || input.GetAssignee().GetId() == 0 {
+						return nil
 					}
-					return sq.Expr("assignee")
+					return input.GetAssignee().GetId()
 				}(),
+				input.Service.GetId(),
 			)).
 			Set("contact_group", sq.Expr(`CASE
 				WHEN (SELECT is_final FROM current_case) = true THEN
 					CASE WHEN ? THEN ? ELSE contact_group END
+				WHEN ? THEN ? -- If group in mask, use its value (including NULL)
 				WHEN service != ? THEN (SELECT group_id FROM service_defaults)
-				ELSE ?
+				ELSE contact_group
 			END`,
-				util.ContainsField(rpc.GetMask(), "group"), // Check if group is in mask
+				util.ContainsField(rpc.GetMask(), "group"),
 				func() any {
-					if input.Group == nil || input.Group.Id == 0 {
-						return nil // Explicitly set to NULL if empty in request
+					if input.GetGroup() == nil || input.GetGroup().GetId() == 0 {
+						return nil
 					}
-					return input.Group.GetId()
+					return input.GetGroup().GetId()
 				}(),
-				input.Service.GetId(),
+				util.ContainsField(rpc.GetMask(), "group"),
 				func() any {
-					if util.ContainsField(rpc.GetMask(), "group") {
-						if input.Group == nil || input.Group.Id == 0 {
-							return nil
-						}
-						return input.GetGroup().GetId()
+					if input.GetGroup() == nil || input.GetGroup().GetId() == 0 {
+						return nil
 					}
-					return sq.Expr("contact_group")
+					return input.GetGroup().GetId()
 				}(),
+				input.GetService().GetId(),
 			))
 	} else {
 		if util.ContainsField(rpc.GetMask(), "assignee") {
 			// If assignee is in mask but empty in request, set to NULL
-			if input.Assignee == nil || input.Assignee.Id == 0 {
+			if input.GetAssignee() == nil || input.GetAssignee().GetId() == 0 {
 				builder = builder.Set("assignee", nil)
 			} else {
-				builder = builder.Set("assignee", input.Assignee.GetId())
+				builder = builder.Set("assignee", input.GetAssignee().GetId())
 			}
 		}
 		if util.ContainsField(rpc.GetMask(), "group") {
 			// If group is in mask but empty in request, set to NULL
-			if input.Group == nil || input.Group.Id == 0 {
+			if input.GetGroup() == nil || input.GetGroup().GetId() == 0 {
 				builder = builder.Set("contact_group", nil)
 			} else {
 				builder = builder.Set("contact_group", input.GetGroup().GetId())
