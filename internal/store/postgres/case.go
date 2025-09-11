@@ -11,15 +11,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webitel/cases/internal/errors"
-
-	"github.com/webitel/cases/auth"
-
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
 	"github.com/lib/pq"
+
+	customtyp "github.com/webitel/custom/data"
+	customrel "github.com/webitel/custom/reflect"
+	custompgx "github.com/webitel/custom/store/postgres"
+
 	_go "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/model/options/defaults"
@@ -29,10 +32,6 @@ import (
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	storeutils "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
-
-	customtyp "github.com/webitel/custom/data"
-	customrel "github.com/webitel/custom/reflect"
-	custompgx "github.com/webitel/custom/store/postgres"
 )
 
 type CaseStore struct {
@@ -72,7 +71,6 @@ func (c *CaseStore) Create(
 	rpc options.Creator,
 	add *_go.Case,
 ) (*_go.Case, error) {
-
 	// Get the database connection
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -121,7 +119,6 @@ func (c *CaseStore) Create(
 		txManager,
 		add,
 	)
-
 	if err != nil {
 		return nil, ParseError(err)
 	}
@@ -270,7 +267,7 @@ FROM sla_service ss
 LEFT JOIN fallback_status fs ON true
 LEFT JOIN priority_condition pc ON true
 LEFT JOIN cases.sla sla ON ss.sla_id = sla.id
-CROSS JOIN defaults d;
+LEFT JOIN defaults d on true;
 `, serviceID, priorityID).Scan(
 		scanner.ScanInt(&res.SLAID),
 		scanner.ScanInt(&res.ReactionTime),
@@ -1202,7 +1199,6 @@ func (c *CaseStore) filterToSqlizer(
 	custom *customFilterContext,
 	errRef *error,
 ) sq.Sqlizer {
-
 	filterStr = strings.TrimPrefix(filterStr, "filters=")
 	var op string
 	var column, value string
