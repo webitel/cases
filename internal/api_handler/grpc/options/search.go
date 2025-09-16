@@ -1,19 +1,22 @@
-package grpc
+package options
 
 import (
 	"context"
+	"strings"
+	"time"
+
+	"github.com/google/cel-go/cel"
 	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/api_handler/grpc/options/shared"
+	optsutil "github.com/webitel/cases/internal/api_handler/grpc/options/util"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/model/options/defaults"
-	"github.com/webitel/cases/internal/model/options/grpc/shared"
-	optsutil "github.com/webitel/cases/internal/model/options/grpc/util"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
+	"github.com/webitel/webitel-go-kit/pkg/filters"
 	"google.golang.org/grpc/codes"
-	"strings"
-	"time"
 )
 
 type SearchOption func(options *SearchOptions) error
@@ -24,8 +27,10 @@ type SearchOptions struct {
 	createdAt time.Time
 	context.Context
 	// filters
-	IDs     []int64
-	Filters []string
+	IDs []int64
+	// Deprecated: use FiltersV1
+	Filters   []string
+	FiltersV1 *filters.FilterExpr
 	// search
 	Search string
 	// output
@@ -59,6 +64,27 @@ type Filterer interface {
 	GetFilters() []string
 }
 
+func WithFilters(filters []string) SearchOption {
+	return func(options *SearchOptions) error {
+		options.Filters = filters
+		return nil
+	}
+}
+
+func WithFiltersV1(env *cel.Env, query string) SearchOption {
+	return func(options *SearchOptions) error {
+		if query != "" {
+			filters, err := filters.ParseFilters(env, query)
+			if err != nil {
+				return err
+			}
+			options.FiltersV1 = filters
+		}
+
+		return nil
+	}
+}
+
 func WithFields(fielder shared.Fielder, md model.ObjectMetadatter, fieldModifiers ...func(in []string) []string) SearchOption {
 	return func(options *SearchOptions) error {
 		if requestedFields := fielder.GetFields(); len(requestedFields) == 0 {
@@ -89,13 +115,6 @@ func WithPagination(pager Pager) SearchOption {
 		if ops.Size == 0 {
 			ops.Size = options.DefaultSearchSize
 		}
-		return nil
-	}
-}
-
-func WithFilters(filters []string) SearchOption {
-	return func(options *SearchOptions) error {
-		options.Filters = filters
 		return nil
 	}
 }
@@ -207,21 +226,23 @@ func (s *SearchOptions) GetSort() string {
 	return s.Sort
 }
 
-func (s *SearchOptions) AddFilter(f string) {
-	s.Filters = append(s.Filters, f)
+func (s *SearchOptions) GetFiltersV1() *filters.FilterExpr {
+	return s.FiltersV1
 }
 
+// Deprecated: use GetFiltersV1
 func (s *SearchOptions) GetFilters() []string {
 	return s.Filters
 }
 
+func (s *SearchOptions) AddFilter(f string) {
+	s.Filters = append(s.Filters, f)
+}
+
+// Deprecated
 // GetFilter returns all filters for a given field, with operator and value
 func (s *SearchOptions) GetFilter(f string) []util.FilterExpr {
 	return util.GetFilter(s.Filters, f)
-}
-
-func (s *SearchOptions) RemoveFilter(f string) {
-	s.Filters = util.RemoveSliceElement(s.Filters, f)
 }
 
 func (s *SearchOptions) GetCustomContext() map[string]any {

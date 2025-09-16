@@ -2,14 +2,13 @@ package grpc
 
 import (
 	"context"
-
 	api "github.com/webitel/cases/api/cases"
+	grpcoptions "github.com/webitel/cases/internal/api_handler/grpc/options"
+	"github.com/webitel/cases/internal/api_handler/grpc/options/shared"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
-	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
-	"github.com/webitel/cases/internal/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"google.golang.org/grpc/codes"
@@ -60,9 +59,9 @@ func (s *CaseCommentService) LocateComment(ctx context.Context, req *api.LocateC
 		return nil, errors.InvalidArgument("Etag is required")
 	}
 
-	searchOpts, err := grpcopts.NewLocateOptions(
+	searchOpts, err := grpcoptions.NewLocateOptions(
 		ctx,
-		grpcopts.WithFields(req, CaseCommentMetadata,
+		grpcoptions.WithFields(req, CaseCommentMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			func(in []string) []string {
@@ -72,7 +71,7 @@ func (s *CaseCommentService) LocateComment(ctx context.Context, req *api.LocateC
 				return in
 			},
 		),
-		grpcopts.WithIDsAsEtags(etag.EtagCaseComment, req.GetEtag()),
+		grpcoptions.WithIDsAsEtags(etag.EtagCaseComment, req.GetEtag()),
 	)
 	if err != nil {
 		return nil, err
@@ -118,11 +117,11 @@ func (s *CaseCommentService) UpdateComment(ctx context.Context, req *api.UpdateC
 		return nil, errors.InvalidArgument("invalid Etag", errors.WithCause(err))
 	}
 
-	updateOpts, err := grpcopts.NewUpdateOptions(
+	updateOpts, err := grpcoptions.NewUpdateOptions(
 		ctx,
-		grpcopts.WithUpdateFields(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault()),
-		grpcopts.WithUpdateEtag(&tag),
-		grpcopts.WithUpdateMasker(req),
+		grpcoptions.WithUpdateFields(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault()),
+		grpcoptions.WithUpdateEtag(&tag),
+		grpcoptions.WithUpdateMasker(req),
 	)
 	if err != nil {
 		return nil, err
@@ -173,7 +172,7 @@ func (s *CaseCommentService) DeleteComment(ctx context.Context, req *api.DeleteC
 		return nil, errors.InvalidArgument("invalid Etag", errors.WithCause(err))
 	}
 
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()), grpcopts.WithDeleteFields(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault(), util.ParseFieldsForEtag))
+	deleteOpts, err := grpcoptions.NewDeleteOptions(ctx, grpcoptions.WithDeleteID(tag.GetOid()), grpcoptions.WithDeleteFields(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault(), util.ParseFieldsForEtag))
 	if err != nil {
 		return nil, err
 	}
@@ -197,11 +196,11 @@ func (s *CaseCommentService) ListComments(ctx context.Context, req *api.ListComm
 		return nil, errors.InvalidArgument("case etag is required")
 	}
 
-	searchOpts, err := grpcopts.NewSearchOptions(
+	searchOpts, err := grpcoptions.NewSearchOptions(
 		ctx,
-		grpcopts.WithSearch(req),
-		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, CaseCommentMetadata,
+		grpcoptions.WithSearch(req),
+		grpcoptions.WithPagination(req),
+		grpcoptions.WithFields(req, CaseCommentMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			func(in []string) []string {
@@ -211,8 +210,8 @@ func (s *CaseCommentService) ListComments(ctx context.Context, req *api.ListComm
 				return in
 			},
 		),
-		grpcopts.WithIDsAsEtags(etag.EtagCaseComment, req.GetIds()...),
-		grpcopts.WithSort(req),
+		grpcoptions.WithIDsAsEtags(etag.EtagCaseComment, req.GetIds()...),
+		grpcoptions.WithSort(req),
 	)
 	if err != nil {
 		return nil, err
@@ -256,9 +255,9 @@ func (s *CaseCommentService) PublishComment(ctx context.Context, req *api.Publis
 		return nil, errors.InvalidArgument("text is required")
 	}
 
-	createOpts, err := grpcopts.NewCreateOptions(
+	createOpts, err := grpcoptions.NewCreateOptions(
 		ctx,
-		grpcopts.WithCreateFields(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault(),
+		grpcoptions.WithCreateFields(req, CaseCommentMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField),

@@ -117,7 +117,7 @@ func (c *CaseCommunicationStore) buildListCaseCommunicationSqlizer(
 		Where(fmt.Sprintf("%s = ?", storeutil.Ident(alias, "dc")), options.GetAuthOpts().GetDomainId()).
 		PlaceholderFormat(squirrel.Dollar)
 	// Apply all case_id filters (with all supported operators)
-	base = storeutil.ApplyFiltersToQuery(base, storeutil.Ident(alias, "case_id"), caseIDFilters)
+	base = ApplyFiltersToQuery(base, storeutil.Ident(alias, "case_id"), caseIDFilters)
 	base = storeutil.ApplyPaging(options.GetPage(), options.GetSize(), base)
 
 	// Dynamic columns selection

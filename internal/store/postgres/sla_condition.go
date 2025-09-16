@@ -265,7 +265,7 @@ func (s *SLAConditionStore) buildSearchSLAConditionQuery(rpc options.Searcher) (
 	}
 
 	if slaIdFilters := rpc.GetFilter("sla_id"); len(slaIdFilters) > 0 {
-		queryBuilder = storeutil.ApplyFiltersToQuery(queryBuilder, "g.sla_id", slaIdFilters)
+		queryBuilder = ApplyFiltersToQuery(queryBuilder, "g.sla_id", slaIdFilters)
 	}
 
 	if len(rpc.GetIDs()) > 0 {

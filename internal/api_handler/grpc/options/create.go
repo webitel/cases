@@ -1,14 +1,14 @@
-package grpc
+package options
 
 import (
 	"context"
 	"github.com/webitel/cases/auth"
 	auth_util "github.com/webitel/cases/auth/util"
+	"github.com/webitel/cases/internal/api_handler/grpc/options/shared"
+	optsutil "github.com/webitel/cases/internal/api_handler/grpc/options/util"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
-	"github.com/webitel/cases/internal/model/options/grpc/shared"
-	optsutil "github.com/webitel/cases/internal/model/options/grpc/util"
 	"github.com/webitel/cases/util"
 	"google.golang.org/grpc/codes"
 	"time"

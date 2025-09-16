@@ -6,6 +6,7 @@ import (
 
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/util"
+	"github.com/webitel/webitel-go-kit/pkg/filters"
 )
 
 const DefaultSearchSize = 10
@@ -23,13 +24,18 @@ type Searcher interface {
 	// Sorting
 	GetSort() string
 	// Filtering
-	AddFilter(string)
-	GetFilter(field string) []util.FilterExpr
+	// Deprecated: use GetFiltersV1
 	GetFilters() []string
-	RemoveFilter(string)
+	// Deprecated: use FiltersV1
+	AddFilter(string)
+	// Deprecated: use FiltersV1
+	GetFilter(f string) []util.FilterExpr
+
+	GetFiltersV1() *filters.FilterExpr
 	// shortcuts
 	GetIDs() []int64
+	GetQin() string
+
 	AddCustomContext(key string, value any)
 	GetCustomContext() map[string]any
-	GetQin() string
 }

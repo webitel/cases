@@ -3,14 +3,13 @@ package grpc
 import (
 	"context"
 	"fmt"
-
 	"github.com/webitel/cases/api/cases"
+	grpcoptions "github.com/webitel/cases/internal/api_handler/grpc/options"
+	"github.com/webitel/cases/internal/api_handler/grpc/options/shared"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
-	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
-	"github.com/webitel/cases/internal/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
 )
@@ -49,17 +48,17 @@ func (s *CaseLinkService) ListLinks(ctx context.Context, req *cases.ListLinksReq
 	if req.GetCaseEtag() == "" {
 		return nil, errors.InvalidArgument("case etag is required")
 	}
-	searchOpts, err := grpcopts.NewSearchOptions(
+	searchOpts, err := grpcoptions.NewSearchOptions(
 		ctx,
-		grpcopts.WithSearch(req),
-		grpcopts.WithPagination(req),
-		grpcopts.WithFields(req, CaseLinkMetadata,
+		grpcoptions.WithSearch(req),
+		grpcoptions.WithPagination(req),
+		grpcoptions.WithFields(req, CaseLinkMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
 		),
-		grpcopts.WithIDsAsEtags(etag.EtagCaseLink, req.GetIds()...),
-		grpcopts.WithSort(req),
+		grpcoptions.WithIDsAsEtags(etag.EtagCaseLink, req.GetIds()...),
+		grpcoptions.WithSort(req),
 	)
 	if err != nil {
 		return nil, err
@@ -102,14 +101,14 @@ func (s *CaseLinkService) CreateLink(ctx context.Context, req *cases.CreateLinkR
 	if err != nil {
 		return nil, errors.InvalidArgument("invalid etag", errors.WithCause(err))
 	}
-	createOpts, err := grpcopts.NewCreateOptions(
+	createOpts, err := grpcoptions.NewCreateOptions(
 		ctx,
-		grpcopts.WithCreateFields(req, CaseLinkMetadata,
+		grpcoptions.WithCreateFields(req, CaseLinkMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
 		),
-		grpcopts.WithCreateParentID(caseTid.GetOid()),
+		grpcoptions.WithCreateParentID(caseTid.GetOid()),
 	)
 	if err != nil {
 		return nil, err
@@ -154,12 +153,12 @@ func (s *CaseLinkService) UpdateLink(ctx context.Context, req *cases.UpdateLinkR
 	}
 
 	// Build update options with both IDs
-	updateOpts, err := grpcopts.NewUpdateOptions(
+	updateOpts, err := grpcoptions.NewUpdateOptions(
 		ctx,
-		grpcopts.WithUpdateFields(req, CaseLinkMetadata),
-		grpcopts.WithUpdateParentID(caseTid.GetOid()),
-		grpcopts.WithUpdateEtag(&linkTid),
-		grpcopts.WithUpdateMasker(req),
+		grpcoptions.WithUpdateFields(req, CaseLinkMetadata),
+		grpcoptions.WithUpdateParentID(caseTid.GetOid()),
+		grpcoptions.WithUpdateEtag(&linkTid),
+		grpcoptions.WithUpdateMasker(req),
 	)
 	if err != nil {
 		return nil, err
@@ -196,7 +195,7 @@ func (s *CaseLinkService) DeleteLink(ctx context.Context, req *cases.DeleteLinkR
 	if err != nil {
 		return nil, err
 	}
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(linkTID.GetOid()), grpcopts.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()))
+	deleteOpts, err := grpcoptions.NewDeleteOptions(ctx, grpcoptions.WithDeleteID(linkTID.GetOid()), grpcoptions.WithDeleteParentIDAsEtag(etag.EtagCase, req.GetCaseEtag()))
 	if err != nil {
 		return nil, err
 	}
@@ -217,14 +216,14 @@ func (s *CaseLinkService) LocateLink(
 	req *cases.LocateLinkRequest,
 ) (*cases.CaseLink, error) {
 	// Build search options using the request (similar to ListLinks)
-	searchOpts, err := grpcopts.NewLocateOptions(
+	searchOpts, err := grpcoptions.NewLocateOptions(
 		ctx,
-		grpcopts.WithFields(req, CaseLinkMetadata,
+		grpcoptions.WithFields(req, CaseLinkMetadata,
 			util.DeduplicateFields,
 			util.EnsureIdField,
 			util.ParseFieldsForEtag,
 		),
-		grpcopts.WithIDsAsEtags(etag.EtagCaseLink, req.GetEtag()),
+		grpcoptions.WithIDsAsEtags(etag.EtagCaseLink, req.GetEtag()),
 	)
 	if err != nil {
 		return nil, err

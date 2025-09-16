@@ -10,6 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/cel-go/cel"
+	"github.com/webitel/cases/internal/api_handler/grpc/options"
+	"github.com/webitel/cases/internal/api_handler/grpc/options/shared"
+	"github.com/webitel/webitel-go-kit/pkg/filters"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -24,8 +28,6 @@ import (
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
-	grpcopts "github.com/webitel/cases/internal/model/options/grpc"
-	"github.com/webitel/cases/internal/model/options/grpc/shared"
 	"github.com/webitel/cases/util"
 )
 
@@ -83,7 +85,7 @@ var (
 		{Name: "diff", Default: true},
 	}, grpc.CaseCommentMetadata, grpc.CaseLinkMetadata, RelatedCaseMetadata)
 
-	resolutionTimeSO = &grpcopts.SearchOptions{
+	resolutionTimeSO = &options.SearchOptions{
 		Context: context.Background(),
 		Fields:  util.ParseFieldsForEtag(util.RemoveSliceElement(CaseMetadata.GetAllFields(), "related")),
 	}
@@ -92,25 +94,27 @@ var (
 type CaseService struct {
 	app *App
 	cases.UnimplementedCasesServer
-	logger *wlogger.ObjectedLogger
+	logger        *wlogger.ObjectedLogger
+	filtrationEnv *cel.Env
 }
 
 func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesRequest) (*cases.CaseList, error) {
-	searchOpts, err := grpcopts.NewSearchOptions(
+	searchOpts, err := options.NewSearchOptions(
 		ctx,
-		grpcopts.WithSearch(req),
-		grpcopts.WithPagination(req),
-		grpcopts.WithFilters(req.GetFilters()),
-		grpcopts.WithFields(
+		options.WithSearch(req),
+		options.WithPagination(req),
+		options.WithFields(
 			req,
 			CaseMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
 		),
-		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetIds()...),
-		grpcopts.WithSort(req),
-		grpcopts.WithQin(req.GetQin()),
+		options.WithFiltersV1(c.filtrationEnv, req.GetFiltersV1()),
+		options.WithFilters(req.GetFilters()),
+		options.WithIDsAsEtags(etag.EtagCase, req.GetIds()...),
+		options.WithSort(req),
+		options.WithQin(req.GetQin()),
 	)
 	if err != nil {
 		return nil, err
@@ -133,15 +137,15 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 }
 
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
-	searchOpts, err := grpcopts.NewLocateOptions(
+	searchOpts, err := options.NewLocateOptions(
 		ctx,
-		grpcopts.WithFields(req, CaseMetadata,
+		options.WithFields(req, CaseMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
 			util.EnsureCustomField,
 		),
-		grpcopts.WithIDsAsEtags(etag.EtagCase, req.GetEtag()),
+		options.WithIDsAsEtags(etag.EtagCase, req.GetEtag()),
 	)
 	if err != nil {
 		return nil, err
@@ -268,9 +272,9 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		Custom:           req.Input.GetCustom(),
 	}
 
-	createOpts, err := grpcopts.NewCreateOptions(
+	createOpts, err := options.NewCreateOptions(
 		ctx,
-		grpcopts.WithCreateFields(
+		options.WithCreateFields(
 			req,
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
@@ -282,7 +286,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	}
 
 	// Add override user ID after options are built
-	err = grpcopts.WithCreateOverrideUserID(req.Input.UserID.GetId())(createOpts)
+	err = options.WithCreateOverrideUserID(req.Input.UserID.GetId())(createOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -367,23 +371,23 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		return nil, err
 	}
 
-	updateOpts, err := grpcopts.NewUpdateOptions(
+	updateOpts, err := options.NewUpdateOptions(
 		ctx,
-		grpcopts.WithUpdateFields(
+		options.WithUpdateFields(
 			req,
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 		),
-		grpcopts.WithUpdateEtag(&tag),
-		grpcopts.WithUpdateMasker(req),
+		options.WithUpdateEtag(&tag),
+		options.WithUpdateMasker(req),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	// Add override user ID after options are built
-	err = grpcopts.WithUpdateOverrideUserID(req.Input.UserID.GetId())(updateOpts)
+	err = options.WithUpdateOverrideUserID(req.Input.UserID.GetId())(updateOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -711,18 +715,18 @@ func addPrefixedKeys(dest, source map[string]any, prefix string) {
 	}
 }
 
-// Evaluates complex condition strings with support for AND (&&) and OR (||) operators using bitwise operations.
+// Evaluates complex condition strings with support for And (&&) and Or (||) operators using bitwise operations.
 // Helper method for dynamic contact group resolving.
 func evaluateDynamicCondition(caseMap map[string]any, condition string) bool {
 	// Convert condition to lowercase to ensure case-insensitive matching
 	condition = strings.ToLower(condition)
 
-	// Split conditions by OR (||)
+	// Split conditions by Or (||)
 	orConditions := strings.Split(condition, "||")
 	for _, orCondition := range orConditions {
-		// Split each OR condition into AND (&&) conditions
+		// Split each Or condition into And (&&) conditions
 		andConditions := strings.Split(orCondition, "&&")
-		// Use a bitmask to track whether all AND conditions are met
+		// Use a bitmask to track whether all And conditions are met
 		var andMask uint = 0
 		for i, andCondition := range andConditions {
 			andCondition = strings.TrimSpace(andCondition)
@@ -731,7 +735,7 @@ func evaluateDynamicCondition(caseMap map[string]any, condition string) bool {
 				andMask |= 1 << i
 			}
 		}
-		// Check if all AND conditions are met (all bits set in the mask)
+		// Check if all And conditions are met (all bits set in the mask)
 		if andMask == (1<<len(andConditions) - 1) {
 			return true
 		}
@@ -801,7 +805,7 @@ func (c *CaseService) DeleteCase(ctx context.Context, req *cases.DeleteCaseReque
 	if err != nil {
 		return nil, errors.InvalidArgument("Invalid case etag")
 	}
-	deleteOpts, err := grpcopts.NewDeleteOptions(ctx, grpcopts.WithDeleteID(tag.GetOid()))
+	deleteOpts, err := options.NewDeleteOptions(ctx, options.WithDeleteID(tag.GetOid()))
 	if err != nil {
 		return nil, err
 	}
@@ -873,6 +877,12 @@ func NewCaseService(app *App) (*CaseService, error) {
 		app:    app,
 		logger: objectedLogger,
 	}
+	// Create a new CEL environment for case filtering
+	filtrationEnv, err := cel.NewEnv(filters.ProtoToCELVariables(&cases.Case{})...)
+	if err != nil {
+		return nil, err
+	}
+	service.filtrationEnv = filtrationEnv
 
 	watcher := watcherkit.NewDefaultWatcher()
 
@@ -1238,14 +1248,14 @@ func (c *CaseService) scheduleResolutionTime(app *App) {
 	var retry bool
 
 	if css, retry, err = app.Store.Case().SetOverdueCases(resolutionTimeSO); err != nil {
-		slog.Error(err.Error())
+		slog.Error(errors.Details(err))
 		return
 	}
 
 	for _, cs := range css {
 		err = c.NormalizeResponseCase(cs, resolutionTimeSO)
 		if err != nil {
-			slog.Error(err.Error())
+			slog.Error(errors.Details(err))
 			continue
 		}
 
