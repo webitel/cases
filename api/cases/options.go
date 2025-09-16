@@ -239,7 +239,7 @@ var WebitelAPI = WebitelServicesInfo{
 				},
 			},
 			"DeleteFile": WebitelMethod{
-				Access: 2,
+				Access: 3,
 				Input:  "DeleteFileRequest",
 				Output: "File",
 				HttpBindings: []*HttpBinding{

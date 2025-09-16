@@ -84,6 +84,8 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 		objStr = model.BrokerScopeFiles
 	case *cases.RelatedCase:
 		objStr = model.BrokerScopeRelatedCases
+	case *model.CaseFile:
+		objStr = model.BrokerScopeFiles
 
 	default:
 		return fmt.Errorf("unsupported object type %T", obj)

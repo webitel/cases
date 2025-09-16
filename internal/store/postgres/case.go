@@ -21,6 +21,11 @@ import (
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
 	"github.com/lib/pq"
+
+	customtyp "github.com/webitel/custom/data"
+	customrel "github.com/webitel/custom/reflect"
+	custompgx "github.com/webitel/custom/store/postgres"
+
 	_go "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
@@ -30,10 +35,6 @@ import (
 	"github.com/webitel/cases/internal/store/postgres/transaction"
 	storeutils "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
-
-	customtyp "github.com/webitel/custom/data"
-	customrel "github.com/webitel/custom/reflect"
-	custompgx "github.com/webitel/custom/store/postgres"
 )
 
 type CaseStore struct {
@@ -85,7 +86,6 @@ func (c *CaseStore) Create(
 	rpc options.Creator,
 	add *_go.Case,
 ) (*_go.Case, error) {
-
 	// Get the database connection
 	d, dbErr := c.storage.Database()
 	if dbErr != nil {
@@ -134,7 +134,6 @@ func (c *CaseStore) Create(
 		txManager,
 		add,
 	)
-
 	if err != nil {
 		return nil, ParseError(err)
 	}
@@ -208,67 +207,68 @@ func (c *CaseStore) ScanServiceDefs(
 
 	err := txManager.QueryRow(ctx, `
 WITH RECURSIVE
-    service_hierarchy AS (SELECT id,
-                                 root_id,
-                                 sla_id,
-                                 status_id,
-                                 close_reason_group_id,
-                                 assignee_id,
-                                 group_id,
-                                 ARRAY [id] AS path,
-                                 0 as level
-                          FROM cases.service_catalog
-                          WHERE id = $1
+    service_hierarchy AS (
+        SELECT id,
+               root_id,
+               sla_id,
+               status_id,
+               close_reason_group_id,
+               assignee_id,
+               group_id,
+               ARRAY [id] AS path,
+               0 as level
+        FROM cases.service_catalog
+        WHERE id = $1
 
-                          UNION ALL
+        UNION ALL
 
-                          SELECT sc.id,
-                                 sc.root_id,
-                                 COALESCE(sc.sla_id, sh.sla_id),
-                                 COALESCE(sc.status_id, sh.status_id),
-                                 COALESCE(sc.close_reason_group_id, sh.close_reason_group_id),
-                                 COALESCE(sc.assignee_id, sh.assignee_id),
-                                 COALESCE(sc.group_id, sh.group_id),
-                                 sh.path || sc.id,
-                                 sh.level + 1
-                          FROM cases.service_catalog sc
-                                   INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
-                          WHERE sh.level < 10
-),
-    -- Fetch the deepest item with an SLA ID regardless of others
-    sla_service AS (SELECT *
-                    FROM service_hierarchy
-                    WHERE sla_id IS NOT NULL
-                    ORDER BY array_length(path, 1) ASC
+        SELECT sc.id,
+               sc.root_id,
+               COALESCE(sc.sla_id, sh.sla_id),
+               COALESCE(sc.status_id, sh.status_id),
+               COALESCE(sc.close_reason_group_id, sh.close_reason_group_id),
+               sc.assignee_id,
+               sc.group_id,
+               sh.path || sc.id,
+               sh.level + 1
+        FROM cases.service_catalog sc
+        INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
+        WHERE sh.level < 10
+    ),
+    sla_service AS (
+        SELECT *
+        FROM service_hierarchy
+        WHERE sla_id IS NOT NULL
+        ORDER BY array_length(path, 1) ASC
+        LIMIT 1
+    ),
+    fallback_status AS (
+        SELECT *
+        FROM service_hierarchy
+        WHERE status_id IS NOT NULL
+          AND close_reason_group_id IS NOT NULL
+        ORDER BY array_length(path, 1) ASC
+        LIMIT 1
+    ),
+    -- take assignee+group from the *same* level where at least one is non-null
+    defaults AS (
+                    SELECT sh.assignee_id, sh.group_id
+                    FROM service_hierarchysh
+        WHERE sh.assignee_id IS NOT NULL
+                    OR sh. group_id IS NOT NULL
+                    ORDER BY sh.level ASC
                     LIMIT 1),
-    -- From there, get status and close_reason from any deepest with both fields filled
-    fallback_status AS (SELECT *
-                        FROM service_hierarchy
-                        WHERE status_id IS NOT NULL
-                          AND close_reason_group_id IS NOT NULL
-                        ORDER BY array_length(path, 1) ASC
-                        LIMIT 1),
-    -- Get first non-null assignee and group from hierarchy
-    defaults AS (SELECT
-                    (SELECT assignee_id
-                    FROM service_hierarchy
-                    WHERE assignee_id IS NOT NULL
-                    ORDER BY level ASC
-                    LIMIT 1) as assignee_id,
-                    (SELECT group_id
-                    FROM service_hierarchy
-                    WHERE group_id IS NOT NULL
-                    ORDER BY level ASC
-                    LIMIT 1) as group_id),
-    priority_condition AS (SELECT sc.id AS sla_condition_id,
-                                  sc.reaction_time,
-                                  sc.resolution_time
-                           FROM cases.sla_condition sc
-                                    INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
-                                    INNER JOIN cases.sla sla ON sc.sla_id = sla.id
-                                    INNER JOIN sla_service ss ON sla.id = ss.sla_id
-                           WHERE psc.priority_id = $2
-                           LIMIT 1)
+    priority_condition AS (
+        SELECT sc.id AS sla_condition_id,
+               sc.reaction_time,
+               sc.resolution_time
+        FROM cases.sla_condition sc
+        INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
+        INNER JOIN cases.sla sla ON sc.sla_id = sla.id
+        INNER JOIN sla_service ss ON sla.id = ss.sla_id
+        WHERE psc.priority_id = $2
+        LIMIT 1
+    )
 SELECT ss.sla_id,
        COALESCE(pc.reaction_time, sla.reaction_time),
        COALESCE(pc.resolution_time, sla.resolution_time),
@@ -279,10 +279,10 @@ SELECT ss.sla_id,
        d.assignee_id,
        d.group_id
 FROM sla_service ss
-         LEFT JOIN fallback_status fs ON true
-         LEFT JOIN priority_condition pc ON true
-         LEFT JOIN cases.sla sla ON ss.sla_id = sla.id
-         CROSS JOIN defaults d;
+LEFT JOIN fallback_status fs ON true
+LEFT JOIN priority_condition pc ON true
+LEFT JOIN cases.sla sla ON ss.sla_id = sla.id
+LEFT JOIN defaults d on true;
 `, serviceID, priorityID).Scan(
 		scanner.ScanInt(&res.SLAID),
 		scanner.ScanInt(&res.ReactionTime),
@@ -1217,7 +1217,6 @@ func (c *CaseStore) filterToSqlizer(
 	custom *customFilterContext,
 	errRef *error,
 ) sq.Sqlizer {
-
 	filterStr = strings.TrimPrefix(filterStr, "filters=")
 	var op string
 	var column, value string
@@ -2114,6 +2113,9 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	// Increment version
 	updateBuilder = updateBuilder.Set("ver", sq.Expr("ver + 1"))
 
+	// Handle service-related default values (assignee and group)
+	updateBuilder = handleServiceDefaultValues(updateBuilder, input, rpc)
+
 	// region: [custom] fields ..
 	var custom struct {
 		customCtx
@@ -2140,7 +2142,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("status_condition", input.StatusCondition.GetId())
 		case "service":
 			prefixCTE := `
-			WITH service_cte AS (
+			service_cte AS (
 				SELECT catalog_id
 				FROM cases.service_catalog
 				WHERE id = ?
@@ -2151,72 +2153,20 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 				FROM cases.service_catalog
 				WHERE id = ANY(SELECT catalog_id FROM service_cte)
 				LIMIT 1
-			)
-			SELECT prefix FROM prefix_cte`
+			)`
 
-			updateBuilder = updateBuilder.Set("service", input.Service.GetId())
+			// Update service and related fields
+			updateBuilder = updateBuilder.
+				Set("service", input.Service.GetId()).
+				Set("sla", input.Sla.GetId()).
+				Set("sla_condition_id", input.SlaCondition.GetId()).
+				Set("planned_resolve_at", util.LocalTime(input.GetPlannedResolveAt())).
+				Set("planned_reaction_at", util.LocalTime(input.GetPlannedReactionAt())).
+				Set("name", sq.Expr("CONCAT((SELECT prefix FROM prefix_cte), '_', CAST(? AS TEXT))",
+					strconv.FormatInt(rpc.GetEtags()[0].GetOid(), 10)))
 
-			// Update SLA, SLA condition, and planned times
-			updateBuilder = updateBuilder.Set("sla", input.Sla.GetId())
-			updateBuilder = updateBuilder.Set("sla_condition_id", input.SlaCondition.GetId())
-			updateBuilder = updateBuilder.Set("planned_resolve_at", util.LocalTime(input.GetPlannedResolveAt()))
-			updateBuilder = updateBuilder.Set("planned_reaction_at", util.LocalTime(input.GetPlannedReactionAt()))
-
-			// When service changes, check if we need to update assignee or group
-			needAssignee := input.GetAssignee() == nil || input.GetAssignee().GetId() == 0
-			needGroup := input.GetGroup() == nil || input.GetGroup().GetId() == 0
-
-			// Only do the hierarchy lookup if we need either value
-			if needAssignee || needGroup {
-				hierarchyCTE := fmt.Sprintf(`service_defaults AS (
-					WITH RECURSIVE service_hierarchy AS (
-						SELECT id, root_id, assignee_id, group_id, 0 as level
-						FROM cases.service_catalog
-						WHERE id = %d
-
-						UNION ALL
-
-						SELECT sc.id, sc.root_id, sc.assignee_id, sc.group_id, sh.level + 1
-						FROM cases.service_catalog sc
-						INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
-						WHERE sh.level < 10  -- Prevent infinite recursion
-					)
-					SELECT
-						COALESCE(
-							(SELECT assignee_id FROM service_hierarchy WHERE assignee_id IS NOT NULL ORDER BY level LIMIT 1),
-							(SELECT assignee_id FROM cases.service_catalog WHERE id = %d)
-						) as assignee_id,
-						COALESCE(
-							(SELECT group_id FROM service_hierarchy WHERE group_id IS NOT NULL ORDER BY level LIMIT 1),
-							(SELECT group_id FROM cases.service_catalog WHERE id = %d)
-						) as group_id
-				)`, input.Service.GetId(), input.Service.GetId(), input.Service.GetId())
-
-				updateBuilder = updateBuilder.Prefix("WITH " + hierarchyCTE)
-
-				if needAssignee {
-					updateBuilder = updateBuilder.Set("assignee", sq.Expr("(SELECT assignee_id FROM service_defaults)"))
-				}
-				if needGroup {
-					updateBuilder = updateBuilder.Set("contact_group", sq.Expr("(SELECT group_id FROM service_defaults)"))
-				}
-			}
-
-			caseIDString := strconv.FormatInt(rpc.GetEtags()[0].GetOid(), 10)
-
-			updateBuilder = updateBuilder.Set("name",
-				sq.Expr("CONCAT(("+prefixCTE+"), '_', CAST(? AS TEXT))",
-					input.Service.GetId(), caseIDString))
-
-		case "assignee":
-			if input.Assignee != nil {
-				var assignee *int64
-				if input.Assignee.GetId() > 0 {
-					id := input.Assignee.GetId()
-					assignee = &id
-				}
-				updateBuilder = updateBuilder.Set("assignee", assignee)
-			}
+			// Add prefix CTE
+			updateBuilder = updateBuilder.Prefix(", "+prefixCTE, input.Service.GetId())
 		case "reporter":
 			var reporter *int64
 			if id := input.Reporter.GetId(); id > 0 {
@@ -2231,15 +2181,6 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 				impacted = &imp
 			}
 			updateBuilder = updateBuilder.Set("impacted", impacted)
-		case "group":
-			if input.Group != nil {
-				var group *int64
-				if input.Group.GetId() > 0 {
-					id := input.Group.GetId()
-					group = &id
-				}
-				updateBuilder = updateBuilder.Set("contact_group", group)
-			}
 		case "close_reason":
 			var closeReason *int64
 			if id := input.GetCloseReason().GetId(); id > 0 {
@@ -2362,6 +2303,119 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	}
 
 	return base, plan, nil
+}
+
+// handleServiceDefaultValues handles setting default values for assignee and group based on service hierarchy
+func handleServiceDefaultValues(builder sq.UpdateBuilder, input *_go.Case, rpc options.Updator) sq.UpdateBuilder {
+	// When service changes, use hierarchy CTE to get assignee and group
+	hierarchyCTE := fmt.Sprintf(`WITH RECURSIVE current_case AS (
+		SELECT service, status_condition, COALESCE(sc.final, false) as is_final
+		FROM cases.case c
+		LEFT JOIN cases.status_condition sc ON c.status_condition = sc.id
+		WHERE c.id = %d
+		LIMIT 1
+	),
+	service_hierarchy AS (
+		-- Start with current service
+		SELECT id, root_id, assignee_id, group_id, 0 as level
+		FROM cases.service_catalog
+		WHERE id = %d
+
+		UNION ALL
+
+		-- Recursively go up until we find first assignee/group
+		SELECT sc.id, sc.root_id, sc.assignee_id, sc.group_id, sh.level + 1
+		FROM cases.service_catalog sc
+		INNER JOIN service_hierarchy sh ON sc.id = sh.root_id
+		WHERE sh.assignee_id IS NULL AND sh.group_id IS NULL
+			AND sh.level < 10  -- Prevent infinite recursion
+	),
+	service_defaults AS (
+		SELECT assignee_id, group_id
+		FROM service_hierarchy
+		WHERE assignee_id IS NOT NULL OR group_id IS NOT NULL
+		ORDER BY level ASC
+		LIMIT 1
+	)`, rpc.GetEtags()[0].GetOid(), input.Service.GetId())
+
+	// Set assignee and group based on service hierarchy and mask fields
+	if util.ContainsField(rpc.GetMask(), "service") {
+		// Add CTEs
+		builder = builder.Prefix(hierarchyCTE)
+
+		builder = builder.
+			// If status is final:
+			//   - Only use explicitly provided values from request (if in mask)
+			// If not final:
+			//   - If service is changing, use hierarchy defaults
+			//   - If service is not changing but fields are in mask, use provided values
+			//   - Otherwise keep existing values
+			Set("assignee", sq.Expr(`CASE
+				WHEN (SELECT is_final FROM current_case) = true THEN
+					CASE WHEN ? THEN ? ELSE assignee END
+				WHEN ? THEN ? -- If assignee in mask, use its value (including NULL)
+				WHEN service != ? THEN (SELECT assignee_id FROM service_defaults)
+				ELSE assignee
+			END`,
+				util.ContainsField(rpc.GetMask(), "assignee"),
+				func() any {
+					if input.GetAssignee() == nil || input.GetAssignee().GetId() == 0 {
+						return nil
+					}
+					return input.Assignee.GetId()
+				}(),
+				util.ContainsField(rpc.GetMask(), "assignee"),
+				func() any {
+					if input.GetAssignee() == nil || input.GetAssignee().GetId() == 0 {
+						return nil
+					}
+					return input.GetAssignee().GetId()
+				}(),
+				input.Service.GetId(),
+			)).
+			Set("contact_group", sq.Expr(`CASE
+				WHEN (SELECT is_final FROM current_case) = true THEN
+					CASE WHEN ? THEN ? ELSE contact_group END
+				WHEN ? THEN ? -- If group in mask, use its value (including NULL)
+				WHEN service != ? THEN (SELECT group_id FROM service_defaults)
+				ELSE contact_group
+			END`,
+				util.ContainsField(rpc.GetMask(), "group"),
+				func() any {
+					if input.GetGroup() == nil || input.GetGroup().GetId() == 0 {
+						return nil
+					}
+					return input.GetGroup().GetId()
+				}(),
+				util.ContainsField(rpc.GetMask(), "group"),
+				func() any {
+					if input.GetGroup() == nil || input.GetGroup().GetId() == 0 {
+						return nil
+					}
+					return input.GetGroup().GetId()
+				}(),
+				input.GetService().GetId(),
+			))
+	} else {
+		if util.ContainsField(rpc.GetMask(), "assignee") {
+			// If assignee is in mask but empty in request, set to NULL
+			if input.GetAssignee() == nil || input.GetAssignee().GetId() == 0 {
+				builder = builder.Set("assignee", nil)
+			} else {
+				builder = builder.Set("assignee", input.GetAssignee().GetId())
+			}
+		}
+		if util.ContainsField(rpc.GetMask(), "group") {
+			// If group is in mask but empty in request, set to NULL
+			if input.GetGroup() == nil || input.GetGroup().GetId() == 0 {
+				builder = builder.Set("contact_group", nil)
+			} else {
+				builder = builder.Set("contact_group", input.GetGroup().GetId())
+			}
+		}
+	}
+
+	return builder
 }
 
 func (c *CaseStore) joinRequiredTable(searcher options.Searcher, base *Select, field string) (joinedTableAlias string, err error) {

@@ -118,6 +118,7 @@ func (s *CloseReasonService) UpdateCloseReason(
 ) (*cases.CloseReason, error) {
 	updator, err := grpcopts.NewUpdateOptions(
 		ctx,
+		grpcopts.WithUpdateIDs([]int64{req.Id}),
 		grpcopts.WithUpdateFields(req, CloseReasonMetadata),
 		grpcopts.WithUpdateMasker(req),
 	)

@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"net/http"
+	"runtime/debug"
+
 	"github.com/webitel/cases/internal/errors"
 	outerror "github.com/webitel/webitel-go-kit/pkg/errors"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log/slog"
-	"net/http"
-	"runtime/debug"
 )
 
 // AuthUnaryServerInterceptor authenticates and authorizes unary RPCs.
@@ -53,7 +54,7 @@ func logAndReturnGRPCError(ctx context.Context, err error, info *grpc.UnaryServe
 		httpCode = http.StatusUnauthorized
 		id = "api.process.unauthenticated"
 	case codes.PermissionDenied:
-		httpCode = http.StatusUnauthorized
+		httpCode = http.StatusForbidden
 		id = "api.process.unauthorized"
 	case codes.NotFound, codes.Aborted, codes.InvalidArgument, codes.AlreadyExists:
 		httpCode = http.StatusBadRequest

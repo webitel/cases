@@ -6,7 +6,7 @@ toolchain go1.24.6
 
 //replace buf.build/gen/go/webitel/cases/grpc/go/_gogrpc v1.5.1-20241105122241-a1d959115d35.1 => ./api/cases
 
-replace github.com/webitel/proto/gen => github.com/webitel/custom/proto/gen v0.0.0-20250507094703-36254da8d7d5
+replace github.com/webitel/proto/gen => github.com/webitel/custom/proto/gen v0.0.0-20250609174947-59aa851deea6
 
 require (
 	buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2
@@ -14,7 +14,7 @@ require (
 	github.com/gammazero/deque v1.0.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3
 	github.com/jackc/pgtype v1.14.4
-	github.com/webitel/custom v0.0.0-20250507094703-36254da8d7d5
+	github.com/webitel/custom v0.0.0-20250609174947-59aa851deea6
 	github.com/webitel/proto/gen v0.0.0-00010101000000-000000000000 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250826171959-ef028d996bc1
 	google.golang.org/protobuf v1.36.8
