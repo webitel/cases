@@ -1,9 +1,9 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2 h1:hl0FrmGlNpQZIGvU1/jDz0lsPDd0BhCE0QDRwPfLZcA=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240920164238-5a7b106cbb87.2/go.mod h1:ylS4c28ACSI59oJrOdW4pHS4n0Hw4TgSPHn8rpHl4Yw=
-buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2 h1:5r8oFldYy3AbufyZxRCIfdUXb6RMkkXoHUUxgpsGQTY=
-buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2/go.mod h1:AnWODZnuDqALHRMXJxOFQ3n26qywVNfKm9bSPxRSEW8=
-buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250121132426-2c80753dfee6.1 h1:pbrVnu5Zs3fq50Vj8ybP9qxSrkQRvMYvyFMa78SKLFY=
-buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250121132426-2c80753dfee6.1/go.mod h1:slrzXMrLW2DmHemeZQUpUeCGCQFusgGvbHMoVvPDrYw=
+buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250916150832-6d5fea27a7f5.2 h1:GeSgFpNPMU5UiCihDFAQNhGshET9g8dgCnjxNR0Qihg=
+buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250916150832-6d5fea27a7f5.2/go.mod h1:n7B1QhtYGwzEu2e1Vld7sFXNOOu9A/MyvMnla8tKeqw=
+buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250916150832-6d5fea27a7f5.1 h1:sTjggzjyDESrRUqqQICVD3vLo12GLtFH0jrNrgwYZCs=
+buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250916150832-6d5fea27a7f5.1/go.mod h1:ASofof5P7/h/+3cLsJDuz3DeBtES4cvCAirsr7bZs0M=
 cel.dev/expr v0.24.0 h1:56OvJKSH3hDGL0ml5uSxZmz3/3Pq4tJ+fb1unVLAFcY=
 cel.dev/expr v0.24.0/go.mod h1:hLPLo1W4QUmuYdA72RBX06QTs6MXw941piREPl3Yfiw=
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
@@ -372,8 +372,6 @@ github.com/webitel/webitel-go-kit/pkg/errors v0.0.0-20250625095313-01c817ef50a5 
 github.com/webitel/webitel-go-kit/pkg/errors v0.0.0-20250625095313-01c817ef50a5/go.mod h1:rh5CvqYk2MpUTkj409KBxwrrgxHSYJz0XDekV1rNFmo=
 github.com/webitel/webitel-go-kit/pkg/etag v0.0.0-20250625095313-01c817ef50a5 h1:WjMf3KADzp5WAJxpfyO+mNd/8N/zY300BepAAn4/IQE=
 github.com/webitel/webitel-go-kit/pkg/etag v0.0.0-20250625095313-01c817ef50a5/go.mod h1:jECs1S0f31Wjc0ziRFnqoHLZW659QVsz1UFcxgS+8CE=
-github.com/webitel/webitel-go-kit/pkg/filters v0.0.0-20250905143306-9f3c3d8c69c7 h1:nPSM6Asn+Gc3k8kMy0QO0AYrdBPz+tvaROPrvfC1vWk=
-github.com/webitel/webitel-go-kit/pkg/filters v0.0.0-20250905143306-9f3c3d8c69c7/go.mod h1:ImeQx8y5HHep8P5RImRDQOt7ihCBqVefTL6uPKEmtIg=
 github.com/webitel/webitel-go-kit/pkg/filters v0.0.0-20250910194206-fb615f5b101a h1:+nCzIWIdVheB7eSAm3jG3cDqNSb6KMvdM6h0B+eHNxM=
 github.com/webitel/webitel-go-kit/pkg/filters v0.0.0-20250910194206-fb615f5b101a/go.mod h1:ImeQx8y5HHep8P5RImRDQOt7ihCBqVefTL6uPKEmtIg=
 github.com/webitel/webitel-go-kit/pkg/watcher v0.0.0-20250625090308-5d99e087fa32 h1:8Lf+qEsobqVTmF3baLzBLdskePfABhcljSrxH7tV3Bc=
