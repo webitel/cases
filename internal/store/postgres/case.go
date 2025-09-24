@@ -253,9 +253,9 @@ WITH RECURSIVE
     -- take assignee+group from the *same* level where at least one is non-null
     defaults AS (
                     SELECT sh.assignee_id, sh.group_id
-                    FROM service_hierarchysh
+                    FROM service_hierarchy sh
         WHERE sh.assignee_id IS NOT NULL
-                    OR sh. group_id IS NOT NULL
+                    OR sh.group_id IS NOT NULL
                     ORDER BY sh.level ASC
                     LIMIT 1),
     priority_condition AS (
