@@ -88,7 +88,7 @@ func (c *ConsulRegistry) Register() error {
 
 	checkID := "service:" + c.registrationConfig.ID
 
-	checks, _, err := c.client.Health().Checks(registry.ServiceName, nil)
+	entries, _, err := c.client.Health().Service(registry.ServiceName, "", false, nil)
 	if err != nil {
 		return errors.Internal(
 			err.Error(),
@@ -98,10 +98,18 @@ func (c *ConsulRegistry) Register() error {
 
 	checkExists := false
 
-	for _, check := range checks {
-		if check.CheckID == checkID {
-			checkExists = true
+	for _, entry := range entries {
+		if entry.Service.ID == c.registrationConfig.ID {
+			for _, check := range entry.Checks {
+				if check.CheckID == checkID {
+					checkExists = true
 
+					break
+				}
+			}
+		}
+
+		if checkExists {
 			break
 		}
 	}
