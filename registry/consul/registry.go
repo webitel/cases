@@ -8,6 +8,7 @@ import (
 	"time"
 
 	consulapi "github.com/hashicorp/consul/api"
+
 	conf "github.com/webitel/cases/config"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/registry"
@@ -17,19 +18,22 @@ type ConsulRegistry struct {
 	registrationConfig *consulapi.AgentServiceRegistration
 	client             *consulapi.Client
 	stop               chan any
-	checkId            string
+	checkID            string
 }
 
 // NewConsulRegistry creates a new Consul registry instance.
 func NewConsulRegistry(config *conf.ConsulConfig) (*ConsulRegistry, error) {
 	var err error
+
 	entity := ConsulRegistry{}
+
 	if config.Id == "" {
 		return nil, errors.Internal(
 			"service id is empty! (set it by '-id' flag)",
 			errors.WithID("consul.registry.new_consul.check_args.service_id"),
 		)
 	}
+
 	ip, port, err := net.SplitHostPort(config.PublicAddress)
 	if err != nil {
 		return nil, errors.Internal(
@@ -37,6 +41,7 @@ func NewConsulRegistry(config *conf.ConsulConfig) (*ConsulRegistry, error) {
 			errors.WithID("consul.registry.new_consul.parse_address.error"),
 		)
 	}
+
 	parsedPort, err := strconv.Atoi(port)
 	if err != nil {
 		return nil, errors.Internal(
@@ -47,6 +52,7 @@ func NewConsulRegistry(config *conf.ConsulConfig) (*ConsulRegistry, error) {
 
 	consulConfig := consulapi.DefaultConfig()
 	consulConfig.Address = config.Address
+
 	entity.client, err = consulapi.NewClient(consulConfig)
 	if err != nil {
 		return nil, errors.Internal(
@@ -79,29 +85,37 @@ func (c *ConsulRegistry) Register() error {
 			errors.WithID("consul.registry.consul.register.error"),
 		)
 	}
-	var checks map[string]*consulapi.AgentCheck
-	if checks, err = c.client.Agent().Checks(); err != nil {
+
+	checkID := "service:" + c.registrationConfig.ID
+
+	checks, _, err := c.client.Health().Checks(registry.ServiceName, nil)
+	if err != nil {
 		return errors.Internal(
 			err.Error(),
-			errors.WithID("consul.registry.consul.register.get_checks.error"),
+			errors.WithID("consul.registry.consul.register.health_service.error"),
 		)
 	}
 
-	var serviceCheck *consulapi.AgentCheck
+	checkExists := false
+
 	for _, check := range checks {
-		if check.ServiceID == c.registrationConfig.ID {
-			serviceCheck = check
+		if check.CheckID == checkID {
+			checkExists = true
+
+			break
 		}
 	}
 
-	if serviceCheck == nil {
+	if !checkExists {
 		return errors.Internal(
 			"service check not found",
 			errors.WithID("consul.registry.consul.register.error"),
 		)
 	}
-	c.checkId = serviceCheck.CheckID
+
+	c.checkID = checkID
 	go c.RunServiceCheck()
+
 	return nil
 }
 
@@ -113,17 +127,22 @@ func (c *ConsulRegistry) Deregister() error {
 			errors.WithID("consul.registry.consul.deregister.error"),
 		)
 	}
+
 	c.stop <- true
+
 	slog.Info(fmtConsulLog("service was deregistered"))
+
 	return nil
 }
 
 func (c *ConsulRegistry) doUpdateTTL() error {
-	err := c.client.Agent().UpdateTTL(c.checkId, "success", "pass")
+	err := c.client.Agent().UpdateTTL(c.checkID, "success", "pass")
 	if err != nil {
 		slog.Error("consul: failed to complete regular check-in", "error", fmtConsulLog(err.Error()))
+
 		return err
 	}
+
 	return nil // [OK]
 }
 
@@ -132,14 +151,19 @@ func (c *ConsulRegistry) RunServiceCheck() error {
 	if err := c.doUpdateTTL(); err == nil {
 		slog.Info(fmtConsulLog("service was registered"))
 	}
+
 	defer slog.Info(fmtConsulLog("stopped service checker"))
+
 	slog.Info(fmtConsulLog("started service checker"))
+
 	ticker := time.NewTicker(registry.CheckInterval / 2)
+
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-c.stop:
-			// gracefull stop
+			// graceful stop
 			return nil
 		case <-ticker.C:
 			_ = c.doUpdateTTL() // regular: check-in
