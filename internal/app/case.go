@@ -11,20 +11,20 @@ import (
 	"time"
 
 	"github.com/google/cel-go/cel"
-	"github.com/webitel/cases/internal/api_handler/grpc/options"
-	"github.com/webitel/cases/internal/api_handler/grpc/options/shared"
-	"github.com/webitel/webitel-go-kit/pkg/filters"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
+	"github.com/webitel/webitel-go-kit/pkg/filters"
 	watcherkit "github.com/webitel/webitel-go-kit/pkg/watcher"
 
 	"github.com/webitel/cases/api/cases"
 	webitelgo "github.com/webitel/cases/api/webitel-go/contacts"
 	"github.com/webitel/cases/auth"
 	"github.com/webitel/cases/internal/api_handler/grpc"
+	"github.com/webitel/cases/internal/api_handler/grpc/options"
+	"github.com/webitel/cases/internal/api_handler/grpc/options/shared"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
@@ -92,8 +92,9 @@ var (
 )
 
 type CaseService struct {
-	app *App
 	cases.UnimplementedCasesServer
+
+	app           *App
 	logger        *wlogger.ObjectedLogger
 	filtrationEnv *cel.Env
 }
@@ -118,6 +119,15 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	ftsFilters := util.GetFilter(req.GetFilters(), "fts")
+	if len(ftsFilters) > 0 && len(req.GetIds()) == 0 {
+		return &cases.CaseList{
+			Items: nil,
+			Next:  false,
+			Page:  int64(req.GetPage()),
+		}, nil
 	}
 
 	if contactID := req.GetContactId(); contactID != "" {
@@ -154,14 +164,16 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if err != nil {
 		return nil, err
 	}
-	if len(list.Items) == 0 {
+
+	if len(list.GetItems()) == 0 {
 		return nil, errors.NotFound("entity not found")
 	}
 	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
 		return nil, err
 	}
-	return list.Items[0], nil
+
+	return list.GetItems()[0], nil
 }
 
 // lookupToService converts a Lookup to a Service struct
@@ -169,15 +181,16 @@ func lookupToService(lookup *cases.Lookup) *cases.Service {
 	if lookup == nil {
 		return nil
 	}
+
 	return &cases.Service{
-		Id:   lookup.Id,
-		Name: lookup.Name,
+		Id:   lookup.GetId(),
+		Name: lookup.GetName(),
 	}
 }
 
 func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseRequest) (*cases.Case, error) {
 	// Validate required fields
-	appErr := c.ValidateCreateInput(req.Input)
+	appErr := c.ValidateCreateInput(req.GetInput())
 	if appErr != nil {
 		return nil, appErr
 	}
