@@ -127,10 +127,10 @@ func (c *CaseTimelineStore) buildTimelineQuery(caseID int64, fields []string, rp
 	// Build union parts for the main query
 	var unionParts []string
 	if includeType["call"] {
-		unionParts = append(unionParts, `SELECT 
-			DATE_TRUNC('day', created_at) AS day, 
-			created_at::timestamp AS created_at, 
-			'call' AS event_type, 
+		unionParts = append(unionParts, `SELECT
+			DATE_TRUNC('day', created_at) AS day,
+			created_at::timestamp AS created_at,
+			'call' AS event_type,
 			jsonb_build_object(
 				'id', id,
 				'closed_at', (EXTRACT(EPOCH FROM closed_at) * 1000)::bigint,
@@ -145,14 +145,14 @@ func (c *CaseTimelineStore) buildTimelineQuery(caseID int64, fields []string, rp
 				'queue', queue,
 				'files', files,
 				'transcripts', transcripts
-			) AS event_data 
+			) AS event_data
 			FROM call_data`)
 	}
 	if includeType["chat"] {
-		unionParts = append(unionParts, `SELECT 
-			DATE_TRUNC('day', created_at) AS day, 
-			created_at::timestamp AS created_at, 
-			'chat' AS event_type, 
+		unionParts = append(unionParts, `SELECT
+			DATE_TRUNC('day', created_at) AS day,
+			created_at::timestamp AS created_at,
+			'chat' AS event_type,
 			jsonb_build_object(
 				'id', id,
 				'closed_at', (EXTRACT(EPOCH FROM closed_at) * 1000)::bigint,
@@ -164,14 +164,14 @@ func (c *CaseTimelineStore) buildTimelineQuery(caseID int64, fields []string, rp
 				'gateway', gateway,
 				'flow_scheme', flow_scheme,
 				'queue', queue
-			) AS event_data 
+			) AS event_data
 			FROM chat_data`)
 	}
 	if includeType["email"] {
-		unionParts = append(unionParts, `SELECT 
-			DATE_TRUNC('day', created_at) AS day, 
-			created_at::timestamp AS created_at, 
-			'email' AS event_type, 
+		unionParts = append(unionParts, `SELECT
+			DATE_TRUNC('day', created_at) AS day,
+			created_at::timestamp AS created_at,
+			'email' AS event_type,
 			jsonb_build_object(
 				'id', id,
 				'closed_at', (EXTRACT(EPOCH FROM closed_at) * 1000)::bigint,
@@ -188,7 +188,7 @@ func (c *CaseTimelineStore) buildTimelineQuery(caseID int64, fields []string, rp
 				'profile', profile,
 				'owner', owner,
 				'attachments', attachments
-			) AS event_data 
+			) AS event_data
 			FROM email_data`)
 	}
 
@@ -304,46 +304,46 @@ func (c *CaseTimelineStore) GetCounter(rpc options.Searcher) ([]*model.TimelineC
 
 const (
 	CallCounterQuery = `
-SELECT 
+SELECT
 	'Phone' AS event_type,
 	COUNT(*)::bigint AS count,
 	COALESCE((EXTRACT(EPOCH FROM MIN(c.created_at)) * 1000)::bigint, 0) AS date_from,
 	COALESCE((EXTRACT(EPOCH FROM MAX(c.hangup_at)) * 1000)::bigint, 0) AS date_to
 FROM call_center.cc_calls_history c
-WHERE c.id = ANY(SELECT communication_id::uuid 
-	FROM cases.case_communication casecom 
-	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type 
+WHERE c.id = ANY(SELECT communication_id::uuid
+	FROM cases.case_communication casecom
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
 	WHERE case_id = $%d AND com.channel = $%d)
 AND c.transfer_from IS NULL`
 
 	ChatCounterQuery = `
-SELECT 
+SELECT
 	'Messaging' AS event_type,
 	COUNT(*)::bigint AS count,
 	COALESCE((EXTRACT(EPOCH FROM MIN(conv.created_at)) * 1000)::bigint, 0) AS date_from,
 	COALESCE((EXTRACT(EPOCH FROM MAX(conv.closed_at)) * 1000)::bigint, 0) AS date_to
 FROM chat.conversation conv
-WHERE conv.id = ANY(SELECT communication_id::uuid 
-	FROM cases.case_communication casecom 
-	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type 
+WHERE conv.id = ANY(SELECT communication_id::uuid
+	FROM cases.case_communication casecom
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
 	WHERE case_id = $%d AND com.channel = $%d)`
 
 	EmailCounterQuery = `
-SELECT 
+SELECT
 	'Email' AS event_type,
 	COUNT(*)::bigint AS count,
 	COALESCE((EXTRACT(EPOCH FROM MIN(e.created_at)) * 1000)::bigint, 0) AS date_from,
 	COALESCE((EXTRACT(EPOCH FROM MAX(e.created_at)) * 1000)::bigint, 0) AS date_to
 FROM call_center.cc_email e
-WHERE e.id = ANY(SELECT communication_id::bigint 
-	FROM cases.case_communication casecom 
-	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type 
+WHERE e.id = ANY(SELECT communication_id::bigint
+	FROM cases.case_communication casecom
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
 	WHERE case_id = $%d AND com.channel = $%d)`
 
 	// JSONB CTE Queries
 	CallsJSONBCTE = `
 call_data AS (
-	SELECT 
+	SELECT
 		c.id::text,
 		c.created_at,
 		c.hangup_at AS closed_at,
@@ -356,7 +356,7 @@ call_data AS (
                 where id in (with recursive a as (select d.id::uuid, d.user_id
                                                   from call_center.cc_calls_history d
                                                   where d.id::uuid = c.id
-                                                    and d.domain_id = 1
+                                                    and d.domain_id = с.domain_id
                                                   union all
                                                   select d.id::uuid, d.user_id
                                                   from call_center.cc_calls_history d,
@@ -386,7 +386,7 @@ call_data AS (
                                 where id in (with recursive a as (select d.id::uuid, d.user_id
                                                                   from call_center.cc_calls_history d
                                                                   where d.id::uuid = c.id
-                                                                    and d.domain_id = 1
+                                                                    and d.domain_id = с.domain_id
                                                                   union all
                                                                   select d.id::uuid, d.user_id
                                                                   from call_center.cc_calls_history d,
@@ -405,12 +405,12 @@ call_data AS (
 	) gateway ON true
 	LEFT JOIN LATERAL (
 		SELECT jsonb_build_object('id', scheme.id, 'name', scheme.name) AS data
-		FROM flow.acr_routing_scheme scheme 
+		FROM flow.acr_routing_scheme scheme
 		WHERE scheme.id = c.schema_ids[array_length(c.schema_ids, 1)]
 	) flow_scheme ON true
 	LEFT JOIN LATERAL (
 		SELECT jsonb_build_object('id', c.queue_id, 'name', a.name) AS data
-		FROM call_center.cc_queue a 
+		FROM call_center.cc_queue a
 		WHERE a.id = c.queue_id
 	) queue ON true
 	LEFT JOIN LATERAL (
@@ -432,7 +432,7 @@ call_data AS (
 
 	ChatsJSONBCTE = `
 chat_data AS (
-	SELECT 
+	SELECT
 		conv.id::text,
 		conv.created_at,
 		conv.closed_at AS closed_at,
@@ -463,7 +463,7 @@ chat_data AS (
 	) gateway ON true
 	LEFT JOIN LATERAL (
 		SELECT jsonb_build_object('id', flow_scheme.id, 'name', flow_scheme.name) AS data
-		FROM flow.acr_routing_scheme flow_scheme 
+		FROM flow.acr_routing_scheme flow_scheme
 		WHERE flow_scheme.id = (conv.props ->> 'flow')::bigint
 	) flow_scheme ON true
 	LEFT JOIN LATERAL (
@@ -474,7 +474,7 @@ chat_data AS (
 
 	EmailsJSONBCTE = `
 email_data AS (
-	SELECT 
+	SELECT
 		e.id::text,
 		e.created_at,
 		e.created_at AS closed_at,
@@ -494,12 +494,12 @@ email_data AS (
 	FROM call_center.cc_email e
 	LEFT JOIN LATERAL (
 		SELECT jsonb_build_object('id', e.profile_id, 'name', p.name) AS data
-		FROM call_center.cc_email_profile p 
+		FROM call_center.cc_email_profile p
 		WHERE e.profile_id = p.id
 	) profile ON true
 	LEFT JOIN LATERAL (
 		SELECT jsonb_build_object('id', e."owner_id", 'name', u."name") AS data
-		FROM directory.wbt_user u 
+		FROM directory.wbt_user u
 		WHERE e.owner_id = u.id
 	) owner ON true
 	LEFT JOIN LATERAL (
