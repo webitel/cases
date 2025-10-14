@@ -356,7 +356,6 @@ call_data AS (
                 where id in (with recursive a as (select d.id::uuid, d.user_id
                                                   from call_center.cc_calls_history d
                                                   where d.id::uuid = c.id
-                                                    and d.domain_id = с.domain_id
                                                   union all
                                                   select d.id::uuid, d.user_id
                                                   from call_center.cc_calls_history d,
@@ -386,7 +385,6 @@ call_data AS (
                                 where id in (with recursive a as (select d.id::uuid, d.user_id
                                                                   from call_center.cc_calls_history d
                                                                   where d.id::uuid = c.id
-                                                                    and d.domain_id = с.domain_id
                                                                   union all
                                                                   select d.id::uuid, d.user_id
                                                                   from call_center.cc_calls_history d,
