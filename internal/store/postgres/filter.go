@@ -1,12 +1,12 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	"github.com/webitel/cases/internal/model/options"
 	util2 "github.com/webitel/cases/internal/store/util"
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/filters"
@@ -34,14 +34,13 @@ func ApplyFiltersToQuery(qb sq.SelectBuilder, column string, filters []util.Filt
 }
 
 // NormalizeFilters normalizes the filters by applying the join function to each filter and changing column names that they become valid sql in format: "table.column".
-func NormalizeFilters(base *Select, opts options.Searcher, join func(options.Searcher, *Select, string) (string, error)) error {
-	if opts.GetFiltersV1() == nil {
+func NormalizeFilters(ctx context.Context, base *Select, nodes *filters.FilterExpr) error {
+	if nodes == nil {
 		return nil
 	}
 
 	// Use a stack to process filters iteratively
 	var (
-		nodes = opts.GetFiltersV1()
 		stack = []*filters.FilterExpr{nodes}
 	)
 
@@ -60,15 +59,25 @@ func NormalizeFilters(base *Select, opts options.Searcher, join func(options.Sea
 		} else if filter := current.GetFilter(); filter != nil {
 			var (
 				splittedNaming = strings.Split(filter.Column, ".")
-				value          = filter.Value
 			)
-			if encoder, ok := base.FilterSpecialFieldsEncoder[filter.Column]; ok {
-				filter.Value = encoder(value)
-			}
 			if len(splittedNaming) == 0 || splittedNaming[0] == "" {
 				// if column is empty, we cannot apply filter
 				return fmt.Errorf("no filter column name")
 			}
+			// Apply column value encoder if exists
+			if encoder, ok := base.ColumnValueEncoders[filter.Column]; ok {
+				filter.Value = encoder(filter.Value)
+			}
+
+			// Check for custom filter processors
+			if processor, ok := base.FilterProcessors[splittedNaming[0]]; ok {
+				err := processor(current)
+				if err != nil {
+					return err
+				}
+				continue
+			}
+			// Default processing
 			switch len(splittedNaming) {
 			case 1: // not nested, just column name
 				var (
@@ -80,16 +89,12 @@ func NormalizeFilters(base *Select, opts options.Searcher, join func(options.Sea
 					fkTable          string
 					referencedColumn string
 					err              error
-					found            bool
 				)
 				fkColumn := splittedNaming[0]
 				referencedColumn = splittedNaming[1]
-
-				if fkTable, found = base.Joins[fkColumn]; !found {
-					fkTable, err = join(opts, base, fkColumn)
-					if err != nil {
-						return err
-					}
+				fkTable, err = base.Join(ctx, fkColumn)
+				if err != nil {
+					return err
 				}
 				filter.Column = util2.Ident(fkTable, referencedColumn)
 
@@ -164,6 +169,9 @@ func applyFilter(filter *filters.Filter) (sq.Sqlizer, error) {
 		value      = filter.Value
 	)
 
+	if expr, converted := filter.Value.(sq.Sqlizer); converted {
+		return expr, nil
+	}
 	var result sq.Sqlizer
 	switch filter.ComparisonType {
 	case filters.GreaterThan:
@@ -186,6 +194,10 @@ func applyFilter(filter *filters.Filter) (sq.Sqlizer, error) {
 		result = sq.Expr(fmt.Sprintf("%s IS NULL", columnName))
 	case filters.NotNull:
 		result = sq.Expr(fmt.Sprintf("%s IS NOT NULL", columnName))
+	case filters.Contains:
+		result = sq.Expr(fmt.Sprintf("? IN %s", columnName))
+	case filters.NotContains:
+		result = sq.Expr(fmt.Sprintf("? NOT IN %s", columnName))
 	default:
 		return nil, fmt.Errorf("invalid filter type: %d", filter.ComparisonType)
 	}

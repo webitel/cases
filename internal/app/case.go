@@ -1261,14 +1261,14 @@ func (c *CaseService) scheduleResolutionTime(app *App) {
 	var retry bool
 
 	if css, retry, err = app.Store.Case().SetOverdueCases(resolutionTimeSO); err != nil {
-		slog.Error(errors.Details(err))
+		slog.Error(errors.Details(errors.Append(err, "[set overdue cases]: could not schedule case resolution time")))
 		return
 	}
 
 	for _, cs := range css {
 		err = c.NormalizeResponseCase(cs, resolutionTimeSO)
 		if err != nil {
-			slog.Error(errors.Details(err))
+			slog.Error(errors.Details(errors.Append(err, "could not normalize case for resolution time notification")))
 			continue
 		}
 

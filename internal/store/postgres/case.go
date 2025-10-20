@@ -12,6 +12,7 @@ import (
 	"time"
 
 	common "github.com/webitel/cases/internal/api_handler/grpc/options"
+	"github.com/webitel/webitel-go-kit/pkg/filters"
 
 	"github.com/webitel/cases/internal/errors"
 
@@ -79,6 +80,33 @@ var (
 		"closed_at":           timeEncoder,
 		"reacted_at":          timeEncoder,
 		"resolved_at":         timeEncoder,
+	}
+	multivalueProcessor = func(table string, f *filters.FilterExpr) error {
+		filter := f.GetFilter()
+		if filter == nil {
+			return nil
+		}
+		splittedColumn := strings.Split(filter.Column, ".")
+		if len(splittedColumn) != 2 {
+			return errors.New("invalid filter column")
+		}
+		subselect := sq.Select("1").From(table).Where(sq.Eq{splittedColumn[1]: filter.Value})
+		filter.Value = sq.Expr("EXISTS (?)", subselect)
+		return nil
+	}
+	specialFiltersProcessor = map[string]func(f *filters.FilterExpr) error{
+		"links": func(f *filters.FilterExpr) error {
+			return multivalueProcessor("cases.case_link", f)
+		},
+		"related": func(f *filters.FilterExpr) error {
+			return multivalueProcessor("cases.related_case", f)
+		},
+		"comments": func(f *filters.FilterExpr) error {
+			return multivalueProcessor("cases.case_comment", f)
+		},
+		"files": func(f *filters.FilterExpr) error {
+			return multivalueProcessor("storage.files", f)
+		},
 	}
 )
 
@@ -533,7 +561,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			boundQuery,
 			args...,
 		),
-	), WithFiltersEncoder(specialFieldsEncoding))
+	), WithColumnValueEncoders(specialFieldsEncoding), WithJoinFunc(c.joinRequiredTable), WithFiltersProcessors(specialFiltersProcessor))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -980,10 +1008,11 @@ func (c *CaseStore) buildDeleteCaseQuery(rpc options.Deleter) (string, []any, er
 	convertedIds := util.Int64SliceToStringSlice(rpc.GetIDs())
 	ids := util.FieldsFunc(convertedIds, util.InlineFields)
 	query := sq.Delete("cases.case").Where("id = ANY(?)", ids).Where("dc = ?", rpc.GetAuthOpts().GetDomainId()).PlaceholderFormat(sq.Dollar)
-	query, err = addCaseRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, query, "id")
+	rbacFilter, err := getCaseRbacCondition(rpc.GetAuthOpts(), auth.Delete, "id")
 	if err != nil {
 		return "", nil, err
 	}
+	query = query.Where(rbacFilter)
 
 	return query.ToSql()
 }
@@ -1695,7 +1724,11 @@ func isComplexFilter(filterStr string) bool {
 func (c *CaseStore) buildListCaseSqlizer(
 	opts options.Searcher,
 ) (*Select, []func(caseItem *_go.Case) any, error) {
-	query, err := NewSelect(caseLeft, sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar), WithFiltersEncoder(specialFieldsEncoding))
+	query, err := NewSelect(caseLeft,
+		sq.Select().From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar),
+		WithColumnValueEncoders(specialFieldsEncoding),
+		WithFiltersProcessors(specialFiltersProcessor),
+		WithJoinFunc(c.joinRequiredTable))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1717,7 +1750,11 @@ func (c *CaseStore) buildListCaseSqlizer(
 
 	if sess := opts.GetAuthOpts(); sess != nil {
 		query.Query = query.Query.Where(storeutils.Ident(caseLeft, "dc = ?"), opts.GetAuthOpts().GetDomainId())
-		query.Query, err = addCaseRbacCondition(sess, auth.Read, query.Query, storeutils.Ident(caseLeft, "id"))
+		rbacFilter, err := getCaseRbacCondition(sess, auth.Read, storeutils.Ident(caseLeft, "id"))
+		if err != nil {
+			return nil, nil, err
+		}
+		query.Query = query.Query.Where(rbacFilter)
 	}
 	// pagination
 	query.Query = storeutils.ApplyPaging(opts.GetPage(), opts.GetSize(), query.Query)
@@ -1736,8 +1773,13 @@ func (c *CaseStore) applySorting(opts options.Searcher, query *Select) error {
 	if sort == "" {
 		sort = caseDefaultSort
 	}
-	field, direction := storeutils.GetSortingOperator(sort)
-	tableAlias, err := c.joinRequiredTable(opts, query, field)
+	var (
+		field, direction = storeutils.GetSortingOperator(sort)
+		tableAlias       string
+		err              error
+	)
+
+	tableAlias, err = query.Join(opts, sort)
 	if err != nil {
 		return err
 	}
@@ -1840,7 +1882,7 @@ func (c *CaseStore) applyFilters(opts options.Searcher, query *Select) error {
 	}
 
 	// FiltersV1 apply
-	err = NormalizeFilters(query, opts, c.joinRequiredTable)
+	err = NormalizeFilters(opts, query, opts.GetFiltersV1())
 	if err != nil {
 		return err
 	}
@@ -2096,6 +2138,10 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	}
 
 	// Initialize the update query
+	rbacFilter, err := getCaseRbacCondition(rpc.GetAuthOpts(), auth.Edit, "id")
+	if err != nil {
+		return nil, nil, err
+	}
 	updateBuilder := sq.Update(c.mainTable).
 		PlaceholderFormat(sq.Dollar).
 		Set("updated_at", rpc.RequestTime()).
@@ -2104,12 +2150,9 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			"id":  rpc.GetEtags()[0].GetOid(),
 			"ver": rpc.GetEtags()[0].GetVer(),
 			"dc":  rpc.GetAuthOpts().GetDomainId(),
-		})
+		}).
+		Where(rbacFilter)
 
-	updateBuilder, err = addCaseRbacConditionForUpdate(rpc.GetAuthOpts(), auth.Edit, updateBuilder, "id")
-	if err != nil {
-		return nil, nil, err
-	}
 	// Increment version
 	updateBuilder = updateBuilder.Set("ver", sq.Expr("ver + 1"))
 
@@ -2289,7 +2332,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		)
 	}
 
-	base, err := NewSelect(caseLeft, WITH, WithFiltersEncoder(specialFieldsEncoding))
+	base, err := NewSelect(caseLeft, WITH, WithColumnValueEncoders(specialFieldsEncoding), WithFiltersProcessors(specialFiltersProcessor), WithJoinFunc(c.joinRequiredTable))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2418,82 +2461,76 @@ func handleServiceDefaultValues(builder sq.UpdateBuilder, input *_go.Case, rpc o
 	return builder
 }
 
-func (c *CaseStore) joinRequiredTable(searcher options.Searcher, base *Select, field string) (joinedTableAlias string, err error) {
-	if alias, ok := base.Joins[field]; ok {
-		return alias, nil
-	}
+func (c *CaseStore) joinRequiredTable(ctx context.Context, rootTable string, field string) (joins []string, alias string, err error) {
 	var (
 		tableAlias string
-		joinTable  = func(neededAlias, table, connection string) {
-			base.Query = base.Query.LeftJoin(fmt.Sprintf("%s %s ON %[2]s.id = %s", table, neededAlias, connection))
-			base.Joins[field] = neededAlias
+		joinTable  = func(neededAlias, table, connection string) string {
+			return fmt.Sprintf("LEFT JOIN %s %s ON %[2]s.id = %s", table, neededAlias, connection)
 		}
 	)
 
 	switch field {
 	case "created_by":
 		tableAlias = caseCreatedByAlias
-		joinTable(tableAlias, "directory.wbt_user", storeutils.Ident(base.TableAlias, "created_by"))
+		joins = append(joins, joinTable(tableAlias, "directory.wbt_user", storeutils.Ident(rootTable, field)))
 	case "updated_by":
 		tableAlias = caseUpdatedByAlias
-		joinTable(tableAlias, "directory.wbt_user", storeutils.Ident(base.TableAlias, "updated_by"))
+		joins = append(joins, joinTable(tableAlias, "directory.wbt_user", storeutils.Ident(rootTable, field)))
 	case "source":
 		tableAlias = caseSourceAlias
-		joinTable(tableAlias, "cases.source", storeutils.Ident(base.TableAlias, "source"))
+		joins = append(joins, joinTable(tableAlias, "cases.source", storeutils.Ident(rootTable, field)))
 	case "close_reason_group":
 		tableAlias = caseCloseReasonGroupAlias
-		joinTable(tableAlias, "cases.close_reason_group", storeutils.Ident(base.TableAlias, "close_reason_group"))
+		joins = append(joins, joinTable(tableAlias, "cases.close_reason_group", storeutils.Ident(rootTable, field)))
 	case "author":
-		cbAlias, err := c.joinRequiredTable(searcher, base, "created_by")
-		if err != nil {
-			return "", err
-		}
+		cbAlias := fmt.Sprintf("%s_au", caseCreatedByAlias)
+		joins = append(joins, joinTable(cbAlias, "directory.wbt_user", storeutils.Ident(rootTable, "created_by")))
 		tableAlias = caseAuthorAlias
-		joinTable(tableAlias, "contacts.contact", storeutils.Ident(cbAlias, "contact_id"))
+		joins = append(joins, joinTable(tableAlias, "contacts.contact", storeutils.Ident(cbAlias, "contact_id")))
 	case "close_reason":
 		tableAlias = caseCloseReasonAlias
-		joinTable(tableAlias, "cases.close_reason", storeutils.Ident(base.TableAlias, "close_reason"))
+		joins = append(joins, joinTable(tableAlias, "cases.close_reason", storeutils.Ident(rootTable, field)))
 	case "sla":
 		tableAlias = caseSlaAlias
-		joinTable(tableAlias, "cases.sla", storeutils.Ident(base.TableAlias, "sla"))
+		joins = append(joins, joinTable(tableAlias, "cases.sla", storeutils.Ident(rootTable, field)))
 	case "status":
 		tableAlias = caseStatusAlias
-		joinTable(tableAlias, "cases.status", storeutils.Ident(base.TableAlias, "status"))
+		joins = append(joins, joinTable(tableAlias, "cases.status", storeutils.Ident(rootTable, field)))
 	case "priority":
 		tableAlias = casePriorityAlias
-		joinTable(tableAlias, "cases.priority", storeutils.Ident(base.TableAlias, "priority"))
+		joins = append(joins, joinTable(tableAlias, "cases.priority", storeutils.Ident(rootTable, field)))
 	case "service":
 		tableAlias = caseServiceAlias
-		joinTable(tableAlias, "cases.service_catalog", storeutils.Ident(base.TableAlias, "service"))
+		joins = append(joins, joinTable(tableAlias, "cases.service_catalog", storeutils.Ident(rootTable, field)))
 	case "assignee":
 		tableAlias = caseAssigneeAlias
-		joinTable(tableAlias, "contacts.contact", storeutils.Ident(base.TableAlias, "assignee"))
+		joins = append(joins, joinTable(tableAlias, "contacts.contact", storeutils.Ident(rootTable, field)))
 	case "reporter":
 		tableAlias = caseReporterAlias
-		joinTable(tableAlias, "contacts.contact", storeutils.Ident(base.TableAlias, "reporter"))
+		joins = append(joins, joinTable(tableAlias, "contacts.contact", storeutils.Ident(rootTable, field)))
 	case "impacted":
 		tableAlias = caseImpactedAlias
-		joinTable(tableAlias, "contacts.contact", storeutils.Ident(base.TableAlias, "impacted"))
+		joins = append(joins, joinTable(tableAlias, "contacts.contact", storeutils.Ident(rootTable, field)))
 	case "group":
 		tableAlias = caseGroupAlias
-		joinTable(tableAlias, "contacts.group", storeutils.Ident(base.TableAlias, "contact_group"))
+		joins = append(joins, joinTable(tableAlias, "contacts.group", storeutils.Ident(rootTable, "contact_group")))
 	case "sla_condition":
 		tableAlias = caseSlaConditionAlias
-		joinTable(tableAlias, "cases.sla_condition", storeutils.Ident(base.TableAlias, "sla_condition_id"))
+		joins = append(joins, joinTable(tableAlias, "cases.sla_condition", storeutils.Ident(rootTable, "sla_condition_id")))
 	case "status_condition":
 		tableAlias = caseStatusConditionAlias
-		joinTable(tableAlias, "cases.status_condition", storeutils.Ident(base.TableAlias, "status_condition"))
+		joins = append(joins, joinTable(tableAlias, "cases.status_condition", storeutils.Ident(rootTable, field)))
 	case "custom":
 		// join extension table
-		customFieldsMetadata := c.custom(searcher)
+		customFieldsMetadata := c.custom(ctx)
 		if customFieldsMetadata == nil || customFieldsMetadata.refer == nil {
-			return "", fmt.Errorf("custom fields metadata not found or refer is nil")
+			return nil, "", fmt.Errorf("custom fields metadata not found or refer is nil")
 		}
 		tableAlias = "xc"
-		joinTable(tableAlias, customFieldsMetadata.refer.Table(), storeutils.Ident(base.TableAlias, "id"))
+		joins = append(joins, joinTable(tableAlias, customFieldsMetadata.refer.Table(), storeutils.Ident(rootTable, "id")))
 
 	}
-	return tableAlias, nil
+	return joins, tableAlias, nil
 }
 
 // session required to get some columns
@@ -2512,7 +2549,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 	)
 
 	for _, field := range fields {
-		tableAlias, err = c.joinRequiredTable(req, base, field)
+		tableAlias, err = base.Join(req, field)
 		if err != nil {
 			return nil, err
 		}
@@ -2590,7 +2627,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			})
 		case "source":
 			base.Query = base.Query.Column(fmt.Sprintf(
-				"ROW(%s.source, %[2]s.name, %[2]s.type)::text AS source", caseLeft, tableAlias))
+				"ROW(%s.source, %[2]s.name, %[2]s.type)::text AS source", base.TableAlias, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
 					if len(src) == 0 {
@@ -2668,12 +2705,12 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				})
 			})
 		case "planned_reaction_at":
-			base.Query = base.Query.Column(storeutils.Ident(caseLeft, "planned_reaction_at"))
+			base.Query = base.Query.Column(storeutils.Ident(base.TableAlias, "planned_reaction_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.PlannedReactionAt)
 			})
 		case "planned_resolve_at":
-			base.Query = base.Query.Column(storeutils.Ident(caseLeft, "planned_resolve_at"))
+			base.Query = base.Query.Column(storeutils.Ident(base.TableAlias, "planned_resolve_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.PlannedResolveAt)
 			})
@@ -2689,7 +2726,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&caseItem.Author)
 			})
 		case "close_result":
-			base.Query = base.Query.Column(storeutils.Ident(caseLeft, "close_result"))
+			base.Query = base.Query.Column(storeutils.Ident(base.TableAlias, "close_result"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanText(&caseItem.CloseResult)
 			})
@@ -2700,24 +2737,24 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&caseItem.CloseReason)
 			})
 		case "rating":
-			base.Query = base.Query.Column(storeutils.Ident(caseLeft, "rating"))
+			base.Query = base.Query.Column(storeutils.Ident(base.TableAlias, "rating"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanInt64(&caseItem.Rating)
 			})
 		case "rating_comment":
-			base.Query = base.Query.Column(storeutils.Ident(caseLeft, "rating_comment"))
+			base.Query = base.Query.Column(storeutils.Ident(base.TableAlias, "rating_comment"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanText(&caseItem.RatingComment)
 			})
 		case "resolved_at":
 			base.Query = base.Query.
-				Column(storeutils.Ident(caseLeft, "resolved_at"))
+				Column(storeutils.Ident(base.TableAlias, "resolved_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.ResolvedAt)
 			})
 		case "reacted_at":
 			base.Query = base.Query.
-				Column(storeutils.Ident(caseLeft, "reacted_at"))
+				Column(storeutils.Ident(base.TableAlias, "reacted_at"))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.ReactedAt)
 			})
@@ -2725,7 +2762,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			base.Query = base.Query.
 				Column(fmt.Sprintf(
 					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.reacted_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_reaction",
-					caseLeft,
+					base.TableAlias,
 				))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.DifferenceInReaction)
@@ -2734,7 +2771,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			base.Query = base.Query.
 				Column(fmt.Sprintf(
 					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.resolved_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_resolve",
-					caseLeft,
+					base.TableAlias,
 				))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanTimestamp(&caseItem.DifferenceInResolve)
@@ -3016,7 +3053,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&caseItem.Reporter)
 			})
 		case "contact_info":
-			base.Query = base.Query.Column(storeutils.Ident(caseLeft, field))
+			base.Query = base.Query.Column(storeutils.Ident(base.TableAlias, field))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanText(&caseItem.ContactInfo)
 			})
@@ -3033,7 +3070,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			})
 		case "comments":
 			commentFields := []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"}
-			subquery, scanPlan, dbErr := buildCommentsSelectAsSubquery(auther, commentFields, caseLeft)
+			subquery, scanPlan, dbErr := buildCommentsSelectAsSubquery(auther, commentFields, base.TableAlias)
 			if dbErr != nil {
 				return nil, dbErr
 			}
@@ -3057,7 +3094,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			})
 		case "links": // this field uses deprecated method with old scanning function
 			linksFields := []string{"id", "ver", "name", "url", "created_by", "author", "created_at"}
-			subquery, scanPlan, dbErr := buildLinkSelectAsSubquery(linksFields, caseLeft) // removed the scanplan parameter
+			subquery, scanPlan, dbErr := buildLinkSelectAsSubquery(linksFields, base.TableAlias) // removed the scanplan parameter
 			if dbErr != nil {
 				return nil, dbErr
 			}
@@ -3087,7 +3124,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				"name",
 				"created_at",
 			}
-			subquery /*scanPlan,*/, dbErr := buildFilesSelectAsSubquery(filesFields, caseLeft) // removed the scanplan and filtersApplied parameters
+			subquery /*scanPlan,*/, dbErr := buildFilesSelectAsSubquery(filesFields, base.TableAlias) // removed the scanplan and filtersApplied parameters
 			if dbErr != nil {
 				return nil, dbErr
 			}
@@ -3111,7 +3148,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			})
 		case "related":
 			relatedFields := []string{"id", "ver", "related_case", "created_at", "created_by", "updated_by", "relation", "primary_case"}
-			subquery, scanPlan, dbErr := buildRelatedCasesSelectAsSubquery(auther, relatedFields, caseLeft)
+			subquery, scanPlan, dbErr := buildRelatedCasesSelectAsSubquery(auther, relatedFields, base.TableAlias)
 			if dbErr != nil {
 				return nil, dbErr
 			}
@@ -3251,28 +3288,12 @@ func NewCaseStore(store *Store) (store.CaseStore, error) {
 	return &CaseStore{storage: store, mainTable: mainTable, overdueCasesQuery: mustOverdueCasesQuery(mainTable)}, nil
 }
 
-func addCaseRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
+func getCaseRbacCondition(auth auth.Auther, access auth.AccessMode, dependencyColumn string) (sq.Sqlizer, error) {
 	if auth != nil && auth.IsRbacCheckRequired(model.ScopeCases, access) {
-		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
-			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
+		return sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access)), nil
 	}
-	return query, nil
-}
-
-func addCaseRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
-	if auth != nil && auth.IsRbacCheckRequired(model.ScopeCases, access) {
-		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
-			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
-	}
-	return query, nil
-}
-
-func addCaseRbacConditionForUpdate(auth auth.Auther, access auth.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
-	if auth != nil && auth.IsRbacCheckRequired(model.ScopeCases, access) {
-		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
-			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
-	}
-	return query, nil
+	return sq.Expr("1 = 1"), nil
 }
 
 func (c *CaseStore) scanCases(rows pgx.Rows, plan []func(link *_go.Case) any) ([]*_go.Case, error) {
@@ -3332,7 +3353,10 @@ func mustOverdueCasesQuery(mainTable string) sq.SelectBuilder {
 }
 
 func (c *CaseStore) SetOverdueCases(so options.Searcher) ([]*_go.Case, bool, error) {
-	base, err := NewSelect(caseLeft, c.overdueCasesQuery, WithFiltersEncoder(specialFieldsEncoding))
+	base, err := NewSelect(caseLeft, c.overdueCasesQuery,
+		WithColumnValueEncoders(specialFieldsEncoding),
+		WithJoinFunc(c.joinRequiredTable),
+		WithFiltersProcessors(specialFiltersProcessor))
 	if err != nil {
 		return nil, false, err
 	}
