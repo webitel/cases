@@ -27,7 +27,7 @@ require (
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	github.com/webitel/webitel-go-kit/cmd/protoc-gen-go-webitel v0.0.0-20240829153325-0ae7f6059b52
 	github.com/webitel/webitel-go-kit/infra/fts_client v0.0.0-20250702140655-98a92d815fcb
 	github.com/webitel/webitel-go-kit/infra/logger_client v0.0.0-20250702140655-98a92d815fcb
@@ -104,9 +104,9 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pkg/errors v0.9.1
-	go.opentelemetry.io/otel v1.36.0
-	go.opentelemetry.io/otel/metric v1.36.0 // indirect
-	go.opentelemetry.io/otel/trace v1.36.0
+	go.opentelemetry.io/otel v1.38.0
+	go.opentelemetry.io/otel/metric v1.38.0 // indirect
+	go.opentelemetry.io/otel/trace v1.38.0
 	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
 	golang.org/x/net v0.40.0 // indirect
@@ -127,8 +127,8 @@ require (
 	github.com/mbobakov/grpc-consul-resolver v1.5.3
 	github.com/nicksnyder/go-i18n v1.10.3
 	github.com/rabbitmq/amqp091-go v1.10.0
-	go.opentelemetry.io/contrib/bridges/otelslog v0.11.0
-	go.opentelemetry.io/otel/log v0.12.2 // indirect
+	go.opentelemetry.io/contrib/bridges/otelslog v0.13.0
+	go.opentelemetry.io/otel/log v0.14.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.36.0
 	google.golang.org/grpc v1.72.2
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
