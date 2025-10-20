@@ -121,7 +121,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/bufbuild/protovalidate-go v0.7.2
 	github.com/hashicorp/consul/api v1.31.0
-	github.com/jackc/pgx/v5 v5.7.5
+	github.com/jackc/pgx/v5 v5.7.6
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/mbobakov/grpc-consul-resolver v1.5.3
