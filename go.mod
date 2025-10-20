@@ -22,7 +22,7 @@ require (
 
 require (
 	github.com/georgysavva/scany/v2 v2.1.4
-	github.com/google/cel-go v0.26.0
+	github.com/google/cel-go v0.26.1
 	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438
 	github.com/spf13/pflag v1.0.6
