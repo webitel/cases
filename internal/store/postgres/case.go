@@ -87,10 +87,21 @@ var (
 			return nil
 		}
 		splittedColumn := strings.Split(filter.Column, ".")
-		if len(splittedColumn) != 2 {
-			return errors.New("invalid filter column")
+		var (
+			filterColumn        string
+			unkonwnColumnLenErr = errors.New("invalid multivalue filter column, expected format: object.column (links.id) or object.array.column (links.items.id)")
+		)
+		switch len(splittedColumn) {
+		case 1:
+			return unkonwnColumnLenErr
+		case 2:
+			filterColumn = splittedColumn[1]
+		case 3:
+			filterColumn = splittedColumn[2]
+		default:
+			return unkonwnColumnLenErr
 		}
-		subselect := sq.Select("1").From(table).Where(sq.Eq{splittedColumn[1]: filter.Value})
+		subselect := sq.Select("1").From(table).Where(sq.Eq{filterColumn: filter.Value})
 		filter.Value = sq.Expr("EXISTS (?)", subselect)
 		return nil
 	}

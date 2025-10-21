@@ -44,7 +44,7 @@ func WithColumnValueEncoders(encoders map[string]func(any) any) BuilderOptions {
 
 func WithFiltersProcessors(processors map[string]func(expr *filters.FilterExpr) error) BuilderOptions {
 	return func(s *Select) error {
-		if s.FilterProcessors == nil {
+		if processors == nil {
 			return nil
 		}
 		s.FilterProcessors = processors

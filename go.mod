@@ -35,7 +35,7 @@ require (
 	github.com/webitel/webitel-go-kit/infra/pubsub/rabbitmq v0.0.0-20250702140655-98a92d815fcb
 	github.com/webitel/webitel-go-kit/pkg/errors v0.0.0-20250625095313-01c817ef50a5
 	github.com/webitel/webitel-go-kit/pkg/etag v0.0.0-20250625095313-01c817ef50a5
-	github.com/webitel/webitel-go-kit/pkg/filters v0.0.0-20251016124205-c2726dcf58a1
+	github.com/webitel/webitel-go-kit/pkg/filters v0.0.0-20251021093442-951bb1a29ad5
 	github.com/webitel/webitel-go-kit/pkg/watcher v0.0.0-20250625090308-5d99e087fa32
 )
 
