@@ -9,8 +9,8 @@ toolchain go1.24.6
 replace github.com/webitel/proto/gen => github.com/webitel/custom/proto/gen v0.0.0-20250609174947-59aa851deea6
 
 require (
-	buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20250121132426-2c80753dfee6.2
-	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20250121132426-2c80753dfee6.1
+	buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20251023140604-18fe32d76f81.2
+	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20251023140604-18fe32d76f81.1
 	github.com/gammazero/deque v1.0.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3
 	github.com/jackc/pgtype v1.14.4
