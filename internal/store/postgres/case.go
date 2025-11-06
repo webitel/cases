@@ -1790,7 +1790,7 @@ func (c *CaseStore) applySorting(opts options.Searcher, query *Select) error {
 		err              error
 	)
 
-	tableAlias, err = query.Join(opts, sort)
+	tableAlias, err = query.Join(opts, field)
 	if err != nil {
 		return err
 	}
