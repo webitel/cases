@@ -2018,6 +2018,70 @@ func (c *CaseStore) applySearch(opts options.Searcher, query *Select) error {
 }
 
 // region UPDATE
+
+// recalculateCaseTimings recalculates SLA timings and conditions for a case when its service or priority changes.
+func (c *CaseStore) recalculateCaseTimings(
+
+	rpc options.Updator,
+	txManager *transaction.TxManager,
+	upd *_go.Case,
+	caseID int64,
+	serviceID int64, // 0 means fetch from database
+) error {
+	var svcID int64
+	if serviceID > 0 {
+		svcID = serviceID
+	} else {
+		if err := txManager.QueryRow(rpc, "SELECT service FROM cases.\"case\" WHERE id = $1", caseID).Scan(&svcID); err != nil {
+			return err
+		}
+	}
+
+	if svcID == 0 {
+		return nil
+	}
+
+	var priorityID int64
+	if upd.GetPriority() != nil && upd.GetPriority().GetId() != 0 {
+		priorityID = upd.GetPriority().GetId()
+	} else {
+		if err := txManager.QueryRow(rpc, "SELECT priority FROM cases.\"case\" WHERE id = $1", caseID).Scan(&priorityID); err != nil {
+			return err
+		}
+	}
+
+	serviceDefs, err := c.ScanServiceDefs(rpc, txManager, svcID, priorityID)
+	if err != nil {
+		return err
+	}
+
+	// Calculate planned times within the transaction
+	if err := c.calculateTimings(
+		&caseID,
+		rpc,
+		serviceDefs.CalendarID,
+		serviceDefs.ReactionTime,
+		serviceDefs.ResolutionTime,
+		txManager,
+		upd,
+	); err != nil {
+		return err
+	}
+
+	// * assign new values ( SLA ; SLA Condition ; Planned Reaction / Resolve at ) to update (input) object
+	if upd.GetSla() == nil {
+		upd.Sla = &_go.Lookup{}
+	}
+	upd.Sla.Id = int64(serviceDefs.SLAID)
+
+	if upd.GetSlaCondition() == nil {
+		upd.SlaCondition = &_go.Lookup{}
+	}
+	upd.SlaCondition.Id = int64(serviceDefs.SLAConditionID)
+
+	return nil
+}
+
 func (c *CaseStore) Update(
 	rpc options.Updator,
 	upd *_go.Case,
@@ -2048,43 +2112,18 @@ func (c *CaseStore) Update(
 	}()
 	txManager := transaction.NewTxManager(tx)
 
-	// * if user change Service -- SLA ; SLA Condition ; Planned Reaction / Resolve at ; Calendar could be changed
+	// * if user change Service OR Priority -- SLA ; SLA Condition ; Planned Reaction / Resolve at ; Calendar could be changed
+	caseID := rpc.GetEtags()[0].GetOid()
 	if util.ContainsField(rpc.GetMask(), "service") {
-		serviceDefs, err := c.ScanServiceDefs(
-			rpc,
-			txManager,
-			upd.Service.GetId(),
-			upd.Priority.GetId(),
-		)
-		if err != nil {
+		if err := c.recalculateCaseTimings(rpc, txManager, upd, caseID, upd.GetService().GetId()); err != nil {
 			return nil, ParseError(err)
 		}
-
-		oid := rpc.GetEtags()[0].GetOid()
-
-		// Calculate planned times within the transaction
-		err = c.calculateTimings(
-			&oid,
-			rpc,
-			serviceDefs.CalendarID,
-			serviceDefs.ReactionTime,
-			serviceDefs.ResolutionTime,
-			txManager,
-			upd,
-		)
-		if err != nil {
-			return nil, ParseError(err)
+	} else if util.ContainsField(rpc.GetMask(), "priority") {
+		if upd.GetPriority() != nil && upd.GetPriority().GetId() != 0 {
+			if err := c.recalculateCaseTimings(rpc, txManager, upd, caseID, 0); err != nil {
+				return nil, ParseError(err)
+			}
 		}
-
-		// * assign new values ( SLA ; SLA Condition ; Planned Reaction / Resolve at ) to update (input) object
-		if upd.Sla == nil {
-			upd.Sla = &_go.Lookup{}
-		}
-		upd.Sla.Id = int64(serviceDefs.SLAID)
-		if upd.SlaCondition == nil {
-			upd.SlaCondition = &_go.Lookup{}
-		}
-		upd.SlaCondition.Id = int64(serviceDefs.SLAConditionID)
 	}
 
 	// Build the SQL query and scan plan
@@ -2188,6 +2227,13 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 			updateBuilder = updateBuilder.Set("description", sq.Expr("NULLIF(?, '')", input.Description))
 		case "priority":
 			updateBuilder = updateBuilder.Set("priority", input.Priority.GetId())
+			if !util.ContainsField(rpc.GetMask(), "service") {
+				updateBuilder = updateBuilder.
+				Set("planned_resolve_at", util.LocalTime(input.GetPlannedResolveAt())).
+				Set("planned_reaction_at", util.LocalTime(input.GetPlannedReactionAt())).
+				Set("sla", input.GetSla().GetId()).
+				Set("sla_condition_id", input.GetSlaCondition().GetId())
+			}
 		case "source":
 			updateBuilder = updateBuilder.Set("source", input.Source.GetId())
 		case "status":
