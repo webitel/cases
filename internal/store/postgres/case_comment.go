@@ -34,6 +34,7 @@ const (
 	caseCommentCreatedByAlias    = "cb"
 	caseCommentUpdatedByAlias    = "ub"
 	caseCommentObjClassScopeName = model.ScopeCaseComments
+	caseCommentDefaultSort       = "created_at"
 )
 
 // Publish implements store.CaseCommentStore
@@ -270,7 +271,7 @@ func (c *CaseCommentStore) buildListCaseCommentQuery(rpc options.Searcher) (sq.S
 	}
 
 	// -------- Apply sorting by creation date ----------
-	queryBuilder = queryBuilder.OrderBy("cc.created_at ASC")
+	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, caseCommentDefaultSort)
 	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, nil
