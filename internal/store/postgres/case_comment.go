@@ -609,6 +609,7 @@ func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlia
 	if dbErr != nil {
 		return base, nil, dbErr
 	}
+	base = base.OrderBy(storeUtil.Ident(alias, "created_at") + " DESC")
 	base = storeUtil.ApplyPaging(1, defaults.DefaultSearchSize, base)
 	return base, plan, nil
 }
