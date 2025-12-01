@@ -271,7 +271,11 @@ func (c *CaseCommentStore) buildListCaseCommentQuery(rpc options.Searcher) (sq.S
 	}
 
 	// -------- Apply sorting by creation date ----------
-	queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, caseCommentDefaultSort)
+	if rpc.GetSort() == "" {
+		queryBuilder = queryBuilder.OrderBy(caseCommentDefaultSort + " DESC")	
+	}else { 
+		queryBuilder = storeUtil.ApplyDefaultSorting(rpc, queryBuilder, caseCommentDefaultSort)
+	}
 	queryBuilder = storeUtil.ApplyPaging(rpc.GetPage(), rpc.GetSize(), queryBuilder)
 
 	return queryBuilder, nil
