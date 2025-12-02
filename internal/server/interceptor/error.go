@@ -56,7 +56,10 @@ func logAndReturnGRPCError(ctx context.Context, err error, info *grpc.UnaryServe
 	case codes.PermissionDenied:
 		httpCode = http.StatusForbidden
 		id = "api.process.unauthorized"
-	case codes.NotFound, codes.Aborted, codes.InvalidArgument, codes.AlreadyExists:
+	case codes.NotFound:
+		httpCode = http.StatusNotFound
+		id = "api.process.not_found"
+	case codes.Aborted, codes.InvalidArgument, codes.AlreadyExists:
 		httpCode = http.StatusBadRequest
 		id = "api.process.bad_args"
 	default:
