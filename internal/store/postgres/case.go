@@ -2818,7 +2818,13 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 		case "difference_in_reaction":
 			base.Query = base.Query.
 				Column(fmt.Sprintf(
-					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.reacted_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_reaction",
+					`CASE
+						WHEN %[1]s.reacted_at IS NULL THEN 0
+						WHEN %[1]s.reacted_at <= %[1]s.planned_reaction_at THEN
+							CAST(EXTRACT(EPOCH FROM %[1]s.reacted_at - %[1]s.created_at) * 1000 AS bigint)
+						ELSE
+							-CAST(EXTRACT(EPOCH FROM %[1]s.reacted_at - %[1]s.planned_reaction_at) * 1000 AS bigint)
+					END AS difference_in_reaction`,
 					base.TableAlias,
 				))
 			plan = append(plan, func(caseItem *_go.Case) any {
@@ -2827,7 +2833,13 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 		case "difference_in_resolve":
 			base.Query = base.Query.
 				Column(fmt.Sprintf(
-					"COALESCE(CAST(EXTRACT(EPOCH FROM %s.resolved_at - %[1]s.created_at) * 1000 AS bigint), 0) AS difference_in_resolve",
+					`CASE
+						WHEN %[1]s.resolved_at IS NULL THEN 0
+						WHEN %[1]s.resolved_at <= %[1]s.planned_resolve_at THEN
+							CAST(EXTRACT(EPOCH FROM %[1]s.resolved_at - %[1]s.created_at) * 1000 AS bigint)
+						ELSE
+							-CAST(EXTRACT(EPOCH FROM %[1]s.resolved_at - %[1]s.planned_resolve_at) * 1000 AS bigint)
+					END AS difference_in_resolve`,
 					base.TableAlias,
 				))
 			plan = append(plan, func(caseItem *_go.Case) any {
