@@ -70,6 +70,68 @@ func AuthUnaryServerInterceptor(authManager auth.Manager) grpc.UnaryServerInterc
 	}
 }
 
+// AuthStreamingServerInterceptor authenticates and authorizes streaming RPCs.
+func AuthStreamingServerInterceptor(authManager auth.Manager) grpc.StreamServerInterceptor {
+	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		ctx := ss.Context()
+		
+		// Retrieve authorization details
+		objClass, licenses, action := objClassWithStreamAction(info)
+
+		// Authorize session with the token
+		session, err := authManager.AuthorizeFromContext(ctx, objClass, action)
+		if err != nil {
+			return errors.New(
+				"unauthorized",
+				errors.WithCause(err),
+				errors.WithCode(codes.Unauthenticated),
+				errors.WithID("auth.interceptor.unauthorized"),
+			)
+		}
+		// License validation
+		if missingLicenses := checkLicenses(session, licenses); len(missingLicenses) > 0 {
+			return errors.New(
+				"permission denied",
+				errors.WithCode(codes.PermissionDenied),
+				errors.WithCause(errors.New("missing required licenses "+strings.Join(missingLicenses, ", "))),
+				errors.WithID("auth.interceptor.license"),
+			)
+		}
+
+		// Permission validation
+		if ok := validateSessionPermission(session, objClass, action); !ok {
+			return errors.New(
+				"permission denied",
+				errors.WithCode(codes.PermissionDenied),
+				errors.WithCause(errors.New("missing required permissions "+objClass)),
+				errors.WithID("auth.interceptor.permission"),
+			)
+		}
+
+		// Create a new context with the session
+		ctxWithSession := context.WithValue(ctx, SessionHeader, session)
+		
+		// Create a wrapped stream that uses the new context
+		wrappedStream := &wrappedServerStream{
+			ServerStream: ss,
+			ctx:          ctxWithSession,
+		}
+
+		// Proceed with the handler
+		return handler(srv, wrappedStream)
+	}
+}
+
+// wrappedServerStream wraps a ServerStream with a custom context
+type wrappedServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (w *wrappedServerStream) Context() context.Context {
+	return w.ctx
+}
+
 // tokenFromContext extracts the authorization token from metadata.
 func tokenFromContext(ctx context.Context) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
@@ -92,6 +154,27 @@ func tokenFromContext(ctx context.Context) (string, error) {
 }
 
 func objClassWithAction(info *grpc.UnaryServerInfo) (string, []string, auth.AccessMode) {
+	serviceName, methodName := splitFullMethodName(info.FullMethod)
+	service := api.WebitelAPI[serviceName]
+	objClass := service.ObjClass
+	licenses := service.AdditionalLicenses
+	action := service.WebitelMethods[methodName].Access
+	var accessMode auth.AccessMode
+	switch action {
+	case 0:
+		accessMode = auth.Add
+	case 1:
+		accessMode = auth.Read
+	case 2:
+		accessMode = auth.Edit
+	case 3:
+		accessMode = auth.Delete
+	}
+
+	return objClass, licenses, accessMode
+}
+
+func objClassWithStreamAction(info *grpc.StreamServerInfo) (string, []string, auth.AccessMode) {
 	serviceName, methodName := splitFullMethodName(info.FullMethod)
 	service := api.WebitelAPI[serviceName]
 	objClass := service.ObjClass

@@ -1239,6 +1239,7 @@ func (c *CaseStore) needsCustomFieldsForFilter(filterStr string, opts options.Se
 		"sla_condition", "group", "sla", "status_condition.final", "author",
 		"communication_id", "rating", "reacted_at", "resolved_at",
 		"planned_reaction_at", "planned_resolve_at", "created_at", "attachments", "contact",
+		"description", "subject", "name", "contact_info",
 	}
 
 	for _, std := range standardFields {
@@ -1523,6 +1524,14 @@ func (c *CaseStore) filterToSqlizer(
 				sq.Expr(fmt.Sprintf("%s.reporter != ?", caseLeft), value),
 				sq.Expr(fmt.Sprintf("%s.assignee != ?", caseLeft), value),
 			}
+		}
+
+	case "description", "subject", "name", "contact_info":
+		col := storeutils.Ident(caseLeft, column)
+		if op == "=" {
+			return sq.Expr(fmt.Sprintf("%s ILIKE ?", col), "%"+value+"%")
+		} else {
+			return sq.Expr(fmt.Sprintf("%s NOT ILIKE ?", col), "%"+value+"%")
 		}
 	}
 

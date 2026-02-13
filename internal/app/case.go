@@ -176,6 +176,47 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	return list.GetItems()[0], nil
 }
 
+// ExportCases exports cases in the specified format (CSV or XLSX) using server-side streaming
+func (c *CaseService) ExportCases(req *cases.ExportCasesRequest, stream cases.Cases_ExportCasesServer) error {
+	ctx := stream.Context()
+
+	// Validate format
+	format := req.GetFormat()
+	if format == "" || (format != "csv" && format != "xlsx") {
+		return errors.InvalidArgument("format must be 'csv' or 'xlsx'")
+	}
+
+	exportFormat := model.ExportFormatCSV
+	if format == "xlsx" {
+		exportFormat = model.ExportFormatXLSX
+	}
+
+	// Get headers from request or use defaults
+	fields := req.GetFields()
+	if len(fields) == 0 {
+		fields = getDefaultExportHeaders()
+	}
+
+	// Send gRPC metadata headers immediately
+	filename := fmt.Sprintf("cases_%s.%s", time.Now().Format("2006-01-02_15-04-05"), format)
+	header := metadata.Pairs(
+		"filename", filename,
+		"format", string(exportFormat),
+	)
+	if err := stream.SendHeader(header); err != nil {
+		return errors.Internal(fmt.Sprintf("failed to send header: %v", err))
+	}
+
+	switch exportFormat {
+	case model.ExportFormatCSV:
+		return c.exportCSV(ctx, req, fields, stream)
+	case model.ExportFormatXLSX:
+		return c.exportXLSX(ctx, req, fields, stream)
+	default:
+		return errors.InvalidArgument(fmt.Sprintf("unsupported format: %s", format))
+	}
+}
+
 // lookupToService converts a Lookup to a Service struct
 func lookupToService(lookup *cases.Lookup) *cases.Service {
 	if lookup == nil {
