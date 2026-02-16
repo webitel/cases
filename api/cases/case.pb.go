@@ -1678,17 +1678,15 @@ func (x *InputCase) GetCustom() *structpb.Struct {
 
 type ExportCasesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
-	Size          int32                  `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
-	Q             string                 `protobuf:"bytes,3,opt,name=q,proto3" json:"q,omitempty"`
-	Ids           []string               `protobuf:"bytes,4,rep,name=ids,proto3" json:"ids,omitempty"`
-	Sort          string                 `protobuf:"bytes,5,opt,name=sort,proto3" json:"sort,omitempty"`
-	Fields        []string               `protobuf:"bytes,6,rep,name=fields,proto3" json:"fields,omitempty"`
-	Filters       []string               `protobuf:"bytes,7,rep,name=filters,proto3" json:"filters,omitempty"`
-	ContactId     string                 `protobuf:"bytes,8,opt,name=contact_id,json=contactId,proto3" json:"contact_id,omitempty"`
-	Qin           string                 `protobuf:"bytes,9,opt,name=qin,proto3" json:"qin,omitempty"`
-	FiltersV1     string                 `protobuf:"bytes,10,opt,name=filters_v1,json=filtersV1,proto3" json:"filters_v1,omitempty"`
-	Format        string                 `protobuf:"bytes,11,opt,name=format,proto3" json:"format,omitempty"`
+	Q             string                 `protobuf:"bytes,1,opt,name=q,proto3" json:"q,omitempty"`
+	Ids           []string               `protobuf:"bytes,2,rep,name=ids,proto3" json:"ids,omitempty"`
+	Sort          string                 `protobuf:"bytes,3,opt,name=sort,proto3" json:"sort,omitempty"`
+	Fields        []string               `protobuf:"bytes,4,rep,name=fields,proto3" json:"fields,omitempty"`
+	Filters       []string               `protobuf:"bytes,5,rep,name=filters,proto3" json:"filters,omitempty"`
+	ContactId     string                 `protobuf:"bytes,6,opt,name=contact_id,json=contactId,proto3" json:"contact_id,omitempty"`
+	Qin           string                 `protobuf:"bytes,7,opt,name=qin,proto3" json:"qin,omitempty"`
+	FiltersV1     string                 `protobuf:"bytes,8,opt,name=filters_v1,json=filtersV1,proto3" json:"filters_v1,omitempty"`
+	Format        string                 `protobuf:"bytes,9,opt,name=format,proto3" json:"format,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1721,20 +1719,6 @@ func (x *ExportCasesRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ExportCasesRequest.ProtoReflect.Descriptor instead.
 func (*ExportCasesRequest) Descriptor() ([]byte, []int) {
 	return file_case_proto_rawDescGZIP(), []int{17}
-}
-
-func (x *ExportCasesRequest) GetPage() int32 {
-	if x != nil {
-		return x.Page
-	}
-	return 0
-}
-
-func (x *ExportCasesRequest) GetSize() int32 {
-	if x != nil {
-		return x.Size
-	}
-	return 0
 }
 
 func (x *ExportCasesRequest) GetQ() string {
@@ -2009,22 +1993,19 @@ const file_case_proto_rawDesc = "" +
 	"\x0erating_comment\x18\x10 \x01(\tR\rratingComment\x12I\n" +
 	"\x10status_condition\x18\x11 \x01(\v2\x1e.webitel.cases.StatusConditionR\x0fstatusCondition\x12'\n" +
 	"\x06userID\x18\x14 \x01(\v2\x0f.general.LookupR\x06userID\x12/\n" +
-	"\x06custom\x18d \x01(\v2\x17.google.protobuf.StructR\x06custom\"\x8a\x02\n" +
-	"\x12ExportCasesRequest\x12\x12\n" +
-	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x12\n" +
-	"\x04size\x18\x02 \x01(\x05R\x04size\x12\f\n" +
-	"\x01q\x18\x03 \x01(\tR\x01q\x12\x10\n" +
-	"\x03ids\x18\x04 \x03(\tR\x03ids\x12\x12\n" +
-	"\x04sort\x18\x05 \x01(\tR\x04sort\x12\x16\n" +
-	"\x06fields\x18\x06 \x03(\tR\x06fields\x12\x18\n" +
-	"\afilters\x18\a \x03(\tR\afilters\x12\x1d\n" +
+	"\x06custom\x18d \x01(\v2\x17.google.protobuf.StructR\x06custom\"\xe2\x01\n" +
+	"\x12ExportCasesRequest\x12\f\n" +
+	"\x01q\x18\x01 \x01(\tR\x01q\x12\x10\n" +
+	"\x03ids\x18\x02 \x03(\tR\x03ids\x12\x12\n" +
+	"\x04sort\x18\x03 \x01(\tR\x04sort\x12\x16\n" +
+	"\x06fields\x18\x04 \x03(\tR\x06fields\x12\x18\n" +
+	"\afilters\x18\x05 \x03(\tR\afilters\x12\x1d\n" +
 	"\n" +
-	"contact_id\x18\b \x01(\tR\tcontactId\x12\x10\n" +
-	"\x03qin\x18\t \x01(\tR\x03qin\x12\x1d\n" +
+	"contact_id\x18\x06 \x01(\tR\tcontactId\x12\x10\n" +
+	"\x03qin\x18\a \x01(\tR\x03qin\x12\x1d\n" +
 	"\n" +
-	"filters_v1\x18\n" +
-	" \x01(\tR\tfiltersV1\x12\x16\n" +
-	"\x06format\x18\v \x01(\tR\x06format\")\n" +
+	"filters_v1\x18\b \x01(\tR\tfiltersV1\x12\x16\n" +
+	"\x06format\x18\t \x01(\tR\x06format\")\n" +
 	"\x13ExportCasesResponse\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data2\xbe\x05\n" +
 	"\x05Cases\x12}\n" +
