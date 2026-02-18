@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/xuri/excelize/v2"
@@ -165,6 +166,7 @@ func (c *CaseService) buildExportPageOptions(
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
 			util.EnsureIdField,
+			util.EnsureCustomField,
 		),
 		options.WithFiltersV1(c.filtrationEnv, req.GetFiltersV1()),
 		options.WithFilters(req.GetFilters()),
@@ -210,8 +212,13 @@ func casesToRows(casesList []*cases.Case, headers []string) ([][]string, error) 
 func caseToRow(caseItem *cases.Case, headers []string) []string {
 	var row []string
 
+	var customMap map[string]interface{}
+	if caseItem.Custom != nil {
+		customMap = caseItem.Custom.AsMap()
+	}
+
 	for _, header := range headers {
-		value := getFieldValueForExport(caseItem, header)
+		value := getFieldValueForExport(caseItem, header, customMap)
 		row = append(row, value)
 	}
 
@@ -219,7 +226,7 @@ func caseToRow(caseItem *cases.Case, headers []string) []string {
 }
 
 // getFieldValueForExport extracts a field value from a case and converts it to string
-func getFieldValueForExport(caseItem *cases.Case, fieldName string) string {
+func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap map[string]interface{}) string {
 	if caseItem == nil {
 		return ""
 	}
@@ -420,8 +427,8 @@ func getFieldValueForExport(caseItem *cases.Case, fieldName string) string {
 		}
 		return ""
 	case "custom":
-		if caseItem.Custom != nil {
-			data, err := json.Marshal(caseItem.Custom)
+		if len(customMap) > 0 {
+			data, err := json.Marshal(customMap)
 			if err != nil {
 				return ""
 			}
@@ -429,7 +436,49 @@ func getFieldValueForExport(caseItem *cases.Case, fieldName string) string {
 		}
 		return ""
 	default:
+		if v, ok := customMap[fieldName]; ok {
+			return formatCustomFieldValue(v)
+		}
 		return ""
+	}
+}
+
+// Objects with "name" are simplified to just the name.
+// Arrays of objects are joined with ", ".
+func formatCustomFieldValue(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	switch val := v.(type) {
+	case string:
+		return val
+	case float64:
+		if val == float64(int64(val)) {
+			return strconv.FormatInt(int64(val), 10)
+		}
+		return strconv.FormatFloat(val, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(val)
+	case map[string]interface{}:
+		if name, ok := val["name"]; ok {
+			return fmt.Sprintf("%v", name)
+		}
+		data, _ := json.Marshal(val)
+		return string(data)
+	case []interface{}:
+		var names []string
+		for _, item := range val {
+			if m, ok := item.(map[string]interface{}); ok {
+				if name, ok := m["name"]; ok {
+					names = append(names, fmt.Sprintf("%v", name))
+					continue
+				}
+			}
+			names = append(names, fmt.Sprintf("%v", item))
+		}
+		return strings.Join(names, ", ")
+	default:
+		return fmt.Sprintf("%v", v)
 	}
 }
 
