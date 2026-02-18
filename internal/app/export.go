@@ -51,7 +51,7 @@ func (c *CaseService) exportCSV(
 			return errors.Internal(fmt.Sprintf("failed to convert cases to rows: %v", err))
 		}
 
-		chunkData, err := generateCSVChunk(fields, rows, page, req.GetFilters())
+		chunkData, err := generateCSVChunk(fields, rows, page)
 		if err != nil {
 			return errors.Internal(fmt.Sprintf("failed to generate CSV chunk: %v", err))
 		}
@@ -115,7 +115,7 @@ func (c *CaseService) exportXLSX(
 	}
 
 	// 2. Generate complete XLSX using StreamWriter
-	xlsxData, err := generateXLSXStreamWriter(fields, allRows, req.GetFilters())
+	xlsxData, err := generateXLSXStreamWriter(fields, allRows)
 	if err != nil {
 		return errors.Internal(fmt.Sprintf("failed to generate XLSX: %v", err))
 	}
@@ -492,22 +492,12 @@ func formatTimeForExport(ts int64) string {
 	return t.Format("2006-01-02 15:04:05")
 }
 
-func generateCSVChunk(headers []string, rows [][]string, page int, filters []string) ([]byte, error) {
+func generateCSVChunk(headers []string, rows [][]string, page int) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	writer := csv.NewWriter(buf)
 
-	// Only write filters and headers on the first page
+	// Only write headers on the first page
 	if page == 1 {
-		for _, filter := range filters {
-			if err := writer.Write([]string{fmt.Sprintf("Filter: %s", filter)}); err != nil {
-				return nil, fmt.Errorf("failed to write filter: %w", err)
-			}
-		}
-		if len(filters) > 0 {
-			if err := writer.Write([]string{}); err != nil {
-				return nil, fmt.Errorf("failed to write separator: %w", err)
-			}
-		}
 		if err := writer.Write(headers); err != nil {
 			return nil, fmt.Errorf("failed to write CSV headers: %w", err)
 		}
@@ -527,7 +517,7 @@ func generateCSVChunk(headers []string, rows [][]string, page int, filters []str
 	return buf.Bytes(), nil
 }
 
-func generateXLSXStreamWriter(headers []string, rows [][]string, filters []string) ([]byte, error) {
+func generateXLSXStreamWriter(headers []string, rows [][]string) ([]byte, error) {
 	f := excelize.NewFile()
 	defer f.Close()
 
@@ -544,15 +534,6 @@ func generateXLSXStreamWriter(headers []string, rows [][]string, filters []strin
 	}
 
 	currentRow := 1
-
-	// Write filters before headers
-	for _, filter := range filters {
-		cell, _ := excelize.CoordinatesToCellName(1, currentRow)
-		if err := sw.SetRow(cell, []any{fmt.Sprintf("Filter: %s", filter)}); err != nil {
-			return nil, fmt.Errorf("failed to write filter row: %w", err)
-		}
-		currentRow++
-	}
 
 	// Write header row with bold style
 	style, err := f.NewStyle(&excelize.Style{
