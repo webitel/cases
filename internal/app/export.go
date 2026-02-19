@@ -494,6 +494,12 @@ func formatTimeForExport(ts int64) string {
 
 func generateCSVChunk(headers []string, rows [][]string, page int) ([]byte, error) {
 	buf := &bytes.Buffer{}
+
+	// Write UTF-8 BOM on the first page so that Excel correctly recognizes the encoding
+	if page == 1 {
+		buf.Write([]byte{0xEF, 0xBB, 0xBF})
+	}
+
 	writer := csv.NewWriter(buf)
 
 	// Only write headers on the first page
