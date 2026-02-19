@@ -182,18 +182,28 @@ func (c *CaseService) buildExportPageOptions(
 
 func getDefaultExportHeaders() []string {
 	return []string{
-		"id",
+		"name",
 		"subject",
-		"description",
-		"status",
 		"priority",
-		"assignee",
-		"created_at",
-		"updated_at",
-		"service",
+		"status_condition",
 		"source",
+		"created_at",
+		"service",
+		"created_by",
 		"group",
+		"assignee",
+		"reporter",
+		"impacted",
+		"sla",
+		"sla_condition",
+		"planned_reaction_at",
+		"planned_resolve_at",
+		"reacted_at",
+		"resolved_at",
+		"close_reason",
+		"close_result",
 		"rating",
+		"description",
 	}
 }
 
@@ -234,6 +244,8 @@ func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap ma
 	switch fieldName {
 	case "id":
 		return strconv.FormatInt(caseItem.Id, 10)
+	case "name":
+		return caseItem.Name
 	case "etag":
 		return caseItem.Etag
 	case "ver":
