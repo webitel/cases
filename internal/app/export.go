@@ -383,7 +383,10 @@ func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap ma
 	case "close_result":
 		return caseItem.CloseResult
 	case "rating":
-		return strconv.FormatInt(caseItem.Rating, 10)
+		if caseItem.Rating != 0 {
+			return strconv.FormatInt(caseItem.Rating, 10)
+		}
+		return ""
 	case "rating_comment":
 		return caseItem.RatingComment
 	case "sla":
@@ -425,9 +428,15 @@ func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap ma
 	case "resolved_at":
 		return formatTimeForExport(caseItem.ResolvedAt)
 	case "difference_in_reaction":
-		return strconv.FormatInt(caseItem.DifferenceInReaction, 10)
+		if caseItem.DifferenceInReaction != 0 {
+			return strconv.FormatInt(caseItem.DifferenceInReaction, 10)
+		}
+		return ""
 	case "difference_in_resolve":
-		return strconv.FormatInt(caseItem.DifferenceInResolve, 10)
+		if caseItem.DifferenceInResolve != 0 {
+			return strconv.FormatInt(caseItem.DifferenceInResolve, 10)
+		}
+		return ""
 	case "author":
 		if caseItem.Author != nil {
 			return caseItem.Author.Name
