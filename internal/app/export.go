@@ -16,6 +16,7 @@ import (
 	"github.com/webitel/cases/internal/api_handler/grpc/options"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/util"
+	"github.com/webitel/webitel-go-kit/pkg/etag"
 )
 
 const pageSize = 5000
@@ -173,6 +174,7 @@ func (c *CaseService) buildExportPageOptions(
 		),
 		options.WithFiltersV1(c.filtrationEnv, req.GetFiltersV1()),
 		options.WithFilters(req.GetFilters()),
+		options.WithIDsAsEtags(etag.EtagCase, req.GetIds()...),
 		options.WithSort(&cases.SearchCasesRequest{Sort: req.GetSort()}),
 		options.WithQin(req.GetQin()),
 	)
