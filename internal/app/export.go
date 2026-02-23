@@ -142,6 +142,9 @@ func (c *CaseService) buildExportPageOptions(
 	fields []string,
 	page, pageSize int,
 ) (*options.SearchOptions, error) {
+	fieldsCopy := make([]string, len(fields))
+	copy(fieldsCopy, fields)
+
 	opts, err := options.NewSearchOptions(
 		ctx,
 		options.WithSearch(&cases.SearchCasesRequest{
@@ -150,7 +153,7 @@ func (c *CaseService) buildExportPageOptions(
 			Q:         req.GetQ(),
 			Ids:       req.GetIds(),
 			Sort:      req.GetSort(),
-			Fields:    fields,
+			Fields:    fieldsCopy,
 			Filters:   req.GetFilters(),
 			ContactId: req.GetContactId(),
 			Qin:       req.GetQin(),
@@ -161,7 +164,7 @@ func (c *CaseService) buildExportPageOptions(
 			Size: int32(pageSize),
 		}),
 		options.WithFields(
-			&cases.SearchCasesRequest{Fields: fields},
+			&cases.SearchCasesRequest{Fields: fieldsCopy},
 			CaseMetadata,
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
@@ -459,6 +462,12 @@ func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap ma
 	default:
 		if v, ok := customMap[fieldName]; ok {
 			return formatCustomFieldValue(v)
+		}
+		// Case-insensitive fallback
+		for k, v := range customMap {
+			if strings.EqualFold(k, fieldName) {
+				return formatCustomFieldValue(v)
+			}
 		}
 		return ""
 	}
