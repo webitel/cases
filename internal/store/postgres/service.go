@@ -121,6 +121,7 @@ func (s *ServiceStore) buildCreateServiceQuery(rpc options.Creator, add *model.S
 		Columns(
 			"name", "description", "code", "created_at", "created_by", "updated_at",
 			"updated_by", "sla_id", "group_id", "assignee_id", "state", "dc", "root_id", "catalog_id",
+			"default_priority_id",
 		).
 		Values(
 			add.Name,
@@ -137,6 +138,7 @@ func (s *ServiceStore) buildCreateServiceQuery(rpc options.Creator, add *model.S
 			rpc.GetAuthOpts().GetDomainId(),
 			add.RootId,
 			add.CatalogId,
+			add.DefaultPriority.GetId(),
 		).
 		Suffix(`RETURNING *`).
 		PlaceholderFormat(sq.Dollar)
@@ -226,8 +228,9 @@ func applyServiceSorting(queryBuilder sq.SelectBuilder, rpc options.Searcher) sq
 		"code":        "service.code",
 		"description": "service.description",
 		"state":       "service.state",
-		"assignee":    "assignee.common_name",
-		"group":       "grp.name",
+		"assignee":          "assignee.common_name",
+		"group":             "grp.name",
+		"default_priority":  "dp.name",
 	}
 
 	sortApplied := false
@@ -291,6 +294,12 @@ func (s *ServiceStore) buildUpdateServiceQuery(rpc options.Updator, input *model
 				updateQueryBuilder = updateQueryBuilder.Set("assignee_id", nil)
 			} else {
 				updateQueryBuilder = updateQueryBuilder.Set("assignee_id", sq.Expr("NULLIF(?, 0)", input.Assignee.Id))
+			}
+		case "default_priority":
+			if input.DefaultPriority == nil || input.DefaultPriority.Id == nil {
+				updateQueryBuilder = updateQueryBuilder.Set("default_priority_id", nil)
+			} else {
+				updateQueryBuilder = updateQueryBuilder.Set("default_priority_id", sq.Expr("NULLIF(?, 0)", input.DefaultPriority.Id))
 			}
 		case "state":
 			updateQueryBuilder = updateQueryBuilder.Set("state", input.State)
@@ -360,6 +369,14 @@ func (s *ServiceStore) buildSelectColumns(base sq.SelectBuilder, fields []string
 			base = base.LeftJoin(fmt.Sprintf("contacts.contact AS assignee ON assignee.id = %s AND assignee.dc = %s",
 				storeutil.Ident(mainTableAlias, "assignee_id"),
 				storeutil.Ident(mainTableAlias, "dc")))
+		case "default_priority":
+			base = base.Column(`jsonb_build_object(
+				'id', dp.id,
+				'name', dp.name,
+				'color', dp.color
+			) AS "default_priority"`)
+			base = base.LeftJoin(fmt.Sprintf("cases.priority AS dp ON dp.id = %s",
+				storeutil.Ident(mainTableAlias, "default_priority_id")))
 		case "created_at":
 			base = base.Column(storeutil.Ident(mainTableAlias, "created_at"))
 		case "updated_at":
