@@ -42,6 +42,8 @@ func (s *CatalogStore) Create(rpc options.Creator, add *cases.Catalog) (*cases.C
 		teamLookups, skillLookups        []byte
 	)
 
+	add.DefaultPriority = &cases.Priority{}
+
 	err := db.QueryRow(rpc, query, args...).Scan(
 		&add.Id, &add.Name, &add.Description, &add.Prefix,
 		&add.Code, &add.State,
@@ -53,6 +55,7 @@ func (s *CatalogStore) Create(rpc options.Creator, add *cases.Catalog) (*cases.C
 		&updatedByLookup.Id, &updatedByLookup.Name,
 		&teamLookups,  // JSON array for teams
 		&skillLookups, // JSON array for skills
+		&add.DefaultPriority.Id, &add.DefaultPriority.Name, &add.DefaultPriority.Color,
 	)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.create.scan_error", err)
@@ -114,12 +117,15 @@ func (s *CatalogStore) buildCreateCatalogQuery(rpc options.Creator, add *cases.C
 	}
 	args = append(args, pq.Array(skillIds)) // $13: skill_ids (could be null)
 
+	args = append(args, add.DefaultPriority.GetId()) // $14: default_priority_id (could be null)
+
 	// SQL query construction
 	query := `
 WITH inserted_catalog AS (
     INSERT INTO cases.service_catalog (
                                        name, description, prefix, code, created_at, created_by, updated_at,
-                                       updated_by, sla_id, status_id, close_reason_group_id, state, dc
+                                       updated_by, sla_id, status_id, close_reason_group_id, state, dc,
+                                       default_priority_id
         ) VALUES ($1,
                   COALESCE(NULLIF($2, ''), NULL), -- Description (NULL if empty string)
                   COALESCE(NULLIF($3, ''), NULL), -- Prefix (NULL if empty string)
@@ -129,9 +135,10 @@ WITH inserted_catalog AS (
                   COALESCE(NULLIF($8, 0), NULL), -- Status ID (NULL if 0)
                   COALESCE(NULLIF($9, 0), NULL), -- Close Reason ID (NULL if 0)
                   $10,
-                  $11)
+                  $11,
+                  COALESCE(NULLIF($14, 0), NULL)) -- Default Priority ID (NULL if 0)
         RETURNING id, name, description, prefix, code, state, sla_id, status_id, close_reason_group_id,
-            created_by, updated_by, created_at, updated_at),
+            created_by, updated_by, created_at, updated_at, default_priority_id),
      inserted_teams AS (
          INSERT INTO cases.team_catalog (catalog_id, team_id, created_by, updated_by, created_at, updated_at, dc)
              SELECT inserted_catalog.id, unnest(COALESCE(NULLIF($12::bigint[], '{}'), NULL)), $6, $6, $5, $5, $11
@@ -171,7 +178,10 @@ SELECT inserted_catalog.id,
        COALESCE(inserted_catalog.updated_by, 0)      AS updated_by,        -- Return 0 if null
        COALESCE(updated_by_user.name, '')            AS updated_by_name,   -- Return empty string if null
        COALESCE(teams_agg.teams, '[]')               AS teams,             -- Return empty array if null
-       COALESCE(skills_agg.skills, '[]')             AS skills             -- Return empty array if null
+       COALESCE(skills_agg.skills, '[]')             AS skills,            -- Return empty array if null
+       COALESCE(inserted_catalog.default_priority_id, 0) AS default_priority_id,
+       COALESCE(dp.name, '')                         AS default_priority_name,
+       COALESCE(dp.color, '')                        AS default_priority_color
 FROM inserted_catalog
          LEFT JOIN cases.sla ON sla.id = inserted_catalog.sla_id
          LEFT JOIN cases.status ON status.id = inserted_catalog.status_id
@@ -179,7 +189,8 @@ FROM inserted_catalog
          LEFT JOIN directory.wbt_user created_by_user ON created_by_user.id = inserted_catalog.created_by
          LEFT JOIN directory.wbt_user updated_by_user ON updated_by_user.id = inserted_catalog.updated_by
          LEFT JOIN teams_agg ON teams_agg.catalog_id = inserted_catalog.id
-         LEFT JOIN skills_agg ON skills_agg.catalog_id = inserted_catalog.id;
+         LEFT JOIN skills_agg ON skills_agg.catalog_id = inserted_catalog.id
+         LEFT JOIN cases.priority AS dp ON dp.id = inserted_catalog.default_priority_id;
 `
 
 	return storeUtil.CompactSQL(query), args
@@ -286,6 +297,9 @@ func (s *CatalogStore) List(
 		}
 		if util.ContainsField(rpc.GetFields(), "close_reason_group") {
 			catalog.CloseReasonGroup = &cases.Lookup{}
+		}
+		if util.ContainsField(rpc.GetFields(), "default_priority") {
+			catalog.DefaultPriority = &cases.Priority{}
 		}
 		if util.ContainsField(rpc.GetFields(), "teams") {
 			catalog.Teams = []*cases.Lookup{}
@@ -448,6 +462,18 @@ func (s *CatalogStore) List(
 					}
 				}
 
+				// Map DefaultPriority to Priority
+				if dpID, ok := raw["default_priority_id"].(float64); ok {
+					if dpName, ok := raw["default_priority_name"].(string); ok {
+						dpColor, _ := raw["default_priority_color"].(string)
+						service.DefaultPriority = &cases.Priority{
+							Id:    int64(dpID),
+							Name:  dpName,
+							Color: dpColor,
+						}
+					}
+				}
+
 				// Map searched field
 				if searched, ok := raw["searched"].(bool); ok {
 					service.Searched = searched
@@ -535,6 +561,9 @@ func (s *CatalogStore) buildCatalogScanArgs(
 
 		case "close_reason_group":
 			scanArgs = append(scanArgs, &catalog.CloseReasonGroup.Id, &catalog.CloseReasonGroup.Name)
+
+		case "default_priority":
+			scanArgs = append(scanArgs, &catalog.DefaultPriority.Id, &catalog.DefaultPriority.Name, &catalog.DefaultPriority.Color)
 
 		case "created_by":
 			scanArgs = append(scanArgs, &catalog.CreatedBy.Id, &catalog.CreatedBy.Name)
@@ -626,6 +655,7 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		"teams":              "COALESCE(JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', teams.team_id, 'name', teams.team_name)) FILTER (WHERE teams.team_id IS NOT NULL), '[]') AS team_data",
 		"skills":             "COALESCE(JSONB_AGG(DISTINCT JSONB_BUILD_OBJECT('id', skills.skill_id, 'name', skills.skill_name)) FILTER (WHERE skills.skill_id IS NOT NULL), '[]') AS skill_data",
 		"root_id":            "COALESCE(catalog.root_id, 0) AS root_id",
+		"default_priority":   "COALESCE(catalog.default_priority_id, 0) AS default_priority_id, COALESCE(dp.name, '') AS default_priority_name, COALESCE(dp.color, '') AS default_priority_color",
 	}
 
 	// Flags for applying CTEs or conditional joins
@@ -698,7 +728,8 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 		LeftJoin("cases.status ON status.id = catalog.status_id").
 		LeftJoin("cases.close_reason_group ON close_reason_group.id = catalog.close_reason_group_id").
 		LeftJoin("directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by").
-		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by")
+		LeftJoin("directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by").
+		LeftJoin("cases.priority AS dp ON dp.id = catalog.default_priority_id")
 
 	// 4) Add conditional WHERE clause for search
 	if selectFlags["search"] {
@@ -928,6 +959,11 @@ COALESCE(
 	if util.ContainsField(subfields, "catalog_id") {
 		jsonFields.WriteString("'catalog_id', service_hierarchy.catalog_id,\n")
 	}
+	if util.ContainsField(subfields, "default_priority") {
+		jsonFields.WriteString("'default_priority_id', COALESCE(service_hierarchy.default_priority_id, 0),\n")
+		jsonFields.WriteString("'default_priority_name', COALESCE(service_hierarchy.default_priority_name, ''),\n")
+		jsonFields.WriteString("'default_priority_color', COALESCE(service_hierarchy.default_priority_color, ''),\n")
+	}
 	// Add the searched field if search is active
 	if searched {
 		jsonFields.WriteString("'searched', service_hierarchy.searched,\n")
@@ -953,6 +989,7 @@ func applySorting(queryBuilder sq.SelectBuilder, rpc options.Searcher) sq.Select
 		"code":               "catalog.code",
 		"status":             "status.name",
 		"close_reason_group": "close_reason_group.name",
+		"default_priority":   "dp.name",
 		"description":        "catalog.description",
 		"state":              "catalog.state",
 	}
@@ -996,6 +1033,7 @@ func buildCatalogGroupByFields(requestedFields []string) []string {
 		"code":               "catalog.code",
 		"description":        "catalog.description",
 		"close_reason_group": "catalog.close_reason_group_id, close_reason_group.name",
+		"default_priority":   "catalog.default_priority_id, dp.name, dp.color",
 		"state":              "catalog.state",
 		"created_by":         "catalog.created_by, created_by_user.name",
 		"updated_by":         "catalog.updated_by, updated_by_user.name",
@@ -1182,6 +1220,15 @@ SELECT catalog.id,
 `)
 	}
 
+	// If user wants "default_priority"
+	if util.ContainsField(serviceFields, "default_priority") {
+		sb.WriteString(`,
+       COALESCE(catalog.default_priority_id, 0) AS default_priority_id,
+       COALESCE(service_dp.name, '') AS default_priority_name,
+       COALESCE(service_dp.color, '') AS default_priority_color
+`)
+	}
+
 	sb.WriteString(`,
 	false AS searched
 `)
@@ -1220,6 +1267,12 @@ LEFT JOIN directory.wbt_user AS service_created_by_user
 		sb.WriteString(`
 LEFT JOIN directory.wbt_user AS service_updated_by_user
        ON service_updated_by_user.id = catalog.updated_by
+`)
+	}
+	if util.ContainsField(serviceFields, "default_priority") {
+		sb.WriteString(`
+LEFT JOIN cases.priority AS service_dp
+       ON service_dp.id = catalog.default_priority_id
 `)
 	}
 
@@ -1309,6 +1362,14 @@ SELECT subservice.id,
 `)
 	}
 
+	if util.ContainsField(serviceFields, "default_priority") {
+		sb.WriteString(`,
+       COALESCE(subservice.default_priority_id, 0) AS default_priority_id,
+       COALESCE(service_dp2.name, '') AS default_priority_name,
+       COALESCE(service_dp2.color, '') AS default_priority_color
+`)
+	}
+
 	if selectFlags["search"] {
 		// etc. for code, state, etc. if you want them in anchor
 		sb.WriteString(`
@@ -1358,6 +1419,12 @@ LEFT JOIN directory.wbt_user AS service_created_by_user2
 		sb.WriteString(`
 LEFT JOIN directory.wbt_user AS service_updated_by_user2
        ON service_updated_by_user2.id = subservice.updated_by
+`)
+	}
+	if util.ContainsField(serviceFields, "default_priority") {
+		sb.WriteString(`
+LEFT JOIN cases.priority AS service_dp2
+       ON service_dp2.id = subservice.default_priority_id
 `)
 	}
 
@@ -1485,6 +1552,8 @@ func (s *CatalogStore) Update(rpc options.Updator, lookup *cases.Catalog) (*case
 		teamLookups, skillLookups        []byte
 	)
 
+	lookup.DefaultPriority = &cases.Priority{}
+
 	err = txManager.QueryRow(rpc, query, args...).Scan(
 		&lookup.Id, &lookup.Name, &createdAt,
 		&lookup.Sla.Id, &lookup.Sla.Name,
@@ -1494,6 +1563,7 @@ func (s *CatalogStore) Update(rpc options.Updator, lookup *cases.Catalog) (*case
 		&updatedByLookup.Id, &updatedByLookup.Name, &updatedAt,
 		&lookup.State,
 		&teamLookups, &skillLookups,
+		&lookup.DefaultPriority.Id, &lookup.DefaultPriority.Name, &lookup.DefaultPriority.Color,
 	)
 	if err != nil {
 		return nil, dberr.NewDBInternalError("postgres.catalog.update.execution_error", err)
@@ -1675,6 +1745,9 @@ WITH root_check AS (
 				sq.Expr("(CASE WHEN (SELECT root_id FROM root_check) IS NULL THEN NULLIF(?, 0) ELSE close_reason_group_id END)",
 					lookup.CloseReasonGroup.Id,
 				))
+		case "default_priority":
+			updateQueryBuilder = updateQueryBuilder.Set("default_priority_id",
+				sq.Expr("NULLIF(?, 0)", lookup.DefaultPriority.GetId()))
 		}
 	}
 
@@ -1712,16 +1785,21 @@ SELECT catalog.id,
        COALESCE((SELECT json_agg(json_build_object('id', skill.id, 'name', skill.name))
                  FROM cases.skill_catalog ss
                           LEFT JOIN call_center.cc_skill skill ON skill.id = ss.skill_id
-                 WHERE ss.catalog_id = catalog.id), '[]') AS skills
+                 WHERE ss.catalog_id = catalog.id), '[]') AS skills,
+       COALESCE(catalog.default_priority_id, 0) AS default_priority_id,
+       COALESCE(dp.name, '') AS default_priority_name,
+       COALESCE(dp.color, '') AS default_priority_color
 FROM updated_catalog AS catalog
          LEFT JOIN cases.sla ON sla.id = catalog.sla_id
          LEFT JOIN cases.status ON status.id = catalog.status_id
          LEFT JOIN cases.close_reason_group ON close_reason_group.id = catalog.close_reason_group_id
          LEFT JOIN directory.wbt_user AS created_by_user ON created_by_user.id = catalog.created_by
          LEFT JOIN directory.wbt_user AS updated_by_user ON updated_by_user.id = catalog.updated_by
+         LEFT JOIN cases.priority AS dp ON dp.id = catalog.default_priority_id
 GROUP BY catalog.id, catalog.name, catalog.created_at, catalog.sla_id, sla.name, catalog.status_id,
          status.name, catalog.close_reason_group_id, close_reason_group.name, catalog.created_by, created_by_user.name,
-         catalog.updated_by, updated_by_user.name, catalog.updated_at, catalog.state;
+         catalog.updated_by, updated_by_user.name, catalog.updated_at, catalog.state,
+         catalog.default_priority_id, dp.name, dp.color;
 	`, checkRoot, updateSQL)
 
 	// Return the final combined query and arguments

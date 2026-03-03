@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+
 	api "github.com/webitel/cases/api/cases"
 	grpcopts "github.com/webitel/cases/internal/api_handler/grpc/options"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
@@ -28,6 +29,7 @@ var ServiceMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*mode
 	{Name: "sla", Default: true},
 	{Name: "group", Default: true},
 	{Name: "assignee", Default: true},
+	{Name: "default_priority", Default: true},
 	{Name: "created_by", Default: true},
 	{Name: "created_at", Default: true},
 	{Name: "updated_by", Default: false},
@@ -54,15 +56,16 @@ func (s *ServiceService) CreateService(ctx context.Context, req *api.CreateServi
 	rootId := int(req.Input.RootId)
 	catalogId := int(req.Input.CatalogId)
 	service := &model.Service{
-		Name:        &req.Input.Name,
-		Description: &req.Input.Description,
-		Code:        &req.Input.Code,
-		Sla:         utils.UnmarshalLookup(req.Input.Sla, &model.GeneralLookup{}),
-		Group:       utils.UnmarshalExtendedLookup(req.Input.Group, &model.GeneralExtendedLookup{}),
-		Assignee:    utils.UnmarshalLookup(req.Input.Assignee, &model.GeneralLookup{}),
-		State:       &req.Input.State,
-		RootId:      &rootId,
-		CatalogId:   &catalogId,
+		Name:            &req.Input.Name,
+		Description:     &req.Input.Description,
+		Code:            &req.Input.Code,
+		Sla:             utils.UnmarshalLookup(req.Input.Sla, &model.GeneralLookup{}),
+		Group:           utils.UnmarshalExtendedLookup(req.Input.Group, &model.GeneralExtendedLookup{}),
+		Assignee:        utils.UnmarshalLookup(req.Input.Assignee, &model.GeneralLookup{}),
+		DefaultPriority: utils.UnmarshalLookup(req.Input.DefaultPriority, &model.GeneralLookup{}),
+		State:           &req.Input.State,
+		RootId:          &rootId,
+		CatalogId:       &catalogId,
 	}
 
 	// Create the Service in the store
@@ -185,15 +188,16 @@ func (s *ServiceService) UpdateService(ctx context.Context, req *api.UpdateServi
 	}
 	rootId := int(req.Input.RootId)
 	service := &model.Service{
-		Id:          int(req.Id),
-		Name:        &req.Input.Name,
-		Description: &req.Input.Description,
-		Code:        &req.Input.Code,
-		Sla:         utils.UnmarshalLookup(req.Input.Sla, &model.GeneralLookup{}),
-		Group:       utils.UnmarshalExtendedLookup(req.Input.Group, &model.GeneralExtendedLookup{}),
-		Assignee:    utils.UnmarshalLookup(req.Input.Assignee, &model.GeneralLookup{}),
-		State:       &req.Input.State,
-		RootId:      &rootId,
+		Id:              int(req.Id),
+		Name:            &req.Input.Name,
+		Description:     &req.Input.Description,
+		Code:            &req.Input.Code,
+		Sla:             utils.UnmarshalLookup(req.Input.Sla, &model.GeneralLookup{}),
+		Group:           utils.UnmarshalExtendedLookup(req.Input.Group, &model.GeneralExtendedLookup{}),
+		Assignee:        utils.UnmarshalLookup(req.Input.Assignee, &model.GeneralLookup{}),
+		DefaultPriority: utils.UnmarshalLookup(req.Input.DefaultPriority, &model.GeneralLookup{}),
+		State:           &req.Input.State,
+		RootId:          &rootId,
 	}
 
 	r, e := s.app.UpdateService(updateOpts, service)
@@ -218,21 +222,30 @@ func (s *ServiceService) Marshal(in *model.Service) (*api.Service, error) {
 		}
 	}
 
+	var defaultPriority *api.Priority
+	if in.DefaultPriority != nil && in.DefaultPriority.Id != nil && *in.DefaultPriority.Id != 0 {
+		defaultPriority = &api.Priority{
+			Id:   int64(*in.DefaultPriority.Id),
+			Name: utils.Dereference(in.DefaultPriority.Name),
+		}
+	}
+
 	return &api.Service{
-		Id:          int64(in.Id),
-		Name:        utils.Dereference(in.Name),
-		RootId:      int64(utils.Dereference(in.RootId)),
-		Description: utils.Dereference(in.Description),
-		Code:        utils.Dereference(in.Code),
-		State:       utils.Dereference(in.State),
-		Sla:         utils.MarshalLookup(in.Sla),
-		Group:       utils.MarshalExtendedLookup(in.Group),
-		Assignee:    utils.MarshalLookup(in.Assignee),
-		CreatedAt:   utils.MarshalTime(in.CreatedAt),
-		UpdatedAt:   utils.MarshalTime(in.UpdatedAt),
-		CreatedBy:   utils.MarshalLookup(in.Author),
-		UpdatedBy:   utils.MarshalLookup(in.Editor),
-		CatalogId:   int64(utils.Dereference(in.CatalogId)),
+		Id:              int64(in.Id),
+		Name:            utils.Dereference(in.Name),
+		RootId:          int64(utils.Dereference(in.RootId)),
+		Description:     utils.Dereference(in.Description),
+		Code:            utils.Dereference(in.Code),
+		State:           utils.Dereference(in.State),
+		Sla:             utils.MarshalLookup(in.Sla),
+		Group:           utils.MarshalExtendedLookup(in.Group),
+		Assignee:        utils.MarshalLookup(in.Assignee),
+		DefaultPriority: defaultPriority,
+		CreatedAt:       utils.MarshalTime(in.CreatedAt),
+		UpdatedAt:       utils.MarshalTime(in.UpdatedAt),
+		CreatedBy:       utils.MarshalLookup(in.Author),
+		UpdatedBy:       utils.MarshalLookup(in.Editor),
+		CatalogId:       int64(utils.Dereference(in.CatalogId)),
 		// Service and Searched fields can be set as needed
 		Service:  resServices,
 		Searched: utils.Dereference(in.Searched),

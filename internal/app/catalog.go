@@ -32,6 +32,7 @@ var CatalogMetadata = model.NewObjectMetadata(model.ScopeDictionary, "", []*mode
 	{Name: "sla", Default: true},
 	{Name: "status", Default: true},
 	{Name: "close_reason_group", Default: true},
+	{Name: "default_priority", Default: true},
 	{Name: "teams", Default: true},
 	{Name: "skills", Default: true},
 	{Name: "created_at", Default: true},
@@ -63,6 +64,9 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	if req.Input.CloseReasonGroup == nil || req.Input.CloseReasonGroup.GetId() == 0 {
 		return nil, errors.InvalidArgument("Close reason group is required")
 	}
+	if req.Input.DefaultPriority == nil || req.Input.DefaultPriority.GetId() == 0 {
+		return nil, errors.InvalidArgument("Default priority is required")
+	}
 	// Define create options
 	createOpts, err := options.NewCreateOptions(
 		ctx,
@@ -82,6 +86,7 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 		Sla:              req.Input.Sla,
 		Status:           req.Input.Status,
 		CloseReasonGroup: req.Input.CloseReasonGroup,
+		DefaultPriority:  &cases.Priority{Id: req.Input.DefaultPriority.GetId()},
 	}
 
 	// Handle multiselect fields: teams and skills
@@ -270,6 +275,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 		Sla:              req.Input.Sla,
 		Status:           req.Input.Status,
 		CloseReasonGroup: req.Input.CloseReasonGroup,
+		DefaultPriority:  &cases.Priority{Id: req.Input.DefaultPriority.GetId()},
 	}
 	// Add teams if provided
 	if len(req.Input.Teams) > 0 {

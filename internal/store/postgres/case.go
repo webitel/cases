@@ -233,6 +233,7 @@ type ServiceRelatedDefs struct {
 	CloseReasonGroupID int
 	AssigneeID         int
 	GroupID            int
+	DefaultPriorityID  int
 }
 
 // ScanServiceDefs fetches the SLA ID, reaction time, resolution time, calendar ID, and SLA condition ID for the last child service with a non-NULL SLA ID.
@@ -254,6 +255,7 @@ WITH RECURSIVE
                close_reason_group_id,
                assignee_id,
                group_id,
+               default_priority_id,
                ARRAY [id] AS path,
                0 as level
         FROM cases.service_catalog
@@ -268,6 +270,7 @@ WITH RECURSIVE
                COALESCE(sc.close_reason_group_id, sh.close_reason_group_id),
                sc.assignee_id,
                sc.group_id,
+               COALESCE(sh.default_priority_id, sc.default_priority_id),
                sh.path || sc.id,
                sh.level + 1
         FROM cases.service_catalog sc
@@ -297,6 +300,13 @@ WITH RECURSIVE
                     OR sh.group_id IS NOT NULL
                     ORDER BY sh.level ASC
                     LIMIT 1),
+    default_priority AS (
+        SELECT default_priority_id
+        FROM service_hierarchy
+        WHERE default_priority_id IS NOT NULL
+        ORDER BY level ASC
+        LIMIT 1
+    ),
     priority_condition AS (
         SELECT sc.id AS sla_condition_id,
                sc.reaction_time,
@@ -316,7 +326,8 @@ SELECT ss.sla_id,
        COALESCE(ss.status_id, fs.status_id) AS status_id,
        COALESCE(ss.close_reason_group_id, fs.close_reason_group_id) AS close_reason_group_id,
        d.assignee_id,
-       d.group_id
+       d.group_id,
+       (SELECT default_priority_id FROM default_priority) AS default_priority_id
 FROM sla_service ss
 LEFT JOIN fallback_status fs ON true
 LEFT JOIN priority_condition pc ON true
@@ -332,6 +343,7 @@ LEFT JOIN defaults d on true;
 		scanner.ScanInt(&res.CloseReasonGroupID),
 		scanner.ScanInt(&res.AssigneeID),
 		scanner.ScanInt(&res.GroupID),
+		scanner.ScanInt(&res.DefaultPriorityID),
 	)
 	if err != nil {
 		return nil, ParseError(err)
@@ -427,13 +439,13 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"related": extractRelatedJSON(input.Related),
 	}
 
-	priorityCTE := `
+	priorityCTE := fmt.Sprintf(`
 	priority_cte AS (
-		SELECT COALESCE(NULLIF(:priority, 0), id) AS priority_id
+		SELECT COALESCE(NULLIF(:priority, 0), NULLIF(%d, 0), id) AS priority_id
 		FROM cases.priority
 		ORDER BY id
 		LIMIT 1
-	)`
+	)`, serviceDefs.DefaultPriorityID)
 
 	prefixCTE := `
 	    service_cte AS(
