@@ -3300,6 +3300,9 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				// Chain prepared query context for filtering stage next ...
 				req.AddCustomContext(customCtxState, custom)
 				var scan func(custompgx.RecordExtendable) sql.Scanner
+				if ok {
+					nested = nil
+				}
 				base.Query, scan, err = custom.refer.Columns(
 					base.Query, custom.table, nested...,
 				)
