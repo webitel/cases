@@ -175,10 +175,16 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 
 	return list.GetItems()[0], nil
 }
-
+/* 
 // ExportCases exports cases in the specified format (CSV or XLSX) using server-side streaming
 func (c *CaseService) ExportCases(req *cases.ExportCasesRequest, stream cases.Cases_ExportCasesServer) error {
 	ctx := stream.Context()
+
+	// Check export_data_grid permission
+	session := optsutil.GetAutherOutOfContext(ctx)
+	if !session.HasPermission("export_data_grid") {
+		return errors.Forbidden("permission denied: export_data_grid permission required")
+	}
 
 	// Validate format
 	format := req.GetFormat()
@@ -215,7 +221,7 @@ func (c *CaseService) ExportCases(req *cases.ExportCasesRequest, stream cases.Ca
 	default:
 		return errors.InvalidArgument(fmt.Sprintf("unsupported format: %s", format))
 	}
-}
+} */
 
 // lookupToService converts a Lookup to a Service struct
 func lookupToService(lookup *cases.Lookup) *cases.Service {
