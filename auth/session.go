@@ -40,6 +40,7 @@ type Auther interface {
 	CheckLicenseAccess(string) bool
 	CheckObacAccess(string, AccessMode) bool
 	IsRbacCheckRequired(string, AccessMode) bool
+	HasPermission(perm string) bool
 	HasSuperPermission(permission SuperPermission) bool
 
 	GetMainAccessMode() AccessMode

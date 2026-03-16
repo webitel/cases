@@ -161,6 +161,15 @@ func (s *UserAuthSession) IsExpired() bool {
 	return time.Now().Unix() > s.ExpiresAt
 }
 
+func (s *UserAuthSession) HasPermission(perm string) bool {
+	for _, p := range s.Permissions {
+		if p == perm {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *UserAuthSession) HasSuperPermission(permission auth.SuperPermission) bool {
 	switch permission {
 	case auth.SuperCreatePermission:

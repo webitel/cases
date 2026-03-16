@@ -25,6 +25,7 @@ import (
 	"github.com/webitel/cases/internal/api_handler/grpc"
 	"github.com/webitel/cases/internal/api_handler/grpc/options"
 	"github.com/webitel/cases/internal/api_handler/grpc/options/shared"
+	optsutil "github.com/webitel/cases/internal/api_handler/grpc/options/util"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/internal/model"
@@ -175,7 +176,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 
 	return list.GetItems()[0], nil
 }
-/* 
+
 // ExportCases exports cases in the specified format (CSV or XLSX) using server-side streaming
 func (c *CaseService) ExportCases(req *cases.ExportCasesRequest, stream cases.Cases_ExportCasesServer) error {
 	ctx := stream.Context()
@@ -221,7 +222,7 @@ func (c *CaseService) ExportCases(req *cases.ExportCasesRequest, stream cases.Ca
 	default:
 		return errors.InvalidArgument(fmt.Sprintf("unsupported format: %s", format))
 	}
-} */
+}
 
 // lookupToService converts a Lookup to a Service struct
 func lookupToService(lookup *cases.Lookup) *cases.Service {
