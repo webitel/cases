@@ -201,6 +201,10 @@ func (s *SLAService) LocateSLA(
 		return nil, err
 	}
 
+	if len(items) == 0 {
+		return nil, errors.NotFound("SLA not found")
+	}
+
 	res, err := s.Marshal(items[0])
 	if err != nil {
 		return nil, err

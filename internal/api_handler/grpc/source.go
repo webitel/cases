@@ -180,10 +180,10 @@ func (s *SourceService) LocateSource(ctx context.Context, req *_go.LocateSourceR
 
 	// Check if the status condition was found
 	if len(items) == 0 {
-		return nil, errors.New("multiple rows found", errors.WithCode(codes.NotFound))
+		return nil, errors.New("source not found", errors.WithCode(codes.NotFound))
 	}
 	if len(items) > 1 {
-		return nil, errors.New("not found", errors.WithCode(codes.InvalidArgument))
+		return nil, errors.New("multiple rows found", errors.WithCode(codes.InvalidArgument))
 	}
 
 	// Return the found status condition
