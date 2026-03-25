@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rabbitmq/amqp091-go"
+
 	customreg "github.com/webitel/custom/registry"
 	customstore "github.com/webitel/custom/store"
 )
@@ -33,8 +35,26 @@ func (app *App) initCustom() error {
 }
 
 func subscribeCustomDatasetUpdates(app *App) {
+	log := slog.Default()
+
+	for {
+		err := runCustomDatasetSubscription(app)
+		if err != nil {
+			log.Error("[CUSTOM::EVENT] subscription failed, reconnecting...", "error", err)
+		} else {
+			log.Warn("[CUSTOM::EVENT] subscription disconnected, reconnecting...")
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func runCustomDatasetSubscription(app *App) error {
 	config := app.config
-	rabbit, _ := app.rabbitConn.Channel(context.Background())
+	rabbit, err := app.rabbitConn.Channel(context.Background())
+	if err != nil {
+		return err
+	}
 
 	var (
 		// err        error
@@ -46,7 +66,7 @@ func subscribeCustomDatasetUpdates(app *App) {
 		bindingKey = "custom.dataset.#"
 		handler    = clusterCustomDatasetEventHandler
 	)
-	_, err := rabbit.QueueDeclare(
+	_, err = rabbit.QueueDeclare(
 		queueName, // name
 		false,     // durable
 		true,      // autoDelete
@@ -54,9 +74,19 @@ func subscribeCustomDatasetUpdates(app *App) {
 		false,     // noWait
 		args,      // args
 	)
-
 	if err != nil {
-		panic(err)
+		return err
+	}
+
+	err = rabbit.QueueBind(
+		queueName,  // name
+		bindingKey, // key
+		exchange,   // exchange
+		false,      // noWait
+		args,       // args
+	)
+	if err != nil {
+		return err
 	}
 
 	deliveries, err := rabbit.Consume(
@@ -68,21 +98,8 @@ func subscribeCustomDatasetUpdates(app *App) {
 		false,     // nowait
 		nil,       // args
 	)
-
 	if err != nil {
-		panic(err)
-	}
-
-	err = rabbit.QueueBind(
-		queueName,  // name
-		bindingKey, // key
-		exchange,   // exchange
-		false,      // noWait
-		args,       // args
-	)
-
-	if err != nil {
-		panic(err)
+		return err
 	}
 
 	for recv := range deliveries {
@@ -90,10 +107,10 @@ func subscribeCustomDatasetUpdates(app *App) {
 		handler(recv)
 	}
 	// disconnected !
+	return nil
 }
 
 func clusterCustomDatasetEventHandler(recv amqp091.Delivery) (_ error) {
-
 	// [layout]: "custom.dataset.{event}.{dc}.{name}"
 	const (
 		_ = iota // routeWordConstCustom = iota
