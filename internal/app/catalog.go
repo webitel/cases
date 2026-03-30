@@ -64,6 +64,9 @@ func (s *CatalogService) CreateCatalog(ctx context.Context, req *cases.CreateCat
 	if req.Input.CloseReasonGroup == nil || req.Input.CloseReasonGroup.GetId() == 0 {
 		return nil, errors.InvalidArgument("Close reason group is required")
 	}
+	if req.Input.DefaultPriority == nil || req.Input.DefaultPriority.GetId() == 0 {
+		return nil, errors.InvalidArgument("Default priority is required")
+	}
 	// Define create options
 	createOpts, err := options.NewCreateOptions(
 		ctx,
