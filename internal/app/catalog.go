@@ -257,7 +257,7 @@ func (s *CatalogService) UpdateCatalog(ctx context.Context, req *cases.UpdateCat
 	// Build update options
 	updateOpts, err := options.NewUpdateOptions(
 		ctx,
-		options.WithUpdateFields(req, CaseMetadata),
+		options.WithUpdateFields(req, CatalogMetadata),
 		options.WithUpdateMasker(req),
 	)
 	if err != nil {
