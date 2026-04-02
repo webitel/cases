@@ -1552,6 +1552,17 @@ func (s *CatalogStore) Update(rpc options.Updator, lookup *cases.Catalog) (*case
 		teamLookups, skillLookups        []byte
 	)
 
+	// Initialize lookup fields to avoid nil pointer dereference during scan
+	// (PATCH requests may only send a subset of fields, leaving others nil)
+	if lookup.Sla == nil {
+		lookup.Sla = &cases.Lookup{}
+	}
+	if lookup.Status == nil {
+		lookup.Status = &cases.Lookup{}
+	}
+	if lookup.CloseReasonGroup == nil {
+		lookup.CloseReasonGroup = &cases.Lookup{}
+	}
 	lookup.DefaultPriority = &cases.Priority{}
 
 	err = txManager.QueryRow(rpc, query, args...).Scan(
