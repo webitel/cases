@@ -20,6 +20,19 @@ import (
 
 const pageSize = 5000
 
+// displayHeaders converts internal field names back to user-facing header names.
+// "_custom" is an internal marker for the system field and should display as "custom".
+func displayHeaders(fields []string) []string {
+	headers := make([]string, len(fields))
+	for i, f := range fields {
+		if f == "_custom" {
+			headers[i] = "custom"
+		} else {
+			headers[i] = f
+		}
+	}
+	return headers
+}
 
 // exportCSV streams CSV data page by page — each page is sent as a separate gRPC chunk.
 func (c *CaseService) exportCSV(
@@ -451,7 +464,8 @@ func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap ma
 			return strconv.FormatInt(caseItem.Author.Id, 10)
 		}
 		return ""
-	case "custom":
+	case "_custom":
+		// System field: all custom fields serialized as JSON.
 		if len(customMap) > 0 {
 			data, err := json.Marshal(customMap)
 			if err != nil {
@@ -535,7 +549,7 @@ func generateCSVChunk(headers []string, rows [][]string, page int) ([]byte, erro
 
 	// Only write headers on the first page
 	if page == 1 {
-		if err := writer.Write(headers); err != nil {
+		if err := writer.Write(displayHeaders(headers)); err != nil {
 			return nil, fmt.Errorf("failed to write CSV headers: %w", err)
 		}
 	}
@@ -581,7 +595,8 @@ func generateXLSXStreamWriter(headers []string, rows [][]string) ([]byte, error)
 	}
 
 	headerRow := make([]any, len(headers))
-	for i, h := range headers {
+	display := displayHeaders(headers)
+	for i, h := range display {
 		headerRow[i] = excelize.Cell{StyleID: style, Value: h}
 	}
 	headerCell, _ := excelize.CoordinatesToCellName(1, currentRow)
