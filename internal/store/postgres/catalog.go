@@ -687,18 +687,12 @@ func (s *CatalogStore) buildSearchCatalogQuery(
 			case "skills":
 				selectFlags["skills"] = true
 			}
+		} else if field == "services" {
+			selectFlags["services"] = true
+			// Build dynamic JSONB_AGG for services
+			serviceAgg := buildServiceJSONBAgg(subfields, selectFlags["search"])
+			selectedFields = append(selectedFields, serviceAgg)
 		}
-	}
-
-	// 2) Check if the user requested "services" in rpc.Fields.
-	// If so, we build columns from serviceFields
-	// Check if the user requested "services" in rpc.Fields.
-	if util.ContainsField(rpc.GetFields(), "services") {
-		selectFlags["services"] = true
-
-		// Build dynamic JSONB_AGG for services
-		serviceAgg := buildServiceJSONBAgg(subfields, selectFlags["search"])
-		selectedFields = append(selectedFields, serviceAgg)
 	}
 
 	if selectFlags["search"] {
@@ -1783,9 +1777,9 @@ SELECT catalog.id,
        COALESCE(status.name, '') AS status_name,
        COALESCE(catalog.close_reason_group_id, 0) AS close_reason_group_id,
        COALESCE(close_reason_group.name, '')                    AS close_reason_group_name,
-       catalog.created_by,
+       COALESCE(catalog.created_by, 0) AS created_by,
        COALESCE(created_by_user.name, '')                 AS created_by_name,
-       catalog.updated_by,
+       COALESCE(catalog.updated_by, 0) AS updated_by,
        COALESCE(updated_by_user.name, '')                               AS updated_by_name,
        catalog.updated_at,
 	   catalog.state,
