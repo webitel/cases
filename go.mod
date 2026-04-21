@@ -11,7 +11,7 @@ replace github.com/webitel/proto/gen => github.com/webitel/custom/proto/gen v0.0
 require (
 	buf.build/gen/go/webitel/webitel-go/grpc/go v1.5.1-20251023140604-18fe32d76f81.2
 	buf.build/gen/go/webitel/webitel-go/protocolbuffers/go v1.36.1-20251023140604-18fe32d76f81.1
-	github.com/gammazero/deque v1.0.0
+	github.com/gammazero/deque v1.2.1
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3
 	github.com/jackc/pgtype v1.14.4
 	github.com/webitel/custom v0.0.0-20250609174947-59aa851deea6
@@ -37,6 +37,7 @@ require (
 	github.com/webitel/webitel-go-kit/pkg/etag v0.0.0-20250625095313-01c817ef50a5
 	github.com/webitel/webitel-go-kit/pkg/filters v0.0.0-20251021093442-951bb1a29ad5
 	github.com/webitel/webitel-go-kit/pkg/watcher v0.0.0-20250625090308-5d99e087fa32
+	github.com/xuri/excelize/v2 v2.10.1
 )
 
 require (
@@ -53,12 +54,17 @@ require (
 	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/richardlehane/mscfb v1.0.6 // indirect
+	github.com/richardlehane/msoleps v1.0.6 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
+	github.com/tiendc/go-deepcopy v1.7.2 // indirect
+	github.com/xuri/efp v0.0.1 // indirect
+	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.12.2 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.12.2 // indirect
@@ -107,12 +113,12 @@ require (
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect
 	go.opentelemetry.io/otel/trace v1.38.0
-	golang.org/x/crypto v0.38.0 // indirect
+	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
-	golang.org/x/net v0.40.0 // indirect
-	golang.org/x/sync v0.17.0
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/sync v0.19.0
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250818200422-3122310a409c
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
