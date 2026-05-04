@@ -20,6 +20,30 @@ import (
 
 const pageSize = 5000
 
+func normalizeExportFields(fields []string, hasSchemaCustom bool) []string {
+	normalized := append([]string(nil), fields...)
+
+	if hasSchemaCustom {
+		count := 0
+		for i, f := range normalized {
+			if f == "custom" {
+				count++
+				if count >= 2 {
+					normalized[i] = "_custom"
+				}
+			}
+		}
+	} else {
+		for i, f := range normalized {
+			if f == "custom" {
+				normalized[i] = "_custom"
+			}
+		}
+	}
+
+	return util.DeduplicateFields(normalized)
+}
+
 // displayHeaders converts internal field names back to user-facing header names.
 // "_custom" is an internal marker for the system field and should display as "custom".
 func displayHeaders(fields []string) []string {
@@ -466,14 +490,7 @@ func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap ma
 		return ""
 	case "_custom":
 		// System field: all custom fields serialized as JSON.
-		if len(customMap) > 0 {
-			data, err := json.Marshal(customMap)
-			if err != nil {
-				return ""
-			}
-			return string(data)
-		}
-		return ""
+		return marshalCustomMap(customMap)
 	default:
 		if v, ok := customMap[fieldName]; ok {
 			return formatCustomFieldValue(v)
@@ -486,6 +503,18 @@ func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap ma
 		}
 		return ""
 	}
+}
+
+// marshalCustomMap serializes all custom fields as a JSON object.
+func marshalCustomMap(customMap map[string]interface{}) string {
+	if len(customMap) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(customMap)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 // Objects with "name" are simplified to just the name.

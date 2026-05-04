@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	customreg "github.com/webitel/custom/registry"
 	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"github.com/webitel/webitel-go-kit/pkg/filters"
@@ -204,21 +205,19 @@ func (c *CaseService) ExportCases(req *cases.ExportCasesRequest, stream cases.Ca
 		fields = getDefaultExportHeaders()
 	}
 
-	// If "custom" appears twice, the second occurrence means the system field
-	// (all custom fields as JSON). Rename it to "_custom" internally.
-	customCount := 0
-	for i, f := range fields {
-		if f == "custom" {
-			customCount++
-			if customCount == 2 {
-				fields[i] = "_custom"
-				break
-			}
+	hasCustomField := false
+
+	if ext, err := customreg.GetExtension(ctx, session.GetDomainId(), "cases"); err == nil && ext != nil {
+		if fd := ext.Fields().ByName("custom"); fd != nil {
+			hasCustomField = true
 		}
 	}
 
+	fields = normalizeExportFields(fields, hasCustomField)
+
 	// Send gRPC metadata headers immediately
 	filename := fmt.Sprintf("cases_%s.%s", time.Now().Format("2006-01-02_15-04-05"), format)
+
 	header := metadata.Pairs(
 		"filename", filename,
 		"format", string(exportFormat),
