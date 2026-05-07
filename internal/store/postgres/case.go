@@ -315,7 +315,7 @@ WITH RECURSIVE
         INNER JOIN cases.priority_sla_condition psc ON sc.id = psc.sla_condition_id
         INNER JOIN cases.sla sla ON sc.sla_id = sla.id
         INNER JOIN sla_service ss ON sla.id = ss.sla_id
-        WHERE psc.priority_id = $2
+        WHERE psc.priority_id = COALESCE(NULLIF($2, 0), (SELECT default_priority_id FROM default_priority))
         LIMIT 1
     )
 SELECT ss.sla_id,
@@ -2062,18 +2062,43 @@ func (c *CaseStore) recalculateCaseTimings(
 		return nil
 	}
 
-	var priorityID int64
-	if upd.GetPriority() != nil && upd.GetPriority().GetId() != 0 {
+	derivePriorityFromService := shouldApplyServicePriority(rpc.GetMask())
+
+	var (
+		priorityID      int64
+		currentPriority int64
+		hasExplicitPrio = upd.GetPriority() != nil && upd.GetPriority().GetId() != 0
+	)
+
+	if hasExplicitPrio {
 		priorityID = upd.GetPriority().GetId()
 	} else {
-		if err := txManager.QueryRow(rpc, "SELECT priority FROM cases.\"case\" WHERE id = $1", caseID).Scan(&priorityID); err != nil {
+		if err := txManager.QueryRow(rpc, "SELECT priority FROM cases.\"case\" WHERE id = $1", caseID).Scan(&currentPriority); err != nil {
 			return err
 		}
+		priorityID = currentPriority
 	}
 
 	serviceDefs, err := c.ScanServiceDefs(rpc, txManager, svcID, priorityID)
 	if err != nil {
 		return err
+	}
+
+	// When the service changes without an explicit priority update, follow the
+	// same fallback chain as createCase and move the case onto the service default.
+	if derivePriorityFromService && serviceDefs.DefaultPriorityID != 0 {
+		servicePriorityID := int64(serviceDefs.DefaultPriorityID)
+		if servicePriorityID != priorityID {
+			priorityID = servicePriorityID
+			serviceDefs, err = c.ScanServiceDefs(rpc, txManager, svcID, priorityID)
+			if err != nil {
+				return err
+			}
+		}
+		if upd.GetPriority() == nil {
+			upd.Priority = &_go.Priority{}
+		}
+		upd.Priority.Id = servicePriorityID
 	}
 
 	// Calculate planned times within the transaction
@@ -2285,6 +2310,10 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 				Set("planned_reaction_at", util.LocalTime(input.GetPlannedReactionAt())).
 				Set("name", sq.Expr("CONCAT((SELECT prefix FROM prefix_cte), '_', CAST(? AS TEXT))",
 					strconv.FormatInt(rpc.GetEtags()[0].GetOid(), 10)))
+
+			if shouldApplyServicePriority(rpc.GetMask()) && input.GetPriority() != nil && input.GetPriority().GetId() != 0 {
+				updateBuilder = updateBuilder.Set("priority", input.GetPriority().GetId())
+			}
 
 			// Add prefix CTE
 			updateBuilder = updateBuilder.Prefix(", "+prefixCTE, input.Service.GetId())
@@ -2537,6 +2566,10 @@ func handleServiceDefaultValues(builder sq.UpdateBuilder, input *_go.Case, rpc o
 	}
 
 	return builder
+}
+
+func shouldApplyServicePriority(mask []string) bool {
+	return util.ContainsField(mask, "service") && !util.ContainsField(mask, "priority")
 }
 
 func (c *CaseStore) joinRequiredTable(ctx context.Context, rootTable string, field string) (joins []string, alias string, err error) {
