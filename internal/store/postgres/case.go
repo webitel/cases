@@ -3192,6 +3192,9 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 				return scanner.ScanRowLookup(&caseItem.SlaCondition)
 			})
 		case "comments":
+			if auther != nil && !auther.CheckObacAccess(model.ScopeCaseComments, auth.Read) {
+				continue
+			}
 			commentFields := []string{"id", "ver", "text", "created_by", "author", "created_at", "can_edit"}
 			subquery, scanPlan, dbErr := buildCommentsSelectAsSubquery(auther, commentFields, base.TableAlias)
 			if dbErr != nil {
