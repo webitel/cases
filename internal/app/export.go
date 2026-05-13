@@ -1,4 +1,5 @@
 package app
+
 import (
 	"bytes"
 	"context"
@@ -11,11 +12,12 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
+	"github.com/webitel/webitel-go-kit/pkg/etag"
+
 	"github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/internal/api_handler/grpc/options"
 	"github.com/webitel/cases/internal/errors"
 	"github.com/webitel/cases/util"
-	"github.com/webitel/webitel-go-kit/pkg/etag"
 )
 
 const pageSize = 5000
@@ -88,7 +90,7 @@ func (c *CaseService) exportCSV(
 			return errors.Internal(fmt.Sprintf("failed to convert cases to rows: %v", err))
 		}
 
-		chunkData, err := generateCSVChunk(fields, rows, page)
+		chunkData, err := generateCSVChunk(fields, rows, page, req.GetSeparator())
 		if err != nil {
 			return errors.Internal(fmt.Sprintf("failed to generate CSV chunk: %v", err))
 		}
@@ -263,7 +265,7 @@ func casesToRows(casesList []*cases.Case, headers []string) ([][]string, error) 
 func caseToRow(caseItem *cases.Case, headers []string) []string {
 	var row []string
 
-	var customMap map[string]interface{}
+	var customMap map[string]any
 	if caseItem.Custom != nil {
 		customMap = caseItem.Custom.AsMap()
 	}
@@ -277,7 +279,7 @@ func caseToRow(caseItem *cases.Case, headers []string) []string {
 }
 
 // getFieldValueForExport extracts a field value from a case and converts it to string
-func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap map[string]interface{}) string {
+func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap map[string]any) string {
 	if caseItem == nil {
 		return ""
 	}
@@ -506,7 +508,7 @@ func getFieldValueForExport(caseItem *cases.Case, fieldName string, customMap ma
 }
 
 // marshalCustomMap serializes all custom fields as a JSON object.
-func marshalCustomMap(customMap map[string]interface{}) string {
+func marshalCustomMap(customMap map[string]any) string {
 	if len(customMap) == 0 {
 		return ""
 	}
@@ -519,10 +521,11 @@ func marshalCustomMap(customMap map[string]interface{}) string {
 
 // Objects with "name" are simplified to just the name.
 // Arrays of objects are joined with ", ".
-func formatCustomFieldValue(v interface{}) string {
+func formatCustomFieldValue(v any) string {
 	if v == nil {
 		return ""
 	}
+
 	switch val := v.(type) {
 	case string:
 		return val
@@ -533,16 +536,16 @@ func formatCustomFieldValue(v interface{}) string {
 		return strconv.FormatFloat(val, 'f', -1, 64)
 	case bool:
 		return strconv.FormatBool(val)
-	case map[string]interface{}:
+	case map[string]any:
 		if name, ok := val["name"]; ok {
 			return fmt.Sprintf("%v", name)
 		}
 		data, _ := json.Marshal(val)
 		return string(data)
-	case []interface{}:
+	case []any:
 		var names []string
 		for _, item := range val {
-			if m, ok := item.(map[string]interface{}); ok {
+			if m, ok := item.(map[string]any); ok {
 				if name, ok := m["name"]; ok {
 					names = append(names, fmt.Sprintf("%v", name))
 					continue
@@ -566,12 +569,27 @@ func formatTimeForExport(ts int64) string {
 	return t.Format("2006-01-02 15:04:05")
 }
 
-func generateCSVChunk(headers []string, rows [][]string, page int) ([]byte, error) {
+func generateCSVChunk(headers []string, rows [][]string, page int, separator string) ([]byte, error) {
 	buf := &bytes.Buffer{}
 
 	// Write UTF-8 BOM on the first page so that Excel correctly recognizes the encoding
 	if page == 1 {
 		buf.Write([]byte{0xEF, 0xBB, 0xBF})
+	}
+
+	// When a custom separator is provided, join values with it as-is (no CSV
+	// quoting). This supports multi-character "word" separators such as "coma".
+	if separator != "" {
+		if page == 1 {
+			buf.WriteString(strings.Join(displayHeaders(headers), separator))
+			buf.WriteByte('\n')
+		}
+
+		for _, row := range rows {
+			buf.WriteString(strings.Join(row, separator))
+			buf.WriteByte('\n')
+		}
+		return buf.Bytes(), nil
 	}
 
 	writer := csv.NewWriter(buf)

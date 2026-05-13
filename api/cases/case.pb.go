@@ -1687,6 +1687,7 @@ type ExportCasesRequest struct {
 	Qin           string                 `protobuf:"bytes,7,opt,name=qin,proto3" json:"qin,omitempty"`
 	FiltersV1     string                 `protobuf:"bytes,8,opt,name=filters_v1,json=filtersV1,proto3" json:"filters_v1,omitempty"`
 	Format        string                 `protobuf:"bytes,9,opt,name=format,proto3" json:"format,omitempty"`
+	Separator     string                 `protobuf:"bytes,10,opt,name=separator,proto3" json:"separator,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1780,6 +1781,13 @@ func (x *ExportCasesRequest) GetFiltersV1() string {
 func (x *ExportCasesRequest) GetFormat() string {
 	if x != nil {
 		return x.Format
+	}
+	return ""
+}
+
+func (x *ExportCasesRequest) GetSeparator() string {
+	if x != nil {
+		return x.Separator
 	}
 	return ""
 }
@@ -1993,7 +2001,7 @@ const file_case_proto_rawDesc = "" +
 	"\x0erating_comment\x18\x10 \x01(\tR\rratingComment\x12I\n" +
 	"\x10status_condition\x18\x11 \x01(\v2\x1e.webitel.cases.StatusConditionR\x0fstatusCondition\x12'\n" +
 	"\x06userID\x18\x14 \x01(\v2\x0f.general.LookupR\x06userID\x12/\n" +
-	"\x06custom\x18d \x01(\v2\x17.google.protobuf.StructR\x06custom\"\xe2\x01\n" +
+	"\x06custom\x18d \x01(\v2\x17.google.protobuf.StructR\x06custom\"\x80\x02\n" +
 	"\x12ExportCasesRequest\x12\f\n" +
 	"\x01q\x18\x01 \x01(\tR\x01q\x12\x10\n" +
 	"\x03ids\x18\x02 \x03(\tR\x03ids\x12\x12\n" +
@@ -2005,7 +2013,9 @@ const file_case_proto_rawDesc = "" +
 	"\x03qin\x18\a \x01(\tR\x03qin\x12\x1d\n" +
 	"\n" +
 	"filters_v1\x18\b \x01(\tR\tfiltersV1\x12\x16\n" +
-	"\x06format\x18\t \x01(\tR\x06format\")\n" +
+	"\x06format\x18\t \x01(\tR\x06format\x12\x1c\n" +
+	"\tseparator\x18\n" +
+	" \x01(\tR\tseparator\")\n" +
 	"\x13ExportCasesResponse\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data2\xbe\x05\n" +
 	"\x05Cases\x12}\n" +
