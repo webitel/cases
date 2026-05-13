@@ -123,6 +123,11 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 		return nil, err
 	}
 
+	if authOpts := searchOpts.GetAuthOpts(); authOpts != nil &&
+		!authOpts.CheckObacAccess(model.ScopeCaseComments, auth.Read) {
+		searchOpts.Fields = util.RemoveSliceElement(searchOpts.Fields, "comments")
+	}
+
 	ftsFilters := util.GetFilter(req.GetFilters(), "fts")
 	if len(ftsFilters) > 0 && len(req.GetIds()) == 0 {
 		return &cases.CaseList{
@@ -162,6 +167,12 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if err != nil {
 		return nil, err
 	}
+
+	if authOpts := searchOpts.GetAuthOpts(); authOpts != nil &&
+		!authOpts.CheckObacAccess(model.ScopeCaseComments, auth.Read) {
+		searchOpts.Fields = util.RemoveSliceElement(searchOpts.Fields, "comments")
+	}
+
 	list, err := c.app.Store.Case().List(searchOpts)
 	if err != nil {
 		return nil, err
