@@ -55,3 +55,63 @@ func TestGetFilter(t *testing.T) {
 		t.Errorf("GetFilter() = %v, want %v", res, want)
 	}
 }
+
+func TestPartitionFilter(t *testing.T) {
+	cases := []struct {
+		name        string
+		input       []string
+		field       string
+		wantMatched []FilterExpr
+		wantRest    []string
+	}{
+		{
+			name:        "single match strips entry",
+			input:       []string{"fts=hello", "status=1"},
+			field:       "fts",
+			wantMatched: []FilterExpr{{Field: "fts", Operator: "=", Value: "hello"}},
+			wantRest:    []string{"status=1"},
+		},
+		{
+			name:        "no match keeps everything",
+			input:       []string{"status=1", "type=bug"},
+			field:       "fts",
+			wantMatched: nil,
+			wantRest:    []string{"status=1", "type=bug"},
+		},
+		{
+			name:        "empty value not matched and not stripped",
+			input:       []string{"fts=", "status=1"},
+			field:       "fts",
+			wantMatched: nil,
+			wantRest:    []string{"fts=", "status=1"},
+		},
+		{
+			name:  "multiple matches all stripped",
+			input: []string{"fts=foo", "fts!=bar", "status=1"},
+			field: "fts",
+			wantMatched: []FilterExpr{
+				{Field: "fts", Operator: "=", Value: "foo"},
+				{Field: "fts", Operator: "!=", Value: "bar"},
+			},
+			wantRest: []string{"status=1"},
+		},
+		{
+			name:        "spaces handled",
+			input:       []string{" fts = query text ", "status=1"},
+			field:       "fts",
+			wantMatched: []FilterExpr{{Field: "fts", Operator: "=", Value: "query text"}},
+			wantRest:    []string{"status=1"},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			matched, rest := PartitionFilter(c.input, c.field)
+			if !reflect.DeepEqual(matched, c.wantMatched) {
+				t.Errorf("matched = %v, want %v", matched, c.wantMatched)
+			}
+			if !reflect.DeepEqual(rest, c.wantRest) {
+				t.Errorf("rest = %v, want %v", rest, c.wantRest)
+			}
+		})
+	}
+}

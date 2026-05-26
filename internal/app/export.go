@@ -65,46 +65,61 @@ func (c *CaseService) exportCSV(
 	ctx context.Context,
 	req *cases.ExportCasesRequest,
 	fields []string,
+	skipStoreQuery bool,
 	stream cases.Cases_ExportCasesServer,
 ) error {
-	page := 1
+	sentAnyChunk := false
 
-	for {
-		pageOpts, err := c.buildExportPageOptions(ctx, req, fields, page, pageSize)
-		if err != nil {
-			return errors.Internal(fmt.Sprintf("failed to build search options: %v", err))
-		}
-
-		list, err := c.app.Store.Case().List(pageOpts)
-		if err != nil {
-			return errors.Internal(fmt.Sprintf("failed to list cases: %v", err))
-		}
-
-		casesPage := list.GetItems()
-		if len(casesPage) == 0 {
-			break
-		}
-
-		rows, err := casesToRows(casesPage, fields)
-		if err != nil {
-			return errors.Internal(fmt.Sprintf("failed to convert cases to rows: %v", err))
-		}
-
-		chunkData, err := generateCSVChunk(fields, rows, page, req.GetSeparator())
-		if err != nil {
-			return errors.Internal(fmt.Sprintf("failed to generate CSV chunk: %v", err))
-		}
-
-		if len(chunkData) > 0 {
-			if err := stream.Send(&cases.ExportCasesResponse{Data: chunkData}); err != nil {
-				return errors.Internal(fmt.Sprintf("failed to send chunk: %v", err))
+	if !skipStoreQuery {
+		page := 1
+		for {
+			pageOpts, err := c.buildExportPageOptions(ctx, req, fields, page, pageSize)
+			if err != nil {
+				return errors.Internal(fmt.Sprintf("failed to build search options: %v", err))
 			}
-		}
 
-		if !list.Next {
-			break
+			list, err := c.app.Store.Case().List(pageOpts)
+			if err != nil {
+				return errors.Internal(fmt.Sprintf("failed to list cases: %v", err))
+			}
+
+			casesPage := list.GetItems()
+			if len(casesPage) == 0 {
+				break
+			}
+
+			rows, err := casesToRows(casesPage, fields)
+			if err != nil {
+				return errors.Internal(fmt.Sprintf("failed to convert cases to rows: %v", err))
+			}
+
+			chunkData, err := generateCSVChunk(fields, rows, page, req.GetSeparator())
+			if err != nil {
+				return errors.Internal(fmt.Sprintf("failed to generate CSV chunk: %v", err))
+			}
+
+			if len(chunkData) > 0 {
+				if err := stream.Send(&cases.ExportCasesResponse{Data: chunkData}); err != nil {
+					return errors.Internal(fmt.Sprintf("failed to send chunk: %v", err))
+				}
+				sentAnyChunk = true
+			}
+
+			if !list.Next {
+				break
+			}
+			page++
 		}
-		page++
+	}
+
+	if !sentAnyChunk {
+		chunkData, err := generateCSVChunk(fields, nil, 1, req.GetSeparator())
+		if err != nil {
+			return errors.Internal(fmt.Sprintf("failed to generate CSV header: %v", err))
+		}
+		if err := stream.Send(&cases.ExportCasesResponse{Data: chunkData}); err != nil {
+			return errors.Internal(fmt.Sprintf("failed to send chunk: %v", err))
+		}
 	}
 
 	return nil
@@ -114,46 +129,44 @@ func (c *CaseService) exportXLSX(
 	ctx context.Context,
 	req *cases.ExportCasesRequest,
 	fields []string,
+	skipStoreQuery bool,
 	stream cases.Cases_ExportCasesServer,
 ) error {
 	var allRows [][]string
-	page := 1
 
-	// 1. Collect all rows
-	for {
-		pageOpts, err := c.buildExportPageOptions(ctx, req, fields, page, pageSize)
-		if err != nil {
-			return errors.Internal(fmt.Sprintf("failed to build search options: %v", err))
+	if !skipStoreQuery {
+		page := 1
+		for {
+			pageOpts, err := c.buildExportPageOptions(ctx, req, fields, page, pageSize)
+			if err != nil {
+				return errors.Internal(fmt.Sprintf("failed to build search options: %v", err))
+			}
+
+			list, err := c.app.Store.Case().List(pageOpts)
+			if err != nil {
+				return errors.Internal(fmt.Sprintf("failed to list cases: %v", err))
+			}
+
+			casesPage := list.GetItems()
+			if len(casesPage) == 0 {
+				break
+			}
+
+			rows, err := casesToRows(casesPage, fields)
+			if err != nil {
+				return errors.Internal(fmt.Sprintf("failed to convert cases to rows: %v", err))
+			}
+
+			allRows = append(allRows, rows...)
+
+			if !list.Next {
+				break
+			}
+			page++
 		}
-
-		list, err := c.app.Store.Case().List(pageOpts)
-		if err != nil {
-			return errors.Internal(fmt.Sprintf("failed to list cases: %v", err))
-		}
-
-		casesPage := list.GetItems()
-		if len(casesPage) == 0 {
-			break
-		}
-
-		rows, err := casesToRows(casesPage, fields)
-		if err != nil {
-			return errors.Internal(fmt.Sprintf("failed to convert cases to rows: %v", err))
-		}
-
-		allRows = append(allRows, rows...)
-
-		if !list.Next {
-			break
-		}
-		page++
 	}
 
-	if len(allRows) == 0 {
-		return errors.InvalidArgument("no cases to export")
-	}
-
-	// 2. Generate complete XLSX using StreamWriter
+	// 2. Generate complete XLSX using StreamWriter (header-only if allRows is empty)
 	xlsxData, err := generateXLSXStreamWriter(fields, allRows)
 	if err != nil {
 		return errors.Internal(fmt.Sprintf("failed to generate XLSX: %v", err))

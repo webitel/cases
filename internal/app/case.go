@@ -226,6 +226,12 @@ func (c *CaseService) ExportCases(req *cases.ExportCasesRequest, stream cases.Ca
 
 	fields = normalizeExportFields(fields, hasCustomField)
 
+	ftsMatched, err := c.resolveFtsIdsForExport(ctx, req)
+	if err != nil {
+		return err
+	}
+	skipStoreQuery := ftsMatched && len(req.GetIds()) == 0
+
 	// Send gRPC metadata headers immediately
 	filename := fmt.Sprintf("cases_%s.%s", time.Now().Format("2006-01-02_15-04-05"), format)
 
@@ -239,9 +245,9 @@ func (c *CaseService) ExportCases(req *cases.ExportCasesRequest, stream cases.Ca
 
 	switch exportFormat {
 	case model.ExportFormatCSV:
-		return c.exportCSV(ctx, req, fields, stream)
+		return c.exportCSV(ctx, req, fields, skipStoreQuery, stream)
 	case model.ExportFormatXLSX:
-		return c.exportXLSX(ctx, req, fields, stream)
+		return c.exportXLSX(ctx, req, fields, skipStoreQuery, stream)
 	default:
 		return errors.InvalidArgument(fmt.Sprintf("unsupported format: %s", format))
 	}

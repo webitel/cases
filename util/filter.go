@@ -46,3 +46,29 @@ func GetFilter(filters []string, field string) []FilterExpr {
 	}
 	return result
 }
+
+// PartitionFilter splits filters into entries matching `field`and the remaining raw strings.
+func PartitionFilter(filters []string, field string) (matched []FilterExpr, rest []string) {
+	operators := []string{"!=", ">=", "<=", "=", ">", "<"}
+	for _, raw := range filters {
+		trimmed := strings.TrimSpace(raw)
+		consumed := false
+		for _, op := range operators {
+			idx := strings.Index(trimmed, op)
+			if idx <= 0 {
+				continue
+			}
+			lhs := strings.TrimSpace(trimmed[:idx])
+			value := strings.TrimSpace(trimmed[idx+len(op):])
+			if lhs == field && value != "" {
+				matched = append(matched, FilterExpr{Field: lhs, Operator: op, Value: value})
+				consumed = true
+			}
+			break
+		}
+		if !consumed {
+			rest = append(rest, raw)
+		}
+	}
+	return matched, rest
+}

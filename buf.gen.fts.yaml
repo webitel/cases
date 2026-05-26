@@ -1,0 +1,15 @@
+version: v2
+
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.30.0
+    out: api/fts
+    opt: paths=source_relative
+
+  - remote: buf.build/grpc/go:v1.3.0
+    out: api/fts
+    opt: paths=source_relative
+
+inputs:
+  - git_repo: "https://github.com/webitel/protos"
+    branch: "main"
+    subdir: fts

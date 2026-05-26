@@ -20,6 +20,7 @@ import (
 	"log/slog"
 
 	"github.com/webitel/cases/api/engine"
+	ftspb "github.com/webitel/cases/api/fts"
 	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -46,6 +47,8 @@ type App struct {
 	engineAgentClient   engine.AgentServiceClient
 	wtelLogger          *wlogger.Logger
 	ftsClient           *ftsclient.Client
+	ftsSearchConn       *grpc.ClientConn
+	ftsSearchClient     ftspb.FTSServiceClient
 	watcherManager      watcher.Manager
 	caseResolutionTimer *TimerTask[*App]
 }
@@ -171,6 +174,17 @@ func New(config *conf.AppConfig, shutdown func(ctx context.Context) error) (*App
 		return nil, errors.New("unable to create storage client", errors.WithCause(err))
 	}
 
+	// --------- FTS Search gRPC Connection ---------
+	// Used by ExportCases to resolve `fts=<query>` filters into a set of case IDs
+	app.ftsSearchConn, err = grpc.NewClient(fmt.Sprintf("consul://%s/fts?wait=14s", config.Consul.Address),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy": "round_robin"}`),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, errors.New("unable to create fts search client", errors.WithCause(err))
+	}
+	app.ftsSearchClient = ftspb.NewFTSServiceClient(app.ftsSearchConn)
+
 	return app, nil
 }
 
@@ -204,6 +218,11 @@ func (a *App) Stop() error { // Change return type to standard error
 	err = a.webitelAppConn.Close()
 	if err != nil {
 		return err
+	}
+	if a.ftsSearchConn != nil {
+		if err := a.ftsSearchConn.Close(); err != nil {
+			return err
+		}
 	}
 
 	if a.caseResolutionTimer != nil {
