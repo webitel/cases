@@ -18,7 +18,7 @@ const (
 )
 
 // ftsExportObjectNames lists the FTS object scopes searched during export.
-var ftsExportObjectNames = []string{"cases", "case_comments"}
+var ftsExportObjectNames = []string{"cases"}
 
 func (c *CaseService) resolveFtsIdsForExport(ctx context.Context, req *cases.ExportCasesRequest) (bool, error) {
 	ftsFilters, rest := util.PartitionFilter(req.GetFilters(), "fts")
