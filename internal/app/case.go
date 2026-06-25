@@ -12,8 +12,10 @@ import (
 
 	"github.com/google/cel-go/cel"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	customrel "github.com/webitel/custom/reflect"
 	customreg "github.com/webitel/custom/registry"
 	wlogger "github.com/webitel/webitel-go-kit/infra/logger_client"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
@@ -267,7 +269,7 @@ func lookupToService(lookup *cases.Lookup) *cases.Service {
 
 func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseRequest) (*cases.Case, error) {
 	// Validate required fields
-	appErr := c.ValidateCreateInput(req.GetInput())
+	appErr := c.ValidateCreateInput(ctx, req.GetInput())
 	if appErr != nil {
 		return nil, appErr
 	}
@@ -451,7 +453,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseRequest) (*cases.UpdateCaseResponse, error) {
 	var original *cases.Case
 
-	appErr := c.ValidateUpdateInput(req.Input, req.XJsonMask)
+	appErr := c.ValidateUpdateInput(ctx, req.Input, req.XJsonMask)
 	if appErr != nil {
 		return nil, appErr
 	}
@@ -468,6 +470,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 			CaseMetadata.CopyWithAllFieldsSetToDefault(),
 			util.DeduplicateFields,
 			util.ParseFieldsForEtag,
+			util.EnsureCustomField,
 		),
 		options.WithUpdateEtag(&tag),
 		options.WithUpdateMasker(req),
@@ -600,13 +603,14 @@ func BuildCaseDiff(original, updated *cases.Case) []*cases.FieldChange {
 	var changes []*cases.FieldChange
 
 	compare := func(field string, oldVal, newVal any) {
-		if !reflect.DeepEqual(oldVal, newVal) {
-			changes = append(changes, &cases.FieldChange{
-				Field:    field,
-				OldValue: toProtoValue(oldVal),
-				NewValue: toProtoValue(newVal),
-			})
+		if valuesEqual(oldVal, newVal) {
+			return
 		}
+		changes = append(changes, &cases.FieldChange{
+			Field:    field,
+			OldValue: toProtoValue(oldVal),
+			NewValue: toProtoValue(newVal),
+		})
 	}
 
 	// Compare scalar fields
@@ -633,6 +637,16 @@ func BuildCaseDiff(original, updated *cases.Case) []*cases.FieldChange {
 	compare("custom", original.Custom, updated.Custom)
 
 	return changes
+}
+
+func valuesEqual(oldVal, newVal any) bool {
+	oldMsg, oldOk := oldVal.(proto.Message)
+	newMsg, newOk := newVal.(proto.Message)
+	if oldOk && newOk {
+		return proto.Equal(oldMsg, newMsg)
+	}
+
+	return reflect.DeepEqual(oldVal, newVal)
 }
 
 func toProtoValue(v any) *structpb.Value {
@@ -1026,6 +1040,7 @@ func NewCaseService(app *App) (*CaseService, error) {
 }
 
 func (c *CaseService) ValidateUpdateInput(
+	ctx context.Context,
 	input *cases.InputCase,
 	xJsonMask []string,
 ) error {
@@ -1060,6 +1075,10 @@ func (c *CaseService) ValidateUpdateInput(
 			if input.Service.GetId() == 0 {
 				return errors.InvalidArgument("Service is required")
 			}
+		case "custom":
+			if err := c.validateRequiredCustomFields(ctx, input.GetCustom()); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1068,7 +1087,7 @@ func (c *CaseService) ValidateUpdateInput(
 
 // region UTILITY
 
-func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) error {
+func (c *CaseService) ValidateCreateInput(ctx context.Context, input *cases.InputCreateCase) error {
 	if input == nil {
 		return errors.InvalidArgument("Input is required")
 	}
@@ -1084,8 +1103,83 @@ func (c *CaseService) ValidateCreateInput(input *cases.InputCreateCase) error {
 	if input.Reporter.GetId() == 0 {
 		return errors.InvalidArgument("Case reporter is required")
 	}
+	if err := c.validateRequiredCustomFields(ctx, input.GetCustom()); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func (c *CaseService) validateRequiredCustomFields(ctx context.Context, data *structpb.Struct) error {
+	session := optsutil.GetAutherOutOfContext(ctx)
+	ext, err := customreg.GetExtension(ctx, session.GetDomainId(), "cases")
+	if err != nil {
+		return errors.Internal("Failed to load case custom schema", errors.WithCause(err))
+	}
+	if ext == nil {
+		return nil
+	}
+
+	return validateRequiredCustomFields(data, ext.Fields())
+}
+
+func validateRequiredCustomFields(data *structpb.Struct, fields customrel.FieldDescriptors) error {
+	requiredFields := collectRequiredCustomFields(fields)
+	if len(requiredFields) == 0 {
+		return nil
+	}
+
+	if data == nil {
+		return errors.InvalidArgument(`Case field "custom" is required`)
+	}
+
+	values := data.GetFields()
+	for _, fd := range requiredFields {
+		value, ok := values[fd.Name()]
+		if !ok {
+			return errors.InvalidArgument(fmt.Sprintf("Case custom field %q is required", fd.Name()))
+		}
+		if isEmptyRequiredCustomValue(value) {
+			return errors.InvalidArgument(fmt.Sprintf("Case custom field %q is required and cannot be empty", fd.Name()))
+		}
+	}
+
+	return nil
+}
+
+func collectRequiredCustomFields(fields customrel.FieldDescriptors) []customrel.FieldDescriptor {
+	if fields == nil {
+		return nil
+	}
+
+	required := make([]customrel.FieldDescriptor, 0)
+	fields.Range(func(fd customrel.FieldDescriptor) bool {
+		if fd.IsRequired() && !fd.IsPrimary() && !fd.IsReadonly() && !fd.IsDisabled() {
+			required = append(required, fd)
+		}
+		return true
+	})
+
+	return required
+}
+
+func isEmptyRequiredCustomValue(value *structpb.Value) bool {
+	if value == nil {
+		return true
+	}
+
+	switch kind := value.GetKind().(type) {
+	case nil, *structpb.Value_NullValue:
+		return true
+	case *structpb.Value_StringValue:
+		return strings.TrimSpace(kind.StringValue) == ""
+	case *structpb.Value_StructValue:
+		return kind.StructValue == nil || len(kind.StructValue.GetFields()) == 0
+	case *structpb.Value_ListValue:
+		return kind.ListValue == nil || len(kind.ListValue.GetValues()) == 0
+	default:
+		return false
+	}
 }
 
 // NormalizeResponseCases validates and normalizes the response cases.CaseList to the front-end side.

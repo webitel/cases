@@ -50,7 +50,7 @@ func WithUpdateFields(
 			))
 		}
 		for _, modifier := range fieldsModifiers {
-			modifier(o.Fields)
+			o.Fields = modifier(o.Fields)
 		}
 		o.Fields, o.UnknownFields = util.SplitKnownAndUnknownFields(o.Fields, md.GetAllFields())
 		o.Fields = util.ParseFieldsForEtag(o.Fields)
