@@ -42,6 +42,7 @@ jobs:
       binary-name: webitel-cases
       ldflags: >
         -s -w
+        -X github.com/webitel/cases/internal/model.CurrentVersion=${{ needs.prepare.outputs.version }}
         
 
       version: ${{ needs.prepare.outputs.version }}
