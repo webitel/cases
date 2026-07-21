@@ -50,7 +50,7 @@ jobs:
       binary-name: webitel-cases
       ldflags: >
         -s -w
-        -X github.com/webitel/cases/internal/model.CurrentVersion=${{ needs.prepare.outputs.version }}
+        -X github.com/webitel/cases/internal/model.CurrentVersion=${{ format('{0}{1}', needs.prepare.outputs.version, (github.event.repository.default_branch == github.ref_name || github.event.pull_request.number) && '-dev' || '') }}
         
 
       version: ${{ needs.prepare.outputs.version }}
