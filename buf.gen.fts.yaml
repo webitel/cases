@@ -11,5 +11,5 @@ plugins:
 
 inputs:
   - git_repo: "https://github.com/webitel/protos"
-    branch: "main"
+    branch: "v26.06"
     subdir: fts
