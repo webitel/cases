@@ -110,6 +110,6 @@ func TimePtr(ms int64) *time.Time {
 	if ms == 0 {
 		return nil
 	}
-	t := time.UnixMilli(ms)
+	t := time.UnixMilli(ms).UTC()
 	return &t
 }
