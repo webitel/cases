@@ -412,7 +412,7 @@ call_data AS (
 		WHERE a.id = c.queue_id
 	) queue ON true
 	LEFT JOIN LATERAL (
-		SELECT jsonb_agg(jsonb_build_object('id', f1.id, 'size', f1.size, 'mime_type', f1.mime_type, 'name', f1.name, 'start_at', f1.created_at * 1000)) AS data
+		SELECT jsonb_agg(jsonb_build_object('id', f1.id, 'size', f1.size, 'mime_type', f1.mime_type, 'name', f1.name, 'start_at', f1.created_at * 1000, 'channel', f1.channel)) AS data
 		FROM storage.files f1
 		WHERE f1.domain_id = c.domain_id
 		  AND NOT f1.removed IS TRUE

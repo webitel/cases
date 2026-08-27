@@ -3,6 +3,8 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/webitel/cases/api/cases"
 	grpcopts "github.com/webitel/cases/internal/api_handler/grpc/options"
 	"github.com/webitel/cases/internal/api_handler/grpc/utils"
@@ -275,6 +277,8 @@ func (s *CaseTimelineService) MarshalCallEvent(event *model.CallEvent) *cases.Ca
 			MimeType: file.MimeType,
 			StartAt:  file.StartAt,
 			StopAt:   file.StopAt,
+			Channel:  file.Channel,
+			Type:     callFileType(file.Channel, file.MimeType),
 		})
 	}
 
@@ -291,6 +295,24 @@ func (s *CaseTimelineService) MarshalCallEvent(event *model.CallEvent) *cases.Ca
 	}
 
 	return result
+}
+
+func callFileType(channel, mime string) cases.CallFileType {
+	const fileChannelScreenRecordings = "screenrecording" // engine/model.FileChannelScreenRecordings
+	switch {
+	case channel == fileChannelScreenRecordings:
+		return cases.CallFileType_file_type_screensharing
+	case strings.HasPrefix(mime, "audio/"):
+		return cases.CallFileType_file_type_audio
+	case strings.HasPrefix(mime, "video/"):
+		return cases.CallFileType_file_type_video
+	case strings.HasPrefix(mime, "image/"):
+		return cases.CallFileType_file_type_screenshot
+	case strings.HasPrefix(mime, "application/pdf"):
+		return cases.CallFileType_file_type_pdf
+	default:
+		return cases.CallFileType_file_type_empty
+	}
 }
 
 // MarshalEmailEvent converts a model.EmailEvent to its gRPC representation.
