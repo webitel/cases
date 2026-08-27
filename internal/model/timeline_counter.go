@@ -130,6 +130,7 @@ type CallFile struct {
 	MimeType string `json:"mime_type"`
 	StartAt  int64  `json:"start_at"`
 	StopAt   int64  `json:"stop_at"`
+	Channel  string `json:"channel"`
 }
 
 // Attachment represents a file attached to an email
