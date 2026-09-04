@@ -19,12 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Cases_SearchCases_FullMethodName = "/webitel.cases.Cases/SearchCases"
-	Cases_ExportCases_FullMethodName = "/webitel.cases.Cases/ExportCases"
-	Cases_LocateCase_FullMethodName  = "/webitel.cases.Cases/LocateCase"
-	Cases_CreateCase_FullMethodName  = "/webitel.cases.Cases/CreateCase"
-	Cases_UpdateCase_FullMethodName  = "/webitel.cases.Cases/UpdateCase"
-	Cases_DeleteCase_FullMethodName  = "/webitel.cases.Cases/DeleteCase"
+	Cases_SearchCases_FullMethodName        = "/webitel.cases.Cases/SearchCases"
+	Cases_ExportCases_FullMethodName        = "/webitel.cases.Cases/ExportCases"
+	Cases_LocateCase_FullMethodName         = "/webitel.cases.Cases/LocateCase"
+	Cases_LocateCaseNeighbor_FullMethodName = "/webitel.cases.Cases/LocateCaseNeighbor"
+	Cases_CreateCase_FullMethodName         = "/webitel.cases.Cases/CreateCase"
+	Cases_UpdateCase_FullMethodName         = "/webitel.cases.Cases/UpdateCase"
+	Cases_DeleteCase_FullMethodName         = "/webitel.cases.Cases/DeleteCase"
 )
 
 // CasesClient is the client API for Cases service.
@@ -39,6 +40,8 @@ type CasesClient interface {
 	ExportCases(ctx context.Context, in *ExportCasesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExportCasesResponse], error)
 	// RPC method to retrieve a specific case by its etag identifier.
 	LocateCase(ctx context.Context, in *LocateCaseRequest, opts ...grpc.CallOption) (*Case, error)
+	// RPC method to step one case forward or backward through the list.
+	LocateCaseNeighbor(ctx context.Context, in *LocateCaseNeighborRequest, opts ...grpc.CallOption) (*Case, error)
 	// RPC method for creating a new case.
 	CreateCase(ctx context.Context, in *CreateCaseRequest, opts ...grpc.CallOption) (*Case, error)
 	// RPC method for updating an existing case.
@@ -94,6 +97,16 @@ func (c *casesClient) LocateCase(ctx context.Context, in *LocateCaseRequest, opt
 	return out, nil
 }
 
+func (c *casesClient) LocateCaseNeighbor(ctx context.Context, in *LocateCaseNeighborRequest, opts ...grpc.CallOption) (*Case, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Case)
+	err := c.cc.Invoke(ctx, Cases_LocateCaseNeighbor_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *casesClient) CreateCase(ctx context.Context, in *CreateCaseRequest, opts ...grpc.CallOption) (*Case, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Case)
@@ -136,6 +149,8 @@ type CasesServer interface {
 	ExportCases(*ExportCasesRequest, grpc.ServerStreamingServer[ExportCasesResponse]) error
 	// RPC method to retrieve a specific case by its etag identifier.
 	LocateCase(context.Context, *LocateCaseRequest) (*Case, error)
+	// RPC method to step one case forward or backward through the list.
+	LocateCaseNeighbor(context.Context, *LocateCaseNeighborRequest) (*Case, error)
 	// RPC method for creating a new case.
 	CreateCase(context.Context, *CreateCaseRequest) (*Case, error)
 	// RPC method for updating an existing case.
@@ -160,6 +175,9 @@ func (UnimplementedCasesServer) ExportCases(*ExportCasesRequest, grpc.ServerStre
 }
 func (UnimplementedCasesServer) LocateCase(context.Context, *LocateCaseRequest) (*Case, error) {
 	return nil, status.Error(codes.Unimplemented, "method LocateCase not implemented")
+}
+func (UnimplementedCasesServer) LocateCaseNeighbor(context.Context, *LocateCaseNeighborRequest) (*Case, error) {
+	return nil, status.Error(codes.Unimplemented, "method LocateCaseNeighbor not implemented")
 }
 func (UnimplementedCasesServer) CreateCase(context.Context, *CreateCaseRequest) (*Case, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateCase not implemented")
@@ -238,6 +256,24 @@ func _Cases_LocateCase_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Cases_LocateCaseNeighbor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LocateCaseNeighborRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CasesServer).LocateCaseNeighbor(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Cases_LocateCaseNeighbor_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CasesServer).LocateCaseNeighbor(ctx, req.(*LocateCaseNeighborRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Cases_CreateCase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateCaseRequest)
 	if err := dec(in); err != nil {
@@ -306,6 +342,10 @@ var Cases_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LocateCase",
 			Handler:    _Cases_LocateCase_Handler,
+		},
+		{
+			MethodName: "LocateCaseNeighbor",
+			Handler:    _Cases_LocateCaseNeighbor_Handler,
 		},
 		{
 			MethodName: "CreateCase",
