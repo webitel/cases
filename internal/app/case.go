@@ -155,7 +155,70 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	return list, nil
 }
 
+type caseNavContext interface {
+	GetQ() string
+	GetQin() string
+	GetSort() string
+	GetFilters() []string
+	GetFiltersV1() string
+	GetContactId() string
+}
+
+var (
+	_ caseNavContext = (*cases.LocateCaseRequest)(nil)
+	_ caseNavContext = (*cases.LocateCaseNeighborRequest)(nil)
+)
+
+func (c *CaseService) caseNavOptions(ctx context.Context, req caseNavContext) (*options.SearchOptions, error) {
+	navOpts, err := options.NewSearchOptions(
+		ctx,
+		options.WithSearchAsParam(req.GetQ()),
+		options.WithFiltersV1(c.filtrationEnv, req.GetFiltersV1()),
+		options.WithFilters(req.GetFilters()),
+		options.WithSort(req),
+		options.WithQin(req.GetQin()),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if contactID := req.GetContactId(); contactID != "" {
+		navOpts.Filters = append(navOpts.Filters, fmt.Sprintf("contact=%s", contactID))
+	}
+
+	return navOpts, nil
+}
+
+func (c *CaseService) attachNeighborFlags(navOpts *options.SearchOptions, cs *cases.Case) error {
+	prevID, nextID, err := c.app.Store.Case().FindNeighbors(navOpts, cs.GetId())
+	if err != nil {
+		return err
+	}
+	cs.HasPrev = prevID != nil
+	cs.HasNext = nextID != nil
+
+	return nil
+}
+
 func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseRequest) (*cases.Case, error) {
+	result, err := c.locateCase(ctx, req, options.WithIDsAsEtags(etag.EtagCase, req.GetEtag()))
+	if err != nil {
+		return nil, err
+	}
+
+	navOpts, err := c.caseNavOptions(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = c.attachNeighborFlags(navOpts, result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (c *CaseService) locateCase(ctx context.Context, req shared.Fielder, idOpt options.SearchOption) (*cases.Case, error) {
 	searchOpts, err := options.NewLocateOptions(
 		ctx,
 		options.WithFields(req, CaseMetadata,
@@ -164,7 +227,7 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 			util.EnsureIdField,
 			util.EnsureCustomField,
 		),
-		options.WithIDsAsEtags(etag.EtagCase, req.GetEtag()),
+		idOpt,
 	)
 	if err != nil {
 		return nil, err
@@ -183,12 +246,59 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 	if len(list.GetItems()) == 0 {
 		return nil, errors.NotFound("entity not found")
 	}
+
 	err = c.NormalizeResponseCases(list, req)
 	if err != nil {
 		return nil, err
 	}
 
 	return list.GetItems()[0], nil
+}
+
+// LocateCaseNeighbor steps one case forward or backward through the list described by the
+// request's filters/sort
+func (c *CaseService) LocateCaseNeighbor(ctx context.Context, req *cases.LocateCaseNeighborRequest) (*cases.Case, error) {
+	anchorIDs, err := util.ParseIds([]string{req.GetEtag()}, etag.EtagCase)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(anchorIDs) != 1 {
+		return nil, errors.InvalidArgument("etag must resolve to exactly one case")
+	}
+	navOpts, err := c.caseNavOptions(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	prevID, nextID, err := c.app.Store.Case().FindNeighbors(navOpts, anchorIDs[0])
+	if err != nil {
+		return nil, err
+	}
+	var neighborID *int64
+	switch req.GetDirection() {
+	case cases.CaseNavDirection_NEXT:
+		neighborID = nextID
+	case cases.CaseNavDirection_PREV:
+		neighborID = prevID
+	default:
+		return nil, errors.InvalidArgument("direction must be NEXT or PREV")
+	}
+
+	if neighborID == nil {
+		return nil, errors.NotFound("no adjacent case in this direction")
+	}
+
+	result, err := c.locateCase(ctx, req, options.WithID(*neighborID))
+	if err != nil {
+		return nil, err
+	}
+
+	if err = c.attachNeighborFlags(navOpts, result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // ExportCases exports cases in the specified format (CSV or XLSX) using server-side streaming
@@ -525,7 +635,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 			Etag: req.Input.Etag,
 		}
 		var err error
-		original, err = c.LocateCase(ctx, locateReq)
+		original, err = c.locateCase(ctx, locateReq, options.WithIDsAsEtags(etag.EtagCase, locateReq.GetEtag()))
 		if err != nil {
 			return nil, err
 		}

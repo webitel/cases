@@ -1074,6 +1074,252 @@ func (c *CaseStore) List(
 	return &res, nil
 }
 
+func (c *CaseStore) FindNeighbors(opts options.Searcher, anchorID int64) (*int64, *int64, error) {
+	if opts == nil {
+		return nil, nil, errors.InvalidArgument("search options required")
+	}
+	spec := resolveSortSpec(opts)
+
+	anchorValue, err := c.anchorSortValue(opts, spec, anchorID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	probe, err := c.newCaseSelect(sq.Select())
+	if err != nil {
+		return nil, nil, err
+	}
+	column, err := spec.qualify(opts, probe)
+	if err != nil {
+		return nil, nil, err
+	}
+	idColumn := storeutils.Ident(caseLeft, "id")
+
+	prevPlan := spec.neighborPlan(column, idColumn, anchorValue, anchorID, sidePrev)
+	nextPlan := spec.neighborPlan(column, idColumn, anchorValue, anchorID, sideNext)
+
+	prev, next, err := c.runNeighborBranches(opts, spec, []neighborBranch{
+		{side: sidePrev, cand: prevPlan.primary},
+		{side: sideNext, cand: nextPlan.primary},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var pending []neighborBranch
+	if prev == nil && prevPlan.fallback != nil {
+		pending = append(pending, neighborBranch{side: sidePrev, cand: *prevPlan.fallback})
+	}
+	if next == nil && nextPlan.fallback != nil {
+		pending = append(pending, neighborBranch{side: sideNext, cand: *nextPlan.fallback})
+	}
+	if len(pending) == 0 {
+		return prev, next, nil
+	}
+
+	fallbackPrev, fallbackNext, err := c.runNeighborBranches(opts, spec, pending)
+	if err != nil {
+		return nil, nil, err
+	}
+	if prev == nil {
+		prev = fallbackPrev
+	}
+	if next == nil {
+		next = fallbackNext
+	}
+	return prev, next, nil
+}
+
+// Which side of the anchor a UNION ALL branch looks at
+const (
+	sidePrev = 0
+	sideNext = 1
+)
+
+// neighborCandidate is one index-friendly keyset predicate over a side of the anchor.
+type neighborCandidate struct {
+	cond string
+	args []any
+}
+
+// neighborBranch pairs a predicate with the side it answers for.
+type neighborBranch struct {
+	side int
+	cand neighborCandidate
+}
+
+type neighborPlan struct {
+	primary  neighborCandidate
+	fallback *neighborCandidate
+}
+
+// neighborPlan builds the search for one side of the anchor.
+func (s sortSpec) neighborPlan(column, idColumn string, anchorValue any, anchorID int64, side int) neighborPlan {
+	cmp := ">"
+	if (s.dir == storeutils.SortDesc) != (side == sidePrev) {
+		cmp = "<"
+	}
+
+	if s.unique {
+		return neighborPlan{primary: neighborCandidate{
+			cond: fmt.Sprintf("%s %s ?", column, cmp),
+			args: []any{anchorValue},
+		}}
+	}
+
+	keyset := neighborCandidate{
+		cond: fmt.Sprintf("(%s, %s) %s (?, ?)", column, idColumn, cmp),
+		args: []any{anchorValue, anchorID},
+	}
+	if s.notNull {
+		return neighborPlan{primary: keyset}
+	}
+
+	if anchorValue == nil {
+		plan := neighborPlan{primary: neighborCandidate{
+			cond: fmt.Sprintf("%s IS NULL AND %s %s ?", column, idColumn, cmp),
+			args: []any{anchorID},
+		}}
+		if cmp == "<" {
+			plan.fallback = &neighborCandidate{cond: fmt.Sprintf("%s IS NOT NULL", column)}
+		}
+		return plan
+	}
+
+	plan := neighborPlan{primary: keyset}
+	if cmp == ">" {
+		plan.fallback = &neighborCandidate{cond: fmt.Sprintf("%s IS NULL", column)}
+	}
+	return plan
+}
+
+func (c *CaseStore) runNeighborBranches(opts options.Searcher, spec sortSpec, branches []neighborBranch) (*int64, *int64, error) {
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	parts := make([]string, 0, len(branches))
+
+	args := make([]any, 0, 2*len(branches))
+	for _, branch := range branches {
+		sql, branchArgs, err := c.neighborBranchSQL(opts, spec, branch)
+		if err != nil {
+			return nil, nil, err
+		}
+		parts = append(parts, "("+sql+")")
+		args = append(args, branchArgs...)
+	}
+
+	unioned, err := sq.Dollar.ReplacePlaceholders(strings.Join(parts, " UNION ALL "))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rows, err := db.Query(opts, storeutils.CompactSQL(unioned), args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var prev, next *int64
+	for rows.Next() {
+		var (
+			side int
+			id   int64
+		)
+		if err = rows.Scan(&side, &id); err != nil {
+			return nil, nil, err
+		}
+		neighbor := id
+		if side == sidePrev {
+			prev = &neighbor
+		} else {
+			next = &neighbor
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return prev, next, nil
+}
+
+// neighborBranchSQL renders one branch: the closest case matching its predicate, in the list's
+// own order or the reverse of it depending on the side.
+func (c *CaseStore) neighborBranchSQL(opts options.Searcher, spec sortSpec, branch neighborBranch) (string, []any, error) {
+	idColumn := storeutils.Ident(caseLeft, "id")
+	query, err := c.newCaseSelect(sq.Select(fmt.Sprintf("%d AS side", branch.side), idColumn))
+	if err != nil {
+		return "", nil, err
+	}
+	if err = c.applySearch(opts, query); err != nil {
+		return "", nil, err
+	}
+	if err = c.applyFilters(opts, query); err != nil {
+		return "", nil, err
+	}
+	if err = applyAuthScope(opts, query); err != nil {
+		return "", nil, err
+	}
+	column, err := spec.qualify(opts, query)
+	if err != nil {
+		return "", nil, err
+	}
+
+	query.Query = query.Query.
+		Where(branch.cand.cond, branch.cand.args...).
+		OrderBy(spec.orderBy(column, idColumn, branch.side == sidePrev)...).
+		Limit(1).
+		PlaceholderFormat(sq.Question)
+
+	return query.ToSql()
+}
+
+// newCaseSelect builds a Select over the case table carrying the store's standard column
+// encoders, filter processors and join function.
+func (c *CaseStore) newCaseSelect(base sq.SelectBuilder) (*Select, error) {
+	return NewSelect(caseLeft,
+		base.From(fmt.Sprintf("%s %s", c.mainTable, caseLeft)).PlaceholderFormat(sq.Dollar),
+		WithColumnValueEncoders(specialFieldsEncoding),
+		WithFiltersProcessors(specialFiltersProcessor),
+		WithJoinFunc(c.joinRequiredTable))
+}
+
+// anchorSortValue reads the anchor case's own value for the active sort column.
+func (c *CaseStore) anchorSortValue(opts options.Searcher, spec sortSpec, anchorID int64) (any, error) {
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, err
+	}
+	query, err := c.newCaseSelect(sq.Select())
+	if err != nil {
+		return nil, err
+	}
+	column, err := spec.qualify(opts, query)
+	if err != nil {
+		return nil, err
+	}
+	if err = applyAuthScope(opts, query); err != nil {
+		return nil, err
+	}
+	query.Query = query.Query.
+		Column(column+" AS sort_value").
+		Where(storeutils.Ident(caseLeft, "id")+" = ?", anchorID)
+
+	q, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
+	var value any
+	if err = db.QueryRow(opts, storeutils.CompactSQL(q), args...).Scan(&value); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.NotFound("anchor case not found")
+		}
+		return nil, err
+	}
+	return value, nil
+}
+
 func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, access auth.AccessMode, caseId int64) (bool, error) {
 	if auth == nil {
 		return false, nil
@@ -1800,34 +2046,80 @@ func (c *CaseStore) buildListCaseSqlizer(
 	return query, plan, nil
 }
 
-func (c *CaseStore) applySorting(opts options.Searcher, query *Select) error {
-	sort := opts.GetSort()
-	if sort == "" {
-		sort = caseDefaultSort
-	}
-	var (
-		field, direction = storeutils.GetSortingOperator(sort)
-		tableAlias       string
-		err              error
-	)
+type sortSpec struct {
+	field   string
+	column  string
+	dir     string
+	unique  bool
+	notNull bool
+}
 
-	tableAlias, err = query.Join(opts, field)
+// resolveSortSpec describes the ordering of the list the caller is looking at. 
+func resolveSortSpec(opts options.Searcher) sortSpec {
+	spec, ok := sortSpecFor(opts.GetSort())
+	if !ok {
+		spec, _ = sortSpecFor(caseDefaultSort)
+	}
+	return spec
+}
+
+func sortSpecFor(sort string) (sortSpec, bool) {
+	if sort == "" {
+		return sortSpec{}, false
+	}
+	field, dir := storeutils.GetSortingOperator(sort)
+
+	switch field {
+	case "id":
+		return sortSpec{field: field, column: field, dir: dir, unique: true, notNull: true}, true
+	case "ver", "created_at", "updated_at", "name", "subject":
+		return sortSpec{field: field, column: field, dir: dir, notNull: true}, true
+	case "description", "planned_reaction_at", "planned_resolve_at", "reacted_at", "resolved_at", "contact_info", "close_result", "rating_comment", "rating":
+		return sortSpec{field: field, column: field, dir: dir}, true
+	case "created_by", "updated_by", "source", "close_reason_group", "close_reason", "sla", "status_condition", "status", "priority", "service", "group", "sla_condition":
+		return sortSpec{field: field, column: "name", dir: dir}, true
+	case "author", "assignee", "reporter", "impacted":
+		return sortSpec{field: field, column: "common_name", dir: dir}, true
+	}
+	return sortSpec{}, false
+}
+
+// qualify joins whatever table backs the sort field into query and returns the fully-qualified
+// column reference. It is per-query on purpose: the join belongs to the query it is added to.
+func (s sortSpec) qualify(opts options.Searcher, query *Select) (string, error) {
+	alias, err := query.Join(opts, s.field)
+	if err != nil {
+		return "", err
+	}
+	if alias == "" {
+		alias = query.TableAlias
+	}
+	return storeutils.Ident(alias, s.column), nil
+}
+
+func (s sortSpec) orderBy(column, idColumn string, reverse bool) []string {
+	dir := s.dir
+	if reverse {
+		if dir == storeutils.SortAsc {
+			dir = storeutils.SortDesc
+		} else {
+			dir = storeutils.SortAsc
+		}
+	}
+	terms := []string{fmt.Sprintf("%s %s", column, dir)}
+	if !s.unique {
+		terms = append(terms, fmt.Sprintf("%s %s", idColumn, dir))
+	}
+	return terms
+}
+
+func (c *CaseStore) applySorting(opts options.Searcher, query *Select) error {
+	spec := resolveSortSpec(opts)
+	column, err := spec.qualify(opts, query)
 	if err != nil {
 		return err
 	}
-	if tableAlias == "" {
-		tableAlias = query.TableAlias
-	}
-	switch field {
-	case "id", "ver", "created_at", "updated_at", "name", "subject", "description", "planned_reaction_at", "planned_resolve_at", "reacted_at", "resolved_at", "contact_info", "close_result", "rating_comment", "rating":
-		query.Query = query.Query.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, field), direction))
-	case "created_by", "updated_by", "source", "close_reason_group", "close_reason", "sla", "status_condition", "status", "priority", "service", "group":
-		query.Query = query.Query.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
-	case "author", "assignee", "reporter", "impacted":
-		query.Query = query.Query.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "common_name"), direction))
-	case "sla_condition":
-		query.Query = query.Query.OrderBy(fmt.Sprintf("%s %s", storeutils.Ident(tableAlias, "name"), direction))
-	}
+	query.Query = query.Query.OrderBy(spec.orderBy(column, storeutils.Ident(caseLeft, "id"), false)...)
 	return nil
 }
 
@@ -3412,6 +3704,20 @@ func NewCaseStore(store *Store) (store.CaseStore, error) {
 	}
 	const mainTable = "cases.case"
 	return &CaseStore{storage: store, mainTable: mainTable, overdueCasesQuery: mustOverdueCasesQuery(mainTable)}, nil
+}
+
+func applyAuthScope(opts options.Searcher, query *Select) error {
+	sess := opts.GetAuthOpts()
+	if sess == nil {
+		return nil
+	}
+	query.Query = query.Query.Where(storeutils.Ident(caseLeft, "dc = ?"), sess.GetDomainId())
+	rbacFilter, err := getCaseRbacCondition(sess, auth.Read, storeutils.Ident(caseLeft, "id"))
+	if err != nil {
+		return err
+	}
+	query.Query = query.Query.Where(rbacFilter)
+	return nil
 }
 
 func getCaseRbacCondition(auth auth.Auther, access auth.AccessMode, dependencyColumn string) (sq.Sqlizer, error) {

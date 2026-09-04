@@ -617,6 +617,17 @@ var WebitelAPI = WebitelServicesInfo{
 					},
 				},
 			},
+			"LocateCaseNeighbor": WebitelMethod{
+				Access: 1,
+				Input:  "LocateCaseNeighborRequest",
+				Output: "Case",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{etag}/neighbor",
+						Method: "GET",
+					},
+				},
+			},
 			"CreateCase": WebitelMethod{
 				Access: 0,
 				Input:  "CreateCaseRequest",
