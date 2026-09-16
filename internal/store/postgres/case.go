@@ -372,6 +372,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		}
 	}
 	closeReason := storeutils.IDPtr(input.GetCloseReason())
+	closeArticle := storeutils.IDPtr(input.GetCloseArticle())
 	reporter := storeutils.IDPtr(input.GetReporter())
 	impacted := storeutils.IDPtr(input.GetImpacted())
 	group := storeutils.IDPtr(input.Group)
@@ -422,6 +423,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 		"close_reason_group":  defCloseReasonGroupID,
 		"close_result":        closeResult,
 		"close_reason":        closeReason,
+		"close_article":       closeArticle,
 		"rating":              input.Rating,
 		"rating_comment":      input.RatingComment,
 		"subject":             input.Subject,
@@ -488,7 +490,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				priority, source, status, contact_group, close_reason_group,
 				subject, planned_reaction_at, planned_resolve_at, reporter, impacted,
 				service, description, assignee, sla, sla_condition_id, status_condition, contact_info,
-				close_result, close_reason, rating, rating_comment
+				close_result, close_reason, close_article_id, rating, rating_comment
 			) VALUES (
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
@@ -499,7 +501,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee,
 				:sla, :sla_condition,
-				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason,
+				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason, :close_article,
                 NULLIF(:rating, 0), NULLIF(:rating_comment, '')
 			)
 			RETURNING *
@@ -2629,6 +2631,8 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 				closeReason = &id
 			}
 			updateBuilder = updateBuilder.Set("close_reason", closeReason)
+		case "close_article":
+			updateBuilder = updateBuilder.Set("close_article_id", storeutils.IDPtr(input.GetCloseArticle()))
 		case "close_result":
 			var closeResult *string
 			if res := input.GetCloseResult(); res != "" {
@@ -3127,6 +3131,13 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			base.Query = base.Query.Column(fmt.Sprintf(`ROW(%s.id, %[1]s.common_name)::text AS author`, tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.Author)
+			})
+		case "close_article":
+			base.Query = base.Query.Column(fmt.Sprintf(
+				"ROW(%s.close_article_id, NULL)::text AS close_article", base.TableAlias))
+
+			plan = append(plan, func(caseItem *_go.Case) any {
+				return scanner.ScanRowLookup(&caseItem.CloseArticle)
 			})
 		case "close_result":
 			base.Query = base.Query.Column(storeutils.Ident(base.TableAlias, "close_result"))

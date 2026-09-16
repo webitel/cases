@@ -69,6 +69,7 @@ var (
 		{Name: "group", Default: true},
 		{Name: "close_reason", Default: true},
 		{Name: "close_result", Default: true},
+		{Name: "close_article", Default: true},
 		{Name: "rating", Default: true},
 		{Name: "rating_comment", Default: true},
 		{Name: "sla_condition", Default: true},
@@ -464,6 +465,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		StatusCondition:  statusCondition,
 		CloseReason:      req.Input.GetCloseReason(),
 		CloseResult:      req.Input.GetCloseResult(),
+		CloseArticle:     req.GetInput().GetCloseArticle(),
 		CloseReasonGroup: req.Input.GetCloseReasonGroup(),
 		Priority:         &cases.Priority{Id: req.Input.Priority.GetId()},
 		Rating:           req.Input.Rating,
@@ -503,6 +505,11 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		return nil, err
 	}
+
+	if articleID := req.GetInput().GetCloseArticle().GetId(); articleID > 0 {
+		c.app.publishCaseResolution(ctx, createOpts.GetAuthOpts().GetDomainId(), res.GetId(), articleID)
+	}
+
 	res.Etag, err = etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
 	if err != nil {
 		return nil, err
@@ -620,6 +627,7 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 		Source:           &cases.SourceTypeLookup{Id: req.Input.Source.GetId()},
 		CloseReason:      req.Input.GetCloseReason(),
 		CloseResult:      req.Input.GetCloseResult(),
+		CloseArticle:     req.GetInput().GetCloseArticle(),
 		Rating:           req.Input.GetRating(),
 		RatingComment:    req.Input.GetRatingComment(),
 		Service:          lookupToService(req.Input.GetService()),
@@ -645,6 +653,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if err != nil {
 		return nil, err
 	}
+
+	if util.ContainsField(updateOpts.GetMask(), "close_article") {
+		c.app.publishCaseResolution(ctx, updateOpts.GetAuthOpts().GetDomainId(), output.GetId(), upd.GetCloseArticle().GetId())
+	}
+
 	output.Etag, err = etag.EncodeEtag(etag.EtagCase, output.Id, output.Ver)
 	if err != nil {
 		return nil, err
@@ -729,6 +742,7 @@ func BuildCaseDiff(original, updated *cases.Case) []*cases.FieldChange {
 	compare("description", original.Description, updated.Description)
 	compare("contact_info", original.ContactInfo, updated.ContactInfo)
 	compare("close_result", original.CloseResult, updated.CloseResult)
+	compare("close_article", original.GetCloseArticle(), updated.GetCloseArticle())
 	compare("rating", original.Rating, updated.Rating)
 	compare("rating_comment", original.RatingComment, updated.RatingComment)
 	compare("assignee", original.Assignee, updated.Assignee)

@@ -1,6 +1,8 @@
 package model
 
 import (
+	"time"
+
 	"github.com/webitel/cases/api/cases"
 )
 
@@ -22,4 +24,13 @@ type CaseFileAMQPMessage struct {
 
 type RelatedCaseAMQPMessage struct {
 	RelatedCase *cases.RelatedCase `json:"related_case"`
+}
+
+type CaseResolutionAMQPMessage struct {
+	Type       string    `json:"type"`
+	Schema     int       `json:"schema"`
+	OccurredAt time.Time `json:"occurred_at"`
+	DomainID   int64     `json:"domain_id"`
+	CaseID     int64     `json:"case_id"`
+	ArticleID  int64     `json:"article_id"`
 }
