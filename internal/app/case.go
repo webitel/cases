@@ -189,8 +189,8 @@ func (c *CaseService) caseNavOptions(ctx context.Context, req caseNavContext) (*
 	return navOpts, nil
 }
 
-func (c *CaseService) attachNeighborFlags(navOpts *options.SearchOptions, cs *cases.Case) error {
-	prevID, nextID, err := c.app.Store.Case().FindNeighbors(navOpts, cs.GetId())
+func (c *CaseService) attachNeighborFlags(navOpts *options.SearchOptions, cs *cases.Case, filterJoinFields []string) error {
+	prevID, nextID, err := c.app.Store.Case().FindNeighbors(navOpts, cs.GetId(), filterJoinFields)
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,12 @@ func (c *CaseService) LocateCase(ctx context.Context, req *cases.LocateCaseReque
 		return nil, err
 	}
 
-	if err = c.attachNeighborFlags(navOpts, result); err != nil {
+	filterJoinFields, err := c.app.Store.Case().PrepareFiltersV1(navOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = c.attachNeighborFlags(navOpts, result, filterJoinFields); err != nil {
 		return nil, err
 	}
 
@@ -271,7 +276,12 @@ func (c *CaseService) LocateCaseNeighbor(ctx context.Context, req *cases.LocateC
 		return nil, err
 	}
 
-	prevID, nextID, err := c.app.Store.Case().FindNeighbors(navOpts, anchorIDs[0])
+	filterJoinFields, err := c.app.Store.Case().PrepareFiltersV1(navOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	prevID, nextID, err := c.app.Store.Case().FindNeighbors(navOpts, anchorIDs[0], filterJoinFields)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +304,7 @@ func (c *CaseService) LocateCaseNeighbor(ctx context.Context, req *cases.LocateC
 		return nil, err
 	}
 
-	if err = c.attachNeighborFlags(navOpts, result); err != nil {
+	if err = c.attachNeighborFlags(navOpts, result, filterJoinFields); err != nil {
 		return nil, err
 	}
 

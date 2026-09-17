@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1074,7 +1075,7 @@ func (c *CaseStore) List(
 	return &res, nil
 }
 
-func (c *CaseStore) FindNeighbors(opts options.Searcher, anchorID int64) (*int64, *int64, error) {
+func (c *CaseStore) FindNeighbors(opts options.Searcher, anchorID int64, filterJoinFields []string) (*int64, *int64, error) {
 	if opts == nil {
 		return nil, nil, errors.InvalidArgument("search options required")
 	}
@@ -1098,7 +1099,7 @@ func (c *CaseStore) FindNeighbors(opts options.Searcher, anchorID int64) (*int64
 	prevPlan := spec.neighborPlan(column, idColumn, anchorValue, anchorID, sidePrev)
 	nextPlan := spec.neighborPlan(column, idColumn, anchorValue, anchorID, sideNext)
 
-	prev, next, err := c.runNeighborBranches(opts, spec, []neighborBranch{
+	prev, next, err := c.runNeighborBranches(opts, spec, filterJoinFields, []neighborBranch{
 		{side: sidePrev, cand: prevPlan.primary},
 		{side: sideNext, cand: nextPlan.primary},
 	})
@@ -1117,7 +1118,7 @@ func (c *CaseStore) FindNeighbors(opts options.Searcher, anchorID int64) (*int64
 		return prev, next, nil
 	}
 
-	fallbackPrev, fallbackNext, err := c.runNeighborBranches(opts, spec, pending)
+	fallbackPrev, fallbackNext, err := c.runNeighborBranches(opts, spec, filterJoinFields, pending)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1193,7 +1194,7 @@ func (s sortSpec) neighborPlan(column, idColumn string, anchorValue any, anchorI
 	return plan
 }
 
-func (c *CaseStore) runNeighborBranches(opts options.Searcher, spec sortSpec, branches []neighborBranch) (*int64, *int64, error) {
+func (c *CaseStore) runNeighborBranches(opts options.Searcher, spec sortSpec, filterJoinFields []string, branches []neighborBranch) (*int64, *int64, error) {
 	db, err := c.storage.Database()
 	if err != nil {
 		return nil, nil, err
@@ -1203,7 +1204,7 @@ func (c *CaseStore) runNeighborBranches(opts options.Searcher, spec sortSpec, br
 
 	args := make([]any, 0, 2*len(branches))
 	for _, branch := range branches {
-		sql, branchArgs, err := c.neighborBranchSQL(opts, spec, branch)
+		sql, branchArgs, err := c.neighborBranchSQL(opts, spec, filterJoinFields, branch)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1246,7 +1247,7 @@ func (c *CaseStore) runNeighborBranches(opts options.Searcher, spec sortSpec, br
 
 // neighborBranchSQL renders one branch: the closest case matching its predicate, in the list's
 // own order or the reverse of it depending on the side.
-func (c *CaseStore) neighborBranchSQL(opts options.Searcher, spec sortSpec, branch neighborBranch) (string, []any, error) {
+func (c *CaseStore) neighborBranchSQL(opts options.Searcher, spec sortSpec, filterJoinFields []string, branch neighborBranch) (string, []any, error) {
 	idColumn := storeutils.Ident(caseLeft, "id")
 	query, err := c.newCaseSelect(sq.Select(fmt.Sprintf("%d AS side", branch.side), idColumn))
 	if err != nil {
@@ -1255,7 +1256,12 @@ func (c *CaseStore) neighborBranchSQL(opts options.Searcher, spec sortSpec, bran
 	if err = c.applySearch(opts, query); err != nil {
 		return "", nil, err
 	}
-	if err = c.applyFilters(opts, query); err != nil {
+	for _, field := range filterJoinFields {
+		if _, err = query.Join(opts, field); err != nil {
+			return "", nil, err
+		}
+	}
+	if err = c.applyFilters(opts, query, false); err != nil {
 		return "", nil, err
 	}
 	if err = applyAuthScope(opts, query); err != nil {
@@ -1273,6 +1279,22 @@ func (c *CaseStore) neighborBranchSQL(opts options.Searcher, spec sortSpec, bran
 		PlaceholderFormat(sq.Question)
 
 	return query.ToSql()
+}
+
+func (c *CaseStore) PrepareFiltersV1(opts options.Searcher) ([]string, error) {
+	probe, err := c.newCaseSelect(sq.Select())
+	if err != nil {
+		return nil, err
+	}
+	if err = NormalizeFilters(opts, probe, opts.GetFiltersV1()); err != nil {
+		return nil, err
+	}
+	fields := make([]string, 0, len(probe.AppliedJoins))
+	for field := range probe.AppliedJoins {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	return fields, nil
 }
 
 // newCaseSelect builds a Select over the case table carrying the store's standard column
@@ -2021,7 +2043,7 @@ func (c *CaseStore) buildListCaseSqlizer(
 		return nil, nil, err
 	}
 
-	err = c.applyFilters(opts, query)
+	err = c.applyFilters(opts, query, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2123,7 +2145,7 @@ func (c *CaseStore) applySorting(opts options.Searcher, query *Select) error {
 	return nil
 }
 
-func (c *CaseStore) applyFilters(opts options.Searcher, query *Select) error {
+func (c *CaseStore) applyFilters(opts options.Searcher, query *Select, normalizeFiltersV1 bool) error {
 	if opts == nil || query == nil {
 		return fmt.Errorf("cannot apply filters")
 	}
@@ -2206,9 +2228,11 @@ func (c *CaseStore) applyFilters(opts options.Searcher, query *Select) error {
 	}
 
 	// FiltersV1 apply
-	err = NormalizeFilters(opts, query, opts.GetFiltersV1())
-	if err != nil {
-		return err
+	if normalizeFiltersV1 {
+		err = NormalizeFilters(opts, query, opts.GetFiltersV1())
+		if err != nil {
+			return err
+		}
 	}
 	query.Query, err = ApplyFilters(query.Query, opts.GetFiltersV1())
 	if err != nil {
