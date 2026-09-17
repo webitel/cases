@@ -65,8 +65,9 @@ type CaseStore interface {
 	// Check case by current auth options
 	CheckRbacAccess(ctx context.Context, auth auth.Auther, access auth.AccessMode, caseId int64) (bool, error)
 	SetOverdueCases(so options.Searcher) ([]*_go.Case, bool, error)
+	PrepareFiltersV1(rpc options.Searcher) (filterJoinFields []string, err error)
 	//check neighbors for navigation
-	FindNeighbors(rpc options.Searcher, anchorID int64) (prev *int64, next *int64, err error)
+	FindNeighbors(rpc options.Searcher, anchorID int64, filterJoinFields []string) (prev *int64, next *int64, err error)
 }
 
 // RelatedCases attribute attached to the case (n:1)
