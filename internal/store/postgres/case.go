@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1292,6 +1293,7 @@ func (c *CaseStore) PrepareFiltersV1(opts options.Searcher) ([]string, error) {
 	for field := range probe.AppliedJoins {
 		fields = append(fields, field)
 	}
+	sort.Strings(fields)
 	return fields, nil
 }
 
