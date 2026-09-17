@@ -19,6 +19,7 @@ type Store interface {
 	Case() CaseStore
 	CaseComment() CaseCommentStore
 	CaseLink() CaseLinkStore
+	CaseArticle() CaseArticleStore
 	CaseFile() CaseFileStore
 	CaseTimeline() CaseTimelineStore
 	CaseCommunication() CaseCommunicationStore
@@ -79,6 +80,16 @@ type CaseLinkStore interface {
 	Update(req options.Updator, upd *model.CaseLink) (*model.CaseLink, error)
 	// Delete link
 	Delete(req options.Deleter) (*model.CaseLink, error)
+}
+
+// Knowledge base articles linked to the case (n:m)
+type CaseArticleStore interface {
+	// Link an article, returns the existing link on repeat
+	Link(rpc options.Creator, add *model.CaseArticle) (*model.CaseArticle, error)
+	// List links by case_id or article_id filter
+	List(rpc options.Searcher) ([]*model.CaseArticle, error)
+	// Unlink a manual link
+	Unlink(req options.Deleter) (*model.CaseArticle, error)
 }
 
 // Comments attribute attached to the case (n:1)

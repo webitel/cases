@@ -505,11 +505,6 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 	if err != nil {
 		return nil, err
 	}
-
-	if articleID := req.GetInput().GetCloseArticle().GetId(); articleID > 0 {
-		c.app.publishCaseResolution(ctx, createOpts.GetAuthOpts().GetDomainId(), res.GetId(), articleID)
-	}
-
 	res.Etag, err = etag.EncodeEtag(etag.EtagCase, res.Id, res.Ver)
 	if err != nil {
 		return nil, err
@@ -653,11 +648,6 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 	if err != nil {
 		return nil, err
 	}
-
-	if util.ContainsField(updateOpts.GetMask(), "close_article") {
-		c.app.publishCaseResolution(ctx, updateOpts.GetAuthOpts().GetDomainId(), output.GetId(), upd.GetCloseArticle().GetId())
-	}
-
 	output.Etag, err = etag.EncodeEtag(etag.EtagCase, output.Id, output.Ver)
 	if err != nil {
 		return nil, err

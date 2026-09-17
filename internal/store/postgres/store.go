@@ -18,6 +18,7 @@ type Store struct {
 	//------------cases stores ------------ ----//
 	caseStore              store.CaseStore
 	linkCaseStore          store.CaseLinkStore
+	caseArticleStore       store.CaseArticleStore
 	caseCommentStore       store.CaseCommentStore
 	caseFileStore          store.CaseFileStore
 	caseTimelineStore      store.CaseTimelineStore
@@ -69,6 +70,17 @@ func (s *Store) CaseLink() store.CaseLinkStore {
 		s.linkCaseStore = linkCase
 	}
 	return s.linkCaseStore
+}
+
+func (s *Store) CaseArticle() store.CaseArticleStore {
+	if s.caseArticleStore == nil {
+		caseArticle, err := NewCaseArticleStore(s)
+		if err != nil {
+			return nil
+		}
+		s.caseArticleStore = caseArticle
+	}
+	return s.caseArticleStore
 }
 
 func (s *Store) CaseComment() store.CaseCommentStore {

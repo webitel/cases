@@ -67,8 +67,7 @@ func StartBroker(config *conf.AppConfig) (*rabbit.Connection, error) {
 	if err != nil {
 		return nil, errors.New("error creating rabbit connection", errors.WithCause(err))
 	}
-
-	exchangeConf, err := rabbit.NewExchangeConfig(casesExchange, "topic")
+	exchangeConf, err := rabbit.NewExchangeConfig("cases", "topic")
 	if err != nil {
 		return nil, errors.New("error creating exchange config", errors.WithCause(err))
 	}
