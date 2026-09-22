@@ -667,6 +667,56 @@ var WebitelAPI = WebitelServicesInfo{
 			},
 		},
 	},
+	"CaseArticles": WebitelServices{
+		ObjClass:           "cases",
+		AdditionalLicenses: []string{},
+		WebitelMethods: map[string]WebitelMethod{
+			"ListCaseArticles": WebitelMethod{
+				Access: 1,
+				Input:  "ListCaseArticlesRequest",
+				Output: "CaseArticleList",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_etag}/articles",
+						Method: "GET",
+					},
+				},
+			},
+			"LinkCaseArticle": WebitelMethod{
+				Access: 2,
+				Input:  "LinkCaseArticleRequest",
+				Output: "CaseArticle",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_etag}/articles",
+						Method: "POST",
+					},
+				},
+			},
+			"UnlinkCaseArticle": WebitelMethod{
+				Access: 2,
+				Input:  "UnlinkCaseArticleRequest",
+				Output: "CaseArticle",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/{case_etag}/articles/{article_id}",
+						Method: "DELETE",
+					},
+				},
+			},
+			"ListArticleCases": WebitelMethod{
+				Access: 1,
+				Input:  "ListArticleCasesRequest",
+				Output: "CaseArticleList",
+				HttpBindings: []*HttpBinding{
+					{
+						Path:   "/cases/articles/{article_id}/cases",
+						Method: "GET",
+					},
+				},
+			},
+		},
+	},
 	"CaseCommunications": WebitelServices{
 		ObjClass:           "cases",
 		AdditionalLicenses: []string{},
