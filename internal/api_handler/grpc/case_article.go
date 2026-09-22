@@ -118,7 +118,7 @@ func (s *CaseArticleService) Marshal(m *model.CaseArticle) (*cases.CaseArticle, 
 		Source:    cases.CaseArticleSource(m.Source),
 		CreatedAt: utils.MarshalTime(m.CreatedAt),
 	}
-	if m.Author != nil && m.Id != nil {
+	if m.Author != nil && m.Author.Id != nil {
 		out.CreatedBy = utils.MarshalLookup(m.Author)
 	}
 	if m.CaseID != nil {

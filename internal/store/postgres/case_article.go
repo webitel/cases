@@ -13,6 +13,7 @@ import (
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"github.com/webitel/cases/internal/store"
+	"github.com/webitel/cases/internal/store/postgres/transaction"
 	storeUtil "github.com/webitel/cases/internal/store/util"
 )
 
@@ -95,34 +96,8 @@ func (s *CaseArticleStore) get(ctx context.Context, query sq.SelectBuilder) (*mo
 	return &result, nil
 }
 
-// buildCaseArticleLinks selects the manual links and the close article links as one set.
-func buildCaseArticleLinks(domainID int64) (manual, resolution sq.SelectBuilder) {
-	manual = sq.Select(
-		"ca.case_id",
-		"ca.article_id",
-		fmt.Sprintf("%d AS source", model.CaseArticleSourceManual),
-		"ca.created_by",
-		"ca.created_at",
-	).
-		From("cases.case_article ca").
-		Join(`cases."case" mc ON mc.id = ca.case_id`).
-		Where("ca.dc = ?", domainID).
-		Where("mc.close_article_id IS DISTINCT FROM ca.article_id")
-	resolution = sq.Select(
-		"rc.id AS case_id",
-		"rc.close_article_id AS article_id",
-		fmt.Sprintf("%d AS source", model.CaseArticleSourceResolution),
-		"NULL::bigint AS created_by",
-		"NULL::timestamp AS created_at",
-	).
-		From(`cases."case" rc`).
-		Where("rc.dc = ?", domainID).
-		Where("rc.close_article_id IS NOT NULL")
-	return manual, resolution
-}
-
-// selectCaseArticles reads the links of the prefixed CTE with their authors.
-func selectCaseArticles(prefix sq.Sqlizer) sq.SelectBuilder {
+// selectCaseArticles reads the links of the k source with their authors.
+func selectCaseArticles() sq.SelectBuilder {
 	return sq.Select(
 		"k.article_id",
 		"k.source",
@@ -130,15 +105,12 @@ func selectCaseArticles(prefix sq.Sqlizer) sq.SelectBuilder {
 		"cau.id AS created_by_id",
 		"COALESCE(cau.name, cau.username) AS created_by_name",
 	).
-		PrefixExpr(prefix).
-		From("k").
 		LeftJoin("directory.wbt_user cau ON cau.id = k.created_by").
 		PlaceholderFormat(sq.Dollar)
 }
 
 func buildListCaseArticleQuery(opts options.Searcher) (sq.SelectBuilder, error) {
 	sess := opts.GetAuthOpts()
-	manual, resolution := buildCaseArticleLinks(sess.GetDomainId())
 
 	caseID, err := caseArticleFilter(opts, "case_id")
 	if err != nil {
@@ -149,24 +121,24 @@ func buildListCaseArticleQuery(opts options.Searcher) (sq.SelectBuilder, error) 
 		return sq.SelectBuilder{}, err
 	}
 
-	var query sq.SelectBuilder
+	query := selectCaseArticles().
+		From("cases.case_article k").
+		Where("k.dc = ?", sess.GetDomainId())
 
 	switch {
 	case caseID > 0:
-		manual = manual.Where("ca.case_id = ?", caseID)
-		resolution = resolution.Where("rc.id = ?", caseID)
-		query = selectCaseArticles(sq.Expr("WITH k AS (? UNION ALL ?)", manual, resolution)).
+		query = query.
+			Where("k.case_id = ?", caseID).
 			OrderBy("k.source DESC", "k.created_at DESC", "k.article_id DESC")
 	case articleID > 0:
-		manual = manual.Where("ca.article_id = ?", articleID)
-		resolution = resolution.Where("rc.close_article_id = ?", articleID)
 		rbac, err := getCaseRbacCondition(sess, auth.Read, "k.case_id")
 		if err != nil {
 			return sq.SelectBuilder{}, err
 		}
-		query = selectCaseArticles(sq.Expr("WITH k AS (? UNION ALL ?)", manual, resolution)).
+		query = query.
 			Columns("lc.id AS case_id", "lc.ver AS case_ver", "lc.name AS case_name", "lc.subject AS case_subject").
 			Join(`cases."case" lc ON lc.id = k.case_id`).
+			Where("k.article_id = ?", articleID).
 			Where(rbac).
 			OrderBy("k.case_id DESC")
 	default:
@@ -175,34 +147,24 @@ func buildListCaseArticleQuery(opts options.Searcher) (sq.SelectBuilder, error) 
 	return storeUtil.ApplyPaging(opts.GetPage(), opts.GetSize(), query), nil
 }
 
+// buildLinkCaseArticleQuery adds a manual link; an existing link, the close article included, is returned as is.
 func buildLinkCaseArticleQuery(rpc options.Creator, add *model.CaseArticle) sq.SelectBuilder {
-	var (
-		sess      = rpc.GetAuthOpts()
-		caseID    = rpc.GetParentID()
-		articleID = add.ArticleID
-	)
+	sess := rpc.GetAuthOpts()
 	insert := sq.Insert("cases.case_article").
 		Columns("dc", "case_id", "article_id", "created_by").
 		Select(sq.Select().
 			Columns("c.dc", "c.id").
-			Column("?::bigint", articleID).
+			Column("?::bigint", add.ArticleID).
 			Column("?::bigint", sess.GetUserId()).
 			From(`cases."case" c`).
-			Where("c.id = ?", caseID).
-			Where("c.dc = ?", sess.GetDomainId()).
-			Where("c.close_article_id IS DISTINCT FROM ?", articleID)).
+			Where("c.id = ?", rpc.GetParentID()).
+			Where("c.dc = ?", sess.GetDomainId())).
 		Suffix("ON CONFLICT (case_id, article_id) DO UPDATE SET article_id = EXCLUDED.article_id " +
-			"RETURNING article_id, created_by, created_at")
-	inserted := sq.Select(
-		"i.article_id",
-		fmt.Sprintf("%d AS source", model.CaseArticleSourceManual),
-		"i.created_by",
-		"i.created_at",
-	).From("i")
-	return selectCaseArticles(sq.Expr("WITH i AS (?), k AS (? UNION ALL ?)",
-		insert, inserted, buildCloseArticleLink(sess.GetDomainId(), caseID, articleID)))
+			"RETURNING article_id, source, created_by, created_at")
+	return selectCaseArticles().PrefixExpr(sq.Expr("WITH k AS (?)", insert)).From("k")
 }
 
+// buildUnlinkCaseArticleQuery removes a manual link; the close article is returned untouched.
 func buildUnlinkCaseArticleQuery(opts options.Deleter) sq.SelectBuilder {
 	var (
 		domainID  = opts.GetAuthOpts().GetDomainId()
@@ -213,30 +175,33 @@ func buildUnlinkCaseArticleQuery(opts options.Deleter) sq.SelectBuilder {
 		Where("dc = ?", domainID).
 		Where("case_id = ?", caseID).
 		Where("article_id = ?", articleID).
-		Where(`NOT EXISTS (SELECT 1 FROM cases."case" uc WHERE uc.id = ? AND uc.close_article_id = ?)`, caseID, articleID).
-		Suffix("RETURNING article_id, created_by, created_at")
-	deleted := sq.Select(
-		"d.article_id",
-		fmt.Sprintf("%d AS source", model.CaseArticleSourceManual),
-		"d.created_by",
-		"d.created_at",
-	).From("d")
-	return selectCaseArticles(sq.Expr("WITH d AS (?), k AS (? UNION ALL ?)",
-		del, deleted, buildCloseArticleLink(domainID, caseID, articleID)))
+		Where("source = ?", model.CaseArticleSourceManual).
+		Suffix("RETURNING article_id, source, created_by, created_at")
+	kept := sq.Select("article_id", "source", "created_by", "created_at").
+		From("cases.case_article").
+		Where("dc = ?", domainID).
+		Where("case_id = ?", caseID).
+		Where("article_id = ?", articleID).
+		Where("source = ?", model.CaseArticleSourceResolution)
+	return selectCaseArticles().PrefixExpr(sq.Expr("WITH d AS (?), k AS (SELECT * FROM d UNION ALL ?)", del, kept)).From("k")
 }
 
-// buildCloseArticleLink selects the article when it is the close article of the case; writes leave it untouched.
-func buildCloseArticleLink(domainID, caseID, articleID int64) sq.SelectBuilder {
-	return sq.Select(
-		"rc.close_article_id",
-		fmt.Sprintf("%d", model.CaseArticleSourceResolution),
-		"NULL::bigint",
-		"NULL::timestamp",
-	).
-		From(`cases."case" rc`).
-		Where("rc.id = ?", caseID).
-		Where("rc.dc = ?", domainID).
-		Where("rc.close_article_id = ?", articleID)
+// setCloseArticle makes the article the only close article link of the case; nil clears it.
+func setCloseArticle(ctx context.Context, tx *transaction.TxManager, domainID, caseID, userID int64, articleID *int64) error {
+	_, err := tx.Exec(ctx,
+		`DELETE FROM cases.case_article WHERE case_id = $1 AND source = $2 AND article_id IS DISTINCT FROM $3`,
+		caseID, model.CaseArticleSourceResolution, articleID)
+	if err != nil || articleID == nil {
+		return err
+	}
+	_, err = tx.Exec(ctx,
+		`INSERT INTO cases.case_article (dc, case_id, article_id, source, created_by)
+		VALUES ($1, $2, $3, $4, NULLIF($5, 0))
+		ON CONFLICT (case_id, article_id) DO UPDATE
+		SET source = EXCLUDED.source, created_by = EXCLUDED.created_by, created_at = EXCLUDED.created_at
+		WHERE case_article.source <> EXCLUDED.source`,
+		domainID, caseID, *articleID, model.CaseArticleSourceResolution, userID)
+	return err
 }
 
 func caseArticleFilter(opts options.Searcher, field string) (int64, error) {

@@ -1,16 +1,10 @@
--- Knowledge base article chosen as the close reason.
-alter table cases."case" add column if not exists close_article_id bigint;
-
-create index if not exists case_close_article_id_index
-    on cases."case" (close_article_id)
-    where close_article_id is not null;
-
--- Knowledge base articles linked to a case by an operator.
+-- Knowledge base articles linked to a case: manual links and the close article.
 create table if not exists cases.case_article
 (
     dc         bigint not null,
     case_id    bigint not null,
     article_id bigint not null,
+    source     smallint default 1 not null, -- 1=manual, 2=resolution
     created_by bigint,
     created_at timestamp without time zone default timezone('utc'::text, now()) not null,
     constraint case_article_pk primary key (case_id, article_id),
@@ -24,3 +18,8 @@ create table if not exists cases.case_article
 
 create index if not exists case_article_article_id_index
     on cases.case_article (article_id);
+
+-- One close article per case.
+create unique index if not exists case_article_resolution_uindex
+    on cases.case_article (case_id)
+    where source = 2;

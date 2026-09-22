@@ -63,6 +63,7 @@ const (
 	caseGroupAlias            = "grp"
 	caseSlaConditionAlias     = "cond"
 	caseRelatedAlias          = "related"
+	caseCloseArticleAlias     = "close_article_link"
 	caseLinksAlias            = "links"
 	caseStatusConditionAlias  = "stc"
 )
@@ -196,11 +197,17 @@ func (c *CaseStore) Create(
 	query = storeutils.CompactSQL(query)
 
 	// Prepare the scan arguments
+	closeArticle := storeutils.IDPtr(add.GetCloseArticle())
 	scanArgs := convertToCaseScanArgs(plan, add)
 
 	// Execute the query
 	if err = txManager.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
 		return nil, ParseError(err)
+	}
+
+	// The close article is inserted by the same statement, so its read above misses it.
+	if closeArticle != nil && util.ContainsField(rpc.GetFields(), "close_article") {
+		add.CloseArticle = &_go.Lookup{Id: *closeArticle}
 	}
 
 	// Commit the transaction
@@ -490,7 +497,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				priority, source, status, contact_group, close_reason_group,
 				subject, planned_reaction_at, planned_resolve_at, reporter, impacted,
 				service, description, assignee, sla, sla_condition_id, status_condition, contact_info,
-				close_result, close_reason, close_article_id, rating, rating_comment
+				close_result, close_reason, rating, rating_comment
 			) VALUES (
 				(SELECT id FROM id_cte),
 				CONCAT((SELECT prefix FROM prefix_cte), '_', (SELECT id FROM id_cte)),
@@ -501,7 +508,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				:subject, :planned_reaction_at, :planned_resolve_at, :reporter, :impacted,
 				:service, :description, :assignee,
 				:sla, :sla_condition,
-				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason, :close_article,
+				` + useStatusConditionRef + `, :contact_info, :close_result, :close_reason,
                 NULLIF(:rating, 0), NULLIF(:rating_comment, '')
 			)
 			RETURNING *
@@ -526,6 +533,12 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 				(item ->> 'type')::int,
 				:dc, :user, :date, :user, :date
 			FROM jsonb_array_elements(:related) AS item
+		),
+		` + caseCloseArticleAlias + ` AS (
+			INSERT INTO cases.case_article (dc, case_id, article_id, source, created_by)
+			SELECT dc, id, :close_article, ` + strconv.Itoa(int(model.CaseArticleSourceResolution)) + `, created_by
+			FROM ` + caseLeft + `
+			WHERE :close_article::bigint IS NOT NULL
 		)
 	`
 
@@ -2481,6 +2494,8 @@ func (c *CaseStore) Update(
 	query = storeutils.CompactSQL(query)
 
 	// Prepare scan arguments
+	closeArticle := storeutils.IDPtr(upd.GetCloseArticle())
+	userID := caseUpdatedBy(rpc, upd)
 	scanArgs := convertToCaseScanArgs(plan, upd)
 
 	if err := txManager.QueryRow(rpc, query, args...).Scan(scanArgs...); err != nil {
@@ -2488,6 +2503,19 @@ func (c *CaseStore) Update(
 			return nil, ParseError(err)
 		}
 		return nil, ParseError(err)
+	}
+
+	// The case row is checked above, so the close article is written after it.
+	if util.ContainsField(rpc.GetMask(), "close_article") {
+		if err := setCloseArticle(rpc, txManager, rpc.GetAuthOpts().GetDomainId(), caseID, userID, closeArticle); err != nil {
+			return nil, ParseError(err)
+		}
+		if util.ContainsField(rpc.GetFields(), "close_article") {
+			upd.CloseArticle = nil
+			if closeArticle != nil {
+				upd.CloseArticle = &_go.Lookup{Id: *closeArticle}
+			}
+		}
 	}
 
 	commitErr = tx.Commit(rpc)
@@ -2520,12 +2548,7 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	fields = util.EnsureIdAndVerField(fields)
 	var err error
 
-	userID := rpc.GetAuthOpts().GetUserId()
-	if util.ContainsField(rpc.GetMask(), "userID") {
-		if updatedBy := input.GetUpdatedBy(); updatedBy != nil && updatedBy.Id != 0 {
-			userID = updatedBy.Id
-		}
-	}
+	userID := caseUpdatedBy(rpc, input)
 
 	// Initialize the update query
 	rbacFilter, err := getCaseRbacCondition(rpc.GetAuthOpts(), auth.Edit, "id")
@@ -2631,8 +2654,6 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 				closeReason = &id
 			}
 			updateBuilder = updateBuilder.Set("close_reason", closeReason)
-		case "close_article":
-			updateBuilder = updateBuilder.Set("close_article_id", storeutils.IDPtr(input.GetCloseArticle()))
 		case "close_result":
 			var closeResult *string
 			if res := input.GetCloseResult(); res != "" {
@@ -2749,6 +2770,16 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 	}
 
 	return base, plan, nil
+}
+
+// caseUpdatedBy returns the user the update is made on behalf of.
+func caseUpdatedBy(rpc options.Updator, input *_go.Case) int64 {
+	if util.ContainsField(rpc.GetMask(), "userID") {
+		if id := input.GetUpdatedBy().GetId(); id != 0 {
+			return id
+		}
+	}
+	return rpc.GetAuthOpts().GetUserId()
 }
 
 // handleServiceDefaultValues handles setting default values for assignee and group based on service hierarchy
@@ -3134,7 +3165,8 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			})
 		case "close_article":
 			base.Query = base.Query.Column(fmt.Sprintf(
-				"ROW(%s.close_article_id, NULL)::text AS close_article", base.TableAlias))
+				"ROW((SELECT ca.article_id FROM cases.case_article ca WHERE ca.case_id = %s.id AND ca.source = %d), NULL)::text AS close_article",
+				base.TableAlias, model.CaseArticleSourceResolution))
 
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.ScanRowLookup(&caseItem.CloseArticle)
