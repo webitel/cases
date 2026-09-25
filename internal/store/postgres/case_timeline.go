@@ -1,11 +1,14 @@
 package postgres
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/jackc/pgx/v5"
 	"github.com/webitel/cases/internal/model/options"
 
 	dberr "github.com/webitel/cases/internal/errors"
@@ -301,6 +304,288 @@ func (c *CaseTimelineStore) GetCounter(rpc options.Searcher) ([]*model.TimelineC
 }
 
 // endregion
+
+// GetItemInfo retrieves saved variables + postprocessing results for a single
+// timeline communication (call | chat | email) that belongs to the case.
+func (c *CaseTimelineStore) GetItemInfo(rpc options.Searcher, caseID int64, itemType model.CaseTimelineEventType, itemID string) (*model.CaseTimelineItemInfo, error) {
+	var raw string
+	switch itemType {
+	case model.TimelineEventTypeCall:
+		raw = CallItemInfoQuery
+	case model.TimelineEventTypeChat:
+		raw = ChatItemInfoQuery
+	case model.TimelineEventTypeEmail:
+		raw = EmailItemInfoQuery
+	default:
+		return nil, dberr.NewDBBadRequestError(
+			"postgres.case_timeline.get_item_info.check_args.type",
+			fmt.Sprintf("unknown timeline event type %q", itemType))
+	}
+
+	channel, err := communicationChannel(itemType)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case_timeline.get_item_info.database.error", err)
+	}
+
+	var row caseTimelineItemInfoRow
+	err = pgxscan.Get(rpc, db, &row, raw, itemID, rpc.GetAuthOpts().GetDomainId(), caseID, channel)
+	if err != nil {
+		if dberr.Is(err, pgx.ErrNoRows) {
+			return &model.CaseTimelineItemInfo{}, nil
+		}
+		return nil, ParseError(err)
+	}
+
+	info := &model.CaseTimelineItemInfo{}
+	var exclude map[string]bool
+	switch itemType {
+	case model.TimelineEventTypeEmail:
+		exclude = emailSystemVariableKeys
+	case model.TimelineEventTypeChat:
+		exclude = chatSystemVariableKeys
+	}
+	if info.Variables, err = decodeCaseTimelineVariables(row.Variables, exclude); err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case_timeline.get_item_info.decode_variables.error", err)
+	}
+	if info.Postprocessing, err = decodeCaseTimelinePostprocessing(row.Postprocessing); err != nil {
+		return nil, dberr.NewDBInternalError("postgres.case_timeline.get_item_info.decode_postprocessing.error", err)
+	}
+	return info, nil
+}
+
+func communicationChannel(itemType model.CaseTimelineEventType) (string, error) {
+	switch itemType {
+	case model.TimelineEventTypeCall:
+		return store.CommunicationCall, nil
+	case model.TimelineEventTypeChat:
+		return store.CommunicationChat, nil
+	case model.TimelineEventTypeEmail:
+		return store.CommunicationEmail, nil
+	default:
+		return "", dberr.NewDBBadRequestError(
+			"postgres.case_timeline.get_item_info.check_args.type",
+			fmt.Sprintf("unknown timeline event type %q", itemType))
+	}
+}
+
+type caseTimelineItemInfoRow struct {
+	Variables      []byte `db:"variables"`
+	Postprocessing []byte `db:"postprocessing"`
+}
+
+var emailSystemVariableKeys = map[string]bool{
+	"message_id":  true,
+	"reply_to":    true,
+	"from":        true,
+	"cc":          true,
+	"sender":      true,
+	"in_reply_to": true,
+	"body":        true,
+	"body_html":   true,
+	"subject":     true,
+	"id":          true,
+	"attachments": true,
+}
+
+// chatSystemVariableKeys mirrors chat_manager's systemChannelVars
+// (internal/event_router/event_router.go)
+var chatSystemVariableKeys = map[string]bool{
+	"chat":             true,
+	"cid":              true,
+	"externalChatID":   true,
+	"flow":             true,
+	"old_flow":         true,
+	"xfer":             true,
+	"chat_transferred": true,
+	"chatplan_name":    true,
+	"from":             true,
+	"user":             true,
+	"needs_processing": true,
+}
+
+func decodeCaseTimelineVariables(raw []byte, exclude map[string]bool) ([]*model.CaseTimelineVariable, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var kv map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &kv); err != nil {
+		return nil, err
+	}
+	if len(kv) == 0 {
+		return nil, nil
+	}
+	keys := make([]string, 0, len(kv))
+	for key := range kv {
+		if exclude[key] {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	vars := make([]*model.CaseTimelineVariable, 0, len(keys))
+	for _, key := range keys {
+		vars = append(vars, &model.CaseTimelineVariable{
+			Key:   key,
+			Value: jsonValueToString(kv[key]),
+		})
+	}
+	return vars, nil
+}
+
+func jsonValueToString(raw json.RawMessage) string {
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	return string(raw)
+}
+
+type caseTimelinePostprocessingRow struct {
+	Agent       *model.GeneralLookup `json:"agent"`
+	Form        json.RawMessage      `json:"form"`
+	ReportingAt int64                `json:"reporting_at"`
+}
+
+func decodeCaseTimelinePostprocessing(raw []byte) ([]*model.CaseTimelinePostprocessingResult, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var rows []caseTimelinePostprocessingRow
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, err
+	}
+
+	results := make([]*model.CaseTimelinePostprocessingResult, 0, len(rows))
+	for _, r := range rows {
+		item := &model.CaseTimelinePostprocessingResult{
+			Agent:       r.Agent,
+			ReportingAt: r.ReportingAt,
+		}
+		if len(r.Form) > 0 && string(r.Form) != "null" {
+			var native any
+			if err := json.Unmarshal(r.Form, &native); err != nil {
+				return nil, err
+			}
+			item.Form = native
+		}
+		results = append(results, item)
+	}
+	return results, nil
+}
+
+const (
+	// CallItemInfoQuery returns saved variables + postprocessing results for a
+	// single call, scoped to a case via cases.case_communication.
+	CallItemInfoQuery = `
+SELECT
+	coalesce(c.payload, '{}'::jsonb) AS variables,
+	(
+		WITH RECURSIVE legs AS (
+			SELECT d.id, d.attempt_id, d.attempt_ids
+			FROM call_center.cc_calls_history d
+			WHERE d.id = c.id
+			  AND d.domain_id = $2
+			UNION ALL
+			SELECT d.id, d.attempt_id, d.attempt_ids
+			FROM call_center.cc_calls_history d, legs
+			WHERE d.parent_id = legs.id
+			   OR d.transfer_from = legs.id
+		),
+		attempts AS (
+			SELECT attempt_id AS id FROM legs WHERE attempt_id NOTNULL
+			UNION
+			SELECT unnest(attempt_ids) FROM legs WHERE attempt_ids NOTNULL
+		)
+		SELECT jsonb_agg(jsonb_build_object(
+			'agent', call_center.cc_get_lookup(u.id, coalesce(u.name, u.username)),
+			'form', p.form_fields,
+			'reporting_at', call_center.cc_view_timestamp(p.reporting_at)
+		))
+		FROM call_center.cc_member_attempt_history p
+			LEFT JOIN call_center.cc_agent a ON a.id = p.agent_id
+			LEFT JOIN directory.wbt_user u ON u.id = a.user_id
+		WHERE p.domain_id = $2
+		  AND p.id = ANY(SELECT id FROM attempts)
+		  AND p.form_fields NOTNULL
+	) AS postprocessing
+FROM call_center.cc_calls_history c
+WHERE c.id = $1::uuid
+  AND c.domain_id = $2
+  AND c.id::text = ANY(
+	SELECT communication_id FROM cases.case_communication casecom
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
+	WHERE casecom.case_id = $3 AND com.channel = $4
+  )`
+
+	// ChatItemInfoQuery returns saved variables + postprocessing results for a
+	// single chat conversation, scoped to a case via cases.case_communication.
+	ChatItemInfoQuery = `
+SELECT
+	coalesce(conv.props, '{}'::jsonb) AS variables,
+	(
+		SELECT jsonb_agg(jsonb_build_object(
+			'agent', call_center.cc_get_lookup(u.id, coalesce(u.name, u.username)),
+			'form', p.form_fields,
+			'reporting_at', call_center.cc_view_timestamp(p.reporting_at)
+		))
+		FROM call_center.cc_member_attempt_history p
+			LEFT JOIN call_center.cc_agent a ON a.id = p.agent_id
+			LEFT JOIN directory.wbt_user u ON u.id = a.user_id
+		WHERE p.domain_id = $2
+		  AND p.member_call_id = conv.id::varchar
+		  AND p.form_fields NOTNULL
+	) AS postprocessing
+FROM chat.conversation conv
+WHERE conv.id = $1::uuid
+  AND conv.domain_id = $2
+  AND conv.id::text = ANY(
+	SELECT communication_id FROM cases.case_communication casecom
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
+	WHERE casecom.case_id = $3 AND com.channel = $4
+  )`
+
+	// EmailItemInfoQuery returns saved variables + postprocessing results for a
+	// single email, scoped to a case via cases.case_communication.
+	EmailItemInfoQuery = `
+SELECT
+	coalesce((
+		SELECT m.variables
+		FROM call_center.cc_member m
+		WHERE m.domain_id = $2
+		  AND e.message_id IS NOT NULL
+		  AND m.variables ->> 'message_id' = e.message_id
+		ORDER BY m.id DESC
+		LIMIT 1
+	), '{}'::jsonb) AS variables,
+	(
+		SELECT jsonb_agg(jsonb_build_object(
+			'agent', call_center.cc_get_lookup(u.id, coalesce(u.name, u.username)),
+			'form', p.form_fields,
+			'reporting_at', call_center.cc_view_timestamp(p.reporting_at)
+		))
+		FROM call_center.cc_member_attempt_history p
+			JOIN call_center.cc_member m ON m.id = p.member_id
+			LEFT JOIN call_center.cc_agent a ON a.id = p.agent_id
+			LEFT JOIN directory.wbt_user u ON u.id = a.user_id
+		WHERE p.domain_id = $2
+		  AND e.message_id IS NOT NULL
+		  AND m.variables ->> 'message_id' = e.message_id
+		  AND p.form_fields NOTNULL
+	) AS postprocessing
+FROM call_center.cc_email e
+WHERE e.id = $1::int8
+  AND e.id::text = ANY(
+	SELECT communication_id FROM cases.case_communication casecom
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
+	WHERE casecom.case_id = $3 AND com.channel = $4
+  )`
+)
 
 const (
 	CallCounterQuery = `

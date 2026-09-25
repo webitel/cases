@@ -14,11 +14,13 @@ import (
 	"github.com/webitel/cases/util"
 	"github.com/webitel/webitel-go-kit/pkg/etag"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type CaseTimelineHandler interface {
 	GetTimeline(options.Searcher) (*model.CaseTimeline, error)
 	GetTimelineCounter(options.Searcher) (*model.TimelineCounterResponse, error)
+	GetTimelineItemInfo(searcher options.Searcher, itemType model.CaseTimelineEventType, itemID string) (*model.CaseTimelineItemInfo, error)
 }
 
 type CaseTimelineService struct {
@@ -133,6 +135,92 @@ func (s *CaseTimelineService) GetTimelineCounter(
 		ChatsCount:  counter.ChatsCount,
 		CallsCount:  counter.CallsCount,
 		EmailsCount: counter.EmailsCount,
+	}
+
+	return result, nil
+}
+
+// GetTimelineItemInfo handles the gRPC request to get variables + postprocessing
+// results for a single timeline communication (call | chat | email) of a case.
+func (s *CaseTimelineService) GetTimelineItemInfo(
+	ctx context.Context,
+	req *cases.GetTimelineItemInfoRequest,
+) (*cases.GetTimelineItemInfoResponse, error) {
+	if req.GetCaseId() == "" {
+		return nil, errors.InvalidArgument("case id is required")
+	}
+	if req.GetId() == "" {
+		return nil, errors.InvalidArgument("item id is required")
+	}
+
+	// Decode case etag to numeric ID
+	caseTid, err := etag.EtagOrId(etag.EtagCase, req.GetCaseId())
+	if err != nil {
+		return nil, errors.InvalidArgument("invalid case etag", errors.WithCause(err))
+	}
+
+	itemType, err := unmarshalCaseTimelineEventType(req.GetType())
+	if err != nil {
+		return nil, err
+	}
+
+	searchOpts, err := grpcopts.NewSearchOptions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	searchOpts.AddFilter(util.EqualFilter("case_id", caseTid.GetOid()))
+
+	info, err := s.app.GetTimelineItemInfo(searchOpts, itemType, req.GetId())
+	if err != nil {
+		return nil, err
+	}
+
+	return s.MarshalTimelineItemInfo(info)
+}
+
+func unmarshalCaseTimelineEventType(t cases.CaseTimelineEventType) (model.CaseTimelineEventType, error) {
+	switch t {
+	case cases.CaseTimelineEventType_call:
+		return model.TimelineEventTypeCall, nil
+	case cases.CaseTimelineEventType_chat:
+		return model.TimelineEventTypeChat, nil
+	case cases.CaseTimelineEventType_email:
+		return model.TimelineEventTypeEmail, nil
+	default:
+		return "", errors.InvalidArgument(fmt.Sprintf("unknown timeline event type %q", t))
+	}
+}
+
+// MarshalTimelineItemInfo converts a model.CaseTimelineItemInfo to its gRPC representation.
+func (s *CaseTimelineService) MarshalTimelineItemInfo(info *model.CaseTimelineItemInfo) (*cases.GetTimelineItemInfoResponse, error) {
+	result := &cases.GetTimelineItemInfoResponse{}
+	if info == nil {
+		return result, nil
+	}
+
+	for _, v := range info.Variables {
+		result.Variables = append(result.Variables, &cases.CaseTimelineVariable{
+			Key:   v.Key,
+			Value: v.Value,
+		})
+	}
+
+	for _, p := range info.Postprocessing {
+		item := &cases.CaseTimelinePostprocessingResult{
+			ReportingAt: p.ReportingAt,
+		}
+		if p.Agent != nil {
+			item.Agent = utils.MarshalLookup(p.Agent)
+		}
+		if p.Form != nil {
+			formValue, err := structpb.NewValue(p.Form)
+			if err != nil {
+				return nil, errors.Internal("failed to marshal postprocessing form", errors.WithCause(err))
+			}
+			item.Form = formValue
+		}
+		result.Postprocessing = append(result.Postprocessing, item)
 	}
 
 	return result, nil

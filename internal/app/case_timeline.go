@@ -106,3 +106,39 @@ func (s *App) GetTimelineCounter(searcher options.Searcher) (*model.TimelineCoun
 
 	return response, nil
 }
+
+// GetTimelineItemInfo retrieves saved variables + postprocessing results for
+// a single timeline communication (call | chat | email) of a case.
+func (s *App) GetTimelineItemInfo(searcher options.Searcher, itemType model.CaseTimelineEventType, itemID string) (*model.CaseTimelineItemInfo, error) {
+	filters := searcher.GetFilter("case_id")
+	if len(filters) == 0 {
+		return nil, errors.InvalidArgument("case id required")
+	}
+
+	caseID, err := strconv.ParseInt(filters[0].Value, 10, 64)
+	if err != nil {
+		return nil, errors.InvalidArgument("invalid case id", errors.WithCause(err))
+	}
+
+	if itemID == "" {
+		return nil, errors.InvalidArgument("item id required")
+	}
+
+	accessMode := auth.Read
+	if searcher.GetAuthOpts().IsRbacCheckRequired(grpc.CaseTimelineMetadata.GetParentScopeName(), accessMode) {
+		access, err := s.Store.Case().CheckRbacAccess(searcher, searcher.GetAuthOpts(), accessMode, caseID)
+		if err != nil {
+			return nil, err
+		}
+		if !access {
+			return nil, errors.Forbidden("user doesn't have required (READ) access to the case", errors.WithCause(err))
+		}
+	}
+
+	info, err := s.Store.CaseTimeline().GetItemInfo(searcher, caseID, itemType, itemID)
+	if err != nil {
+		return nil, err
+	}
+
+	return info, nil
+}

@@ -13,6 +13,7 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/visibility"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -430,6 +431,230 @@ func (x *GetTimelineCounterResponse) GetEmailsCount() int64 {
 	return 0
 }
 
+type GetTimelineItemInfoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CaseId        string                 `protobuf:"bytes,1,opt,name=case_id,json=caseId,proto3" json:"case_id,omitempty"`
+	Type          CaseTimelineEventType  `protobuf:"varint,2,opt,name=type,proto3,enum=webitel.cases.CaseTimelineEventType" json:"type,omitempty"`
+	Id            string                 `protobuf:"bytes,3,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetTimelineItemInfoRequest) Reset() {
+	*x = GetTimelineItemInfoRequest{}
+	mi := &file_case_timeline_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetTimelineItemInfoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTimelineItemInfoRequest) ProtoMessage() {}
+
+func (x *GetTimelineItemInfoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_case_timeline_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTimelineItemInfoRequest.ProtoReflect.Descriptor instead.
+func (*GetTimelineItemInfoRequest) Descriptor() ([]byte, []int) {
+	return file_case_timeline_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GetTimelineItemInfoRequest) GetCaseId() string {
+	if x != nil {
+		return x.CaseId
+	}
+	return ""
+}
+
+func (x *GetTimelineItemInfoRequest) GetType() CaseTimelineEventType {
+	if x != nil {
+		return x.Type
+	}
+	return CaseTimelineEventType_chat
+}
+
+func (x *GetTimelineItemInfoRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type CaseTimelineVariable struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CaseTimelineVariable) Reset() {
+	*x = CaseTimelineVariable{}
+	mi := &file_case_timeline_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CaseTimelineVariable) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CaseTimelineVariable) ProtoMessage() {}
+
+func (x *CaseTimelineVariable) ProtoReflect() protoreflect.Message {
+	mi := &file_case_timeline_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CaseTimelineVariable.ProtoReflect.Descriptor instead.
+func (*CaseTimelineVariable) Descriptor() ([]byte, []int) {
+	return file_case_timeline_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CaseTimelineVariable) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *CaseTimelineVariable) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+type CaseTimelinePostprocessingResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Agent         *Lookup                `protobuf:"bytes,1,opt,name=agent,proto3" json:"agent,omitempty"`
+	Form          *structpb.Value        `protobuf:"bytes,2,opt,name=form,proto3" json:"form,omitempty"` // postprocessing form answers, saved by the agent
+	ReportingAt   int64                  `protobuf:"varint,3,opt,name=reporting_at,json=reportingAt,proto3" json:"reporting_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CaseTimelinePostprocessingResult) Reset() {
+	*x = CaseTimelinePostprocessingResult{}
+	mi := &file_case_timeline_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CaseTimelinePostprocessingResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CaseTimelinePostprocessingResult) ProtoMessage() {}
+
+func (x *CaseTimelinePostprocessingResult) ProtoReflect() protoreflect.Message {
+	mi := &file_case_timeline_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CaseTimelinePostprocessingResult.ProtoReflect.Descriptor instead.
+func (*CaseTimelinePostprocessingResult) Descriptor() ([]byte, []int) {
+	return file_case_timeline_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CaseTimelinePostprocessingResult) GetAgent() *Lookup {
+	if x != nil {
+		return x.Agent
+	}
+	return nil
+}
+
+func (x *CaseTimelinePostprocessingResult) GetForm() *structpb.Value {
+	if x != nil {
+		return x.Form
+	}
+	return nil
+}
+
+func (x *CaseTimelinePostprocessingResult) GetReportingAt() int64 {
+	if x != nil {
+		return x.ReportingAt
+	}
+	return 0
+}
+
+type GetTimelineItemInfoResponse struct {
+	state          protoimpl.MessageState              `protogen:"open.v1"`
+	Variables      []*CaseTimelineVariable             `protobuf:"bytes,1,rep,name=variables,proto3" json:"variables,omitempty"`
+	Postprocessing []*CaseTimelinePostprocessingResult `protobuf:"bytes,2,rep,name=postprocessing,proto3" json:"postprocessing,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetTimelineItemInfoResponse) Reset() {
+	*x = GetTimelineItemInfoResponse{}
+	mi := &file_case_timeline_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetTimelineItemInfoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTimelineItemInfoResponse) ProtoMessage() {}
+
+func (x *GetTimelineItemInfoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_case_timeline_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTimelineItemInfoResponse.ProtoReflect.Descriptor instead.
+func (*GetTimelineItemInfoResponse) Descriptor() ([]byte, []int) {
+	return file_case_timeline_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetTimelineItemInfoResponse) GetVariables() []*CaseTimelineVariable {
+	if x != nil {
+		return x.Variables
+	}
+	return nil
+}
+
+func (x *GetTimelineItemInfoResponse) GetPostprocessing() []*CaseTimelinePostprocessingResult {
+	if x != nil {
+		return x.Postprocessing
+	}
+	return nil
+}
+
 type CallEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -451,7 +676,7 @@ type CallEvent struct {
 
 func (x *CallEvent) Reset() {
 	*x = CallEvent{}
-	mi := &file_case_timeline_proto_msgTypes[4]
+	mi := &file_case_timeline_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -463,7 +688,7 @@ func (x *CallEvent) String() string {
 func (*CallEvent) ProtoMessage() {}
 
 func (x *CallEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_case_timeline_proto_msgTypes[4]
+	mi := &file_case_timeline_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -476,7 +701,7 @@ func (x *CallEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallEvent.ProtoReflect.Descriptor instead.
 func (*CallEvent) Descriptor() ([]byte, []int) {
-	return file_case_timeline_proto_rawDescGZIP(), []int{4}
+	return file_case_timeline_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CallEvent) GetId() string {
@@ -588,7 +813,7 @@ type ChatEvent struct {
 
 func (x *ChatEvent) Reset() {
 	*x = ChatEvent{}
-	mi := &file_case_timeline_proto_msgTypes[5]
+	mi := &file_case_timeline_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -600,7 +825,7 @@ func (x *ChatEvent) String() string {
 func (*ChatEvent) ProtoMessage() {}
 
 func (x *ChatEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_case_timeline_proto_msgTypes[5]
+	mi := &file_case_timeline_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -613,7 +838,7 @@ func (x *ChatEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatEvent.ProtoReflect.Descriptor instead.
 func (*ChatEvent) Descriptor() ([]byte, []int) {
-	return file_case_timeline_proto_rawDescGZIP(), []int{5}
+	return file_case_timeline_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ChatEvent) GetId() string {
@@ -707,7 +932,7 @@ type EmailEvent struct {
 
 func (x *EmailEvent) Reset() {
 	*x = EmailEvent{}
-	mi := &file_case_timeline_proto_msgTypes[6]
+	mi := &file_case_timeline_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -719,7 +944,7 @@ func (x *EmailEvent) String() string {
 func (*EmailEvent) ProtoMessage() {}
 
 func (x *EmailEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_case_timeline_proto_msgTypes[6]
+	mi := &file_case_timeline_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -732,7 +957,7 @@ func (x *EmailEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmailEvent.ProtoReflect.Descriptor instead.
 func (*EmailEvent) Descriptor() ([]byte, []int) {
-	return file_case_timeline_proto_rawDescGZIP(), []int{6}
+	return file_case_timeline_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *EmailEvent) GetId() string {
@@ -839,7 +1064,7 @@ type DayTimeline struct {
 
 func (x *DayTimeline) Reset() {
 	*x = DayTimeline{}
-	mi := &file_case_timeline_proto_msgTypes[7]
+	mi := &file_case_timeline_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -851,7 +1076,7 @@ func (x *DayTimeline) String() string {
 func (*DayTimeline) ProtoMessage() {}
 
 func (x *DayTimeline) ProtoReflect() protoreflect.Message {
-	mi := &file_case_timeline_proto_msgTypes[7]
+	mi := &file_case_timeline_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -864,7 +1089,7 @@ func (x *DayTimeline) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DayTimeline.ProtoReflect.Descriptor instead.
 func (*DayTimeline) Descriptor() ([]byte, []int) {
-	return file_case_timeline_proto_rawDescGZIP(), []int{7}
+	return file_case_timeline_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DayTimeline) GetItems() []*Event {
@@ -918,7 +1143,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_case_timeline_proto_msgTypes[8]
+	mi := &file_case_timeline_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -930,7 +1155,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_case_timeline_proto_msgTypes[8]
+	mi := &file_case_timeline_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -943,7 +1168,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_case_timeline_proto_rawDescGZIP(), []int{8}
+	return file_case_timeline_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Event) GetType() CaseTimelineEventType {
@@ -1029,7 +1254,7 @@ type Attachment struct {
 
 func (x *Attachment) Reset() {
 	*x = Attachment{}
-	mi := &file_case_timeline_proto_msgTypes[9]
+	mi := &file_case_timeline_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1041,7 +1266,7 @@ func (x *Attachment) String() string {
 func (*Attachment) ProtoMessage() {}
 
 func (x *Attachment) ProtoReflect() protoreflect.Message {
-	mi := &file_case_timeline_proto_msgTypes[9]
+	mi := &file_case_timeline_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1054,7 +1279,7 @@ func (x *Attachment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Attachment.ProtoReflect.Descriptor instead.
 func (*Attachment) Descriptor() ([]byte, []int) {
-	return file_case_timeline_proto_rawDescGZIP(), []int{9}
+	return file_case_timeline_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Attachment) GetId() int64 {
@@ -1108,7 +1333,7 @@ type CallFile struct {
 
 func (x *CallFile) Reset() {
 	*x = CallFile{}
-	mi := &file_case_timeline_proto_msgTypes[10]
+	mi := &file_case_timeline_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1120,7 +1345,7 @@ func (x *CallFile) String() string {
 func (*CallFile) ProtoMessage() {}
 
 func (x *CallFile) ProtoReflect() protoreflect.Message {
-	mi := &file_case_timeline_proto_msgTypes[10]
+	mi := &file_case_timeline_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1133,7 +1358,7 @@ func (x *CallFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallFile.ProtoReflect.Descriptor instead.
 func (*CallFile) Descriptor() ([]byte, []int) {
-	return file_case_timeline_proto_rawDescGZIP(), []int{10}
+	return file_case_timeline_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CallFile) GetId() int64 {
@@ -1203,7 +1428,7 @@ type TranscriptLookup struct {
 
 func (x *TranscriptLookup) Reset() {
 	*x = TranscriptLookup{}
-	mi := &file_case_timeline_proto_msgTypes[11]
+	mi := &file_case_timeline_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1215,7 +1440,7 @@ func (x *TranscriptLookup) String() string {
 func (*TranscriptLookup) ProtoMessage() {}
 
 func (x *TranscriptLookup) ProtoReflect() protoreflect.Message {
-	mi := &file_case_timeline_proto_msgTypes[11]
+	mi := &file_case_timeline_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1228,7 +1453,7 @@ func (x *TranscriptLookup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TranscriptLookup.ProtoReflect.Descriptor instead.
 func (*TranscriptLookup) Descriptor() ([]byte, []int) {
-	return file_case_timeline_proto_rawDescGZIP(), []int{11}
+	return file_case_timeline_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *TranscriptLookup) GetId() int64 {
@@ -1256,7 +1481,7 @@ var File_case_timeline_proto protoreflect.FileDescriptor
 
 const file_case_timeline_proto_rawDesc = "" +
 	"\n" +
-	"\x13case_timeline.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\x1bgoogle/api/visibility.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1aproto/webitel/option.proto\"\x91\x02\n" +
+	"\x13case_timeline.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\x1bgoogle/api/visibility.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1aproto/webitel/option.proto\"\x91\x02\n" +
 	"\x12GetTimelineRequest\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x12\n" +
 	"\x04size\x18\x02 \x01(\x05R\x04size\x12\f\n" +
@@ -1282,7 +1507,21 @@ const file_case_timeline_proto_rawDesc = "" +
 	"chatsCount\x12\x1f\n" +
 	"\vcalls_count\x18\x04 \x01(\x03R\n" +
 	"callsCount\x12!\n" +
-	"\femails_count\x18\x05 \x01(\x03R\vemailsCount\"\x83\x04\n" +
+	"\femails_count\x18\x05 \x01(\x03R\vemailsCount\"\x7f\n" +
+	"\x1aGetTimelineItemInfoRequest\x12\x17\n" +
+	"\acase_id\x18\x01 \x01(\tR\x06caseId\x128\n" +
+	"\x04type\x18\x02 \x01(\x0e2$.webitel.cases.CaseTimelineEventTypeR\x04type\x12\x0e\n" +
+	"\x02id\x18\x03 \x01(\tR\x02id\">\n" +
+	"\x14CaseTimelineVariable\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"\x98\x01\n" +
+	" CaseTimelinePostprocessingResult\x12%\n" +
+	"\x05agent\x18\x01 \x01(\v2\x0f.general.LookupR\x05agent\x12*\n" +
+	"\x04form\x18\x02 \x01(\v2\x16.google.protobuf.ValueR\x04form\x12!\n" +
+	"\freporting_at\x18\x03 \x01(\x03R\vreportingAt\"\xb9\x01\n" +
+	"\x1bGetTimelineItemInfoResponse\x12A\n" +
+	"\tvariables\x18\x01 \x03(\v2#.webitel.cases.CaseTimelineVariableR\tvariables\x12W\n" +
+	"\x0epostprocessing\x18\x02 \x03(\v2/.webitel.cases.CaseTimelinePostprocessingResultR\x0epostprocessing\"\x83\x04\n" +
 	"\tCallEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tclosed_at\x18\x03 \x01(\x03R\bclosedAt\x12\x1a\n" +
@@ -1380,10 +1619,11 @@ const file_case_timeline_proto_rawDesc = "" +
 	"\x15CaseTimelineEventType\x12\b\n" +
 	"\x04chat\x10\x00\x12\b\n" +
 	"\x04call\x10\x01\x12\t\n" +
-	"\x05email\x10\x022\xb1\x02\n" +
+	"\x05email\x10\x022\xd8\x03\n" +
 	"\fCaseTimeline\x12{\n" +
 	"\vGetTimeline\x12!.webitel.cases.GetTimelineRequest\x1a\".webitel.cases.GetTimelineResponse\"%\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02\x1b\x12\x19/cases/{case_id}/timeline\x12\x98\x01\n" +
-	"\x12GetTimelineCounter\x12(.webitel.cases.GetTimelineCounterRequest\x1a).webitel.cases.GetTimelineCounterResponse\"-\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02#\x12!/cases/{case_id}/timeline/counter\x1a\t\x8a\xb5\x18\x05casesB\xa5\x01\n" +
+	"\x12GetTimelineCounter\x12(.webitel.cases.GetTimelineCounterRequest\x1a).webitel.cases.GetTimelineCounterResponse\"-\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02#\x12!/cases/{case_id}/timeline/counter\x12\xa4\x01\n" +
+	"\x13GetTimelineItemInfo\x12).webitel.cases.GetTimelineItemInfoRequest\x1a*.webitel.cases.GetTimelineItemInfoResponse\"6\x90\xb5\x18\x01\x82\xd3\xe4\x93\x02,\x12*/cases/{case_id}/timeline/{type}/{id}/info\x1a\t\x8a\xb5\x18\x05casesB\xa5\x01\n" +
 	"\x11com.webitel.casesB\x11CaseTimelineProtoP\x01Z(github.com/webitel/cases/api/cases;cases\xa2\x02\x03WCX\xaa\x02\rWebitel.Cases\xca\x02\rWebitel\\Cases\xe2\x02\x19Webitel\\Cases\\GPBMetadata\xea\x02\x0eWebitel::Casesb\x06proto3"
 
 var (
@@ -1399,57 +1639,69 @@ func file_case_timeline_proto_rawDescGZIP() []byte {
 }
 
 var file_case_timeline_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_case_timeline_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_case_timeline_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_case_timeline_proto_goTypes = []any{
-	(CallFileType)(0),                  // 0: webitel.cases.CallFileType
-	(CaseTimelineEventType)(0),         // 1: webitel.cases.CaseTimelineEventType
-	(*GetTimelineRequest)(nil),         // 2: webitel.cases.GetTimelineRequest
-	(*GetTimelineResponse)(nil),        // 3: webitel.cases.GetTimelineResponse
-	(*GetTimelineCounterRequest)(nil),  // 4: webitel.cases.GetTimelineCounterRequest
-	(*GetTimelineCounterResponse)(nil), // 5: webitel.cases.GetTimelineCounterResponse
-	(*CallEvent)(nil),                  // 6: webitel.cases.CallEvent
-	(*ChatEvent)(nil),                  // 7: webitel.cases.ChatEvent
-	(*EmailEvent)(nil),                 // 8: webitel.cases.EmailEvent
-	(*DayTimeline)(nil),                // 9: webitel.cases.DayTimeline
-	(*Event)(nil),                      // 10: webitel.cases.Event
-	(*Attachment)(nil),                 // 11: webitel.cases.Attachment
-	(*CallFile)(nil),                   // 12: webitel.cases.CallFile
-	(*TranscriptLookup)(nil),           // 13: webitel.cases.TranscriptLookup
-	(*Lookup)(nil),                     // 14: general.Lookup
-	(*ExtendedLookup)(nil),             // 15: general.ExtendedLookup
+	(CallFileType)(0),                        // 0: webitel.cases.CallFileType
+	(CaseTimelineEventType)(0),               // 1: webitel.cases.CaseTimelineEventType
+	(*GetTimelineRequest)(nil),               // 2: webitel.cases.GetTimelineRequest
+	(*GetTimelineResponse)(nil),              // 3: webitel.cases.GetTimelineResponse
+	(*GetTimelineCounterRequest)(nil),        // 4: webitel.cases.GetTimelineCounterRequest
+	(*GetTimelineCounterResponse)(nil),       // 5: webitel.cases.GetTimelineCounterResponse
+	(*GetTimelineItemInfoRequest)(nil),       // 6: webitel.cases.GetTimelineItemInfoRequest
+	(*CaseTimelineVariable)(nil),             // 7: webitel.cases.CaseTimelineVariable
+	(*CaseTimelinePostprocessingResult)(nil), // 8: webitel.cases.CaseTimelinePostprocessingResult
+	(*GetTimelineItemInfoResponse)(nil),      // 9: webitel.cases.GetTimelineItemInfoResponse
+	(*CallEvent)(nil),                        // 10: webitel.cases.CallEvent
+	(*ChatEvent)(nil),                        // 11: webitel.cases.ChatEvent
+	(*EmailEvent)(nil),                       // 12: webitel.cases.EmailEvent
+	(*DayTimeline)(nil),                      // 13: webitel.cases.DayTimeline
+	(*Event)(nil),                            // 14: webitel.cases.Event
+	(*Attachment)(nil),                       // 15: webitel.cases.Attachment
+	(*CallFile)(nil),                         // 16: webitel.cases.CallFile
+	(*TranscriptLookup)(nil),                 // 17: webitel.cases.TranscriptLookup
+	(*Lookup)(nil),                           // 18: general.Lookup
+	(*structpb.Value)(nil),                   // 19: google.protobuf.Value
+	(*ExtendedLookup)(nil),                   // 20: general.ExtendedLookup
 }
 var file_case_timeline_proto_depIdxs = []int32{
 	1,  // 0: webitel.cases.GetTimelineRequest.type:type_name -> webitel.cases.CaseTimelineEventType
-	9,  // 1: webitel.cases.GetTimelineResponse.days:type_name -> webitel.cases.DayTimeline
-	14, // 2: webitel.cases.CallEvent.participants:type_name -> general.Lookup
-	14, // 3: webitel.cases.CallEvent.gateway:type_name -> general.Lookup
-	14, // 4: webitel.cases.CallEvent.flow_scheme:type_name -> general.Lookup
-	14, // 5: webitel.cases.CallEvent.queue:type_name -> general.Lookup
-	12, // 6: webitel.cases.CallEvent.files:type_name -> webitel.cases.CallFile
-	13, // 7: webitel.cases.CallEvent.transcripts:type_name -> webitel.cases.TranscriptLookup
-	14, // 8: webitel.cases.ChatEvent.participants:type_name -> general.Lookup
-	15, // 9: webitel.cases.ChatEvent.gateway:type_name -> general.ExtendedLookup
-	14, // 10: webitel.cases.ChatEvent.flow_scheme:type_name -> general.Lookup
-	14, // 11: webitel.cases.ChatEvent.queue:type_name -> general.Lookup
-	14, // 12: webitel.cases.EmailEvent.owner:type_name -> general.Lookup
-	11, // 13: webitel.cases.EmailEvent.attachments:type_name -> webitel.cases.Attachment
-	14, // 14: webitel.cases.EmailEvent.profile:type_name -> general.Lookup
-	10, // 15: webitel.cases.DayTimeline.items:type_name -> webitel.cases.Event
-	1,  // 16: webitel.cases.Event.type:type_name -> webitel.cases.CaseTimelineEventType
-	7,  // 17: webitel.cases.Event.chat:type_name -> webitel.cases.ChatEvent
-	6,  // 18: webitel.cases.Event.call:type_name -> webitel.cases.CallEvent
-	8,  // 19: webitel.cases.Event.email:type_name -> webitel.cases.EmailEvent
-	0,  // 20: webitel.cases.CallFile.type:type_name -> webitel.cases.CallFileType
-	14, // 21: webitel.cases.TranscriptLookup.file:type_name -> general.Lookup
-	2,  // 22: webitel.cases.CaseTimeline.GetTimeline:input_type -> webitel.cases.GetTimelineRequest
-	4,  // 23: webitel.cases.CaseTimeline.GetTimelineCounter:input_type -> webitel.cases.GetTimelineCounterRequest
-	3,  // 24: webitel.cases.CaseTimeline.GetTimeline:output_type -> webitel.cases.GetTimelineResponse
-	5,  // 25: webitel.cases.CaseTimeline.GetTimelineCounter:output_type -> webitel.cases.GetTimelineCounterResponse
-	24, // [24:26] is the sub-list for method output_type
-	22, // [22:24] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	13, // 1: webitel.cases.GetTimelineResponse.days:type_name -> webitel.cases.DayTimeline
+	1,  // 2: webitel.cases.GetTimelineItemInfoRequest.type:type_name -> webitel.cases.CaseTimelineEventType
+	18, // 3: webitel.cases.CaseTimelinePostprocessingResult.agent:type_name -> general.Lookup
+	19, // 4: webitel.cases.CaseTimelinePostprocessingResult.form:type_name -> google.protobuf.Value
+	7,  // 5: webitel.cases.GetTimelineItemInfoResponse.variables:type_name -> webitel.cases.CaseTimelineVariable
+	8,  // 6: webitel.cases.GetTimelineItemInfoResponse.postprocessing:type_name -> webitel.cases.CaseTimelinePostprocessingResult
+	18, // 7: webitel.cases.CallEvent.participants:type_name -> general.Lookup
+	18, // 8: webitel.cases.CallEvent.gateway:type_name -> general.Lookup
+	18, // 9: webitel.cases.CallEvent.flow_scheme:type_name -> general.Lookup
+	18, // 10: webitel.cases.CallEvent.queue:type_name -> general.Lookup
+	16, // 11: webitel.cases.CallEvent.files:type_name -> webitel.cases.CallFile
+	17, // 12: webitel.cases.CallEvent.transcripts:type_name -> webitel.cases.TranscriptLookup
+	18, // 13: webitel.cases.ChatEvent.participants:type_name -> general.Lookup
+	20, // 14: webitel.cases.ChatEvent.gateway:type_name -> general.ExtendedLookup
+	18, // 15: webitel.cases.ChatEvent.flow_scheme:type_name -> general.Lookup
+	18, // 16: webitel.cases.ChatEvent.queue:type_name -> general.Lookup
+	18, // 17: webitel.cases.EmailEvent.owner:type_name -> general.Lookup
+	15, // 18: webitel.cases.EmailEvent.attachments:type_name -> webitel.cases.Attachment
+	18, // 19: webitel.cases.EmailEvent.profile:type_name -> general.Lookup
+	14, // 20: webitel.cases.DayTimeline.items:type_name -> webitel.cases.Event
+	1,  // 21: webitel.cases.Event.type:type_name -> webitel.cases.CaseTimelineEventType
+	11, // 22: webitel.cases.Event.chat:type_name -> webitel.cases.ChatEvent
+	10, // 23: webitel.cases.Event.call:type_name -> webitel.cases.CallEvent
+	12, // 24: webitel.cases.Event.email:type_name -> webitel.cases.EmailEvent
+	0,  // 25: webitel.cases.CallFile.type:type_name -> webitel.cases.CallFileType
+	18, // 26: webitel.cases.TranscriptLookup.file:type_name -> general.Lookup
+	2,  // 27: webitel.cases.CaseTimeline.GetTimeline:input_type -> webitel.cases.GetTimelineRequest
+	4,  // 28: webitel.cases.CaseTimeline.GetTimelineCounter:input_type -> webitel.cases.GetTimelineCounterRequest
+	6,  // 29: webitel.cases.CaseTimeline.GetTimelineItemInfo:input_type -> webitel.cases.GetTimelineItemInfoRequest
+	3,  // 30: webitel.cases.CaseTimeline.GetTimeline:output_type -> webitel.cases.GetTimelineResponse
+	5,  // 31: webitel.cases.CaseTimeline.GetTimelineCounter:output_type -> webitel.cases.GetTimelineCounterResponse
+	9,  // 32: webitel.cases.CaseTimeline.GetTimelineItemInfo:output_type -> webitel.cases.GetTimelineItemInfoResponse
+	30, // [30:33] is the sub-list for method output_type
+	27, // [27:30] is the sub-list for method input_type
+	27, // [27:27] is the sub-list for extension type_name
+	27, // [27:27] is the sub-list for extension extendee
+	0,  // [0:27] is the sub-list for field type_name
 }
 
 func init() { file_case_timeline_proto_init() }
@@ -1458,7 +1710,7 @@ func file_case_timeline_proto_init() {
 		return
 	}
 	file_general_proto_init()
-	file_case_timeline_proto_msgTypes[8].OneofWrappers = []any{
+	file_case_timeline_proto_msgTypes[12].OneofWrappers = []any{
 		(*Event_Chat)(nil),
 		(*Event_Call)(nil),
 		(*Event_Email)(nil),
@@ -1469,7 +1721,7 @@ func file_case_timeline_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_case_timeline_proto_rawDesc), len(file_case_timeline_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   12,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
