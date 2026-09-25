@@ -110,6 +110,7 @@ type CaseCommentStore interface {
 type CaseTimelineStore interface {
 	Get(rpc options.Searcher) (*model.CaseTimeline, error)
 	GetCounter(rpc options.Searcher) ([]*model.TimelineCounter, error)
+	GetItemInfo(rpc options.Searcher, caseID int64, itemType model.CaseTimelineEventType, itemID string) (*model.CaseTimelineItemInfo, error)
 }
 
 // Case connected communications (chats, calls etc.)

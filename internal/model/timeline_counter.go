@@ -165,3 +165,21 @@ type TimelineCounterResponse struct {
 	CallsCount  int64
 	EmailsCount int64
 }
+
+// CaseTimelineItemInfo represents variables + postprocessing results saved
+// for a single timeline communication (call | chat | email).
+type CaseTimelineItemInfo struct {
+	Variables      []*CaseTimelineVariable
+	Postprocessing []*CaseTimelinePostprocessingResult
+}
+
+type CaseTimelineVariable struct {
+	Key   string
+	Value string
+}
+
+type CaseTimelinePostprocessingResult struct {
+	Agent       *GeneralLookup
+	Form        any // decoded JSON, marshaled to google.protobuf.Value at the API layer
+	ReportingAt int64
+}
