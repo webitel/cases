@@ -595,11 +595,14 @@ SELECT
 	COALESCE((EXTRACT(EPOCH FROM MIN(c.created_at)) * 1000)::bigint, 0) AS date_from,
 	COALESCE((EXTRACT(EPOCH FROM MAX(c.hangup_at)) * 1000)::bigint, 0) AS date_to
 FROM call_center.cc_calls_history c
-WHERE c.id = ANY(SELECT communication_id::uuid
+JOIN (
+	SELECT DISTINCT communication_id::uuid AS id
 	FROM cases.case_communication casecom
 	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
-	WHERE case_id = $%d AND com.channel = $%d)
-AND c.transfer_from IS NULL`
+	WHERE case_id = $%d AND com.channel = $%d
+	OFFSET 0
+) linked ON linked.id = c.id
+WHERE c.transfer_from IS NULL`
 
 	ChatCounterQuery = `
 SELECT
@@ -608,10 +611,13 @@ SELECT
 	COALESCE((EXTRACT(EPOCH FROM MIN(conv.created_at)) * 1000)::bigint, 0) AS date_from,
 	COALESCE((EXTRACT(EPOCH FROM MAX(conv.closed_at)) * 1000)::bigint, 0) AS date_to
 FROM chat.conversation conv
-WHERE conv.id = ANY(SELECT communication_id::uuid
+JOIN (
+	SELECT DISTINCT communication_id::uuid AS id
 	FROM cases.case_communication casecom
 	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
-	WHERE case_id = $%d AND com.channel = $%d)`
+	WHERE case_id = $%d AND com.channel = $%d
+	OFFSET 0
+) linked ON linked.id = conv.id`
 
 	EmailCounterQuery = `
 SELECT
@@ -620,13 +626,22 @@ SELECT
 	COALESCE((EXTRACT(EPOCH FROM MIN(e.created_at)) * 1000)::bigint, 0) AS date_from,
 	COALESCE((EXTRACT(EPOCH FROM MAX(e.created_at)) * 1000)::bigint, 0) AS date_to
 FROM call_center.cc_email e
-WHERE e.id = ANY(SELECT communication_id::bigint
+JOIN (
+	SELECT DISTINCT communication_id::bigint AS id
 	FROM cases.case_communication casecom
 	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
-	WHERE case_id = $%d AND com.channel = $%d)`
+	WHERE case_id = $%d AND com.channel = $%d
+	OFFSET 0
+) linked ON linked.id = e.id`
 
 	// JSONB CTE Queries
 	CallsJSONBCTE = `
+linked_calls AS MATERIALIZED (
+	SELECT DISTINCT communication_id::uuid AS id
+	FROM cases.case_communication casecom
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
+	WHERE casecom.case_id = $%d AND com.channel = $%d
+),
 call_data AS (
 	SELECT
 		c.id::text,
@@ -662,6 +677,7 @@ call_data AS (
 		files.data AS files,
 		transcripts.data AS transcripts
 	FROM call_center.cc_calls_history c
+	JOIN linked_calls ON linked_calls.id = c.id
 	LEFT JOIN LATERAL (SELECT round(date_part('epoch'::text, c.hangup_at - c.created_at)::bigint) duration) root ON true
 	LEFT JOIN LATERAL (
 		SELECT jsonb_agg(jsonb_build_object('id', users.id, 'name', users.name)) AS data
@@ -697,23 +713,57 @@ call_data AS (
 		WHERE a.id = c.queue_id
 	) queue ON true
 	LEFT JOIN LATERAL (
+		WITH RECURSIVE up AS (
+			SELECT d.id, d.parent_id, d.transfer_from
+			FROM call_center.cc_calls_history d
+			WHERE d.id = c.id
+			  AND d.domain_id = c.domain_id
+			UNION
+			SELECT p.id, p.parent_id, p.transfer_from
+			FROM call_center.cc_calls_history p, up
+			WHERE p.id = up.parent_id OR p.id = up.transfer_from
+		),
+		family_root AS (
+			SELECT id FROM up WHERE parent_id IS NULL AND transfer_from IS NULL ORDER BY id LIMIT 1
+		),
+		down AS (
+			SELECT d.id
+			FROM call_center.cc_calls_history d, family_root
+			WHERE d.id = family_root.id
+			UNION
+			SELECT d.id
+			FROM call_center.cc_calls_history d, down
+			WHERE d.parent_id = down.id OR d.transfer_from = down.id
+		)
+		SELECT array_agg(DISTINCT id::text) AS ids FROM (
+			SELECT id FROM down
+			UNION
+			SELECT c.id
+		) all_ids
+	) family ON true
+	LEFT JOIN LATERAL (
 		SELECT jsonb_agg(jsonb_build_object('id', f1.id, 'size', f1.size, 'mime_type', f1.mime_type, 'name', f1.name, 'start_at', f1.created_at * 1000, 'channel', f1.channel)) AS data
 		FROM storage.files f1
 		WHERE f1.domain_id = c.domain_id
 		  AND NOT f1.removed IS TRUE
-		  AND f1.uuid = c.id::varchar
+		  AND f1.uuid = ANY(family.ids)
 	) files ON true
 	LEFT JOIN LATERAL (
 		SELECT jsonb_agg(jsonb_build_object('id', tr.id, 'locale', tr.locale, 'file', jsonb_build_object('id', ff.id, 'name', ff.name))) AS data
 		FROM storage.file_transcript tr
 		LEFT JOIN storage.files ff ON ff.id = tr.file_id
-		WHERE tr.uuid::text = c.id::text
+		WHERE tr.uuid = ANY(family.ids)
 	) transcripts ON true
-	WHERE c.id = ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = $%d AND com.channel = $%d)
-	  AND c.transfer_from isnull
+	WHERE c.transfer_from isnull
 )`
 
 	ChatsJSONBCTE = `
+linked_chats AS MATERIALIZED (
+	SELECT DISTINCT communication_id::uuid AS id
+	FROM cases.case_communication casecom
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
+	WHERE casecom.case_id = $%d AND com.channel = $%d
+),
 chat_data AS (
 	SELECT
 		conv.id::text,
@@ -728,6 +778,7 @@ chat_data AS (
 		flow_scheme.data AS flow_scheme,
 		queue.data AS queue
 	FROM chat.conversation conv
+	JOIN linked_chats ON linked_chats.id = conv.id
 	LEFT JOIN LATERAL (
 		SELECT jsonb_agg(jsonb_build_object('id', usr.id, 'name', usr.name)) AS data
 		FROM chat.channel c
@@ -752,10 +803,15 @@ chat_data AS (
 	LEFT JOIN LATERAL (
 		SELECT null::jsonb AS data
 	) queue ON true
-	WHERE conv.id = ANY(SELECT communication_id::uuid FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = $%d AND com.channel = $%d)
 )`
 
 	EmailsJSONBCTE = `
+linked_emails AS MATERIALIZED (
+	SELECT DISTINCT communication_id::bigint AS id
+	FROM cases.case_communication casecom
+	LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type
+	WHERE casecom.case_id = $%d AND com.channel = $%d
+),
 email_data AS (
 	SELECT
 		e.id::text,
@@ -775,6 +831,7 @@ email_data AS (
 		owner.data AS owner,
 		attachments.data AS attachments
 	FROM call_center.cc_email e
+	JOIN linked_emails ON linked_emails.id = e.id
 	LEFT JOIN LATERAL (
 		SELECT jsonb_build_object('id', e.profile_id, 'name', p.name) AS data
 		FROM call_center.cc_email_profile p
@@ -790,7 +847,6 @@ email_data AS (
 		FROM storage.files f
 		WHERE f.id = any (e.attachment_ids)
 	) attachments ON true
-	WHERE e.id = ANY(SELECT communication_id::bigint FROM cases.case_communication casecom LEFT JOIN call_center.cc_communication com ON com.id = casecom.communication_type WHERE case_id = $%d AND com.channel = $%d)
 )`
 )
 
