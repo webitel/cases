@@ -341,13 +341,13 @@ func TestApplyDefaultSortingSortOrder(t *testing.T) {
 		{
 			name:     "asc with sort order",
 			opts:     testSorter{sort: "+type", sortOrder: []string{"CALL", "CHAT"}},
-			wantSQL:  "SELECT id FROM t ORDER BY array_position($1::text[], (type)::text) ASC NULLS LAST, type ASC",
+			wantSQL:  "SELECT id FROM t ORDER BY array_position($1::text[], type::text) ASC NULLS LAST, type ASC",
 			wantArgs: []any{[]string{"CALL", "CHAT"}},
 		},
 		{
 			name:     "desc with sort order",
 			opts:     testSorter{sort: "-type", sortOrder: []string{"CALL", "CHAT"}},
-			wantSQL:  "SELECT id FROM t ORDER BY array_position($1::text[], (type)::text) DESC NULLS LAST, type DESC",
+			wantSQL:  "SELECT id FROM t ORDER BY array_position($1::text[], type::text) DESC NULLS LAST, type DESC",
 			wantArgs: []any{[]string{"CALL", "CHAT"}},
 		},
 		{
@@ -363,6 +363,26 @@ func TestApplyDefaultSortingSortOrder(t *testing.T) {
 		{
 			name:    "default sort ignores sort order",
 			opts:    testSorter{sortOrder: []string{"CALL"}},
+			wantSQL: "SELECT id FROM t ORDER BY name ASC",
+		},
+		{
+			name:    "qualified field",
+			opts:    testPlainSorter("-s.created_at"),
+			wantSQL: "SELECT id FROM t ORDER BY s.created_at DESC",
+		},
+		{
+			name:    "injection in sort falls back to default",
+			opts:    testSorter{sort: "+type)::text) DESC; DROP TABLE t; --", sortOrder: []string{"CALL"}},
+			wantSQL: "SELECT id FROM t ORDER BY name ASC",
+		},
+		{
+			name:    "injection without sort order falls back to default",
+			opts:    testPlainSorter("-name; DELETE FROM t"),
+			wantSQL: "SELECT id FROM t ORDER BY name ASC",
+		},
+		{
+			name:    "sign only falls back to default",
+			opts:    testPlainSorter("-"),
 			wantSQL: "SELECT id FROM t ORDER BY name ASC",
 		},
 	}

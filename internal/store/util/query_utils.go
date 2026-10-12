@@ -2,10 +2,13 @@ package util
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
 )
+
+var sortFieldPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$`)
 
 const (
 	ComparisonILike  = "ilike"
@@ -144,6 +147,10 @@ func ApplyDefaultSorting(opts Sorter, base squirrel.SelectBuilder, defaultSort s
 			s = strings.TrimPrefix(s, string(s[0]))
 		}
 
+		if !sortFieldPattern.MatchString(s) {
+			return base.OrderBy(fmt.Sprintf(`%s ASC`, defaultSort))
+		}
+
 		// Determine sort direction
 		dir := " ASC"
 		if desc {
@@ -152,7 +159,7 @@ func ApplyDefaultSorting(opts Sorter, base squirrel.SelectBuilder, defaultSort s
 
 		if so, ok := opts.(SortOrderer); ok && len(so.GetSortOrder()) != 0 {
 			base = base.OrderByClause(
-				"array_position(?::text[], ("+s+")::text)"+dir+" NULLS LAST",
+				"array_position(?::text[], "+s+"::text)"+dir+" NULLS LAST",
 				so.GetSortOrder(),
 			)
 		}
