@@ -318,3 +318,92 @@ func TestParseSearchTerm(t *testing.T) {
 		})
 	}
 }
+
+type testSorter struct {
+	sort      string
+	sortOrder []string
+}
+
+func (s testSorter) GetSort() string        { return s.sort }
+func (s testSorter) GetSortOrder() []string { return s.sortOrder }
+
+type testPlainSorter string
+
+func (s testPlainSorter) GetSort() string { return string(s) }
+
+func TestApplyDefaultSortingSortOrder(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     Sorter
+		wantSQL  string
+		wantArgs []any
+	}{
+		{
+			name:     "asc with sort order",
+			opts:     testSorter{sort: "+type", sortOrder: []string{"CALL", "CHAT"}},
+			wantSQL:  "SELECT id FROM t ORDER BY array_position($1::text[], type::text) ASC NULLS LAST, type ASC",
+			wantArgs: []any{[]string{"CALL", "CHAT"}},
+		},
+		{
+			name:     "desc with sort order",
+			opts:     testSorter{sort: "-type", sortOrder: []string{"CALL", "CHAT"}},
+			wantSQL:  "SELECT id FROM t ORDER BY array_position($1::text[], type::text) DESC NULLS LAST, type DESC",
+			wantArgs: []any{[]string{"CALL", "CHAT"}},
+		},
+		{
+			name:    "empty sort order",
+			opts:    testSorter{sort: "+type"},
+			wantSQL: "SELECT id FROM t ORDER BY type ASC",
+		},
+		{
+			name:    "sorter without sort order",
+			opts:    testPlainSorter("-name"),
+			wantSQL: "SELECT id FROM t ORDER BY name DESC",
+		},
+		{
+			name:    "default sort ignores sort order",
+			opts:    testSorter{sortOrder: []string{"CALL"}},
+			wantSQL: "SELECT id FROM t ORDER BY name ASC",
+		},
+		{
+			name:    "qualified field",
+			opts:    testPlainSorter("-s.created_at"),
+			wantSQL: "SELECT id FROM t ORDER BY s.created_at DESC",
+		},
+		{
+			name:    "injection in sort falls back to default",
+			opts:    testSorter{sort: "+type)::text) DESC; DROP TABLE t; --", sortOrder: []string{"CALL"}},
+			wantSQL: "SELECT id FROM t ORDER BY name ASC",
+		},
+		{
+			name:    "injection without sort order falls back to default",
+			opts:    testPlainSorter("-name; DELETE FROM t"),
+			wantSQL: "SELECT id FROM t ORDER BY name ASC",
+		},
+		{
+			name:    "sign only falls back to default",
+			opts:    testPlainSorter("-"),
+			wantSQL: "SELECT id FROM t ORDER BY name ASC",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base := squirrel.Select("id").From("t").PlaceholderFormat(squirrel.Dollar)
+
+			gotSQL, gotArgs, err := ApplyDefaultSorting(tt.opts, base, "name").ToSql()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if gotSQL != tt.wantSQL {
+				t.Errorf("ApplyDefaultSorting() sql = %q, want %q", gotSQL, tt.wantSQL)
+			}
+
+			if len(gotArgs) != 0 || len(tt.wantArgs) != 0 {
+				if !reflect.DeepEqual(gotArgs, tt.wantArgs) {
+					t.Errorf("ApplyDefaultSorting() args = %#v, want %#v", gotArgs, tt.wantArgs)
+				}
+			}
+		})
+	}
+}
