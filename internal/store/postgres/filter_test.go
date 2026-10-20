@@ -71,3 +71,26 @@ func TestApplyFilterBool(t *testing.T) {
 		})
 	}
 }
+
+func TestBoolMatchesNull(t *testing.T) {
+	tests := []struct {
+		name   string
+		value  any
+		negate bool
+		want   bool
+	}{
+		{"= false", false, false, true},
+		{"!= true", true, true, true},
+		{"= true", true, false, false},
+		{"!= false", false, true, false},
+		{"non-bool", "false", false, false},
+		{"nil", nil, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := boolMatchesNull(tt.value, tt.negate); got != tt.want {
+				t.Errorf("boolMatchesNull(%v, %v) = %v, want %v", tt.value, tt.negate, got, tt.want)
+			}
+		})
+	}
+}

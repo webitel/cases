@@ -1980,6 +1980,10 @@ func (c *CaseStore) filterToSqlizer(
 	// 		expr = "%s @> ?" // array[] contains
 	// 	}
 	case customrel.BOOL:
+		if list == nil && boolMatchesNull(vs, (assert.operator&not) == not) {
+			// NULL (unset value or missing [LEFT] JOIN row) counts as false
+			return sq.Expr(columnIdent + " IS NOT TRUE")
+		}
 		if (assert.operator & not) == not {
 			expr = "? != %s"
 		}
@@ -2030,6 +2034,13 @@ func (c *CaseStore) filterToSqlizer(
 	}
 
 	return sq.Expr(fmt.Sprintf(expr, columnIdent), vs)
+}
+
+// boolMatchesNull reports whether a boolean comparison ("= false" or "!= true")
+// must also match NULL values, which are treated as false.
+func boolMatchesNull(value any, negate bool) bool {
+	b, ok := value.(bool)
+	return ok && b == negate
 }
 
 func isComplexFilter(filterStr string) bool {
