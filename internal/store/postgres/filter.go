@@ -183,12 +183,22 @@ func applyFilter(filter *filters.Filter) (sq.Sqlizer, error) {
 	case filters.LessThanOrEqual:
 		result = sq.LtOrEq{columnName: value}
 	case filters.NotEqual:
+		// NULL (unset value or missing [LEFT] JOIN row) counts as false
+		if value == true {
+			result = sq.Expr(fmt.Sprintf("%s IS NOT TRUE", columnName))
+			break
+		}
 		result = sq.NotEq{columnName: value}
 	case filters.Like:
 		result = sq.Like{columnName: value}
 	case filters.ILike:
 		result = sq.ILike{columnName: value}
 	case filters.Equal:
+		// NULL (unset value or missing [LEFT] JOIN row) counts as false
+		if value == false {
+			result = sq.Expr(fmt.Sprintf("%s IS NOT TRUE", columnName))
+			break
+		}
 		result = sq.Eq{columnName: value}
 	case filters.IsNull:
 		result = sq.Expr(fmt.Sprintf("%s IS NULL", columnName))
