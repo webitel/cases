@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/georgysavva/scany/v2/pgxscan"
@@ -329,8 +330,18 @@ func (c *CaseCommunicationStore) buildDeleteCaseCommunicationSqlizer(
 	}
 	ids := options.GetIDs()
 
+	caseFilters := options.GetFilter("case_id")
+	if len(caseFilters) == 0 {
+		return nil, errors.InvalidArgument("case id required to delete")
+	}
+
+	caseID, err := strconv.ParseInt(caseFilters[0].Value, 10, 64)
+	if err != nil {
+		return nil, errors.InvalidArgument("invalid case id", errors.WithCause(err))
+	}
+
 	del := squirrel.Delete(c.mainTable).
-		Where(squirrel.Eq{"id": ids}).
+		Where(squirrel.Eq{"id": ids, "case_id": caseID, "dc": options.GetAuthOpts().GetDomainId()}).
 		PlaceholderFormat(squirrel.Dollar)
 
 	return del, nil

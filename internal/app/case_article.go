@@ -23,6 +23,10 @@ func (a *App) LinkCaseArticle(creator options.Creator, input *model.CaseArticle)
 	if err := a.checkCaseRbac(creator, creator.GetAuthOpts(), auth.Edit, caseID); err != nil {
 		return nil, err
 	}
+
+	if err := a.ensureCaseNotArchived(creator, creator.GetAuthOpts().GetDomainId(), caseID); err != nil {
+		return nil, err
+	}
 	link, err := a.Store.CaseArticle().Link(creator, input)
 	if err != nil {
 		return nil, err
@@ -41,6 +45,10 @@ func (a *App) UnlinkCaseArticle(deleter options.Deleter) (*model.CaseArticle, er
 		return nil, errors.InvalidArgument("article id required")
 	}
 	if err := a.checkCaseRbac(deleter, deleter.GetAuthOpts(), auth.Edit, caseID); err != nil {
+		return nil, err
+	}
+
+	if err := a.ensureCaseNotArchived(deleter, deleter.GetAuthOpts().GetDomainId(), caseID); err != nil {
 		return nil, err
 	}
 	link, err := a.Store.CaseArticle().Unlink(deleter)

@@ -1388,6 +1388,33 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	return false, nil
 }
 
+func (c *CaseStore) IsArchived(ctx context.Context, domainID, caseID int64) (bool, error) {
+	db, err := c.storage.Database()
+	if err != nil {
+		return false, err
+	}
+
+	var archived bool
+
+	err = db.QueryRow(ctx, isCaseArchivedQuery, caseID, domainID).Scan(&archived)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, ParseError(err)
+	}
+
+	return archived, nil
+}
+
+var isCaseArchivedQuery = storeutils.CompactSQL(`
+SELECT COALESCE(sc.archived, false)
+FROM cases.case c
+         LEFT JOIN cases.status_condition sc ON sc.id = c.status_condition
+WHERE c.id = $1
+  AND c.dc = $2`)
+
 type operator uint8
 
 const (

@@ -37,6 +37,10 @@ func (a *App) CreateCaseLink(creator options.Creator, input *model.CaseLink) (*m
 			return nil, errors.Forbidden("user doesn't have required (EDIT) access to the case")
 		}
 	}
+
+	if err := a.ensureCaseNotArchived(creator, creator.GetAuthOpts().GetDomainId(), caseID); err != nil {
+		return nil, err
+	}
 	link, err := a.Store.CaseLink().Create(creator, input)
 	if err != nil {
 		return nil, err
@@ -91,6 +95,10 @@ func (a *App) UpdateCaseLink(updator options.Updator, input *model.CaseLink) (*m
 		if !access {
 			return nil, errors.Forbidden("user doesn't have required (EDIT) access to the case")
 		}
+	}
+
+	if err := a.ensureCaseNotArchived(updator, updator.GetAuthOpts().GetDomainId(), caseID); err != nil {
+		return nil, err
 	}
 	link, err := a.Store.CaseLink().Update(updator, input)
 	if err != nil {
@@ -147,6 +155,10 @@ func (a *App) DeleteCaseLink(deleter options.Deleter) (*model.CaseLink, error) {
 		if !access {
 			return nil, errors.Forbidden("user doesn't have required (Edit) access to the case")
 		}
+	}
+
+	if err := a.ensureCaseNotArchived(deleter, deleter.GetAuthOpts().GetDomainId(), caseID); err != nil {
+		return nil, err
 	}
 	link, err := a.Store.CaseLink().Delete(deleter)
 	if err != nil {
