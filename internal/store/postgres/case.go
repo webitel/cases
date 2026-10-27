@@ -1558,7 +1558,7 @@ func (c *CaseStore) needsCustomFieldsForFilter(filterStr string, opts options.Se
 	standardFields := []string{
 		"created_by", "updated_by", "assignee", "reporter", "source", "priority",
 		"status", "impacted", "close_reason", "service", "status_condition",
-		"sla_condition", "group", "sla", "status_condition.final", "author",
+		"sla_condition", "group", "sla", "status_condition.final", "status_condition.archived", "author",
 		"communication_id", "rating", "reacted_at", "resolved_at",
 		"planned_reaction_at", "planned_resolve_at", "created_at", "attachments", "contact",
 		"description", "subject", "name", "contact_info",
@@ -1677,6 +1677,13 @@ func (c *CaseStore) filterToSqlizer(
 				storeutils.Ident(caseLeft, "status_condition"),
 			),
 			final,
+		)
+	case "status_condition.archived":
+		return sq.Expr(
+			fmt.Sprintf("EXISTS(SELECT id FROM cases.status_condition WHERE id = %s AND archived = ?)",
+				storeutils.Ident(caseLeft, "status_condition"),
+			),
+			value == "true",
 		)
 	case "author":
 		values := strings.Split(value, ",")
@@ -3304,7 +3311,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			})
 		case "status_condition":
 			base.Query = base.Query.Column(fmt.Sprintf(
-				"ROW(%s.id, %[1]s.name, %[1]s.initial, %[1]s.final)::text AS status_condition",
+				"ROW(%s.id, %[1]s.name, %[1]s.initial, %[1]s.final, %[1]s.archived)::text AS status_condition",
 				tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
@@ -3366,6 +3373,19 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 									return err
 								}
 								caseItem.StatusCondition.Final = bl.Bool
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+
+								if err := bl.Scan(src); err != nil {
+									return err
+								}
+
+								caseItem.StatusCondition.Archived = bl.Bool
+
 								return nil
 							}),
 						}
