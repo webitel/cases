@@ -75,6 +75,10 @@ func (a *App) DeleteCaseFile(rpc options.Deleter) (*model.CaseFile, error) {
 		}
 	}
 
+	if err := a.ensureCaseNotArchived(rpc, rpc.GetAuthOpts().GetDomainId(), rpc.GetParentID()); err != nil {
+		return nil, err
+	}
+
 	// Delete the file from the database
 	file, err := a.Store.CaseFile().Delete(rpc)
 	if err != nil {

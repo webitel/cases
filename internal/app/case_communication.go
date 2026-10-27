@@ -56,6 +56,10 @@ func (c *App) LinkCommunication(createOpts options.Creator, input []*model.CaseC
 			return nil, errors.New("user doesn't have required (EDIT) access to the case", errors.WithCode(codes.PermissionDenied))
 		}
 	}
+
+	if err := c.ensureCaseNotArchived(createOpts, createOpts.GetAuthOpts().GetDomainId(), createOpts.GetParentID()); err != nil {
+		return nil, err
+	}
 	res, err := c.Store.CaseCommunication().Link(createOpts, input)
 	if err != nil {
 		return nil, err
@@ -86,6 +90,10 @@ func (c *App) UnlinkCommunication(deleteOpts options.Deleter) (int64, error) {
 		if !access {
 			return 0, errors.New("user doesn't have required (EDIT) access to the case", errors.WithCode(codes.PermissionDenied))
 		}
+	}
+
+	if err := c.ensureCaseNotArchived(deleteOpts, deleteOpts.GetAuthOpts().GetDomainId(), caseID); err != nil {
+		return 0, err
 	}
 	affected, err := c.Store.CaseCommunication().Unlink(deleteOpts)
 	if err != nil {

@@ -41,6 +41,8 @@ type StatusCondition struct {
 	Final bool `protobuf:"varint,5,opt,name=final,proto3" json:"final,omitempty"`
 	// Status ID of the status condition
 	StatusId int64 `protobuf:"varint,6,opt,name=status_id,json=statusId,proto3" json:"status_id,omitempty"`
+	// Archived status condition
+	Archived bool `protobuf:"varint,7,opt,name=archived,proto3" json:"archived,omitempty"`
 	// CreatedAt timestamp of the status condition
 	CreatedAt int64 `protobuf:"varint,20,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// UpdatedAt timestamp of the status condition
@@ -125,6 +127,13 @@ func (x *StatusCondition) GetStatusId() int64 {
 	return 0
 }
 
+func (x *StatusCondition) GetArchived() bool {
+	if x != nil {
+		return x.Archived
+	}
+	return false
+}
+
 func (x *StatusCondition) GetCreatedAt() int64 {
 	if x != nil {
 		return x.CreatedAt
@@ -163,7 +172,9 @@ type InputStatusCondition struct {
 	// Initial status condition
 	Initial *wrapperspb.BoolValue `protobuf:"bytes,4,opt,name=initial,proto3" json:"initial,omitempty"`
 	// Final status condition
-	Final         *wrapperspb.BoolValue `protobuf:"bytes,5,opt,name=final,proto3" json:"final,omitempty"`
+	Final *wrapperspb.BoolValue `protobuf:"bytes,5,opt,name=final,proto3" json:"final,omitempty"`
+	// Archived status condition
+	Archived      *wrapperspb.BoolValue `protobuf:"bytes,7,opt,name=archived,proto3" json:"archived,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -222,6 +233,13 @@ func (x *InputStatusCondition) GetInitial() *wrapperspb.BoolValue {
 func (x *InputStatusCondition) GetFinal() *wrapperspb.BoolValue {
 	if x != nil {
 		return x.Final
+	}
+	return nil
+}
+
+func (x *InputStatusCondition) GetArchived() *wrapperspb.BoolValue {
+	if x != nil {
+		return x.Archived
 	}
 	return nil
 }
@@ -748,14 +766,15 @@ var File_status_condition_proto protoreflect.FileDescriptor
 
 const file_status_condition_proto_rawDesc = "" +
 	"\n" +
-	"\x16status_condition.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\x1bgoogle/api/visibility.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1aproto/webitel/option.proto\"\xc2\x02\n" +
+	"\x16status_condition.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\x1bgoogle/api/visibility.proto\x1a\x1egoogle/protobuf/wrappers.proto\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1aproto/webitel/option.proto\"\xde\x02\n" +
 	"\x0fStatusCondition\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x18\n" +
 	"\ainitial\x18\x04 \x01(\bR\ainitial\x12\x14\n" +
 	"\x05final\x18\x05 \x01(\bR\x05final\x12\x1b\n" +
-	"\tstatus_id\x18\x06 \x01(\x03R\bstatusId\x12\x1d\n" +
+	"\tstatus_id\x18\x06 \x01(\x03R\bstatusId\x12\x1a\n" +
+	"\barchived\x18\a \x01(\bR\barchived\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x14 \x01(\x03R\tcreatedAt\x12\x1d\n" +
 	"\n" +
@@ -763,12 +782,13 @@ const file_status_condition_proto_rawDesc = "" +
 	"\n" +
 	"created_by\x18\x16 \x01(\v2\x0f.general.LookupR\tcreatedBy\x12.\n" +
 	"\n" +
-	"updated_by\x18\x17 \x01(\v2\x0f.general.LookupR\tupdatedBy\"\xb4\x01\n" +
+	"updated_by\x18\x17 \x01(\v2\x0f.general.LookupR\tupdatedBy\"\xec\x01\n" +
 	"\x14InputStatusCondition\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\x124\n" +
 	"\ainitial\x18\x04 \x01(\v2\x1a.google.protobuf.BoolValueR\ainitial\x120\n" +
-	"\x05final\x18\x05 \x01(\v2\x1a.google.protobuf.BoolValueR\x05final\"s\n" +
+	"\x05final\x18\x05 \x01(\v2\x1a.google.protobuf.BoolValueR\x05final\x126\n" +
+	"\barchived\x18\a \x01(\v2\x1a.google.protobuf.BoolValueR\barchived\"s\n" +
 	"\x13StatusConditionList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x124\n" +
@@ -846,25 +866,26 @@ var file_status_condition_proto_depIdxs = []int32{
 	10, // 1: webitel.cases.StatusCondition.updated_by:type_name -> general.Lookup
 	11, // 2: webitel.cases.InputStatusCondition.initial:type_name -> google.protobuf.BoolValue
 	11, // 3: webitel.cases.InputStatusCondition.final:type_name -> google.protobuf.BoolValue
-	0,  // 4: webitel.cases.StatusConditionList.items:type_name -> webitel.cases.StatusCondition
-	3,  // 5: webitel.cases.CreateStatusConditionRequest.input:type_name -> webitel.cases.InputCreateStatusCondition
-	1,  // 6: webitel.cases.UpdateStatusConditionRequest.input:type_name -> webitel.cases.InputStatusCondition
-	0,  // 7: webitel.cases.LocateStatusConditionResponse.status:type_name -> webitel.cases.StatusCondition
-	7,  // 8: webitel.cases.StatusConditions.ListStatusConditions:input_type -> webitel.cases.ListStatusConditionRequest
-	4,  // 9: webitel.cases.StatusConditions.CreateStatusCondition:input_type -> webitel.cases.CreateStatusConditionRequest
-	5,  // 10: webitel.cases.StatusConditions.UpdateStatusCondition:input_type -> webitel.cases.UpdateStatusConditionRequest
-	6,  // 11: webitel.cases.StatusConditions.DeleteStatusCondition:input_type -> webitel.cases.DeleteStatusConditionRequest
-	8,  // 12: webitel.cases.StatusConditions.LocateStatusCondition:input_type -> webitel.cases.LocateStatusConditionRequest
-	2,  // 13: webitel.cases.StatusConditions.ListStatusConditions:output_type -> webitel.cases.StatusConditionList
-	0,  // 14: webitel.cases.StatusConditions.CreateStatusCondition:output_type -> webitel.cases.StatusCondition
-	0,  // 15: webitel.cases.StatusConditions.UpdateStatusCondition:output_type -> webitel.cases.StatusCondition
-	0,  // 16: webitel.cases.StatusConditions.DeleteStatusCondition:output_type -> webitel.cases.StatusCondition
-	9,  // 17: webitel.cases.StatusConditions.LocateStatusCondition:output_type -> webitel.cases.LocateStatusConditionResponse
-	13, // [13:18] is the sub-list for method output_type
-	8,  // [8:13] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	11, // 4: webitel.cases.InputStatusCondition.archived:type_name -> google.protobuf.BoolValue
+	0,  // 5: webitel.cases.StatusConditionList.items:type_name -> webitel.cases.StatusCondition
+	3,  // 6: webitel.cases.CreateStatusConditionRequest.input:type_name -> webitel.cases.InputCreateStatusCondition
+	1,  // 7: webitel.cases.UpdateStatusConditionRequest.input:type_name -> webitel.cases.InputStatusCondition
+	0,  // 8: webitel.cases.LocateStatusConditionResponse.status:type_name -> webitel.cases.StatusCondition
+	7,  // 9: webitel.cases.StatusConditions.ListStatusConditions:input_type -> webitel.cases.ListStatusConditionRequest
+	4,  // 10: webitel.cases.StatusConditions.CreateStatusCondition:input_type -> webitel.cases.CreateStatusConditionRequest
+	5,  // 11: webitel.cases.StatusConditions.UpdateStatusCondition:input_type -> webitel.cases.UpdateStatusConditionRequest
+	6,  // 12: webitel.cases.StatusConditions.DeleteStatusCondition:input_type -> webitel.cases.DeleteStatusConditionRequest
+	8,  // 13: webitel.cases.StatusConditions.LocateStatusCondition:input_type -> webitel.cases.LocateStatusConditionRequest
+	2,  // 14: webitel.cases.StatusConditions.ListStatusConditions:output_type -> webitel.cases.StatusConditionList
+	0,  // 15: webitel.cases.StatusConditions.CreateStatusCondition:output_type -> webitel.cases.StatusCondition
+	0,  // 16: webitel.cases.StatusConditions.UpdateStatusCondition:output_type -> webitel.cases.StatusCondition
+	0,  // 17: webitel.cases.StatusConditions.DeleteStatusCondition:output_type -> webitel.cases.StatusCondition
+	9,  // 18: webitel.cases.StatusConditions.LocateStatusCondition:output_type -> webitel.cases.LocateStatusConditionResponse
+	14, // [14:19] is the sub-list for method output_type
+	9,  // [9:14] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_status_condition_proto_init() }

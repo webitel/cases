@@ -155,6 +155,10 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		}
 	}
 
+	if err := r.app.ensureCaseNotArchived(ctx, createOpts.GetAuthOpts().GetDomainId(), createOpts.ParentID, createOpts.ChildID); err != nil {
+		return nil, err
+	}
+
 	output, err := r.app.Store.RelatedCase().Create(
 		createOpts,
 		&req.GetInput().RelationType,
@@ -285,6 +289,14 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		}
 	}
 
+	if err := r.app.ensureCaseNotArchived(ctx, updateOpts.GetAuthOpts().GetDomainId(), primaryId, relatedId); err != nil {
+		return nil, err
+	}
+
+	if err := r.app.ensureRelationsNotArchived(ctx, updateOpts.GetAuthOpts().GetDomainId(), []int64{tag.GetOid()}); err != nil {
+		return nil, err
+	}
+
 	output, err := r.app.Store.RelatedCase().Update(
 		updateOpts,
 		input,
@@ -389,6 +401,10 @@ func (r *RelatedCaseService) DeleteRelatedCase(ctx context.Context, req *cases.D
 			return nil, errors.Forbidden("user doesn't have required (EDIT) access to the case")
 		}
 
+	}
+
+	if err := r.app.ensureRelationsNotArchived(ctx, deleteOpts.GetAuthOpts().GetDomainId(), deleteOpts.GetIDs()); err != nil {
+		return nil, err
 	}
 
 	err = r.app.Store.RelatedCase().Delete(deleteOpts)
