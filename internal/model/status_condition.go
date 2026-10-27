@@ -10,6 +10,7 @@ type StatusCondition struct {
 	Description *string    `db:"description"`
 	Initial     *bool      `db:"initial"`
 	Final       *bool      `db:"final"`
+	Archived    *bool      `db:"archived"`
 	StatusId    *int       `db:"status_id"`
 	CreatedAt   *time.Time `db:"created_at"`
 	UpdatedAt   *time.Time `db:"updated_at"`
