@@ -2322,6 +2322,7 @@ func (c *CaseStore) applySearch(opts options.Searcher, query *Select) error {
 				sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "contact_info"), operator), searchTerm),
 				sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "subject"), operator), searchTerm),
 				sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "name"), operator), searchTerm),
+				sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "description"), operator), searchTerm),
 			)
 
 			query.Query = query.Query.Where(where)
@@ -2337,6 +2338,9 @@ func (c *CaseStore) applySearch(opts options.Searcher, query *Select) error {
 
 		case "subject":
 			query.Query = query.Query.Where(sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "subject"), operator), searchTerm))
+
+		case "description":
+			query.Query = query.Query.Where(sq.Expr(fmt.Sprintf("%s %s ?", storeutils.Ident(caseLeft, "description"), operator), searchTerm))
 
 		case "contact_info":
 			query.Query = query.Query.Where(sq.Or{
