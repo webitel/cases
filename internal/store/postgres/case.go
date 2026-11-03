@@ -1388,6 +1388,41 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	return false, nil
 }
 
+func (c *CaseStore) DeactivatedUserContacts(ctx context.Context, domainID int64, contactIDs []int64) ([]int64, error) {
+	if len(contactIDs) == 0 {
+		return nil, nil
+	}
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.Query(ctx,
+		`SELECT u.contact_id
+		   FROM directory.wbt_user u
+		  WHERE u.dc = $1
+		    AND u.contact_id = ANY($2::int8[])
+		    AND u.deleted_at NOTNULL`,
+		domainID, pq.Array(contactIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("deactivated user contacts: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err = rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("deactivated user contacts: scan: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("deactivated user contacts: %w", err)
+	}
+	return ids, nil
+}
+
 type operator uint8
 
 const (

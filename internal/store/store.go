@@ -69,6 +69,8 @@ type CaseStore interface {
 	PrepareFiltersV1(rpc options.Searcher) (filterJoinFields []string, err error)
 	//check neighbors for navigation
 	FindNeighbors(rpc options.Searcher, anchorID int64, filterJoinFields []string) (prev *int64, next *int64, err error)
+	// Contacts among contactIDs that are linked to a deactivated user
+	DeactivatedUserContacts(ctx context.Context, domainID int64, contactIDs []int64) ([]int64, error)
 }
 
 // RelatedCases attribute attached to the case (n:1)
