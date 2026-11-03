@@ -39,9 +39,10 @@ type SearchOptions struct {
 	CustomContext map[string]any
 
 	// paging
-	Page int
-	Size int
-	Sort string
+	Page      int
+	Size      int
+	Sort      string
+	SortOrder []string
 	// Auth opts
 	Auth auth.Auther
 	Qin  string
@@ -156,6 +157,20 @@ func WithSort(sorter Sorter) SearchOption {
 	}
 }
 
+func WithSortOrder(sortOrder string) SearchOption {
+	return func(options *SearchOptions) error {
+		options.SortOrder = nil
+
+		for _, v := range strings.Split(sortOrder, ",") {
+			if v = strings.TrimSpace(v); v != "" {
+				options.SortOrder = append(options.SortOrder, v)
+			}
+		}
+
+		return nil
+	}
+}
+
 func WithQin(qin string) SearchOption {
 	return func(o *SearchOptions) error {
 		o.Qin = strings.ToLower(qin)
@@ -224,6 +239,10 @@ func (s *SearchOptions) GetSize() int {
 
 func (s *SearchOptions) GetSort() string {
 	return s.Sort
+}
+
+func (s *SearchOptions) GetSortOrder() []string {
+	return s.SortOrder
 }
 
 func (s *SearchOptions) GetFiltersV1() *filters.FilterExpr {
