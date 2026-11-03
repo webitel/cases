@@ -32,6 +32,10 @@ func (s *App) UpdateCaseComment(updator options.Updator, input *model.CaseCommen
 		return nil, errors.InvalidArgument("Text is required")
 	}
 
+	if err := s.ensureCommentsNotArchived(updator, updator.GetAuthOpts().GetDomainId(), []int64{input.Id}); err != nil {
+		return nil, err
+	}
+
 	updatedComment, err := s.Store.CaseComment().Update(updator, input)
 	if err != nil {
 		return nil, err
@@ -50,6 +54,9 @@ func (s *App) UpdateCaseComment(updator options.Updator, input *model.CaseCommen
 
 // DeleteCaseComment deletes a case comment from the store.
 func (s *App) DeleteCaseComment(deleter options.Deleter) (*model.CaseComment, error) {
+	if err := s.ensureCommentsNotArchived(deleter, deleter.GetAuthOpts().GetDomainId(), deleter.GetIDs()); err != nil {
+		return nil, err
+	}
 	deletedComment, err := s.Store.CaseComment().Delete(deleter)
 	if err != nil {
 		return nil, err
@@ -84,6 +91,10 @@ func (s *App) PublishCaseComment(creator options.Creator, input *model.CaseComme
 		if !access {
 			return nil, errors.New("user doesn't have required (EDIT) access to the case", errors.WithCode(codes.PermissionDenied))
 		}
+	}
+
+	if err := s.ensureCaseNotArchived(creator, creator.GetAuthOpts().GetDomainId(), creator.GetParentID()); err != nil {
+		return nil, err
 	}
 
 	comment, err := s.Store.CaseComment().Publish(creator, input)

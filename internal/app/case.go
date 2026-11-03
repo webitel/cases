@@ -511,6 +511,19 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 		slog.Int64("domain_id", createOpts.GetAuthOpts().GetDomainId()),
 	)
 
+	if related != nil {
+		relatedIDs := make([]int64, 0, len(related.GetData()))
+		for _, item := range related.GetData() {
+			if item.GetId() != 0 {
+				relatedIDs = append(relatedIDs, item.GetId())
+			}
+		}
+
+		if err := c.app.ensureCaseNotArchived(ctx, createOpts.GetAuthOpts().GetDomainId(), relatedIDs...); err != nil {
+			return nil, err
+		}
+	}
+
 	res, err = c.app.Store.Case().Create(createOpts, res)
 	if err != nil {
 		return nil, err
@@ -603,6 +616,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	// Add override user ID after options are built
 	err = options.WithUpdateOverrideUserID(req.Input.UserID.GetId())(updateOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.app.ensureArchivedCaseUpdateAllowed(ctx, updateOpts.GetAuthOpts(), tag.GetOid(), updateOpts.GetMask())
 	if err != nil {
 		return nil, err
 	}
@@ -869,7 +887,7 @@ func (c *CaseService) resolveDynamicGroup(
 				},
 			}
 
-			updCase, err := c.UpdateCase(ctx, req)
+			updCase, err := c.UpdateCase(withoutArchiveGuard(ctx), req)
 			if err != nil {
 				return nil, err
 			}
@@ -891,7 +909,7 @@ func (c *CaseService) resolveDynamicGroup(
 		},
 	}
 	// Final update if a default group was assigned
-	updCase, err := c.UpdateCase(ctx, req)
+	updCase, err := c.UpdateCase(withoutArchiveGuard(ctx), req)
 	if err != nil {
 		return nil, err
 	}

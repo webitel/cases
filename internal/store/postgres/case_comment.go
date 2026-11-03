@@ -645,6 +645,30 @@ func addCaseCommentRbacConditionForUpdate(auth auth.Auther, access auth.AccessMo
 	return query, nil
 }
 
+func (c *CaseCommentStore) IsArchived(ctx context.Context, domainID int64, commentIDs []int64) (bool, error) {
+	d, err := c.storage.Database()
+	if err != nil {
+		return false, err
+	}
+
+	var archived bool
+
+	err = d.QueryRow(ctx, isCommentCaseArchivedQuery, commentIDs, domainID).Scan(&archived)
+	if err != nil {
+		return false, ParseError(err)
+	}
+
+	return archived, nil
+}
+
+var isCommentCaseArchivedQuery = storeUtil.CompactSQL(`
+SELECT COALESCE(bool_or(sc.archived), false)
+FROM cases.case_comment cc
+         JOIN cases.case c ON c.id = cc.case_id
+         LEFT JOIN cases.status_condition sc ON sc.id = c.status_condition
+WHERE cc.id = ANY($1)
+  AND cc.dc = $2`)
+
 func NewCaseCommentStore(store *Store) (store.CaseCommentStore, error) {
 	if store == nil {
 		return nil, errors.New("error creating comment case interface to the case_comment table, main store is nil")

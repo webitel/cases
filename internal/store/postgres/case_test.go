@@ -81,6 +81,12 @@ func TestParseComplexFilter(t *testing.T) {
 			hasArgs:  false,
 		},
 		{
+			name:     "status condition archived",
+			expr:     "status_condition.archived=true",
+			wantSQLs: []string{"EXISTS(SELECT id FROM cases.status_condition WHERE id = c.status_condition AND archived = ?)"},
+			hasArgs:  true,
+		},
+		{
 			name:     "empty filter",
 			expr:     "",
 			wantSQLs: []string{"1=0"},

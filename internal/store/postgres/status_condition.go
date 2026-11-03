@@ -7,6 +7,7 @@ import (
 	"github.com/webitel/cases/internal/model"
 	"github.com/webitel/cases/internal/model/options"
 	"log"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -109,7 +110,7 @@ func (s *StatusConditionStore) Delete(rpc options.Deleter) (*model.StatusConditi
 	return nil, nil
 }
 
-func (s *StatusConditionStore) Update(rpc options.Updator, input *model.StatusCondition) (*model.StatusCondition, error) {
+func (s *StatusConditionStore) Update(rpc options.Updator, input *model.StatusCondition) (out *model.StatusCondition, err error) {
 	db, err := s.getDBConnection()
 	if err != nil {
 		return nil, err
@@ -137,7 +138,8 @@ func (s *StatusConditionStore) Update(rpc options.Updator, input *model.StatusCo
 	if err != nil {
 		return nil, ParseError(err)
 	}
-	return input, nil
+
+	return &res, nil
 }
 
 func (s *StatusConditionStore) buildCreateStatusConditionQuery(rpc options.Creator, input *model.StatusCondition) (string, []interface{}, error) {
@@ -160,7 +162,7 @@ func (s *StatusConditionStore) buildListStatusConditionQuery(rpc options.Searche
 		PlaceholderFormat(sq.Dollar)
 	for _, field := range rpc.GetFields() {
 		switch field {
-		case "id", "name", "initial", "final", "created_at", "updated_at", "description":
+		case "id", "name", "initial", "final", "archived", "created_at", "updated_at", "description":
 			queryBuilder = queryBuilder.Column("s." + field)
 		case "created_by":
 			// Handle nulls using COALESCE for created_by
@@ -230,8 +232,18 @@ func (s *StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Updat
 	updateInitial := false
 	updateFinal := false
 
+	mask := rpc.GetMask()
+	if util.ContainsField(mask, "archived") && input.Archived != nil && *input.Archived {
+		final := true
+		input.Final = &final
+
+		if !util.ContainsField(mask, "final") {
+			mask = append(slices.Clone(mask), "final")
+		}
+	}
+
 	// Add update-specific fields if provided by the user
-	for _, field := range rpc.GetMask() {
+	for _, field := range mask {
 		switch field {
 		case "name":
 			if input.Name != nil && *input.Name != "" {
@@ -246,6 +258,10 @@ func (s *StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Updat
 		case "final":
 			updBuilder = updBuilder.Set("final", input.Final)
 			updateFinal = true
+		case "archived":
+			if input.Archived != nil {
+				updBuilder = updBuilder.Set("archived", input.Archived)
+			}
 		}
 	}
 
@@ -253,7 +269,7 @@ func (s *StatusConditionStore) buildUpdateStatusConditionQuery(rpc options.Updat
 	updSql, updArgs, err := updBuilder.
 		Where(sq.Eq{"id": input.Id}).
 		Where(sq.Eq{"dc": rpc.GetAuthOpts().GetDomainId()}).
-		Suffix("RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id").
+		Suffix("RETURNING id, name, created_at, updated_at, description, initial, final, archived, created_by, updated_by, status_id").
 		ToSql()
 	if err != nil {
 		return "", nil
@@ -285,6 +301,7 @@ SELECT upd.id,
        COALESCE(upd.description, '')              AS description,
        upd.initial,
        upd.final,
+       upd.archived,
        upd.created_by                             AS created_by_id,
        COALESCE(c.name::text, c.username,'')      AS created_by_name,
        upd.updated_by                             AS updated_by_id,
@@ -420,7 +437,7 @@ WITH existing_status AS (SELECT COUNT(*) AS count FROM cases.status_condition WH
                                                  updated_by, dc, status_id)
          VALUES ($1, $2, NULLIF($3, ''), (SELECT initial_default FROM default_values),
                  (SELECT final_default FROM default_values), $4, $2, $4, $5, $6)
-         RETURNING id, name, created_at, updated_at, description, initial, final, created_by, updated_by, status_id)
+         RETURNING id, name, created_at, updated_at, description, initial, final, archived, created_by, updated_by, status_id)
 SELECT ins.id,
        ins.name,
        ins.created_at,
@@ -428,6 +445,7 @@ SELECT ins.id,
        COALESCE(ins.description, '')      AS description,
        ins.initial,
        ins.final,
+       ins.archived,
        ins.created_by                     AS created_by_id,
        COALESCE(c.name::text, c.username) AS created_by_name,
        ins.updated_by                     AS updated_by_id,
@@ -471,6 +489,10 @@ FROM ins
 		 RETURNING id;
 		 `)
 )
+
+func init() {
+	RegisterConstraint("status_condition_archived_final_check", "archived status condition must be final")
+}
 
 func NewStatusConditionStore(store *Store) (store.StatusConditionStore, error) {
 	if store == nil {

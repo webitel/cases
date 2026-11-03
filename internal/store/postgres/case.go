@@ -1388,6 +1388,33 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	return false, nil
 }
 
+func (c *CaseStore) IsArchived(ctx context.Context, domainID, caseID int64) (bool, error) {
+	db, err := c.storage.Database()
+	if err != nil {
+		return false, err
+	}
+
+	var archived bool
+
+	err = db.QueryRow(ctx, isCaseArchivedQuery, caseID, domainID).Scan(&archived)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, ParseError(err)
+	}
+
+	return archived, nil
+}
+
+var isCaseArchivedQuery = storeutils.CompactSQL(`
+SELECT COALESCE(sc.archived, false)
+FROM cases.case c
+         LEFT JOIN cases.status_condition sc ON sc.id = c.status_condition
+WHERE c.id = $1
+  AND c.dc = $2`)
+
 type operator uint8
 
 const (
@@ -1531,7 +1558,7 @@ func (c *CaseStore) needsCustomFieldsForFilter(filterStr string, opts options.Se
 	standardFields := []string{
 		"created_by", "updated_by", "assignee", "reporter", "source", "priority",
 		"status", "impacted", "close_reason", "service", "status_condition",
-		"sla_condition", "group", "sla", "status_condition.final", "author",
+		"sla_condition", "group", "sla", "status_condition.final", "status_condition.archived", "author",
 		"communication_id", "rating", "reacted_at", "resolved_at",
 		"planned_reaction_at", "planned_resolve_at", "created_at", "attachments", "contact",
 		"description", "subject", "name", "contact_info",
@@ -1650,6 +1677,13 @@ func (c *CaseStore) filterToSqlizer(
 				storeutils.Ident(caseLeft, "status_condition"),
 			),
 			final,
+		)
+	case "status_condition.archived":
+		return sq.Expr(
+			fmt.Sprintf("EXISTS(SELECT id FROM cases.status_condition WHERE id = %s AND archived = ?)",
+				storeutils.Ident(caseLeft, "status_condition"),
+			),
+			value == "true",
 		)
 	case "author":
 		values := strings.Split(value, ",")
@@ -3277,7 +3311,7 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 			})
 		case "status_condition":
 			base.Query = base.Query.Column(fmt.Sprintf(
-				"ROW(%s.id, %[1]s.name, %[1]s.initial, %[1]s.final)::text AS status_condition",
+				"ROW(%s.id, %[1]s.name, %[1]s.initial, %[1]s.final, %[1]s.archived)::text AS status_condition",
 				tableAlias))
 			plan = append(plan, func(caseItem *_go.Case) any {
 				return scanner.TextDecoder(func(src []byte) error {
@@ -3339,6 +3373,19 @@ func (c *CaseStore) buildCaseSelectColumnsAndPlan(
 									return err
 								}
 								caseItem.StatusCondition.Final = bl.Bool
+								return nil
+							}),
+							scanner.TextDecoder(func(src []byte) error {
+								if len(src) == 0 {
+									return nil
+								}
+
+								if err := bl.Scan(src); err != nil {
+									return err
+								}
+
+								caseItem.StatusCondition.Archived = bl.Bool
+
 								return nil
 							}),
 						}
