@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/webitel/cases/internal/errors"
@@ -10,6 +11,7 @@ import (
 
 type Select struct {
 	TableAlias          string
+	boundArgs           int
 	AppliedJoins        map[string]string
 	Query               sq.SelectBuilder
 	ColumnValueEncoders map[string]func(any) any
@@ -34,6 +36,14 @@ func NewSelect(rootTableAlias string, builder sq.SelectBuilder, opts ...BuilderO
 }
 
 type BuilderOptions func(s *Select) error
+
+func WithBoundArgs(count int) BuilderOptions {
+	return func(s *Select) error {
+		s.boundArgs = count
+
+		return nil
+	}
+}
 
 func WithColumnValueEncoders(encoders map[string]func(any) any) BuilderOptions {
 	return func(s *Select) error {
@@ -83,5 +93,37 @@ func (s *Select) Join(ctx context.Context, column string) (alias string, err err
 }
 
 func (s *Select) ToSql() (string, []any, error) {
-	return s.Query.ToSql()
+	query, args, err := s.Query.ToSql()
+	if err != nil || s.boundArgs == 0 {
+		return query, args, err
+	}
+
+	return renumberPlaceholders(query, s.boundArgs), args, nil
+}
+
+func renumberPlaceholders(query string, offset int) string {
+	out := make([]byte, 0, len(query))
+
+	for i := 0; i < len(query); i++ {
+		if query[i] != '?' {
+			out = append(out, query[i])
+
+			continue
+		}
+
+		if i+1 < len(query) && query[i+1] == '?' {
+			out = append(out, '?')
+
+			i++
+
+			continue
+		}
+
+		offset++
+
+		out = append(out, '$')
+		out = strconv.AppendInt(out, int64(offset), 10)
+	}
+
+	return string(out)
 }
