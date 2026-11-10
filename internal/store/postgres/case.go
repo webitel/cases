@@ -600,7 +600,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			boundQuery,
 			args...,
 		),
-	), WithColumnValueEncoders(specialFieldsEncoding), WithJoinFunc(c.joinRequiredTable), WithFiltersProcessors(specialFiltersProcessor))
+	), WithColumnValueEncoders(specialFieldsEncoding), WithJoinFunc(c.joinRequiredTable), WithFiltersProcessors(specialFiltersProcessor), WithBoundArgs(len(args)))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2791,7 +2791,12 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		)
 	}
 
-	base, err := NewSelect(caseLeft, WITH, WithColumnValueEncoders(specialFieldsEncoding), WithFiltersProcessors(specialFiltersProcessor), WithJoinFunc(c.joinRequiredTable))
+	_, boundArgs, err := WITH.Column("_").ToSql()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	base, err := NewSelect(caseLeft, WITH, WithColumnValueEncoders(specialFieldsEncoding), WithFiltersProcessors(specialFiltersProcessor), WithJoinFunc(c.joinRequiredTable), WithBoundArgs(len(boundArgs)))
 	if err != nil {
 		return nil, nil, err
 	}
