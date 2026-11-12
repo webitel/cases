@@ -2,10 +2,13 @@ package util
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
 )
+
+var sortFieldPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$`)
 
 const (
 	ComparisonILike  = "ilike"
@@ -128,6 +131,10 @@ type Sorter interface {
 	GetSort() string
 }
 
+type SortOrderer interface {
+	GetSortOrder() []string
+}
+
 func ApplyDefaultSorting(opts Sorter, base squirrel.SelectBuilder, defaultSort string) squirrel.SelectBuilder {
 	if s := opts.GetSort(); len(s) != 0 {
 
@@ -140,14 +147,24 @@ func ApplyDefaultSorting(opts Sorter, base squirrel.SelectBuilder, defaultSort s
 			s = strings.TrimPrefix(s, string(s[0]))
 		}
 
-		// Determine sort direction
-		if desc {
-			s += " DESC"
-		} else {
-			s += " ASC"
+		if !sortFieldPattern.MatchString(s) {
+			return base.OrderBy(fmt.Sprintf(`%s ASC`, defaultSort))
 		}
-		base = base.OrderBy(s)
 
+		// Determine sort direction
+		dir := " ASC"
+		if desc {
+			dir = " DESC"
+		}
+
+		if so, ok := opts.(SortOrderer); ok && len(so.GetSortOrder()) != 0 {
+			base = base.OrderByClause(
+				"array_position(?::text[], "+s+"::text)"+dir+" NULLS LAST",
+				so.GetSortOrder(),
+			)
+		}
+
+		base = base.OrderBy(s + dir)
 	} else {
 		base = base.OrderBy(fmt.Sprintf(`%s ASC`, defaultSort))
 	}
