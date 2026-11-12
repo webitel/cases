@@ -65,6 +65,8 @@ type CaseStore interface {
 	Delete(req options.Deleter) error
 	// Check case by current auth options
 	CheckRbacAccess(ctx context.Context, auth auth.Auther, access auth.AccessMode, caseId int64) (bool, error)
+	// Check case is in archived status condition
+	IsArchived(ctx context.Context, domainID int64, caseIDs []int64) (bool, error)
 	SetOverdueCases(so options.Searcher) ([]*_go.Case, bool, error)
 	PrepareFiltersV1(rpc options.Searcher) (filterJoinFields []string, err error)
 	//check neighbors for navigation
@@ -105,6 +107,10 @@ type CaseCommentStore interface {
 	Update(req options.Updator, upd *model.CaseComment) (*model.CaseComment, error)
 	// Delete comment
 	Delete(req options.Deleter) (*model.CaseComment, error)
+	// Check every comment is accessible by current auth options
+	CheckRbacAccess(ctx context.Context, auth auth.Auther, access auth.AccessMode, commentIDs []int64) (bool, error)
+	// Check any comment belongs to archived case
+	IsArchived(ctx context.Context, domainID int64, commentIDs []int64) (bool, error)
 
 }
 
@@ -138,6 +144,8 @@ type RelatedCaseStore interface {
 	Update(req options.Updator, upd *_go.InputRelatedCase, userID int64) (*_go.RelatedCase, error)
 	// Delete relation
 	Delete(req options.Deleter) error
+	// Check any relation side is archived case
+	IsArchived(ctx context.Context, domainID int64, relationIDs []int64) (bool, error)
 }
 
 // ------------Access Control------------//
