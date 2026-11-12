@@ -51,6 +51,7 @@ var CaseCommentMetadata = model.NewObjectMetadata(model.ScopeCaseComments, model
 	{Name: "author", Default: true},
 	{Name: "role_ids", Default: false},
 	{Name: "case_id", Default: false},
+	{Name: "type", Default: true},
 })
 
 // LocateComment handles the gRPC request to locate a comment by its etag.
@@ -127,10 +128,18 @@ func (s *CaseCommentService) UpdateComment(ctx context.Context, req *api.UpdateC
 		return nil, err
 	}
 
+	if err = validateCaseCommentType(req.GetInput().GetType()); err != nil {
+		return nil, err
+	}
+
 	input := &model.CaseComment{
 		Id:   tag.GetOid(),
 		Ver:  tag.GetVer(),
 		Text: req.Input.Text,
+	}
+
+	if mask := updateOpts.GetMask(); len(mask) == 0 || util.ContainsField(mask, "type") {
+		input.Type = int32(req.GetInput().GetType())
 	}
 
 	// Set user ID if provided
@@ -225,6 +234,24 @@ func (s *CaseCommentService) ListComments(ctx context.Context, req *api.ListComm
 		searchOpts.AddFilter(util.EqualFilter("case_id", tag.GetOid()))
 	}
 
+	types := make([]int32, 0, len(req.GetType()))
+
+	for _, commentType := range req.GetType() {
+		if commentType == api.CaseCommentType_CASE_COMMENT_TYPE_UNSPECIFIED {
+			continue
+		}
+
+		if err = validateCaseCommentType(commentType); err != nil {
+			return nil, err
+		}
+
+		types = append(types, int32(commentType))
+	}
+
+	if len(types) > 0 {
+		searchOpts.AddCustomContext(model.CaseCommentTypesContextKey, types)
+	}
+
 	comments, err := s.app.ListCaseComments(searchOpts)
 	if err != nil {
 		return nil, err
@@ -272,9 +299,14 @@ func (s *CaseCommentService) PublishComment(ctx context.Context, req *api.Publis
 	}
 	createOpts.ParentID = tag.GetOid()
 
+	if err = validateCaseCommentType(req.GetInput().GetType()); err != nil {
+		return nil, err
+	}
+
 	input := &model.CaseComment{
 		Text:   req.Input.Text,
 		CaseId: createOpts.ParentID,
+		Type:   model.CaseCommentTypeOrDefault(int32(req.GetInput().GetType())),
 	}
 
 	// Set user ID if provided
@@ -323,6 +355,7 @@ func (s *CaseCommentService) Marshal(model *model.CaseComment) (*api.CaseComment
 		Edited:  model.Edited,
 		CanEdit: model.CanEdit,
 		CaseId:  model.CaseId,
+		Type:    api.CaseCommentType(model.Type),
 	}
 
 	if model.CreatedAt != nil {
@@ -343,6 +376,14 @@ func (s *CaseCommentService) Marshal(model *model.CaseComment) (*api.CaseComment
 	}
 
 	return comment, nil
+}
+
+func validateCaseCommentType(commentType api.CaseCommentType) error {
+	if _, ok := api.CaseCommentType_name[int32(commentType)]; !ok {
+		return errors.InvalidArgument("invalid comment type")
+	}
+
+	return nil
 }
 
 // NormalizeResponse normalizes the response based on requested fields and etag handling.

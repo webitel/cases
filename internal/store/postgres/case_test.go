@@ -181,6 +181,8 @@ func (s placeholderSession) GetRoles() []int64 { return []int64{7, 8} }
 
 func (s placeholderSession) IsRbacCheckRequired(string, auth.AccessMode) bool { return s.rbac }
 
+func (s placeholderSession) CheckObacAccess(string, auth.AccessMode) bool { return true }
+
 type placeholderRPC struct {
 	context.Context
 	session auth.Auther
