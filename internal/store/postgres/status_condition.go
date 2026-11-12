@@ -128,6 +128,11 @@ func (s *StatusConditionStore) Update(rpc options.Updator, input *model.StatusCo
 			if input.Initial == nil || !*input.Initial {
 				return nil, dberr.InvalidArgument("update not allowed: there must be at least one initial = TRUE for the given dc and status_id", dberr.WithID("postgres.status_condition.update.initial_false_not_allowed"))
 			}
+		case "archived":
+			if input.Archived != nil && *input.Archived &&
+				util.ContainsField(rpc.GetMask(), "final") && (input.Final == nil || !*input.Final) {
+				return nil, dberr.InvalidArgument("archived status condition must be final", dberr.WithID("postgres.status_condition.update.archived_not_final"))
+			}
 		}
 	}
 

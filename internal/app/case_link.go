@@ -38,7 +38,7 @@ func (a *App) CreateCaseLink(creator options.Creator, input *model.CaseLink) (*m
 		}
 	}
 
-	if err := a.ensureCaseNotArchived(creator, creator.GetAuthOpts().GetDomainId(), caseID); err != nil {
+	if err := a.ensureCaseNotArchived(creator, creator.GetAuthOpts().GetDomainId(), []int64{caseID}); err != nil {
 		return nil, err
 	}
 	link, err := a.Store.CaseLink().Create(creator, input)
@@ -97,7 +97,7 @@ func (a *App) UpdateCaseLink(updator options.Updator, input *model.CaseLink) (*m
 		}
 	}
 
-	if err := a.ensureCaseNotArchived(updator, updator.GetAuthOpts().GetDomainId(), caseID); err != nil {
+	if err := a.ensureCaseNotArchived(updator, updator.GetAuthOpts().GetDomainId(), []int64{caseID}); err != nil {
 		return nil, err
 	}
 	link, err := a.Store.CaseLink().Update(updator, input)
@@ -157,7 +157,7 @@ func (a *App) DeleteCaseLink(deleter options.Deleter) (*model.CaseLink, error) {
 		}
 	}
 
-	if err := a.ensureCaseNotArchived(deleter, deleter.GetAuthOpts().GetDomainId(), caseID); err != nil {
+	if err := a.ensureCaseNotArchived(deleter, deleter.GetAuthOpts().GetDomainId(), []int64{caseID}); err != nil {
 		return nil, err
 	}
 	link, err := a.Store.CaseLink().Delete(deleter)

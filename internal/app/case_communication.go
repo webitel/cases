@@ -57,7 +57,7 @@ func (c *App) LinkCommunication(createOpts options.Creator, input []*model.CaseC
 		}
 	}
 
-	if err := c.ensureCaseNotArchived(createOpts, createOpts.GetAuthOpts().GetDomainId(), createOpts.GetParentID()); err != nil {
+	if err := c.ensureCaseNotArchived(createOpts, createOpts.GetAuthOpts().GetDomainId(), []int64{createOpts.GetParentID()}); err != nil {
 		return nil, err
 	}
 	res, err := c.Store.CaseCommunication().Link(createOpts, input)
@@ -92,7 +92,7 @@ func (c *App) UnlinkCommunication(deleteOpts options.Deleter) (int64, error) {
 		}
 	}
 
-	if err := c.ensureCaseNotArchived(deleteOpts, deleteOpts.GetAuthOpts().GetDomainId(), caseID); err != nil {
+	if err := c.ensureCaseNotArchived(deleteOpts, deleteOpts.GetAuthOpts().GetDomainId(), []int64{caseID}); err != nil {
 		return 0, err
 	}
 	affected, err := c.Store.CaseCommunication().Unlink(deleteOpts)

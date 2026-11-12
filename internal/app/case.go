@@ -519,7 +519,7 @@ func (c *CaseService) CreateCase(ctx context.Context, req *cases.CreateCaseReque
 			}
 		}
 
-		if err := c.app.ensureCaseNotArchived(ctx, createOpts.GetAuthOpts().GetDomainId(), relatedIDs...); err != nil {
+		if err := c.app.ensureCaseNotArchived(ctx, createOpts.GetAuthOpts().GetDomainId(), relatedIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -616,6 +616,11 @@ func (c *CaseService) UpdateCase(ctx context.Context, req *cases.UpdateCaseReque
 
 	// Add override user ID after options are built
 	err = options.WithUpdateOverrideUserID(req.Input.UserID.GetId())(updateOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.app.checkCaseRbac(ctx, updateOpts.GetAuthOpts(), auth.Edit, tag.GetOid())
 	if err != nil {
 		return nil, err
 	}

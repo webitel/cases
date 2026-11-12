@@ -24,7 +24,7 @@ func (a *App) LinkCaseArticle(creator options.Creator, input *model.CaseArticle)
 		return nil, err
 	}
 
-	if err := a.ensureCaseNotArchived(creator, creator.GetAuthOpts().GetDomainId(), caseID); err != nil {
+	if err := a.ensureCaseNotArchived(creator, creator.GetAuthOpts().GetDomainId(), []int64{caseID}); err != nil {
 		return nil, err
 	}
 	link, err := a.Store.CaseArticle().Link(creator, input)
@@ -48,7 +48,7 @@ func (a *App) UnlinkCaseArticle(deleter options.Deleter) (*model.CaseArticle, er
 		return nil, err
 	}
 
-	if err := a.ensureCaseNotArchived(deleter, deleter.GetAuthOpts().GetDomainId(), caseID); err != nil {
+	if err := a.ensureCaseNotArchived(deleter, deleter.GetAuthOpts().GetDomainId(), []int64{caseID}); err != nil {
 		return nil, err
 	}
 	link, err := a.Store.CaseArticle().Unlink(deleter)

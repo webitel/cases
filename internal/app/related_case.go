@@ -155,7 +155,7 @@ func (r *RelatedCaseService) CreateRelatedCase(ctx context.Context, req *cases.C
 		}
 	}
 
-	if err := r.app.ensureCaseNotArchived(ctx, createOpts.GetAuthOpts().GetDomainId(), createOpts.ParentID, createOpts.ChildID); err != nil {
+	if err := r.app.ensureCaseNotArchived(ctx, createOpts.GetAuthOpts().GetDomainId(), []int64{createOpts.ParentID, createOpts.ChildID}); err != nil {
 		return nil, err
 	}
 
@@ -289,7 +289,7 @@ func (r *RelatedCaseService) UpdateRelatedCase(ctx context.Context, req *cases.U
 		}
 	}
 
-	if err := r.app.ensureCaseNotArchived(ctx, updateOpts.GetAuthOpts().GetDomainId(), primaryId, relatedId); err != nil {
+	if err := r.app.ensureCaseNotArchived(ctx, updateOpts.GetAuthOpts().GetDomainId(), []int64{primaryId, relatedId}); err != nil {
 		return nil, err
 	}
 

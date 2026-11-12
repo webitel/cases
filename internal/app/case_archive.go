@@ -8,7 +8,7 @@ import (
 	"github.com/webitel/cases/internal/errors"
 )
 
-const PermissionManageArchivedCases = "manage_archived_cases"
+const PermissionChangeArchivedCaseStatus = "change_archived_case_status"
 
 var (
 	ErrCaseArchived = errors.Forbidden("case is archived", errors.WithID("app.case.archived"))
@@ -35,16 +35,18 @@ func archiveGuardSkipped(ctx context.Context) bool {
 	return ok && skip
 }
 
-func (a *App) ensureCaseNotArchived(ctx context.Context, domainID int64, caseIDs ...int64) error {
-	for _, caseID := range caseIDs {
-		archived, err := a.Store.Case().IsArchived(ctx, domainID, caseID)
-		if err != nil {
-			return err
-		}
+func (a *App) ensureCaseNotArchived(ctx context.Context, domainID int64, caseIDs []int64) error {
+	if len(caseIDs) == 0 {
+		return nil
+	}
 
-		if archived {
-			return ErrCaseArchived
-		}
+	archived, err := a.Store.Case().IsArchived(ctx, domainID, caseIDs)
+	if err != nil {
+		return err
+	}
+
+	if archived {
+		return ErrCaseArchived
 	}
 
 	return nil
@@ -81,7 +83,7 @@ func (a *App) ensureArchivedCaseUpdateAllowed(ctx context.Context, session auth.
 		return nil
 	}
 
-	archived, err := a.Store.Case().IsArchived(ctx, session.GetDomainId(), caseID)
+	archived, err := a.Store.Case().IsArchived(ctx, session.GetDomainId(), []int64{caseID})
 	if err != nil {
 		return err
 	}
@@ -90,11 +92,11 @@ func (a *App) ensureArchivedCaseUpdateAllowed(ctx context.Context, session auth.
 		return nil
 	}
 
-	return archivedCaseUpdateAllowed(mask, session.HasPermission(PermissionManageArchivedCases))
+	return archivedCaseUpdateAllowed(mask, session.HasPermission(PermissionChangeArchivedCaseStatus))
 }
 
-func archivedCaseUpdateAllowed(mask []string, canManage bool) error {
-	if !canManage {
+func archivedCaseUpdateAllowed(mask []string, canChangeStatus bool) error {
+	if !canChangeStatus {
 		return ErrCaseArchived
 	}
 

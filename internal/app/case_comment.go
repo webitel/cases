@@ -32,6 +32,10 @@ func (s *App) UpdateCaseComment(updator options.Updator, input *model.CaseCommen
 		return nil, errors.InvalidArgument("Text is required")
 	}
 
+	if err := s.checkCommentsRbac(updator, updator.GetAuthOpts(), auth.Edit, []int64{input.Id}); err != nil {
+		return nil, err
+	}
+
 	if err := s.ensureCommentsNotArchived(updator, updator.GetAuthOpts().GetDomainId(), []int64{input.Id}); err != nil {
 		return nil, err
 	}
@@ -54,6 +58,10 @@ func (s *App) UpdateCaseComment(updator options.Updator, input *model.CaseCommen
 
 // DeleteCaseComment deletes a case comment from the store.
 func (s *App) DeleteCaseComment(deleter options.Deleter) (*model.CaseComment, error) {
+	if err := s.checkCommentsRbac(deleter, deleter.GetAuthOpts(), auth.Delete, deleter.GetIDs()); err != nil {
+		return nil, err
+	}
+
 	if err := s.ensureCommentsNotArchived(deleter, deleter.GetAuthOpts().GetDomainId(), deleter.GetIDs()); err != nil {
 		return nil, err
 	}
@@ -93,7 +101,7 @@ func (s *App) PublishCaseComment(creator options.Creator, input *model.CaseComme
 		}
 	}
 
-	if err := s.ensureCaseNotArchived(creator, creator.GetAuthOpts().GetDomainId(), creator.GetParentID()); err != nil {
+	if err := s.ensureCaseNotArchived(creator, creator.GetAuthOpts().GetDomainId(), []int64{creator.GetParentID()}); err != nil {
 		return nil, err
 	}
 
@@ -146,4 +154,17 @@ func (wd *CaseCommentWatcherData) Marshal() ([]byte, error) {
 
 func (wd *CaseCommentWatcherData) GetArgs() map[string]any {
 	return wd.Args
+}
+
+func (s *App) checkCommentsRbac(ctx context.Context, session auth.Auther, mode auth.AccessMode, commentIDs []int64) error {
+	access, err := s.Store.CaseComment().CheckRbacAccess(ctx, session, mode, commentIDs)
+	if err != nil {
+		return err
+	}
+
+	if !access {
+		return errors.Forbidden("user doesn't have required access to the comment")
+	}
+
+	return nil
 }

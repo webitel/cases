@@ -1388,7 +1388,7 @@ func (c *CaseStore) CheckRbacAccess(ctx context.Context, auth auth.Auther, acces
 	return false, nil
 }
 
-func (c *CaseStore) IsArchived(ctx context.Context, domainID, caseID int64) (bool, error) {
+func (c *CaseStore) IsArchived(ctx context.Context, domainID int64, caseIDs []int64) (bool, error) {
 	db, err := c.storage.Database()
 	if err != nil {
 		return false, err
@@ -1396,12 +1396,8 @@ func (c *CaseStore) IsArchived(ctx context.Context, domainID, caseID int64) (boo
 
 	var archived bool
 
-	err = db.QueryRow(ctx, isCaseArchivedQuery, caseID, domainID).Scan(&archived)
+	err = db.QueryRow(ctx, isCaseArchivedQuery, caseIDs, domainID).Scan(&archived)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return false, nil
-		}
-
 		return false, ParseError(err)
 	}
 
@@ -1409,10 +1405,10 @@ func (c *CaseStore) IsArchived(ctx context.Context, domainID, caseID int64) (boo
 }
 
 var isCaseArchivedQuery = storeutils.CompactSQL(`
-SELECT COALESCE(sc.archived, false)
+SELECT COALESCE(bool_or(sc.archived), false)
 FROM cases.case c
          LEFT JOIN cases.status_condition sc ON sc.id = c.status_condition
-WHERE c.id = $1
+WHERE c.id = ANY($1)
   AND c.dc = $2`)
 
 type operator uint8
