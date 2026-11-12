@@ -1226,6 +1226,14 @@ func (c *CaseService) ValidateUpdateInput(
 			if err := c.validateRequiredCustomFields(ctx, input.GetCustom()); err != nil {
 				return err
 			}
+		case "assignee":
+			if err := c.validateActiveUserContacts(ctx, input.GetAssignee()); err != nil {
+				return err
+			}
+		case "reporter":
+			if err := c.validateActiveUserContacts(ctx, input.GetReporter()); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1253,7 +1261,31 @@ func (c *CaseService) ValidateCreateInput(ctx context.Context, input *cases.Inpu
 	if err := c.validateRequiredCustomFields(ctx, input.GetCustom()); err != nil {
 		return err
 	}
+	if err := c.validateActiveUserContacts(ctx, input.GetAssignee(), input.GetReporter()); err != nil {
+		return err
+	}
 
+	return nil
+}
+
+func (c *CaseService) validateActiveUserContacts(ctx context.Context, contacts ...*cases.Lookup) error {
+	ids := make([]int64, 0, len(contacts))
+	for _, contact := range contacts {
+		if id := contact.GetId(); id != 0 {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	session := optsutil.GetAutherOutOfContext(ctx)
+	deactivated, err := c.app.Store.Case().DeactivatedUserContacts(ctx, session.GetDomainId(), ids)
+	if err != nil {
+		return errors.Internal("Failed to check case assignee/reporter", errors.WithCause(err))
+	}
+	if len(deactivated) != 0 {
+		return errors.InvalidArgument(fmt.Sprintf("Contact %d belongs to a deactivated user and cannot be assigned to a case", deactivated[0]))
+	}
 	return nil
 }
 

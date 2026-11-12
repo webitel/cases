@@ -1,10 +1,21 @@
 package postgres
 
 import (
+	"context"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/webitel/webitel-go-kit/pkg/etag"
+
+	_go "github.com/webitel/cases/api/cases"
+	"github.com/webitel/cases/auth"
+	"github.com/webitel/cases/internal/model/options"
+	"github.com/webitel/cases/internal/server/interceptor"
 )
 
 func TestParseComplexFilter(t *testing.T) {
@@ -159,6 +170,139 @@ func TestParseComplexFilter(t *testing.T) {
 					require.Contains(t, sql, "NOT EXISTS", "expected NOT EXISTS for attachments=false or attachments!=true")
 				}
 			}
+		})
+	}
+}
+
+type placeholderSession struct {
+	auth.Auther
+	rbac bool
+}
+
+func (s placeholderSession) GetDomainId() int64 { return 1 }
+
+func (s placeholderSession) GetUserId() int64 { return 7 }
+
+func (s placeholderSession) GetRoles() []int64 { return []int64{7, 8} }
+
+func (s placeholderSession) IsRbacCheckRequired(string, auth.AccessMode) bool { return s.rbac }
+
+type placeholderRPC struct {
+	context.Context
+	session auth.Auther
+}
+
+func (r placeholderRPC) Value(key any) any {
+	if key == interceptor.SessionHeader {
+		return r.session
+	}
+
+	return r.Context.Value(key)
+}
+
+func (r placeholderRPC) GetAuthOpts() auth.Auther { return r.session }
+
+func (r placeholderRPC) RequestTime() time.Time { return time.Unix(0, 0) }
+
+func (r placeholderRPC) GetFields() []string {
+	return []string{"id", "ver", "subject", "comments"}
+}
+
+func (r placeholderRPC) GetDerivedSearchOpts() map[string]*options.Searcher { return nil }
+
+func (r placeholderRPC) GetUnknownFields() []string { return nil }
+
+func (r placeholderRPC) GetIDs() []int64 { return nil }
+
+func (r placeholderRPC) GetParentID() int64 { return 0 }
+
+func (r placeholderRPC) GetChildID() int64 { return 0 }
+
+func (r placeholderRPC) GetMask() []string { return []string{"subject"} }
+
+func (r placeholderRPC) GetEtags() []*etag.Tid { return []*etag.Tid{{}} }
+
+func TestCaseWriteQueryPlaceholders(t *testing.T) {
+	create := func(store *CaseStore, rpc placeholderRPC) (*Select, error) {
+		input := &_go.Case{
+			Subject:  "subject",
+			Service:  &_go.Service{Id: 1},
+			Priority: &_go.Priority{Id: 1},
+			Source:   &_go.SourceTypeLookup{Id: 1},
+			Status:   &_go.Lookup{Id: 1},
+			Reporter: &_go.Lookup{Id: 1},
+		}
+		base, _, err := store.buildCreateCaseSqlizer(rpc, input, &ServiceRelatedDefs{StatusID: 1, CloseReasonGroupID: 1})
+
+		return base, err
+	}
+	update := func(store *CaseStore, rpc placeholderRPC) (*Select, error) {
+		base, _, err := store.buildUpdateCaseSqlizer(rpc, &_go.Case{Subject: "subject"})
+
+		return base, err
+	}
+
+	tests := []struct {
+		name  string
+		rbac  bool
+		build func(store *CaseStore, rpc placeholderRPC) (*Select, error)
+	}{
+		{name: "create without rbac", build: create},
+		{name: "create with rbac", rbac: true, build: create},
+		{name: "update without rbac", build: update},
+		{name: "update with rbac", rbac: true, build: update},
+	}
+
+	placeholder := regexp.MustCompile(`\$(\d+)`)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			session := placeholderSession{rbac: tt.rbac}
+			rpc := placeholderRPC{
+				Context: context.Background(),
+				session: session,
+			}
+
+			base, err := tt.build(&CaseStore{mainTable: "cases.case"}, rpc)
+			require.NoError(t, err)
+
+			query, args, err := base.ToSql()
+			require.NoError(t, err)
+			require.NotContains(t, query, "?")
+
+			seen := make(map[int]struct{}, len(args))
+
+			for _, match := range placeholder.FindAllStringSubmatch(query, -1) {
+				number, err := strconv.Atoi(match[1])
+				require.NoError(t, err)
+
+				seen[number] = struct{}{}
+			}
+
+			require.Len(t, seen, len(args))
+
+			for number := 1; number <= len(args); number++ {
+				require.Contains(t, seen, number)
+			}
+		})
+	}
+}
+
+func TestRenumberPlaceholders(t *testing.T) {
+	tests := []struct {
+		name   string
+		query  string
+		offset int
+		want   string
+	}{
+		{name: "no placeholders", query: "SELECT $1", offset: 1, want: "SELECT $1"},
+		{name: "continues after offset", query: "a = $1 AND b = ? AND c = ?", offset: 1, want: "a = $1 AND b = $2 AND c = $3"},
+		{name: "keeps escaped mark", query: "a ?? 'k' AND b = ?", offset: 4, want: "a ? 'k' AND b = $5"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, renumberPlaceholders(tt.query, tt.offset))
 		})
 	}
 }

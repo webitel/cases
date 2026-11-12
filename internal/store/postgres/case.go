@@ -600,7 +600,7 @@ func (c *CaseStore) buildCreateCaseSqlizer(
 			boundQuery,
 			args...,
 		),
-	), WithColumnValueEncoders(specialFieldsEncoding), WithJoinFunc(c.joinRequiredTable), WithFiltersProcessors(specialFiltersProcessor))
+	), WithColumnValueEncoders(specialFieldsEncoding), WithJoinFunc(c.joinRequiredTable), WithFiltersProcessors(specialFiltersProcessor), WithBoundArgs(len(args)))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1410,6 +1410,41 @@ FROM cases.case c
          LEFT JOIN cases.status_condition sc ON sc.id = c.status_condition
 WHERE c.id = ANY($1)
   AND c.dc = $2`)
+
+func (c *CaseStore) DeactivatedUserContacts(ctx context.Context, domainID int64, contactIDs []int64) ([]int64, error) {
+	if len(contactIDs) == 0 {
+		return nil, nil
+	}
+	db, err := c.storage.Database()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.Query(ctx,
+		`SELECT u.contact_id
+		   FROM directory.wbt_user u
+		  WHERE u.dc = $1
+		    AND u.contact_id = ANY($2::int8[])
+		    AND u.deleted_at NOTNULL`,
+		domainID, pq.Array(contactIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("deactivated user contacts: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err = rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("deactivated user contacts: scan: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("deactivated user contacts: %w", err)
+	}
+	return ids, nil
+}
 
 type operator uint8
 
@@ -2821,7 +2856,12 @@ func (c *CaseStore) buildUpdateCaseSqlizer(
 		)
 	}
 
-	base, err := NewSelect(caseLeft, WITH, WithColumnValueEncoders(specialFieldsEncoding), WithFiltersProcessors(specialFiltersProcessor), WithJoinFunc(c.joinRequiredTable))
+	_, boundArgs, err := WITH.Column("_").ToSql()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	base, err := NewSelect(caseLeft, WITH, WithColumnValueEncoders(specialFieldsEncoding), WithFiltersProcessors(specialFiltersProcessor), WithJoinFunc(c.joinRequiredTable), WithBoundArgs(len(boundArgs)))
 	if err != nil {
 		return nil, nil, err
 	}
