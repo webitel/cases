@@ -127,7 +127,8 @@ func (c *CaseService) SearchCases(ctx context.Context, req *cases.SearchCasesReq
 	}
 
 	if authOpts := searchOpts.GetAuthOpts(); authOpts != nil &&
-		!authOpts.CheckObacAccess(model.ScopeCaseComments, auth.Read) {
+		!authOpts.CheckObacAccess(model.ScopeCaseComments, auth.Read) &&
+		!authOpts.CheckObacAccess(model.ScopeInternalComments, auth.Read) {
 		searchOpts.Fields = util.RemoveSliceElement(searchOpts.Fields, "comments")
 	}
 
@@ -240,7 +241,8 @@ func (c *CaseService) locateCase(ctx context.Context, req shared.Fielder, idOpt 
 	}
 
 	if authOpts := searchOpts.GetAuthOpts(); authOpts != nil &&
-		!authOpts.CheckObacAccess(model.ScopeCaseComments, auth.Read) {
+		!authOpts.CheckObacAccess(model.ScopeCaseComments, auth.Read) &&
+		!authOpts.CheckObacAccess(model.ScopeInternalComments, auth.Read) {
 		searchOpts.Fields = util.RemoveSliceElement(searchOpts.Fields, "comments")
 	}
 
@@ -1547,6 +1549,7 @@ func formCaseCommentTriggerModel(item *model.CaseComment) (*model.CaseCommentAMQ
 		CaseId:    item.CaseId,
 		UpdatedBy: utils.MarshalLookup(item.Editor),
 		Edited:    item.Edited,
+		Type:      cases.CaseCommentType(item.Type),
 	}
 	m := &model.CaseCommentAMQPMessage{
 		CaseComment: protoComment,

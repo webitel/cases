@@ -73,13 +73,16 @@ func (cao *TriggerObserver[T, V]) Update(et watcher.EventType, args map[string]a
 
 	// Determine routing key prefix based on type of obj
 	var objStr string
-	switch any(obj).(type) {
+
+	switch o := any(obj).(type) {
 	case *cases.Case:
 		objStr = model.ScopeCases
 	case *cases.CaseLink, *model.CaseLink:
 		objStr = model.BrokerScopeCaseLinks
-	case *cases.CaseComment, *model.CaseComment:
-		objStr = model.ScopeCaseComments
+	case *cases.CaseComment:
+		objStr = model.CaseCommentScope(int32(o.GetType()))
+	case *model.CaseComment:
+		objStr = model.CaseCommentScope(o.Type)
 	case *cases.File:
 		objStr = model.BrokerScopeFiles
 	case *cases.RelatedCase:

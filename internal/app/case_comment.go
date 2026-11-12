@@ -32,6 +32,10 @@ func (s *App) UpdateCaseComment(updator options.Updator, input *model.CaseCommen
 		return nil, errors.InvalidArgument("Text is required")
 	}
 
+	if input.Type != 0 && !updator.GetAuthOpts().CheckObacAccess(model.CaseCommentScope(input.Type), auth.Edit) {
+		return nil, errors.New("user doesn't have required (EDIT) access to the comment type", errors.WithCode(codes.PermissionDenied))
+	}
+
 	updatedComment, err := s.Store.CaseComment().Update(updator, input)
 	if err != nil {
 		return nil, err
@@ -86,6 +90,10 @@ func (s *App) PublishCaseComment(creator options.Creator, input *model.CaseComme
 		}
 	}
 
+	if !creator.GetAuthOpts().CheckObacAccess(model.CaseCommentScope(input.Type), auth.Add) {
+		return nil, errors.New("user doesn't have required (CREATE) access to the comment type", errors.WithCode(codes.PermissionDenied))
+	}
+
 	comment, err := s.Store.CaseComment().Publish(creator, input)
 	if err != nil {
 		return nil, err
@@ -120,13 +128,59 @@ func formCommentsFtsModel(comment *model.CaseComment, params map[string]any) (*m
 	}, nil
 }
 
+type CaseCommentFtsObserver struct {
+	*FullTextSearchObserver[*model.CaseComment, *model.FtsCaseComment]
+}
+
+func (o *CaseCommentFtsObserver) Update(et watcherkit.EventType, args map[string]any) error {
+	commentType, ok := args["type"].(int32)
+	if !ok {
+		return errors.New("could not get comment type")
+	}
+
+	prevType, ok := args["prev_type"].(int32)
+	if !ok {
+		prevType = commentType
+	}
+
+	event, ok := caseCommentFtsEvent(et, commentType, prevType)
+	if !ok {
+		return nil
+	}
+
+	return o.FullTextSearchObserver.Update(event, args)
+}
+
+func caseCommentFtsEvent(et watcherkit.EventType, commentType, prevType int32) (watcherkit.EventType, bool) {
+	external := commentType == model.CaseCommentTypeExternal
+
+	switch et {
+	case watcherkit.EventTypeCreate:
+		return et, external
+	case watcherkit.EventTypeUpdate:
+		if !external {
+			return watcherkit.EventTypeDelete, true
+		}
+
+		if prevType != 0 && prevType != model.CaseCommentTypeExternal {
+			return watcherkit.EventTypeCreate, true
+		}
+
+		return et, true
+	case watcherkit.EventTypeDelete, watcherkit.EventTypeResolutionTime:
+		return et, true
+	default:
+		return et, true
+	}
+}
+
 type CaseCommentWatcherData struct {
 	comment *model.CaseComment
 	Args    map[string]any
 }
 
 func NewCaseCommentWatcherData(session auth.Auther, comment *model.CaseComment, id, caseId int64, roleIds []int64) *CaseCommentWatcherData {
-	return &CaseCommentWatcherData{comment: comment, Args: map[string]any{"session": session, "obj": comment, "case_id": caseId, "role_ids": roleIds, "id": id}}
+	return &CaseCommentWatcherData{comment: comment, Args: map[string]any{"session": session, "obj": comment, "case_id": caseId, "role_ids": roleIds, "id": id, "type": comment.Type, "prev_type": comment.PrevType}}
 }
 
 func (wd *CaseCommentWatcherData) Marshal() ([]byte, error) {

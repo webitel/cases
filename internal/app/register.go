@@ -49,10 +49,12 @@ func RegisterServices(grpcServer *grpc.Server, appInstance *App) {
 
 					// Add FTS observer if enabled
 					if a.config.FtsWatcher.Enabled {
-						ftsObserver, err := NewFullTextSearchObserver(a.ftsClient, caseCommentsObjScope, formCommentsFtsModel)
+						ftsBase, err := NewFullTextSearchObserver(a.ftsClient, caseCommentsObjScope, formCommentsFtsModel)
 						if err != nil {
 							return nil, err
 						}
+
+						ftsObserver := &CaseCommentFtsObserver{FullTextSearchObserver: ftsBase}
 						watcher.Attach(watcherkit.EventTypeCreate, ftsObserver)
 						watcher.Attach(watcherkit.EventTypeUpdate, ftsObserver)
 						watcher.Attach(watcherkit.EventTypeDelete, ftsObserver)

@@ -1,10 +1,11 @@
 package model
 
 const (
-	ScopeDictionary   = "dictionaries"
-	ScopeCases        = "cases"
-	ScopeCalls        = "calls"
-	ScopeCaseComments = "case_comments"
+	ScopeDictionary       = "dictionaries"
+	ScopeCases            = "cases"
+	ScopeCalls            = "calls"
+	ScopeCaseComments     = "case_comments"
+	ScopeInternalComments = "internal_comments"
 )
 
 // scope defaults for rabbit events

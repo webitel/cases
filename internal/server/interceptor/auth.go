@@ -8,6 +8,7 @@ import (
 	api "github.com/webitel/cases/api/cases"
 	"github.com/webitel/cases/auth"
 	errors "github.com/webitel/cases/internal/errors"
+	"github.com/webitel/cases/internal/model"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -208,7 +209,17 @@ func checkLicenses(session auth.Auther, licenses []string) []string {
 
 // validateSessionPermission checks if the session has the required permissions.
 func validateSessionPermission(session auth.Auther, objClass string, accessMode auth.AccessMode) bool {
-	return session.CheckObacAccess(objClass, accessMode)
+	if session.CheckObacAccess(objClass, accessMode) {
+		return true
+	}
+
+	alternative, ok := alternativeObjClasses[objClass]
+
+	return ok && session.CheckObacAccess(alternative, accessMode)
+}
+
+var alternativeObjClasses = map[string]string{
+	model.ScopeCaseComments: model.ScopeInternalComments,
 }
 
 // splitFullMethodName extracts service and method names from the full gRPC method name.

@@ -29,12 +29,11 @@ type CaseCommentStore struct {
 type CommentScan func(comment *_go.CaseComment) any
 
 const (
-	caseCommentLeft              = "cc"
-	caseCommentAuthorAlias       = "au"
-	caseCommentCreatedByAlias    = "cb"
-	caseCommentUpdatedByAlias    = "ub"
-	caseCommentObjClassScopeName = model.ScopeCaseComments
-	caseCommentDefaultSort       = "created_at"
+	caseCommentLeft           = "cc"
+	caseCommentAuthorAlias    = "au"
+	caseCommentCreatedByAlias = "cb"
+	caseCommentUpdatedByAlias = "ub"
+	caseCommentDefaultSort    = "created_at"
 )
 
 // Publish implements store.CaseCommentStore
@@ -77,7 +76,7 @@ func (c *CaseCommentStore) buildPublishCaseCommentQuery(
 	input *model.CaseComment,
 ) (sq.SelectBuilder, error) {
 	// Ensure "id" and "ver" are in the fields list
-	fields := util.EnsureIdAndVerField(rpc.GetFields())
+	fields := util.EnsureFields(util.EnsureIdAndVerField(rpc.GetFields()), "type")
 	userID := rpc.GetAuthOpts().GetUserId()
 
 	if input.Author != nil && input.Author.GetId() != nil && *input.Author.GetId() != 0 {
@@ -86,7 +85,7 @@ func (c *CaseCommentStore) buildPublishCaseCommentQuery(
 
 	// Build the insert query with a RETURNING clause
 	insertBuilder := sq.Insert("cases.case_comment").
-		Columns("dc", "case_id", "created_at", "created_by", "updated_at", "updated_by", "comment").
+		Columns("dc", "case_id", "created_at", "created_by", "updated_at", "updated_by", "comment", "type").
 		Values(
 			rpc.GetAuthOpts().GetDomainId(), //dc
 			input.CaseId,                    //case_id
@@ -95,6 +94,7 @@ func (c *CaseCommentStore) buildPublishCaseCommentQuery(
 			rpc.RequestTime(),               //updated_at
 			userID,                          //updated_by
 			input.Text,                      //comment text
+			model.CaseCommentTypeOrDefault(input.Type),
 		).
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
@@ -172,9 +172,8 @@ func (c *CaseCommentStore) buildDeleteCaseCommentQuery(rpc options.Deleter) (sq.
 		PlaceholderFormat(sq.Dollar).
 		Suffix("RETURNING *")
 
-	deleteBuilder, err := addCaseCommentRbacConditionForDelete(rpc.GetAuthOpts(), auth.Delete, deleteBuilder, "id")
-	if err != nil {
-		return sq.SelectBuilder{}, err
+	if cond := caseCommentAccessCondition(rpc.GetAuthOpts(), auth.Delete, "type", "id"); cond != nil {
+		deleteBuilder = deleteBuilder.Where(cond)
 	}
 
 	deleteSQL, args, err := deleteBuilder.ToSql()
@@ -190,7 +189,7 @@ func (c *CaseCommentStore) buildDeleteCaseCommentQuery(rpc options.Deleter) (sq.
 	// Add columns to the select builder
 	selectBuilder, err = buildCaseCommentSelectColumns(
 		selectBuilder,
-		rpc.GetFields(),
+		util.EnsureFields(rpc.GetFields(), "type"),
 		rpc.GetAuthOpts(),
 	)
 	if err != nil {
@@ -253,13 +252,16 @@ func (c *CaseCommentStore) buildListCaseCommentQuery(rpc options.Searcher) (sq.S
 		queryBuilder = queryBuilder.Where("cc.id = ANY(?)", rpc.GetIDs())
 	}
 
-	queryBuilder, err := addCaseCommentRbacCondition(rpc.GetAuthOpts(), auth.Read, queryBuilder, "cc.id")
-	if err != nil {
-		return sq.SelectBuilder{}, err
+	if types, ok := rpc.GetCustomContext()[model.CaseCommentTypesContextKey].([]int32); ok && len(types) > 0 {
+		queryBuilder = queryBuilder.Where("cc.type = ANY(?)", types)
+	}
+
+	if cond := caseCommentAccessCondition(rpc.GetAuthOpts(), auth.Read, "cc.type", "cc.id"); cond != nil {
+		queryBuilder = queryBuilder.Where(cond)
 	}
 
 	// Build select columns and scan plan using buildCommentSelectColumns
-	queryBuilder, err = buildCaseCommentSelectColumns(queryBuilder, rpc.GetFields(), rpc.GetAuthOpts())
+	queryBuilder, err := buildCaseCommentSelectColumns(queryBuilder, rpc.GetFields(), rpc.GetAuthOpts())
 	if err != nil {
 		return sq.SelectBuilder{}, err
 	}
@@ -341,7 +343,7 @@ func (c *CaseCommentStore) buildUpdateCaseCommentQuery(
 	input *model.CaseComment,
 ) (sq.SelectBuilder, error) {
 	// Ensure "id" and "ver" are in the fields list
-	fields := util.EnsureIdAndVerField(rpc.GetFields())
+	fields := util.EnsureFields(util.EnsureIdAndVerField(rpc.GetFields()), "type")
 	userID := rpc.GetAuthOpts().GetUserId()
 
 	// Check if Editor is provided and has a valid ID
@@ -363,14 +365,17 @@ func (c *CaseCommentStore) buildUpdateCaseCommentQuery(
 			"created_by": rpc.GetAuthOpts().GetUserId(), // Ensure only the creator can edit
 		})
 
-	updateBuilder, err := addCaseCommentRbacConditionForUpdate(rpc.GetAuthOpts(), auth.Edit, updateBuilder, "case_comment.id")
-	if err != nil {
-		return sq.SelectBuilder{}, err
+	if cond := caseCommentAccessCondition(rpc.GetAuthOpts(), auth.Edit, "case_comment.type", "case_comment.id"); cond != nil {
+		updateBuilder = updateBuilder.Where(cond)
 	}
 
 	// Update the `comment` field if provided
 	if input.Text != "" {
 		updateBuilder = updateBuilder.Set("comment", input.Text)
+	}
+
+	if input.Type != 0 {
+		updateBuilder = updateBuilder.Set("type", input.Type)
 	}
 
 	updateSQL, args, err := updateBuilder.Suffix("RETURNING *").ToSql()
@@ -396,6 +401,7 @@ func (c *CaseCommentStore) buildUpdateCaseCommentQuery(
 
 	// Combine the CTE with the select query
 	selectBuilder = selectBuilder.
+		Column(fmt.Sprintf("(SELECT prev.type FROM cases.case_comment prev WHERE prev.id = %s.id) prev_type", caseCommentLeft)).
 		From(caseCommentLeft).
 		PrefixExpr(cte)
 
@@ -473,6 +479,8 @@ func buildCaseCommentSelectColumns(
 			base = base.Column(fmt.Sprintf("%s.common_name AS contact_name", alias))
 		case "case_id":
 			base = base.Column(storeUtil.Ident(caseCommentLeft, "case_id"))
+		case "type":
+			base = base.Column(storeUtil.Ident(caseCommentLeft, "type"))
 		case "role_ids":
 			// skip
 		default:
@@ -583,6 +591,12 @@ func buildCommentSelectColumnsAndPlan(
 			plan = append(plan, func(comment *_go.CaseComment) any {
 				return scanner.ScanInt64(&comment.CaseId)
 			})
+		case "type":
+			base = base.Column(storeUtil.Ident(left, "type"))
+
+			plan = append(plan, func(comment *_go.CaseComment) any {
+				return &comment.Type
+			})
 		default:
 			return base, nil, errors.NewDBError("postgres.case_comment.build_comment_select.cycle_fields.unknown", fmt.Sprintf("%s field is unknown", field))
 		}
@@ -605,9 +619,8 @@ func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlia
 		Select().
 		From("cases.case_comment " + alias).
 		Where(fmt.Sprintf("%s = %s", storeUtil.Ident(alias, "case_id"), storeUtil.Ident(caseAlias, "id")))
-	base, err := addCaseCommentRbacCondition(auther, auth.Read, base, storeUtil.Ident(alias, "id"))
-	if err != nil {
-		return base, nil, err
+	if cond := caseCommentAccessCondition(auther, auth.Read, storeUtil.Ident(alias, "type"), storeUtil.Ident(alias, "id")); cond != nil {
+		base = base.Where(cond)
 	}
 	base, plan, dbErr := buildCommentSelectColumnsAndPlan(base, alias, fields, auther)
 	if dbErr != nil {
@@ -618,31 +631,35 @@ func buildCommentsSelectAsSubquery(auther auth.Auther, fields []string, caseAlia
 	return base, plan, nil
 }
 
-func addCaseCommentRbacCondition(auth auth.Auther, access auth.AccessMode, query sq.SelectBuilder, dependencyColumn string) (sq.SelectBuilder, error) {
-	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
-		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_comment_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
-			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
+var caseCommentTypes = []int32{model.CaseCommentTypeExternal, model.CaseCommentTypeInternal}
 
+func caseCommentAccessCondition(auth auth.Auther, access auth.AccessMode, typeColumn, dependencyColumn string) sq.Sqlizer {
+	if auth == nil {
+		return nil
 	}
-	return query, nil
-}
 
-func addCaseCommentRbacConditionForDelete(auth auth.Auther, access auth.AccessMode, query sq.DeleteBuilder, dependencyColumn string) (sq.DeleteBuilder, error) {
-	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
-		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_comment_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
-			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
+	var allowed sq.Or
 
+	for _, commentType := range caseCommentTypes {
+		scope := model.CaseCommentScope(commentType)
+		if !auth.CheckObacAccess(scope, access) {
+			continue
+		}
+
+		cond := sq.And{sq.Eq{typeColumn: commentType}}
+		if auth.IsRbacCheckRequired(scope, access) {
+			cond = append(cond, sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_comment_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
+				auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access)))
+		}
+
+		allowed = append(allowed, cond)
 	}
-	return query, nil
-}
 
-func addCaseCommentRbacConditionForUpdate(auth auth.Auther, access auth.AccessMode, query sq.UpdateBuilder, dependencyColumn string) (sq.UpdateBuilder, error) {
-	if auth != nil && auth.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
-		return query.Where(sq.Expr(fmt.Sprintf("EXISTS(SELECT acl.object FROM cases.case_comment_acl acl WHERE acl.dc = ? AND acl.object = %s AND acl.subject = any( ?::int[]) AND acl.access & ? = ? LIMIT 1)", dependencyColumn),
-			auth.GetDomainId(), pq.Array(auth.GetRoles()), int64(access), int64(access))), nil
-
+	if len(allowed) == 0 {
+		return sq.Expr("FALSE")
 	}
-	return query, nil
+
+	return allowed
 }
 
 func NewCaseCommentStore(store *Store) (store.CaseCommentStore, error) {
