@@ -526,6 +526,7 @@ type ListSourceRequest struct {
 	Q string `protobuf:"bytes,6,opt,name=q,proto3" json:"q,omitempty"`
 	// Filter by source type.
 	Type          []SourceType `protobuf:"varint,7,rep,packed,name=type,proto3,enum=webitel.cases.SourceType" json:"type,omitempty"`
+	SortOrder     string       `protobuf:"bytes,8,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -607,6 +608,13 @@ func (x *ListSourceRequest) GetType() []SourceType {
 		return x.Type
 	}
 	return nil
+}
+
+func (x *ListSourceRequest) GetSortOrder() string {
+	if x != nil {
+		return x.SortOrder
+	}
+	return ""
 }
 
 // Request message for locating a source by ID.
@@ -714,12 +722,12 @@ var File_source_proto protoreflect.FileDescriptor
 
 const file_source_proto_rawDesc = "" +
 	"\n" +
-	"\fsource.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\x1bgoogle/api/visibility.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1aproto/webitel/option.proto\"\xa8\a\n" +
+	"\fsource.proto\x12\rwebitel.cases\x1a\rgeneral.proto\x1a\x1bgoogle/api/visibility.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1aproto/webitel/option.proto\"\x96\a\n" +
 	"\x06Source\x12O\n" +
 	"\x02id\x18\x01 \x01(\x03B?\x92A<2:Unique identifier for the source, generated automatically.R\x02id\x12H\n" +
 	"\x04name\x18\x02 \x01(\tB4\x92A12*A unique, descriptive name for the source.xd\x80\x01\x03R\x04name\x12a\n" +
-	"\vdescription\x18\x04 \x01(\tB?\x92A<27An optional longer explanation of the source's purpose.x\xf4\x03R\vdescription\x12x\n" +
-	"\x04type\x18\x05 \x01(\x0e2\x19.webitel.cases.SourceTypeBI\x92AF22The type of data source represented by this entry.:\x10TYPE_UNSPECIFIEDR\x04type\x12\\\n" +
+	"\vdescription\x18\x04 \x01(\tB?\x92A<27An optional longer explanation of the source's purpose.x\xf4\x03R\vdescription\x12f\n" +
+	"\x04type\x18\x05 \x01(\x0e2\x19.webitel.cases.SourceTypeB7\x92A422The type of data source represented by this entry.R\x04type\x12\\\n" +
 	"\n" +
 	"created_at\x18\x14 \x01(\x03B=\x92A:28Unix timestamp representing when the source was created.R\tcreatedAt\x12W\n" +
 	"\n" +
@@ -737,17 +745,16 @@ const file_source_proto_rawDesc = "" +
 	"SourceList\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x12\n" +
 	"\x04next\x18\x02 \x01(\bR\x04next\x12+\n" +
-	"\x05items\x18\x03 \x03(\v2\x15.webitel.cases.SourceR\x05items\"\xd2\x02\n" +
+	"\x05items\x18\x03 \x03(\v2\x15.webitel.cases.SourceR\x05items\"\x9c\x02\n" +
 	"\x13CreateSourceRequest\x12\\\n" +
 	"\x05input\x18\x01 \x01(\v2\x1a.webitel.cases.InputSourceB*\x92A'2\x1dThe input data for the source\xd2\x01\x05inputR\x05input\x12L\n" +
-	"\x06fields\x18\x02 \x03(\tB4\x92A12&Specific fields to include in response\xa0\x012\xa8\x01\x01\xb0\x01\x01R\x06fields:\x8e\x01\x92A\x8a\x01\n" +
-	"\x87\x012DRequest for creating a new source with all available OpenAPI options:1{\"input\": {\"name\": \"New Source\", \"type\": \"CALL\"}}\xc0\x01\x03\xc8\x01\x01\xd2\x01\x05input\"\xe3\x02\n" +
-	"\vInputSource\x12@\n" +
-	"\x04name\x18\x01 \x01(\tB,\x92A)2\x16The name of the source:\n" +
-	"New Sourcexd\x80\x01\x02R\x04name\x12K\n" +
-	"\vdescription\x18\x02 \x01(\tB)\x92A&2!A short description of the sourcex\xf4\x03R\vdescription\x12R\n" +
-	"\x04type\x18\x03 \x01(\x0e2\x19.webitel.cases.SourceTypeB#\x92A 2\x16The type of the source:\x06\"CALL\"R\x04type:q\x92An\n" +
-	"l2(The data structure representing a source:,{ \"name\": \"Default Source\", \"type\": \"CALL\" }\xc0\x01\x05\xc8\x01\x02\xd2\x01\x04name\xd2\x01\x04type\"\xb6\x01\n" +
+	"\x06fields\x18\x02 \x03(\tB4\x92A12&Specific fields to include in response\xa0\x012\xa8\x01\x01\xb0\x01\x01R\x06fields:Y\x92AV\n" +
+	"T2DRequest for creating a new source with all available OpenAPI options\xc0\x01\x03\xc8\x01\x01\xd2\x01\x05input\"\xa7\x02\n" +
+	"\vInputSource\x124\n" +
+	"\x04name\x18\x01 \x01(\tB \x92A\x1d2\x16The name of the sourcexd\x80\x01\x02R\x04name\x12K\n" +
+	"\vdescription\x18\x02 \x01(\tB)\x92A&2!A short description of the sourcex\xf4\x03R\vdescription\x12P\n" +
+	"\x04type\x18\x03 \x01(\x0e2\x19.webitel.cases.SourceTypeB!\x92A\x1e2\x16The type of the source:\x04CALLR\x04type:C\x92A@\n" +
+	">2(The data structure representing a source\xc0\x01\x05\xc8\x01\x02\xd2\x01\x04name\xd2\x01\x04type\"\xb6\x01\n" +
 	"\x13UpdateSourceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x120\n" +
 	"\x05input\x18\x02 \x01(\v2\x1a.webitel.cases.InputSourceR\x05input\x12\x16\n" +
@@ -758,15 +765,17 @@ const file_source_proto_rawDesc = "" +
 	"\x13DeleteSourceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id:\n" +
 	"\x92A\a\n" +
-	"\x05\xd2\x01\x02id\"\xd5\x01\n" +
-	"\x11ListSourceRequest\x12\x1a\n" +
-	"\x04page\x18\x01 \x01(\x05B\x06\x92A\x03:\x011R\x04page\x12\x1b\n" +
-	"\x04size\x18\x02 \x01(\x05B\a\x92A\x04:\x0220R\x04size\x12\x16\n" +
-	"\x06fields\x18\x03 \x03(\tR\x06fields\x12\"\n" +
-	"\x04sort\x18\x04 \x01(\tB\x0e\x92A\v:\tname:descR\x04sort\x12\x0e\n" +
+	"\x05\xd2\x01\x02id\"\xd3\x01\n" +
+	"\x11ListSourceRequest\x12\x12\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x12\n" +
+	"\x04size\x18\x02 \x01(\x05R\x04size\x12\x16\n" +
+	"\x06fields\x18\x03 \x03(\tR\x06fields\x12\x12\n" +
+	"\x04sort\x18\x04 \x01(\tR\x04sort\x12\x0e\n" +
 	"\x02id\x18\x05 \x03(\x03R\x02id\x12\f\n" +
 	"\x01q\x18\x06 \x01(\tR\x01q\x12-\n" +
-	"\x04type\x18\a \x03(\x0e2\x19.webitel.cases.SourceTypeR\x04type\"=\n" +
+	"\x04type\x18\a \x03(\x0e2\x19.webitel.cases.SourceTypeR\x04type\x12\x1d\n" +
+	"\n" +
+	"sort_order\x18\b \x01(\tR\tsortOrder\"=\n" +
 	"\x13LocateSourceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x16\n" +
 	"\x06fields\x18\x02 \x03(\tR\x06fields\"E\n" +
