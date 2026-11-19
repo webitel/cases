@@ -35,6 +35,7 @@ var StatusConditionMetadata = model.NewObjectMetadata(model.ScopeDictionary, "",
 	{Name: "description", Default: true},
 	{Name: "initial", Default: true},
 	{Name: "final", Default: true},
+	{Name: "archived", Default: true},
 	{Name: "created_by", Default: true},
 	{Name: "created_at", Default: true},
 	{Name: "updated_by", Default: false},
@@ -131,6 +132,10 @@ func (s *StatusConditionService) UpdateStatusCondition(ctx context.Context, req 
 		input.Final = &req.Input.Final.Value
 	}
 
+	if archived := req.GetInput().GetArchived(); archived != nil {
+		input.Archived = &archived.Value
+	}
+
 	// Update the input in the store
 	st, err := s.app.UpdateStatusCondition(updateOpts, input)
 	if err != nil {
@@ -194,6 +199,7 @@ func (s *StatusConditionService) Marshal(model *model.StatusCondition) (*_go.Sta
 		Description: utils.Dereference(model.Description),
 		Initial:     utils.Dereference(model.Initial),
 		Final:       utils.Dereference(model.Final),
+		Archived:    utils.Dereference(model.Archived),
 		StatusId:    int64(utils.Dereference(model.StatusId)),
 		CreatedAt:   utils.MarshalTime(model.CreatedAt),
 		UpdatedAt:   utils.MarshalTime(model.UpdatedAt),

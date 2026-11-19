@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"github.com/lib/pq"
 	"github.com/webitel/cases/auth"
@@ -529,6 +530,30 @@ func convertToRelatedCaseScanArgs(plan []func(*cases.RelatedCase) any, rc *cases
 	}
 	return scanArgs
 }
+
+func (r *RelatedCaseStore) IsArchived(ctx context.Context, domainID int64, relationIDs []int64) (bool, error) {
+	d, err := r.storage.Database()
+	if err != nil {
+		return false, err
+	}
+
+	var archived bool
+
+	err = d.QueryRow(ctx, isRelatedCaseArchivedQuery, relationIDs, domainID).Scan(&archived)
+	if err != nil {
+		return false, ParseError(err)
+	}
+
+	return archived, nil
+}
+
+var isRelatedCaseArchivedQuery = storeutil.CompactSQL(`
+SELECT COALESCE(bool_or(sc.archived), false)
+FROM cases.related_case rc
+         JOIN cases.case c ON c.id IN (rc.primary_case_id, rc.related_case_id)
+         LEFT JOIN cases.status_condition sc ON sc.id = c.status_condition
+WHERE rc.id = ANY($1)
+  AND rc.dc = $2`)
 
 func NewRelatedCaseStore(store *Store) (store.RelatedCaseStore, error) {
 	if store == nil {
