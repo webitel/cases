@@ -87,6 +87,7 @@ func (s *SourceService) ListSources(
 			util.EnsureIdField,
 		),
 		grpcopts.WithSort(req),
+		grpcopts.WithSortOrder(req.GetSortOrder()),
 		grpcopts.WithIDs(req.GetId()),
 	)
 	if err != nil {
