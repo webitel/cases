@@ -645,6 +645,64 @@ func addCaseCommentRbacConditionForUpdate(auth auth.Auther, access auth.AccessMo
 	return query, nil
 }
 
+func (c *CaseCommentStore) CheckRbacAccess(ctx context.Context, auther auth.Auther, access auth.AccessMode, commentIDs []int64) (bool, error) {
+	if auther == nil {
+		return false, nil
+	}
+
+	if !auther.IsRbacCheckRequired(caseCommentObjClassScopeName, access) {
+		return true, nil
+	}
+
+	d, err := c.storage.Database()
+	if err != nil {
+		return false, err
+	}
+
+	var allowed bool
+
+	err = d.QueryRow(ctx, checkCommentRbacAccessQuery,
+		auther.GetDomainId(), commentIDs, auther.GetRoles(), int64(access),
+	).Scan(&allowed)
+	if err != nil {
+		return false, ParseError(err)
+	}
+
+	return allowed, nil
+}
+
+var checkCommentRbacAccessQuery = storeUtil.CompactSQL(`
+SELECT count(DISTINCT acl.object) = cardinality($2::bigint[])
+FROM cases.case_comment_acl acl
+WHERE acl.dc = $1
+  AND acl.object = ANY($2)
+  AND acl.subject = ANY($3::int[])
+  AND acl.access & $4 = $4`)
+
+func (c *CaseCommentStore) IsArchived(ctx context.Context, domainID int64, commentIDs []int64) (bool, error) {
+	d, err := c.storage.Database()
+	if err != nil {
+		return false, err
+	}
+
+	var archived bool
+
+	err = d.QueryRow(ctx, isCommentCaseArchivedQuery, commentIDs, domainID).Scan(&archived)
+	if err != nil {
+		return false, ParseError(err)
+	}
+
+	return archived, nil
+}
+
+var isCommentCaseArchivedQuery = storeUtil.CompactSQL(`
+SELECT COALESCE(bool_or(sc.archived), false)
+FROM cases.case_comment cc
+         JOIN cases.case c ON c.id = cc.case_id
+         LEFT JOIN cases.status_condition sc ON sc.id = c.status_condition
+WHERE cc.id = ANY($1)
+  AND cc.dc = $2`)
+
 func NewCaseCommentStore(store *Store) (store.CaseCommentStore, error) {
 	if store == nil {
 		return nil, errors.New("error creating comment case interface to the case_comment table, main store is nil")
