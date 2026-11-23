@@ -160,7 +160,7 @@ func (l *LoggerObserver) Update(et watcher.EventType, args map[string]any) error
 	}
 
 	userIP := auth.GetUserIp()
-	if userIP != "" {
+	if userIP == "" {
 		userIP = "unknown"
 	}
 
